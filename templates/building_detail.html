@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ building.name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>{{ building.name }}</h1>
+  <p>{{ building.site.name }} · {{ building.code }}</p>
+</header>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>층 / 구역 / 설비 계층</h2>
+    {% for floor in building.floors %}
+    <div class="hierarchy-block">
+      <h3>{{ floor.name }} ({{ floor.level }}층)</h3>
+      {% for zone in floor.zones %}
+      <div class="zone-block">
+        <strong>{{ zone.name }}</strong> {% if zone.code %}<small>({{ zone.code }})</small>{% endif %}
+      </div>
+      {% else %}
+      <p class="empty">구역 없음</p>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">층 없음</p>
+    {% endfor %}
+  </section>
+
+  <section class="card">
+    <h2>층 추가</h2>
+    <form method="post" action="/admin/floors" class="form-stack">
+      <input type="hidden" name="building_id" value="{{ building.id }}" />
+      <label>층 이름</label>
+      <input type="text" name="name" required placeholder="1층" />
+      <label>레벨</label>
+      <input type="number" name="level" value="1" />
+      <button type="submit" class="btn btn-primary">등록</button>
+    </form>
+
+    <h2 style="margin-top:2rem">구역 추가</h2>
+    <form method="post" action="/admin/zones" class="form-stack">
+      <input type="hidden" name="building_id" value="{{ building.id }}" />
+      <label>층</label>
+      <select name="floor_id" required>
+        {% for floor in building.floors %}
+        <option value="{{ floor.id }}">{{ floor.name }}</option>
+        {% endfor %}
+      </select>
+      <label>구역명</label>
+      <input type="text" name="name" required placeholder="기계실" />
+      <label>코드</label>
+      <input type="text" name="code" />
+      <button type="submit" class="btn btn-primary">등록</button>
+    </form>
+  </section>
+</div>
+
+<p><a href="/admin/sites">&larr; 사업장 목록</a></p>
+{% endblock %}

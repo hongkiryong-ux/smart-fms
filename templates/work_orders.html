@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}CMMS{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>CMMS 작업관리</h1>
+  <p>접수 → 배정 → 작업중 → 완료 → 검수 → 종료</p>
+</header>
+
+<div class="grid-2">
+  <section class="card card-wide">
+    <h2>작업 목록</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>제목</th>
+          <th>설비</th>
+          <th>우선순위</th>
+          <th>상태</th>
+          <th>등록일</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for wo in orders %}
+        <tr>
+          <td>#{{ wo.id }}</td>
+          <td>{{ wo.title }}</td>
+          <td>{{ wo.equipment.name if wo.equipment else '-' }}</td>
+          <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
+          <td><span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span></td>
+          <td>{{ fmt_kst(wo.created_at) }}</td>
+          <td><a href="/admin/work-orders/{{ wo.id }}">상세</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>작업 접수</h2>
+    <form method="post" action="/admin/work-orders" class="form-stack">
+      <label>제목</label>
+      <input type="text" name="title" required />
+      <label>설비</label>
+      <select name="equipment_id">
+        <option value="0">선택</option>
+        {% for eq in equipment %}
+        <option value="{{ eq.id }}">{{ eq.code }} - {{ eq.name }}</option>
+        {% endfor %}
+      </select>
+      <label>설명</label>
+      <textarea name="description" rows="3"></textarea>
+      <label>우선순위</label>
+      <select name="priority">
+        <option value="normal">일반</option>
+        <option value="high">긴급</option>
+      </select>
+      <label>담당자</label>
+      <input type="text" name="assignee_name" />
+      <label>협력사</label>
+      <select name="partner_id">
+        <option value="0">없음</option>
+        {% for p in partners %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary">접수</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

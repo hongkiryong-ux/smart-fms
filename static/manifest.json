@@ -1,0 +1,10 @@
+{
+  "name": "POSCO WIDE Smart FMS",
+  "short_name": "Smart FMS",
+  "description": "통합 시설관리 플랫폼",
+  "start_url": "/admin/dashboard",
+  "display": "standalone",
+  "background_color": "#003876",
+  "theme_color": "#003876",
+  "lang": "ko"
+}

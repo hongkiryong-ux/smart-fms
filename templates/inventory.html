@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}재고{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>재고관리</h1>
+</header>
+
+<section class="card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>코드</th>
+        <th>품명</th>
+        <th>분류</th>
+        <th>수량</th>
+        <th>안전재고</th>
+        <th>위치</th>
+        <th>상태</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td><code>{{ item.code }}</code></td>
+        <td>{{ item.name }}</td>
+        <td>{{ item.category or '-' }}</td>
+        <td>{{ item.qty }} {{ item.unit }}</td>
+        <td>{{ item.safety_stock }}</td>
+        <td>{{ item.location or '-' }}</td>
+        <td>
+          {% if item.qty <= item.safety_stock %}
+          <span class="badge badge-urgent">발주필요</span>
+          {% else %}정상{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}D-1 작업{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>D-1 작업계획</h1>
+  <p>위험성평가(JSA) · TBM · 작업허가 자동 생성</p>
+</header>
+
+<div class="grid-2">
+  <section class="card card-wide">
+    <h2>작업계획 목록</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>작업일</th>
+          <th>제목</th>
+          <th>설비</th>
+          <th>협력사</th>
+          <th>긴급</th>
+          <th>상태</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for plan in plans %}
+        <tr>
+          <td>{{ plan.work_date }}</td>
+          <td>{{ plan.title }}</td>
+          <td>{{ plan.equipment.name if plan.equipment else '-' }}</td>
+          <td>{{ plan.partner.name if plan.partner else '-' }}</td>
+          <td>{% if plan.is_urgent %}🔴{% else %}-{% endif %}</td>
+          <td><span class="badge badge-d1">{{ d1_status_label(plan.status) }}</span></td>
+          <td><a href="/admin/d1/{{ plan.id }}">상세</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>D-1 등록</h2>
+    <form method="post" action="/admin/d1" class="form-stack">
+      <label>작업일</label>
+      <input type="date" name="work_date" required />
+      <label>제목</label>
+      <input type="text" name="title" required />
+      <label>작업내용</label>
+      <textarea name="work_content" rows="3"></textarea>
+      <label>작업시간</label>
+      <input type="text" name="work_time" placeholder="09:00-12:00" />
+      <label>사업장</label>
+      <select name="site_id">
+        <option value="0">선택</option>
+        {% for s in sites %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+      <label>건물</label>
+      <select name="building_id">
+        <option value="0">선택</option>
+        {% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+      </select>
+      <label>설비</label>
+      <select name="equipment_id">
+        <option value="0">선택</option>
+        {% for eq in equipment %}<option value="{{ eq.id }}">{{ eq.code }} - {{ eq.name }}</option>{% endfor %}
+      </select>
+      <label>협력사</label>
+      <select name="partner_id">
+        <option value="0">선택</option>
+        {% for p in partners %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+      </select>
+      <label>작업인원</label>
+      <input type="number" name="worker_count" value="1" min="1" />
+      <label><input type="checkbox" name="is_urgent" value="true" /> 긴급</label>
+      <button type="submit" class="btn btn-primary">등록 (JSA/TBM/허가 자동생성)</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

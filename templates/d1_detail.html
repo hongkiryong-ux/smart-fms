@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}D-1 #{{ plan.id }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>{{ plan.title }}</h1>
+  <p>{{ plan.work_date }} · {{ plan.work_time or '' }} · <span class="badge badge-d1">{{ d1_status_label(plan.status) }}</span></p>
+</header>
+
+<div class="grid-3">
+  <section class="card">
+    <h2>작업 정보</h2>
+    <dl class="info-dl">
+      <dt>작업내용</dt><dd>{{ plan.work_content or '-' }}</dd>
+      <dt>설비</dt><dd>{{ plan.equipment.name if plan.equipment else '-' }}</dd>
+      <dt>협력사</dt><dd>{{ plan.partner.name if plan.partner else '-' }}</dd>
+      <dt>작업인원</dt><dd>{{ plan.worker_count }}명</dd>
+      <dt>등록자</dt><dd>{{ plan.created_by or '-' }}</dd>
+      <dt>작업허가번호</dt><dd>{{ plan.permit_no or '미발급' }}</dd>
+    </dl>
+    <form method="post" action="/admin/d1/{{ plan.id }}/advance">
+      <button type="submit" class="btn btn-primary">다음 단계 진행</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>위험성평가 (JSA)</h2>
+    <p><strong>위험요인:</strong></p>
+    <ul>
+      {% for h in (plan.jsa_data or {}).get('hazards', []) %}
+      <li>{{ h }}</li>
+      {% endfor %}
+    </ul>
+    <p><strong>통제조치:</strong></p>
+    <ul>
+      {% for c in (plan.jsa_data or {}).get('controls', []) %}
+      <li>{{ c }}</li>
+      {% else %}<li class="empty">미작성</li>{% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>TBM / 작업허가</h2>
+    <p><strong>PPE:</strong> {{ ((plan.tbm_data or {}).get('ppe', [])|join(', ')) or '-' }}</p>
+    <p><strong>공구점검:</strong> {{ '완료' if (plan.tbm_data or {}).get('tools_checked') else '미완료' }}</p>
+    <p><strong>허가유형:</strong> {{ (plan.permit_data or {}).get('type', '-') }}</p>
+    <p><strong>승인:</strong> {{ '승인' if (plan.permit_data or {}).get('approved') else '대기' }}</p>
+  </section>
+</div>
+
+<p><a href="/admin/d1">&larr; D-1 목록</a></p>
+{% endblock %}

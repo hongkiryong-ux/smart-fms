@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}협력사{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>협력사 Portal</h1>
+</header>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>협력사 목록</h2>
+    <table class="data-table">
+      <thead>
+        <tr><th>코드</th><th>업체명</th><th>담당</th><th>연락처</th><th>계약만료</th></tr>
+      </thead>
+      <tbody>
+        {% for p in partners %}
+        <tr>
+          <td>{{ p.code }}</td>
+          <td>{{ p.name }}</td>
+          <td>{{ p.contact_name or '-' }}</td>
+          <td>{{ p.phone or '-' }}</td>
+          <td>{{ p.contract_end or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>협력사 등록</h2>
+    <form method="post" action="/admin/partners" class="form-stack">
+      <label>업체명</label>
+      <input type="text" name="name" required />
+      <label>코드</label>
+      <input type="text" name="code" required />
+      <label>담당자</label>
+      <input type="text" name="contact_name" />
+      <label>연락처</label>
+      <input type="text" name="phone" />
+      <button type="submit" class="btn btn-primary">등록</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

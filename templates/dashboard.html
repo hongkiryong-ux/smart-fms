@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>운영 Dashboard</h1>
+  <p>실시간 시설 운영 현황</p>
+</header>
+
+<section class="kpi-grid">
+  <div class="kpi-card">
+    <span class="kpi-label">사업장</span>
+    <span class="kpi-value">{{ kpi.sites }}</span>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-label">건물</span>
+    <span class="kpi-value">{{ kpi.buildings }}</span>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-label">설비</span>
+    <span class="kpi-value">{{ kpi.equipment }}</span>
+  </div>
+  <div class="kpi-card highlight">
+    <span class="kpi-label">작업 진행</span>
+    <span class="kpi-value">{{ kpi.wo_progress }}</span>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-label">작업 완료</span>
+    <span class="kpi-value">{{ kpi.wo_done }}</span>
+  </div>
+  <div class="kpi-card warn">
+    <span class="kpi-label">긴급 작업</span>
+    <span class="kpi-value">{{ kpi.wo_urgent }}</span>
+  </div>
+  <div class="kpi-card warn">
+    <span class="kpi-label">점검 지연</span>
+    <span class="kpi-value">{{ kpi.pm_due }}</span>
+  </div>
+  <div class="kpi-card warn">
+    <span class="kpi-label">소모품 교체</span>
+    <span class="kpi-value">{{ kpi.consumable_due }}</span>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-label">오늘 D-1</span>
+    <span class="kpi-value">{{ kpi.d1_today }}</span>
+  </div>
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>최근 작업</h2>
+    {% for wo in recent_wo %}
+    <div class="list-item">
+      <a href="/admin/work-orders/{{ wo.id }}">{{ wo.title }}</a>
+      <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
+    </div>
+    {% else %}
+    <p class="empty">작업 없음</p>
+    {% endfor %}
+  </section>
+
+  <section class="card">
+    <h2>점검 예정</h2>
+    {% for pm in upcoming_pm %}
+    <div class="list-item">
+      <span>{{ pm.title }}</span>
+      <span class="text-muted">{{ pm.next_due or '미정' }}</span>
+    </div>
+    {% else %}
+    <p class="empty">예정 없음</p>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

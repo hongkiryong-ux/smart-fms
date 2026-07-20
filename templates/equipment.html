@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}설비관리{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>설비 관리</h1>
+  <p>QR/NFC 기반 설비 통합관리</p>
+</header>
+
+<div class="grid-2">
+  <section class="card card-wide">
+    <h2>설비 목록</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>코드</th>
+          <th>설비명</th>
+          <th>종류</th>
+          <th>위치</th>
+          <th>상태</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for eq in equipment %}
+        <tr>
+          <td><code>{{ eq.code }}</code></td>
+          <td>{{ eq.name }}</td>
+          <td>{{ eq.equipment_type.name if eq.equipment_type else '-' }}</td>
+          <td>
+            {% if eq.zone and eq.zone.floor and eq.zone.floor.building %}
+            {{ eq.zone.floor.building.name }} / {{ eq.zone.name }}
+            {% else %}-{% endif %}
+          </td>
+          <td><span class="status-dot status-{{ eq.status }}">{{ eq.status }}</span></td>
+          <td><a href="/admin/equipment/{{ eq.id }}">상세</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>설비 등록 (템플릿 적용)</h2>
+    <form method="post" action="/admin/equipment" class="form-stack">
+      <label>구역</label>
+      <select name="zone_id" required>
+        {% for z in zones %}
+        <option value="{{ z.id }}">{{ z.name }}</option>
+        {% endfor %}
+      </select>
+      <label>설비코드</label>
+      <input type="text" name="code" required placeholder="AHU-003" />
+      <label>설비명</label>
+      <input type="text" name="name" required />
+      <label>설비종류</label>
+      <select name="equipment_type_id">
+        <option value="0">선택</option>
+        {% for t in types %}
+        <option value="{{ t.id }}">{{ t.name }}</option>
+        {% endfor %}
+      </select>
+      <label>템플릿 (점검/소모품 자동생성)</label>
+      <select name="template_id">
+        <option value="0">없음</option>
+        {% for tpl in templates %}
+        <option value="{{ tpl.id }}">{{ tpl.name }}</option>
+        {% endfor %}
+      </select>
+      <label>제조사</label>
+      <input type="text" name="manufacturer" />
+      <label>모델</label>
+      <input type="text" name="model" />
+      <label>담당자</label>
+      <input type="text" name="manager_name" />
+      <button type="submit" class="btn btn-primary">30초 등록</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

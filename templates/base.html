@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}Smart FMS{% endblock %} | POSCO WIDE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#003876" />
+  <link rel="manifest" href="/static/manifest.json" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  {% if user %}
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <strong>Smart FMS</strong>
+      <small>POSCO WIDE</small>
+    </div>
+    <ul class="nav-menu">
+      <li><a href="/admin/dashboard" class="{% if request.url.path == '/admin/dashboard' %}active{% endif %}">Dashboard</a></li>
+      <li><a href="/admin/sites" class="{% if '/sites' in request.url.path or '/buildings' in request.url.path %}active{% endif %}">사업장/건물</a></li>
+      <li><a href="/admin/equipment" class="{% if '/equipment' in request.url.path %}active{% endif %}">설비관리</a></li>
+      <li><a href="/admin/templates" class="{% if '/templates' in request.url.path %}active{% endif %}">설비템플릿</a></li>
+      <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
+      <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">CMMS</a></li>
+      <li><a href="/admin/d1" class="{% if '/d1' in request.url.path %}active{% endif %}">D-1 작업</a></li>
+      <li><a href="/admin/inventory" class="{% if '/inventory' in request.url.path %}active{% endif %}">재고</a></li>
+      <li><a href="/admin/partners" class="{% if '/partners' in request.url.path %}active{% endif %}">협력사</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <span>{{ user.name }} ({{ role_labels.get(user.role, user.role.value) }})</span>
+      <a href="/admin/logout">로그아웃</a>
+    </div>
+  </nav>
+  {% endif %}
+
+  <div class="{% if user %}main-with-sidebar{% else %}main-full{% endif %}">
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

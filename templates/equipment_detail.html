@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ eq.name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>{{ eq.name }}</h1>
+  <p><code>{{ eq.code }}</code> · {{ eq.equipment_type.name if eq.equipment_type else '미분류' }}</p>
+</header>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>기본 정보</h2>
+    <dl class="info-dl">
+      <dt>제조사</dt><dd>{{ eq.manufacturer or '-' }}</dd>
+      <dt>모델</dt><dd>{{ eq.model or '-' }}</dd>
+      <dt>Serial</dt><dd>{{ eq.serial_no or '-' }}</dd>
+      <dt>설치일</dt><dd>{{ eq.installed_at or '-' }}</dd>
+      <dt>담당자</dt><dd>{{ eq.manager_name or '-' }}</dd>
+      <dt>PLC TAG</dt><dd>{{ eq.plc_tag or '-' }}</dd>
+      <dt>운전시간</dt><dd>{{ eq.running_hours }} h</dd>
+      <dt>상태</dt><dd><span class="status-dot status-{{ eq.status }}">{{ eq.status }}</span></dd>
+    </dl>
+    {% if eq.template %}
+    <p class="hint">템플릿: {{ eq.template.name }}</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>QR / 모바일</h2>
+    <p>현장 QR 스캔 URL:</p>
+    <p><a href="{{ qr_url }}" target="_blank">{{ qr_url }}</a></p>
+    <p class="hint">qr_generate.py 실행 시 PNG 파일 생성</p>
+  </section>
+</div>
+
+<div class="grid-3">
+  <section class="card">
+    <h2>점검(PM)</h2>
+    {% for pm in eq.pm_schedules %}
+    <div class="list-item">{{ pm.title }} · {{ pm.next_due or '미정' }}</div>
+    {% else %}<p class="empty">없음</p>{% endfor %}
+  </section>
+  <section class="card">
+    <h2>소모품</h2>
+    {% for c in eq.consumables %}
+    <div class="list-item">{{ c.name }} · 교체예정 {{ c.next_replace or '-' }}</div>
+    {% else %}<p class="empty">없음</p>{% endfor %}
+  </section>
+  <section class="card">
+    <h2>작업이력</h2>
+    {% for wo in eq.work_orders[:5] %}
+    <div class="list-item"><a href="/admin/work-orders/{{ wo.id }}">{{ wo.title }}</a></div>
+    {% else %}<p class="empty">없음</p>{% endfor %}
+  </section>
+</div>
+
+<p><a href="/admin/equipment">&larr; 설비 목록</a></p>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}사업장/건물{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>사업장 / 건물 관리</h1>
+</header>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>사업장 목록</h2>
+    {% for site in sites %}
+    <div class="site-block">
+      <h3>{{ site.name }} <small>({{ site.code }})</small></h3>
+      <p class="text-muted">{{ site.address or '' }} · 담당: {{ site.manager_name or '-' }}</p>
+      <ul>
+        {% for b in site.buildings %}
+        <li><a href="/admin/buildings/{{ b.id }}">{{ b.name }}</a> ({{ b.code }})</li>
+        {% else %}
+        <li class="empty">건물 없음</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="card">
+    <h2>사업장 추가</h2>
+    <form method="post" action="/admin/sites" class="form-stack">
+      <label>사업장명</label>
+      <input type="text" name="name" required placeholder="광양제철소" />
+      <label>코드</label>
+      <input type="text" name="code" required placeholder="GY" />
+      <label>주소</label>
+      <input type="text" name="address" />
+      <label>담당자</label>
+      <input type="text" name="manager_name" />
+      <button type="submit" class="btn btn-primary">등록</button>
+    </form>
+
+    <h2 style="margin-top:2rem">건물 추가</h2>
+    <form method="post" action="/admin/buildings" class="form-stack">
+      <label>사업장</label>
+      <select name="site_id" required>
+        {% for site in sites %}
+        <option value="{{ site.id }}">{{ site.name }}</option>
+        {% endfor %}
+      </select>
+      <label>건물명</label>
+      <input type="text" name="name" required />
+      <label>코드</label>
+      <input type="text" name="code" required />
+      <button type="submit" class="btn btn-primary">등록</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

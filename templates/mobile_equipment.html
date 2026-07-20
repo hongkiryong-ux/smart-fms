@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ eq.name }} | Smart FMS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#003876" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="mobile-body">
+  <header class="mobile-header">
+    <h1>{{ eq.name }}</h1>
+    <p><code>{{ eq.code }}</code></p>
+  </header>
+
+  <main class="mobile-main">
+    <section class="mobile-card">
+      <h2>설비정보</h2>
+      <dl class="info-dl">
+        <dt>종류</dt><dd>{{ eq.equipment_type.name if eq.equipment_type else '-' }}</dd>
+        <dt>제조사</dt><dd>{{ eq.manufacturer or '-' }}</dd>
+        <dt>모델</dt><dd>{{ eq.model or '-' }}</dd>
+        <dt>담당자</dt><dd>{{ eq.manager_name or '-' }}</dd>
+        <dt>PLC</dt><dd>{{ eq.plc_tag or '-' }}</dd>
+        <dt>운전시간</dt><dd>{{ eq.running_hours }} h</dd>
+        <dt>상태</dt><dd><span class="status-dot status-{{ eq.status }}">{{ eq.status }}</span></dd>
+      </dl>
+    </section>
+
+    {% if eq.zone %}
+    <section class="mobile-card">
+      <h2>위치</h2>
+      <p>
+        {% if eq.zone.floor and eq.zone.floor.building %}
+        {{ eq.zone.floor.building.name }} / {{ eq.zone.floor.name }} / {{ eq.zone.name }}
+        {% endif %}
+      </p>
+    </section>
+    {% endif %}
+
+    <section class="mobile-card">
+      <h2>점검이력</h2>
+      {% for pm in eq.pm_schedules %}
+      <div class="list-item">{{ pm.title }} · {{ pm.last_done or '미실시' }}</div>
+      {% else %}<p class="empty">없음</p>{% endfor %}
+    </section>
+
+    <section class="mobile-card">
+      <h2>소모품</h2>
+      {% for c in eq.consumables %}
+      <div class="list-item">{{ c.name }} · 교체 {{ c.next_replace or '-' }}</div>
+      {% else %}<p class="empty">없음</p>{% endfor %}
+    </section>
+
+    <section class="mobile-card">
+      <h2>정비이력</h2>
+      {% for wo in eq.work_orders[:5] %}
+      <div class="list-item">{{ wo.title }} · {{ wo_status_label(wo.status) }}</div>
+      {% else %}<p class="empty">없음</p>{% endfor %}
+    </section>
+  </main>
+
+  <footer class="mobile-footer">
+    <small>POSCO WIDE Smart FMS · QR Scan</small>
+  </footer>
+</body>
+</html>
