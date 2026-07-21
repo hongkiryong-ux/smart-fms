@@ -187,7 +187,7 @@ class Equipment(Base):
     template_id = Column(Integer, ForeignKey("equipment_templates.id"), nullable=True)
     code = Column(String(64), unique=True, nullable=False, index=True)
     name = Column(String(200), nullable=False)
-    category = Column(String(20), default="설비", nullable=False, index=True)  # 설비/전기/토건
+    category = Column(String(50), default="기타", nullable=False, index=True)  # 엑셀 시트명
     manufacturer = Column(String(100), nullable=True)
     model = Column(String(100), nullable=True)
     serial_no = Column(String(100), nullable=True)
@@ -202,6 +202,7 @@ class Equipment(Base):
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    extra_data = Column(JSON, default=dict)  # 시트별 추가 컬럼
 
     zone = relationship("Zone", back_populates="equipment")
     equipment_type = relationship("EquipmentType")

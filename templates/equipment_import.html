@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}설비 엑셀 Import{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>설비 엑셀 Import / Export</h1>
+  <p>설비현황 엑셀 파일을 업로드하면 시트별로 설비가 자동 등록됩니다. (총괄 시트 제외)</p>
+</header>
+
+{% if message %}
+<div class="alert alert-success">{{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>건물별 엑셀 업로드</h2>
+    <form method="post" action="/admin/equipment/import" enctype="multipart/form-data" class="form-stack">
+      <label>건물</label>
+      <select name="building_id" required>
+        <option value="">선택</option>
+        {% for b in buildings %}
+        <option value="{{ b.id }}" {% if selected_building and selected_building.id == b.id %}selected{% endif %}>
+          {{ b.name }} ({{ b.site.name if b.site else '' }})
+        </option>
+        {% endfor %}
+      </select>
+      <label>엑셀 파일 (.xls / .xlsx)</label>
+      <input type="file" name="file" accept=".xls,.xlsx" required />
+      <label class="checkbox-label">
+        <input type="checkbox" name="replace" value="1" checked />
+        기존 설비 비활성화 후 재등록 (업데이트)
+      </label>
+      <button type="submit" class="btn btn-primary">업로드 · Import</button>
+    </form>
+    {% if selected_building %}
+    <p style="margin-top:1rem">
+      <a class="btn btn-secondary" href="/admin/equipment/export/{{ selected_building.id }}">
+        {{ selected_building.name }} 엑셀 출력
+      </a>
+      <a class="btn btn-secondary" href="/admin/equipment?building_id={{ selected_building.id }}">
+        설비 목록 보기
+      </a>
+    </p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>일괄 Import (광양운영그룹)</h2>
+    <p class="text-muted">
+      네트워크 공유 <code>\\poscowide1\홍기룡\202010 설비현황</code> 또는
+      로컬 <code>data/</code> 폴더의 엑셀 파일을 건물명과 매칭하여 일괄 등록합니다.
+    </p>
+    <form method="post" action="/admin/equipment/bulk-import"
+          onsubmit="return confirm('모든 건물 설비를 일괄 import 합니다. 기존 데이터는 비활성화됩니다. 계속할까요?');">
+      <button type="submit" class="btn btn-primary">38개 건물 일괄 Import</button>
+    </form>
+    <p style="margin-top:1.5rem">
+      <a href="/admin/equipment">← 설비관리로 돌아가기</a>
+    </p>
+  </section>
+</div>
+{% endblock %}

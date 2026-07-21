@@ -137,6 +137,16 @@ async def ensure_schema_updates() -> None:
                 )
             )
             await conn.execute(
+                text(
+                    "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS extra_data JSONB DEFAULT '{}'"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE equipment ALTER COLUMN category TYPE VARCHAR(50)"
+                )
+            )
+            await conn.execute(
                 text("UPDATE equipment SET category = '설비' WHERE category IS NULL")
             )
             await conn.execute(
@@ -148,6 +158,7 @@ async def ensure_schema_updates() -> None:
             for stmt in (
                 "ALTER TABLE equipment ADD COLUMN category VARCHAR(20) DEFAULT '설비'",
                 "ALTER TABLE equipment_types ADD COLUMN category VARCHAR(20) DEFAULT '설비'",
+                "ALTER TABLE equipment ADD COLUMN extra_data TEXT",
             ):
                 try:
                     await conn.execute(text(stmt))

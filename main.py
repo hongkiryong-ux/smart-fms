@@ -5,9 +5,10 @@ import os
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from io import BytesIO
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -476,7 +477,30 @@ async def zone_create(
 
 # ── Equipment ─────────────────────────────────────────────────────────
 
-EQUIPMENT_CATEGORIES = ("설비", "전기", "토건")
+async def _building_categories(db: AsyncSession, building_id: int) -> list[str]:
+    """건물별 엑셀 시트(카테고리) 목록."""
+    rows = await db.execute(
+        select(Equipment.category)
+        .join(Zone)
+        .join(Floor)
+        .where(Floor.building_id == building_id, Equipment.is_active == True)
+        .distinct()
+        .order_by(Equipment.category)
+    )
+    return [r[0] for r in rows.all() if r[0]]
+
+
+async def _building_category_counts(
+    db: AsyncSession, building_id: int
+) -> dict[str, int]:
+    count_q = await db.execute(
+        select(Equipment.category, func.count(Equipment.id))
+        .join(Zone)
+        .join(Floor)
+        .where(Floor.building_id == building_id, Equipment.is_active == True)
+        .group_by(Equipment.category)
+    )
+    return {cat: cnt for cat, cnt in count_q.all() if cat}
 
 
 @app.get("/admin/equipment")
@@ -498,7 +522,8 @@ async def equipment_list(
     ).scalars().all()
 
     selected_building = None
-    category_counts: dict[str, int] = {c: 0 for c in EQUIPMENT_CATEGORIES}
+    categories: list[str] = []
+    category_counts: dict[str, int] = {}
     equipment: list = []
     zones = []
     types = []
@@ -509,19 +534,10 @@ async def equipment_list(
         if selected_building and not selected_building.is_active:
             selected_building = None
         if selected_building:
-            # 건물별 카테고리 건수
-            count_q = await db.execute(
-                select(Equipment.category, func.count(Equipment.id))
-                .join(Zone)
-                .join(Floor)
-                .where(Floor.building_id == building_id, Equipment.is_active == True)
-                .group_by(Equipment.category)
-            )
-            for cat, cnt in count_q.all():
-                if cat in category_counts:
-                    category_counts[cat] = cnt
+            category_counts = await _building_category_counts(db, building_id)
+            categories = sorted(category_counts.keys())
 
-            if category in EQUIPMENT_CATEGORIES:
+            if category and category in categories:
                 result = await db.execute(
                     select(Equipment)
                     .join(Zone)
@@ -574,8 +590,8 @@ async def equipment_list(
             "buildings": buildings,
             "selected_building": selected_building,
             "building_id": building_id,
-            "category": category if category in EQUIPMENT_CATEGORIES else None,
-            "categories": EQUIPMENT_CATEGORIES,
+            "category": category if category in categories else None,
+            "categories": categories,
             "category_counts": category_counts,
             "equipment": equipment,
             "zones": zones,
@@ -605,7 +621,7 @@ async def equipment_create(
     from urllib.parse import quote
     from sqlalchemy.exc import IntegrityError
 
-    cat = category if category in EQUIPMENT_CATEGORIES else "설비"
+    cat = category.strip() if category else "기타"
     code_val = code.strip()
     name_val = name.strip()
 
@@ -785,6 +801,9 @@ async def equipment_edit_page(
             .order_by(EquipmentType.name)
         )
     ).scalars().all()
+    bld_cats = await _building_categories(db, building_id) if building_id else []
+    if eq.category and eq.category not in bld_cats:
+        bld_cats = [eq.category] + bld_cats
     return templates.TemplateResponse(
         request,
         "equipment_edit.html",
@@ -793,7 +812,7 @@ async def equipment_edit_page(
             "eq": eq,
             "zones": zones,
             "types": types,
-            "categories": EQUIPMENT_CATEGORIES,
+            "categories": bld_cats or [eq.category],
             "building_id": building_id,
         },
     )
@@ -819,7 +838,7 @@ async def equipment_edit(
     eq = await db.get(Equipment, eq_id)
     if not eq or not eq.is_active:
         raise HTTPException(404)
-    cat = category if category in EQUIPMENT_CATEGORIES else eq.category
+    cat = category.strip() if category else eq.category
     eq.zone_id = zone_id
     eq.code = code.strip()
     eq.name = name.strip()
@@ -873,6 +892,167 @@ async def equipment_delete(
             status_code=303,
         )
     return RedirectResponse("/admin/equipment", status_code=303)
+
+
+@app.get("/admin/equipment/import")
+async def equipment_import_page(
+    request: Request,
+    building_id: int | None = None,
+    message: str | None = None,
+    error: str | None = None,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    buildings = (
+        await db.execute(
+            select(Building)
+            .where(Building.is_active == True)
+            .options(selectinload(Building.site))
+            .order_by(Building.name)
+        )
+    ).scalars().all()
+    selected = await db.get(Building, building_id) if building_id else None
+    return templates.TemplateResponse(
+        request,
+        "equipment_import.html",
+        {
+            "user": user,
+            "buildings": buildings,
+            "selected_building": selected,
+            "message": message,
+            "error": error,
+        },
+    )
+
+
+@app.post("/admin/equipment/import")
+async def equipment_import_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    building_id: int = Form(...),
+    replace: str = Form("1"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    import tempfile
+    from excel_import import import_excel_to_building
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        return RedirectResponse(
+            "/admin/equipment/import?error=" + quote("건물을 찾을 수 없습니다."),
+            status_code=303,
+        )
+
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in (".xls", ".xlsx"):
+        return RedirectResponse(
+            f"/admin/equipment/import?building_id={building_id}&error="
+            + quote("xls 또는 xlsx 파일만 업로드할 수 있습니다."),
+            status_code=303,
+        )
+
+    content = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        stats = await import_excel_to_building(
+            db,
+            building.name,
+            tmp_path,
+            replace=replace == "1",
+        )
+        msg = f"시트 {stats['sheets']}개 · 신규 {stats['created']}건 · 갱신 {stats['updated']}건"
+        return RedirectResponse(
+            f"/admin/equipment/import?building_id={building_id}&message={quote(msg)}",
+            status_code=303,
+        )
+    except Exception as e:
+        print(f"[equipment_import] error: {e}", flush=True)
+        return RedirectResponse(
+            f"/admin/equipment/import?building_id={building_id}&error={quote(str(e))}",
+            status_code=303,
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+@app.get("/admin/equipment/export/{building_id}")
+async def equipment_export(
+    building_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    from excel_import import export_building_excel
+
+    building = await db.get(Building, building_id)
+    if not building:
+        raise HTTPException(404)
+
+    result = await db.execute(
+        select(Equipment)
+        .join(Zone)
+        .join(Floor)
+        .where(Floor.building_id == building_id, Equipment.is_active == True)
+        .order_by(Equipment.category, Equipment.code)
+    )
+    items = result.scalars().all()
+
+    by_sheet: dict[str, list] = {}
+    for eq in items:
+        by_sheet.setdefault(eq.category or "기타", []).append(eq)
+
+    data = export_building_excel(building.name, by_sheet)
+    fname = quote(f"{building.name}_설비현황.xlsx")
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.post("/admin/equipment/bulk-import")
+async def equipment_bulk_import(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """네트워크 공유 또는 data 폴더에서 일괄 import."""
+    from urllib.parse import quote
+    from excel_import import import_from_directory
+
+    candidates = [
+        Path(r"\\poscowide1\홍기룡\202010 설비현황"),
+        Path("data/excel"),
+        Path("data"),
+    ]
+    directory = next((p for p in candidates if p.is_dir()), None)
+    if not directory:
+        return RedirectResponse(
+            "/admin/equipment/import?error=" + quote("import 대상 폴더를 찾을 수 없습니다."),
+            status_code=303,
+        )
+
+    try:
+        results = await import_from_directory(db, directory, replace=True)
+        msg = (
+            f"건물 {results['buildings']}개 · 신규 {results['total_created']}건 · "
+            f"갱신 {results['total_updated']}건"
+        )
+        if results["errors"]:
+            msg += f" · 오류 {len(results['errors'])}건"
+        return RedirectResponse(
+            f"/admin/equipment/import?message={quote(msg)}",
+            status_code=303,
+        )
+    except Exception as e:
+        return RedirectResponse(
+            f"/admin/equipment/import?error={quote(str(e))}",
+            status_code=303,
+        )
 
 
 # ── Equipment Templates ───────────────────────────────────────────────
@@ -944,7 +1124,7 @@ async def equipment_type_create(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    cat = category if category in EQUIPMENT_CATEGORIES else "설비"
+    cat = category.strip() if category else "기타"
     db.add(EquipmentType(name=name.strip(), category=cat))
     await db.commit()
     return RedirectResponse("/admin/templates", status_code=303)
