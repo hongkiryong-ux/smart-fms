@@ -484,6 +484,7 @@ async def equipment_list(
     request: Request,
     building_id: int | None = None,
     category: str | None = None,
+    error: str | None = None,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -580,70 +581,141 @@ async def equipment_list(
             "zones": zones,
             "types": types,
             "templates": templates_list,
+            "error": error,
         },
     )
 
 
 @app.post("/admin/equipment")
 async def equipment_create(
+    request: Request,
     zone_id: int = Form(...),
     code: str = Form(...),
     name: str = Form(...),
     category: str = Form("설비"),
     building_id: int = Form(0),
-    equipment_type_id: int = Form(0),
-    template_id: int = Form(0),
+    equipment_type_id: str = Form("0"),
+    template_id: str = Form("0"),
     manufacturer: str = Form(""),
     model: str = Form(""),
     manager_name: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    from urllib.parse import quote
+    from sqlalchemy.exc import IntegrityError
+
     cat = category if category in EQUIPMENT_CATEGORIES else "설비"
-    tpl_id = template_id if template_id > 0 else None
-    type_id = equipment_type_id if equipment_type_id > 0 else None
+    code_val = code.strip()
+    name_val = name.strip()
 
-    eq = Equipment(
-        zone_id=zone_id,
-        code=code.strip(),
-        name=name.strip(),
-        category=cat,
-        equipment_type_id=type_id,
-        template_id=tpl_id,
-        manufacturer=manufacturer,
-        model=model,
-        manager_name=manager_name,
-    )
+    def _to_int(raw: str, default: int = 0) -> int:
+        try:
+            return int(raw) if str(raw).strip() != "" else default
+        except (TypeError, ValueError):
+            return default
 
-    if tpl_id:
-        tpl = await db.get(EquipmentTemplate, tpl_id)
-        if tpl:
-            eq.manufacturer = eq.manufacturer or tpl.manufacturer
-            eq.model = eq.model or tpl.model
-            for item in tpl.consumables or []:
-                db.add(
-                    Consumable(
-                        equipment=eq,
-                        name=item.get("name", "소모품"),
-                        replace_interval_days=item.get("interval_days"),
-                        replace_interval_hours=item.get("interval_hours"),
-                    )
-                )
-            db.add(
-                PMSchedule(
-                    equipment=eq,
-                    title=f"{eq.name} 정기점검",
-                    checklist=tpl.pm_items or [],
-                    custom_days=tpl.pm_cycle_days,
-                )
+    tpl_id = _to_int(template_id) or None
+    type_id = _to_int(equipment_type_id) or None
+    bld_id = building_id if building_id > 0 else 0
+
+    def _list_url(error: str | None = None) -> str:
+        if bld_id:
+            url = f"/admin/equipment?building_id={bld_id}&category={quote(cat)}"
+        else:
+            url = "/admin/equipment"
+        if error:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}error={quote(error)}"
+        return url
+
+    if not code_val or not name_val:
+        return RedirectResponse(_list_url("코드와 명칭을 입력하세요."), status_code=303)
+    if zone_id <= 0:
+        return RedirectResponse(_list_url("구역을 선택하세요."), status_code=303)
+
+    zone = await db.get(Zone, zone_id)
+    if not zone:
+        return RedirectResponse(_list_url("선택한 구역이 없습니다."), status_code=303)
+
+    existing = (
+        await db.execute(select(Equipment).where(Equipment.code == code_val))
+    ).scalar_one_or_none()
+
+    try:
+        if existing and existing.is_active:
+            return RedirectResponse(
+                _list_url(f"이미 사용 중인 코드입니다: {code_val}"),
+                status_code=303,
             )
 
-    db.add(eq)
-    await db.commit()
-    redirect = "/admin/equipment"
-    if building_id:
-        redirect = f"/admin/equipment?building_id={building_id}&category={cat}"
-    return RedirectResponse(redirect, status_code=303)
+        if existing and not existing.is_active:
+            # 삭제(비활성)된 동일 코드 재사용
+            eq = existing
+            eq.is_active = True
+            eq.zone_id = zone_id
+            eq.name = name_val
+            eq.category = cat
+            eq.equipment_type_id = type_id
+            eq.template_id = tpl_id
+            eq.manufacturer = manufacturer
+            eq.model = model
+            eq.manager_name = manager_name
+            eq.status = "normal"
+        else:
+            eq = Equipment(
+                zone_id=zone_id,
+                code=code_val,
+                name=name_val,
+                category=cat,
+                equipment_type_id=type_id,
+                template_id=tpl_id,
+                manufacturer=manufacturer,
+                model=model,
+                manager_name=manager_name,
+            )
+            db.add(eq)
+
+        if tpl_id:
+            tpl = await db.get(EquipmentTemplate, tpl_id)
+            if tpl:
+                eq.manufacturer = eq.manufacturer or tpl.manufacturer
+                eq.model = eq.model or tpl.model
+                await db.flush()
+                for item in tpl.consumables or []:
+                    db.add(
+                        Consumable(
+                            equipment_id=eq.id,
+                            name=item.get("name", "소모품"),
+                            replace_interval_days=item.get("interval_days"),
+                            replace_interval_hours=item.get("interval_hours"),
+                        )
+                    )
+                db.add(
+                    PMSchedule(
+                        equipment_id=eq.id,
+                        title=f"{eq.name} 정기점검",
+                        checklist=tpl.pm_items or [],
+                        custom_days=tpl.pm_cycle_days,
+                    )
+                )
+
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return RedirectResponse(
+            _list_url(f"등록 실패: 코드 중복 또는 DB 제약 오류 ({code_val})"),
+            status_code=303,
+        )
+    except Exception as e:
+        await db.rollback()
+        print(f"[equipment_create] error: {e}", flush=True)
+        return RedirectResponse(
+            _list_url(f"등록 실패: {e}"),
+            status_code=303,
+        )
+
+    return RedirectResponse(_list_url(), status_code=303)
 
 
 @app.get("/admin/equipment/{eq_id}")

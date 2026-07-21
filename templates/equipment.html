@@ -10,6 +10,9 @@
 {% if not selected_building %}
 <section class="card">
   <h2>건물 선택</h2>
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
   {% if buildings %}
   <div class="building-grid">
     {% for b in buildings %}
@@ -54,6 +57,10 @@
   <span>›</span>
   <strong>{{ category }}</strong>
 </div>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
 
 <div class="category-tabs">
   {% for cat in categories %}
