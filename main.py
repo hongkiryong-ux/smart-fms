@@ -126,6 +126,11 @@ except ImportError:
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+from equipment_schema import field_value, get_category_fields, list_display_fields, NAME_KEYS
+
+templates.env.globals["field_value"] = field_value
+templates.env.globals["name_fields"] = set(NAME_KEYS)
 templates.env.globals.update(
     fmt_kst=_fmt_kst,
     role_labels=ROLE_LABELS,
@@ -526,8 +531,8 @@ async def equipment_list(
     category_counts: dict[str, int] = {}
     equipment: list = []
     zones = []
-    types = []
-    templates_list = []
+    sheet_fields: list[str] = []
+    list_columns: list[str] = []
 
     if building_id:
         selected_building = await db.get(Building, building_id)
@@ -566,21 +571,8 @@ async def equipment_list(
                         .order_by(Zone.name)
                     )
                 ).scalars().all()
-                types = (
-                    await db.execute(
-                        select(EquipmentType)
-                        .where(EquipmentType.category == category)
-                        .order_by(EquipmentType.name)
-                    )
-                ).scalars().all()
-                templates_list = (
-                    await db.execute(
-                        select(EquipmentTemplate)
-                        .join(EquipmentType)
-                        .where(EquipmentType.category == category)
-                        .order_by(EquipmentTemplate.name)
-                    )
-                ).scalars().all()
+                sheet_fields = get_category_fields(category, equipment)
+                list_columns = list_display_fields(category, equipment)
 
     return templates.TemplateResponse(
         request,
@@ -595,8 +587,8 @@ async def equipment_list(
             "category_counts": category_counts,
             "equipment": equipment,
             "zones": zones,
-            "types": types,
-            "templates": templates_list,
+            "sheet_fields": sheet_fields,
+            "list_columns": list_columns,
             "error": error,
         },
     )
@@ -606,33 +598,26 @@ async def equipment_list(
 async def equipment_create(
     request: Request,
     zone_id: int = Form(...),
-    code: str = Form(...),
-    name: str = Form(...),
-    category: str = Form("설비"),
+    code: str = Form(""),
+    category: str = Form(""),
     building_id: int = Form(0),
-    equipment_type_id: str = Form("0"),
-    template_id: str = Form("0"),
-    manufacturer: str = Form(""),
-    model: str = Form(""),
-    manager_name: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
     from sqlalchemy.exc import IntegrityError
+    from equipment_schema import (
+        merge_extra_for_save,
+        parse_extra_form,
+        resolve_core_fields,
+    )
+    from excel_import import _equipment_code
 
+    form = await request.form()
+    extra = parse_extra_form(form)
     cat = category.strip() if category else "기타"
     code_val = code.strip()
-    name_val = name.strip()
-
-    def _to_int(raw: str, default: int = 0) -> int:
-        try:
-            return int(raw) if str(raw).strip() != "" else default
-        except (TypeError, ValueError):
-            return default
-
-    tpl_id = _to_int(template_id) or None
-    type_id = _to_int(equipment_type_id) or None
+    name_val, manufacturer, model, serial_no = resolve_core_fields(extra)
     bld_id = building_id if building_id > 0 else 0
 
     def _list_url(error: str | None = None) -> str:
@@ -645,14 +630,32 @@ async def equipment_create(
             url = f"{url}{sep}error={quote(error)}"
         return url
 
-    if not code_val or not name_val:
-        return RedirectResponse(_list_url("코드와 명칭을 입력하세요."), status_code=303)
+    if not name_val:
+        return RedirectResponse(_list_url("구분/명칭을 입력하세요."), status_code=303)
     if zone_id <= 0:
         return RedirectResponse(_list_url("구역을 선택하세요."), status_code=303)
 
     zone = await db.get(Zone, zone_id)
     if not zone:
         return RedirectResponse(_list_url("선택한 구역이 없습니다."), status_code=303)
+
+    if not code_val and bld_id:
+        building = await db.get(Building, bld_id)
+        if building:
+            count = (
+                await db.execute(
+                    select(func.count(Equipment.id))
+                    .join(Zone)
+                    .join(Floor)
+                    .where(Floor.building_id == bld_id, Equipment.category == cat)
+                )
+            ).scalar() or 0
+            code_val = _equipment_code(building.code, cat, count + 1, name_val)
+
+    if not code_val:
+        return RedirectResponse(_list_url("코드를 입력하세요."), status_code=303)
+
+    extra = merge_extra_for_save(extra, name_val, manufacturer, model, serial_no)
 
     existing = (
         await db.execute(select(Equipment).where(Equipment.code == code_val))
@@ -666,17 +669,15 @@ async def equipment_create(
             )
 
         if existing and not existing.is_active:
-            # 삭제(비활성)된 동일 코드 재사용
             eq = existing
             eq.is_active = True
             eq.zone_id = zone_id
             eq.name = name_val
             eq.category = cat
-            eq.equipment_type_id = type_id
-            eq.template_id = tpl_id
-            eq.manufacturer = manufacturer
-            eq.model = model
-            eq.manager_name = manager_name
+            eq.manufacturer = manufacturer or None
+            eq.model = model or None
+            eq.serial_no = serial_no or None
+            eq.extra_data = extra
             eq.status = "normal"
         else:
             eq = Equipment(
@@ -684,37 +685,12 @@ async def equipment_create(
                 code=code_val,
                 name=name_val,
                 category=cat,
-                equipment_type_id=type_id,
-                template_id=tpl_id,
-                manufacturer=manufacturer,
-                model=model,
-                manager_name=manager_name,
+                manufacturer=manufacturer or None,
+                model=model or None,
+                serial_no=serial_no or None,
+                extra_data=extra,
             )
             db.add(eq)
-
-        if tpl_id:
-            tpl = await db.get(EquipmentTemplate, tpl_id)
-            if tpl:
-                eq.manufacturer = eq.manufacturer or tpl.manufacturer
-                eq.model = eq.model or tpl.model
-                await db.flush()
-                for item in tpl.consumables or []:
-                    db.add(
-                        Consumable(
-                            equipment_id=eq.id,
-                            name=item.get("name", "소모품"),
-                            replace_interval_days=item.get("interval_days"),
-                            replace_interval_hours=item.get("interval_hours"),
-                        )
-                    )
-                db.add(
-                    PMSchedule(
-                        equipment_id=eq.id,
-                        title=f"{eq.name} 정기점검",
-                        checklist=tpl.pm_items or [],
-                        custom_days=tpl.pm_cycle_days,
-                    )
-                )
 
         await db.commit()
     except IntegrityError:
@@ -918,10 +894,16 @@ async def equipment_detail(
     if not eq:
         raise HTTPException(404)
     base_url = os.environ.get("PUBLIC_BASE_URL", str(request.base_url).rstrip("/"))
+    sheet_fields = get_category_fields(eq.category, [eq])
     return templates.TemplateResponse(
         request,
         "equipment_detail.html",
-        {"user": user, "eq": eq, "qr_url": f"{base_url}/eq/{eq.code}"},
+        {
+            "user": user,
+            "eq": eq,
+            "qr_url": f"{base_url}/eq/{eq.code}",
+            "sheet_fields": sheet_fields,
+        },
     )
 
 
@@ -955,16 +937,11 @@ async def equipment_edit_page(
                 .order_by(Zone.name)
             )
         ).scalars().all()
-    types = (
-        await db.execute(
-            select(EquipmentType)
-            .where(EquipmentType.category == eq.category)
-            .order_by(EquipmentType.name)
-        )
-    ).scalars().all()
     bld_cats = await _building_categories(db, building_id) if building_id else []
     if eq.category and eq.category not in bld_cats:
         bld_cats = [eq.category] + bld_cats
+    sheet_fields = get_category_fields(eq.category, [eq])
+    field_values = {f: field_value(eq, f) for f in sheet_fields}
     return templates.TemplateResponse(
         request,
         "equipment_edit.html",
@@ -972,9 +949,11 @@ async def equipment_edit_page(
             "user": user,
             "eq": eq,
             "zones": zones,
-            "types": types,
             "categories": bld_cats or [eq.category],
             "building_id": building_id,
+            "sheet_fields": sheet_fields,
+            "field_values": field_values,
+            "category": eq.category,
         },
     )
 
@@ -982,34 +961,38 @@ async def equipment_edit_page(
 @app.post("/admin/equipment/{eq_id}/edit")
 async def equipment_edit(
     eq_id: int,
+    request: Request,
     zone_id: int = Form(...),
     code: str = Form(...),
-    name: str = Form(...),
-    category: str = Form("설비"),
-    equipment_type_id: int = Form(0),
-    manufacturer: str = Form(""),
-    model: str = Form(""),
-    serial_no: str = Form(""),
-    manager_name: str = Form(""),
-    plc_tag: str = Form(""),
+    category: str = Form(""),
     status: str = Form("normal"),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    from equipment_schema import merge_extra_for_save, parse_extra_form, resolve_core_fields
+
     eq = await db.get(Equipment, eq_id)
     if not eq or not eq.is_active:
         raise HTTPException(404)
+
+    form = await request.form()
+    extra = parse_extra_form(form)
     cat = category.strip() if category else eq.category
+    name_val, manufacturer, model, serial_no = resolve_core_fields(extra, eq.name)
+
+    if not name_val:
+        name_val = eq.name
+
+    extra = merge_extra_for_save(extra, name_val, manufacturer, model, serial_no)
+
     eq.zone_id = zone_id
     eq.code = code.strip()
-    eq.name = name.strip()
+    eq.name = name_val
     eq.category = cat
-    eq.equipment_type_id = equipment_type_id if equipment_type_id > 0 else None
-    eq.manufacturer = manufacturer
-    eq.model = model
+    eq.manufacturer = manufacturer or None
+    eq.model = model or None
     eq.serial_no = serial_no or None
-    eq.manager_name = manager_name
-    eq.plc_tag = plc_tag or None
+    eq.extra_data = extra
     eq.status = status
     await db.commit()
 

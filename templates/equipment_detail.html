@@ -5,7 +5,7 @@
   <div class="item-head">
     <div>
       <h1>{{ eq.name }}</h1>
-      <p><code>{{ eq.code }}</code> · {{ eq.category }} · {{ eq.equipment_type.name if eq.equipment_type else '미분류' }}</p>
+      <p><code>{{ eq.code }}</code> · {{ eq.category }}</p>
     </div>
     <div class="row-actions">
       <a class="btn btn-sm btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
@@ -18,22 +18,18 @@
 </header>
 
 <div class="grid-2">
-  <section class="card">
-    <h2>기본 정보</h2>
-    <dl class="info-dl">
-      <dt>구분</dt><dd>{{ eq.category }}</dd>
-      <dt>제조사</dt><dd>{{ eq.manufacturer or '-' }}</dd>
-      <dt>모델</dt><dd>{{ eq.model or '-' }}</dd>
-      <dt>Serial</dt><dd>{{ eq.serial_no or '-' }}</dd>
-      <dt>설치일</dt><dd>{{ eq.installed_at or '-' }}</dd>
-      <dt>담당자</dt><dd>{{ eq.manager_name or '-' }}</dd>
-      <dt>PLC TAG</dt><dd>{{ eq.plc_tag or '-' }}</dd>
-      <dt>운전시간</dt><dd>{{ eq.running_hours }} h</dd>
+  <section class="card card-wide">
+    <h2>{{ eq.category }} 상세 (엑셀 양식)</h2>
+    <dl class="info-dl sheet-info-dl">
+      <dt>코드</dt><dd><code>{{ eq.code }}</code></dd>
       <dt>상태</dt><dd><span class="status-dot status-{{ eq.status }}">{{ eq.status }}</span></dd>
+      {% if eq.zone %}
+      <dt>위치</dt><dd>{{ eq.zone.floor.name if eq.zone.floor else '' }} / {{ eq.zone.name }}</dd>
+      {% endif %}
+      {% for field in sheet_fields %}
+      <dt>{{ field }}</dt><dd>{{ field_value(eq, field) or '-' }}</dd>
+      {% endfor %}
     </dl>
-    {% if eq.template %}
-    <p class="hint">템플릿: {{ eq.template.name }}</p>
-    {% endif %}
   </section>
 
   <section class="card">

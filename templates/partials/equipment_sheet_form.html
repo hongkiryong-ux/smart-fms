@@ -1,0 +1,11 @@
+{# 엑셀 시트 양식 기반 동적 입력 필드 #}
+<div class="sheet-form">
+  <p class="text-muted sheet-form-hint">{{ category }} 시트 양식</p>
+  {% for field in sheet_fields %}
+  <label>{{ field }}</label>
+  <input type="text"
+         name="extra__{{ field }}"
+         value="{{ (field_values or {}).get(field, '') }}"
+         {% if field in name_fields %}placeholder="필수"{% endif %} />
+  {% endfor %}
+</div>

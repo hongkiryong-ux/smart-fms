@@ -347,6 +347,14 @@ body {
 .alert-error { background: #fee2e2; color: #991b1b; }
 .alert-success { background: #dcfce7; color: #166534; }
 .checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+.equipment-form-card { max-height: 85vh; overflow-y: auto; }
+.sheet-form-hint { font-size: 0.85rem; margin-bottom: 0.75rem; }
+.sheet-data-table { font-size: 0.85rem; }
+.sheet-data-table th, .sheet-data-table td { white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.table-scroll { overflow-x: auto; }
+.sheet-info-dl { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr; gap: 0.35rem 1rem; }
+.sheet-info-dl dt { font-weight: 600; color: var(--muted); }
+.readonly-input { background: #f1f5f9; cursor: default; }
 
 .site-block, .hierarchy-block, .template-block, .zone-block {
   margin-bottom: 1rem;
