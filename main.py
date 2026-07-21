@@ -734,6 +734,167 @@ async def equipment_create(
     return RedirectResponse(_list_url(), status_code=303)
 
 
+@app.get("/admin/equipment/import")
+async def equipment_import_page(
+    request: Request,
+    building_id: int | None = None,
+    message: str | None = None,
+    error: str | None = None,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    buildings = (
+        await db.execute(
+            select(Building)
+            .where(Building.is_active == True)
+            .options(selectinload(Building.site))
+            .order_by(Building.name)
+        )
+    ).scalars().all()
+    selected = await db.get(Building, building_id) if building_id else None
+    return templates.TemplateResponse(
+        request,
+        "equipment_import.html",
+        {
+            "user": user,
+            "buildings": buildings,
+            "selected_building": selected,
+            "message": message,
+            "error": error,
+        },
+    )
+
+
+@app.post("/admin/equipment/import")
+async def equipment_import_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    building_id: int = Form(...),
+    replace: str = Form("0"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    import tempfile
+    from excel_import import import_excel_to_building
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        return RedirectResponse(
+            "/admin/equipment/import?error=" + quote("건물을 찾을 수 없습니다."),
+            status_code=303,
+        )
+
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in (".xls", ".xlsx"):
+        return RedirectResponse(
+            f"/admin/equipment/import?building_id={building_id}&error="
+            + quote("xls 또는 xlsx 파일만 업로드할 수 있습니다."),
+            status_code=303,
+        )
+
+    content = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        stats = await import_excel_to_building(
+            db,
+            building.name,
+            tmp_path,
+            replace=replace == "1",
+        )
+        msg = f"시트 {stats['sheets']}개 · 신규 {stats['created']}건 · 갱신 {stats['updated']}건"
+        return RedirectResponse(
+            f"/admin/equipment/import?building_id={building_id}&message={quote(msg)}",
+            status_code=303,
+        )
+    except Exception as e:
+        print(f"[equipment_import] error: {e}", flush=True)
+        return RedirectResponse(
+            f"/admin/equipment/import?building_id={building_id}&error={quote(str(e))}",
+            status_code=303,
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+@app.get("/admin/equipment/export/{building_id}")
+async def equipment_export(
+    building_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    from excel_import import export_building_excel
+
+    building = await db.get(Building, building_id)
+    if not building:
+        raise HTTPException(404)
+
+    result = await db.execute(
+        select(Equipment)
+        .join(Zone)
+        .join(Floor)
+        .where(Floor.building_id == building_id, Equipment.is_active == True)
+        .order_by(Equipment.category, Equipment.code)
+    )
+    items = result.scalars().all()
+
+    by_sheet: dict[str, list] = {}
+    for eq in items:
+        by_sheet.setdefault(eq.category or "기타", []).append(eq)
+
+    data = export_building_excel(building.name, by_sheet)
+    fname = quote(f"{building.name}_설비현황.xlsx")
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.post("/admin/equipment/bulk-import")
+async def equipment_bulk_import(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """네트워크 공유 또는 data 폴더에서 일괄 import."""
+    from urllib.parse import quote
+    from excel_import import import_from_directory
+
+    candidates = [
+        Path(r"\\poscowide1\홍기룡\202010 설비현황"),
+        Path("data/excel"),
+        Path("data"),
+    ]
+    directory = next((p for p in candidates if p.is_dir()), None)
+    if not directory:
+        return RedirectResponse(
+            "/admin/equipment/import?error=" + quote("import 대상 폴더를 찾을 수 없습니다."),
+            status_code=303,
+        )
+
+    try:
+        results = await import_from_directory(db, directory, replace=True)
+        msg = (
+            f"건물 {results['buildings']}개 · 신규 {results['total_created']}건 · "
+            f"갱신 {results['total_updated']}건"
+        )
+        if results["errors"]:
+            msg += f" · 오류 {len(results['errors'])}건"
+        return RedirectResponse(
+            f"/admin/equipment/import?message={quote(msg)}",
+            status_code=303,
+        )
+    except Exception as e:
+        return RedirectResponse(
+            f"/admin/equipment/import?error={quote(str(e))}",
+            status_code=303,
+        )
+
+
 @app.get("/admin/equipment/{eq_id}")
 async def equipment_detail(
     eq_id: int,
@@ -892,167 +1053,6 @@ async def equipment_delete(
             status_code=303,
         )
     return RedirectResponse("/admin/equipment", status_code=303)
-
-
-@app.get("/admin/equipment/import")
-async def equipment_import_page(
-    request: Request,
-    building_id: int | None = None,
-    message: str | None = None,
-    error: str | None = None,
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    buildings = (
-        await db.execute(
-            select(Building)
-            .where(Building.is_active == True)
-            .options(selectinload(Building.site))
-            .order_by(Building.name)
-        )
-    ).scalars().all()
-    selected = await db.get(Building, building_id) if building_id else None
-    return templates.TemplateResponse(
-        request,
-        "equipment_import.html",
-        {
-            "user": user,
-            "buildings": buildings,
-            "selected_building": selected,
-            "message": message,
-            "error": error,
-        },
-    )
-
-
-@app.post("/admin/equipment/import")
-async def equipment_import_upload(
-    request: Request,
-    file: UploadFile = File(...),
-    building_id: int = Form(...),
-    replace: str = Form("1"),
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    from urllib.parse import quote
-    import tempfile
-    from excel_import import import_excel_to_building
-
-    building = await db.get(Building, building_id)
-    if not building or not building.is_active:
-        return RedirectResponse(
-            "/admin/equipment/import?error=" + quote("건물을 찾을 수 없습니다."),
-            status_code=303,
-        )
-
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in (".xls", ".xlsx"):
-        return RedirectResponse(
-            f"/admin/equipment/import?building_id={building_id}&error="
-            + quote("xls 또는 xlsx 파일만 업로드할 수 있습니다."),
-            status_code=303,
-        )
-
-    content = await file.read()
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-
-    try:
-        stats = await import_excel_to_building(
-            db,
-            building.name,
-            tmp_path,
-            replace=replace == "1",
-        )
-        msg = f"시트 {stats['sheets']}개 · 신규 {stats['created']}건 · 갱신 {stats['updated']}건"
-        return RedirectResponse(
-            f"/admin/equipment/import?building_id={building_id}&message={quote(msg)}",
-            status_code=303,
-        )
-    except Exception as e:
-        print(f"[equipment_import] error: {e}", flush=True)
-        return RedirectResponse(
-            f"/admin/equipment/import?building_id={building_id}&error={quote(str(e))}",
-            status_code=303,
-        )
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-
-
-@app.get("/admin/equipment/export/{building_id}")
-async def equipment_export(
-    building_id: int,
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    from urllib.parse import quote
-    from excel_import import export_building_excel
-
-    building = await db.get(Building, building_id)
-    if not building:
-        raise HTTPException(404)
-
-    result = await db.execute(
-        select(Equipment)
-        .join(Zone)
-        .join(Floor)
-        .where(Floor.building_id == building_id, Equipment.is_active == True)
-        .order_by(Equipment.category, Equipment.code)
-    )
-    items = result.scalars().all()
-
-    by_sheet: dict[str, list] = {}
-    for eq in items:
-        by_sheet.setdefault(eq.category or "기타", []).append(eq)
-
-    data = export_building_excel(building.name, by_sheet)
-    fname = quote(f"{building.name}_설비현황.xlsx")
-    return StreamingResponse(
-        BytesIO(data),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
-    )
-
-
-@app.post("/admin/equipment/bulk-import")
-async def equipment_bulk_import(
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    """네트워크 공유 또는 data 폴더에서 일괄 import."""
-    from urllib.parse import quote
-    from excel_import import import_from_directory
-
-    candidates = [
-        Path(r"\\poscowide1\홍기룡\202010 설비현황"),
-        Path("data/excel"),
-        Path("data"),
-    ]
-    directory = next((p for p in candidates if p.is_dir()), None)
-    if not directory:
-        return RedirectResponse(
-            "/admin/equipment/import?error=" + quote("import 대상 폴더를 찾을 수 없습니다."),
-            status_code=303,
-        )
-
-    try:
-        results = await import_from_directory(db, directory, replace=True)
-        msg = (
-            f"건물 {results['buildings']}개 · 신규 {results['total_created']}건 · "
-            f"갱신 {results['total_updated']}건"
-        )
-        if results["errors"]:
-            msg += f" · 오류 {len(results['errors'])}건"
-        return RedirectResponse(
-            f"/admin/equipment/import?message={quote(msg)}",
-            status_code=303,
-        )
-    except Exception as e:
-        return RedirectResponse(
-            f"/admin/equipment/import?error={quote(str(e))}",
-            status_code=303,
-        )
 
 
 # ── Equipment Templates ───────────────────────────────────────────────
