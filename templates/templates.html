@@ -12,7 +12,7 @@
     {% for tpl in templates %}
     <div class="template-block">
       <h3>{{ tpl.name }}</h3>
-      <p class="text-muted">{{ tpl.equipment_type.name }} · {{ tpl.manufacturer }} {{ tpl.model }}</p>
+      <p class="text-muted">[{{ tpl.equipment_type.category }}] {{ tpl.equipment_type.name }} · {{ tpl.manufacturer }} {{ tpl.model }}</p>
       <p><strong>점검항목:</strong> {{ (tpl.pm_items or [])|join(', ') }}</p>
       <p><strong>소모품:</strong>
         {% for c in tpl.consumables or [] %}{{ c.name }}{% if not loop.last %}, {% endif %}{% endfor %}
@@ -23,18 +23,25 @@
   </section>
 
   <section class="card">
-    <h2>설비종류 추가</h2>
-    <form method="post" action="/admin/equipment-types" class="form-stack inline-form">
+    <h2>종류 추가</h2>
+    <form method="post" action="/admin/equipment-types" class="form-stack">
+      <label>구분</label>
+      <select name="category" required>
+        <option value="설비">설비</option>
+        <option value="전기">전기</option>
+        <option value="토건">토건</option>
+      </select>
+      <label>종류명</label>
       <input type="text" name="name" required placeholder="공조기(AHU)" />
       <button type="submit" class="btn btn-secondary">추가</button>
     </form>
 
     <h2 style="margin-top:2rem">템플릿 추가</h2>
     <form method="post" action="/admin/templates" class="form-stack">
-      <label>설비종류</label>
+      <label>종류</label>
       <select name="equipment_type_id" required>
         {% for t in types %}
-        <option value="{{ t.id }}">{{ t.name }}</option>
+        <option value="{{ t.id }}">[{{ t.category }}] {{ t.name }}</option>
         {% endfor %}
       </select>
       <label>템플릿명</label>

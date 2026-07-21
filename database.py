@@ -116,6 +116,45 @@ AsyncSessionLocal = async_sessionmaker(
 Base = declarative_base()
 
 
+async def ensure_schema_updates() -> None:
+    """기존 DB에 새 컬럼 추가(마이그레이션 없이 운영할 때)."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+
+    url = (_RAW_DATABASE_URL or "").lower()
+    is_pg = "postgresql" in url or "postgres" in url
+
+    async with engine.begin() as conn:
+        if is_pg:
+            await conn.execute(
+                text(
+                    "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS category VARCHAR(20) DEFAULT '설비'"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE equipment_types ADD COLUMN IF NOT EXISTS category VARCHAR(20) DEFAULT '설비'"
+                )
+            )
+            await conn.execute(
+                text("UPDATE equipment SET category = '설비' WHERE category IS NULL")
+            )
+            await conn.execute(
+                text(
+                    "UPDATE equipment_types SET category = '설비' WHERE category IS NULL"
+                )
+            )
+        else:
+            for stmt in (
+                "ALTER TABLE equipment ADD COLUMN category VARCHAR(20) DEFAULT '설비'",
+                "ALTER TABLE equipment_types ADD COLUMN category VARCHAR(20) DEFAULT '설비'",
+            ):
+                try:
+                    await conn.execute(text(stmt))
+                except OperationalError:
+                    pass
+
+
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session

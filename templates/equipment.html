@@ -3,17 +3,77 @@
 {% block content %}
 <header class="page-header">
   <h1>설비 관리</h1>
-  <p>QR/NFC 기반 설비 통합관리</p>
+  <p>건물 → 설비 / 전기 / 토건 → 하위 항목</p>
 </header>
+
+{# ── 1단계: 건물 선택 ── #}
+{% if not selected_building %}
+<section class="card">
+  <h2>건물 선택</h2>
+  {% if buildings %}
+  <div class="building-grid">
+    {% for b in buildings %}
+    <a class="building-card" href="/admin/equipment?building_id={{ b.id }}">
+      <strong>{{ b.name }}</strong>
+      <span class="text-muted">{{ b.site.name if b.site else '' }} · {{ b.code }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">등록된 건물이 없습니다. 먼저 <a href="/admin/sites">사업장/건물</a>을 등록하세요.</p>
+  {% endif %}
+</section>
+
+{# ── 2단계: 카테고리 선택 ── #}
+{% elif not category %}
+<section class="card">
+  <div class="breadcrumb-nav">
+    <a href="/admin/equipment">건물 목록</a>
+    <span>›</span>
+    <strong>{{ selected_building.name }}</strong>
+  </div>
+  <h2>{{ selected_building.name }} — 구분 선택</h2>
+  <div class="category-grid">
+    {% for cat in categories %}
+    <a class="category-card category-{{ loop.index }}"
+       href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat }}">
+      <span class="category-name">{{ cat }}</span>
+      <span class="category-count">{{ category_counts.get(cat, 0) }}건</span>
+      <span class="category-hint">하위 항목 보기</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+{# ── 3단계: 하위 항목 목록 ── #}
+{% else %}
+<div class="breadcrumb-nav">
+  <a href="/admin/equipment">건물 목록</a>
+  <span>›</span>
+  <a href="/admin/equipment?building_id={{ selected_building.id }}">{{ selected_building.name }}</a>
+  <span>›</span>
+  <strong>{{ category }}</strong>
+</div>
+
+<div class="category-tabs">
+  {% for cat in categories %}
+  <a class="category-tab {% if cat == category %}active{% endif %}"
+     href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat }}">
+    {{ cat }}
+    <small>({{ category_counts.get(cat, 0) }})</small>
+  </a>
+  {% endfor %}
+</div>
 
 <div class="grid-2">
   <section class="card card-wide">
-    <h2>설비 목록</h2>
+    <h2>{{ selected_building.name }} · {{ category }} 목록</h2>
+    {% if equipment %}
     <table class="data-table">
       <thead>
         <tr>
           <th>코드</th>
-          <th>설비명</th>
+          <th>명칭</th>
           <th>종류</th>
           <th>위치</th>
           <th>상태</th>
@@ -27,8 +87,8 @@
           <td>{{ eq.name }}</td>
           <td>{{ eq.equipment_type.name if eq.equipment_type else '-' }}</td>
           <td>
-            {% if eq.zone and eq.zone.floor and eq.zone.floor.building %}
-            {{ eq.zone.floor.building.name }} / {{ eq.zone.name }}
+            {% if eq.zone %}
+            {{ eq.zone.floor.name if eq.zone.floor else '' }} / {{ eq.zone.name }}
             {% else %}-{% endif %}
           </td>
           <td><span class="status-dot status-{{ eq.status }}">{{ eq.status }}</span></td>
@@ -37,29 +97,36 @@
         {% endfor %}
       </tbody>
     </table>
+    {% else %}
+    <p class="empty">등록된 {{ category }} 항목이 없습니다. 우측에서 등록하세요.</p>
+    {% endif %}
   </section>
 
   <section class="card">
-    <h2>설비 등록 (템플릿 적용)</h2>
+    <h2>{{ category }} 등록</h2>
     <form method="post" action="/admin/equipment" class="form-stack">
+      <input type="hidden" name="building_id" value="{{ selected_building.id }}" />
+      <input type="hidden" name="category" value="{{ category }}" />
       <label>구역</label>
       <select name="zone_id" required>
         {% for z in zones %}
         <option value="{{ z.id }}">{{ z.name }}</option>
+        {% else %}
+        <option value="" disabled>구역 없음 — 건물에서 구역을 먼저 등록</option>
         {% endfor %}
       </select>
-      <label>설비코드</label>
-      <input type="text" name="code" required placeholder="AHU-003" />
-      <label>설비명</label>
+      <label>코드</label>
+      <input type="text" name="code" required placeholder="{% if category == '전기' %}EL-{% elif category == '토건' %}CV-{% else %}EQ-{% endif %}001" />
+      <label>명칭</label>
       <input type="text" name="name" required />
-      <label>설비종류</label>
+      <label>종류</label>
       <select name="equipment_type_id">
         <option value="0">선택</option>
         {% for t in types %}
         <option value="{{ t.id }}">{{ t.name }}</option>
         {% endfor %}
       </select>
-      <label>템플릿 (점검/소모품 자동생성)</label>
+      <label>템플릿</label>
       <select name="template_id">
         <option value="0">없음</option>
         {% for tpl in templates %}
@@ -72,8 +139,9 @@
       <input type="text" name="model" />
       <label>담당자</label>
       <input type="text" name="manager_name" />
-      <button type="submit" class="btn btn-primary">30초 등록</button>
+      <button type="submit" class="btn btn-primary" {% if not zones %}disabled{% endif %}>등록</button>
     </form>
   </section>
 </div>
+{% endif %}
 {% endblock %}

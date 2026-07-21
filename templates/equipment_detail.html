@@ -3,13 +3,14 @@
 {% block content %}
 <header class="page-header">
   <h1>{{ eq.name }}</h1>
-  <p><code>{{ eq.code }}</code> · {{ eq.equipment_type.name if eq.equipment_type else '미분류' }}</p>
+  <p><code>{{ eq.code }}</code> · {{ eq.category }} · {{ eq.equipment_type.name if eq.equipment_type else '미분류' }}</p>
 </header>
 
 <div class="grid-2">
   <section class="card">
     <h2>기본 정보</h2>
     <dl class="info-dl">
+      <dt>구분</dt><dd>{{ eq.category }}</dd>
       <dt>제조사</dt><dd>{{ eq.manufacturer or '-' }}</dd>
       <dt>모델</dt><dd>{{ eq.model or '-' }}</dd>
       <dt>Serial</dt><dd>{{ eq.serial_no or '-' }}</dd>
@@ -53,5 +54,11 @@
   </section>
 </div>
 
-<p><a href="/admin/equipment">&larr; 설비 목록</a></p>
+<p>
+  {% if eq.zone and eq.zone.floor and eq.zone.floor.building %}
+  <a href="/admin/equipment?building_id={{ eq.zone.floor.building.id }}&category={{ eq.category }}">&larr; {{ eq.category }} 목록</a>
+  {% else %}
+  <a href="/admin/equipment">&larr; 설비 목록</a>
+  {% endif %}
+</p>
 {% endblock %}

@@ -33,6 +33,7 @@ from models import (
 async def seed_if_empty(session: AsyncSession) -> None:
     existing = await session.execute(select(Site).limit(1))
     if existing.scalar_one_or_none():
+        await ensure_category_demo(session)
         return
 
     admin = User(
@@ -90,9 +91,15 @@ async def seed_if_empty(session: AsyncSession) -> None:
     session.add(zone)
     await session.flush()
 
-    eq_type_ahu = EquipmentType(name="공조기(AHU)", icon="hvac")
-    eq_type_pump = EquipmentType(name="펌프", icon="pump")
-    session.add_all([eq_type_ahu, eq_type_pump])
+    eq_type_ahu = EquipmentType(name="공조기(AHU)", category="설비", icon="hvac")
+    eq_type_pump = EquipmentType(name="펌프", category="설비", icon="pump")
+    eq_type_panel = EquipmentType(name="배전반", category="전기", icon="elec")
+    eq_type_light = EquipmentType(name="조명", category="전기", icon="light")
+    eq_type_door = EquipmentType(name="출입문", category="토건", icon="door")
+    eq_type_floor = EquipmentType(name="바닥/도장", category="토건", icon="civil")
+    session.add_all(
+        [eq_type_ahu, eq_type_pump, eq_type_panel, eq_type_light, eq_type_door, eq_type_floor]
+    )
     await session.flush()
 
     ahu_template = EquipmentTemplate(
@@ -124,6 +131,7 @@ async def seed_if_empty(session: AsyncSession) -> None:
             template_id=ahu_template.id,
             code="AHU-001",
             name="1호 공조기",
+            category="설비",
             manufacturer="삼성",
             model="AHU-5000",
             serial_no="SN-2024-001",
@@ -139,6 +147,7 @@ async def seed_if_empty(session: AsyncSession) -> None:
             template_id=ahu_template.id,
             code="AHU-002",
             name="2호 공조기",
+            category="설비",
             manufacturer="삼성",
             model="AHU-5000",
             serial_no="SN-2024-002",
@@ -153,9 +162,52 @@ async def seed_if_empty(session: AsyncSession) -> None:
             equipment_type_id=eq_type_pump.id,
             code="PUMP-001",
             name="냉각수 펌프",
+            category="설비",
             manufacturer="그랜포스",
             model="CR-32",
             manager_name="김시설",
+            status="normal",
+        ),
+        Equipment(
+            zone_id=zone.id,
+            equipment_type_id=eq_type_panel.id,
+            code="EL-PANEL-01",
+            name="1층 주배전반",
+            category="전기",
+            manufacturer="LS산전",
+            model="GIPAM",
+            manager_name="이전기",
+            status="normal",
+        ),
+        Equipment(
+            zone_id=zone.id,
+            equipment_type_id=eq_type_light.id,
+            code="EL-LED-01",
+            name="기계실 LED 조명",
+            category="전기",
+            manufacturer="삼성",
+            model="LED-50W",
+            manager_name="이전기",
+            status="normal",
+        ),
+        Equipment(
+            zone_id=zone.id,
+            equipment_type_id=eq_type_door.id,
+            code="CV-DOOR-01",
+            name="기계실 방화문",
+            category="토건",
+            manufacturer="현대도어",
+            model="FD-120",
+            manager_name="박토건",
+            status="normal",
+        ),
+        Equipment(
+            zone_id=zone.id,
+            equipment_type_id=eq_type_floor.id,
+            code="CV-FLOOR-01",
+            name="기계실 에폭시 바닥",
+            category="토건",
+            manager_name="박토건",
             status="normal",
         ),
     ]
@@ -245,3 +297,91 @@ async def seed_if_empty(session: AsyncSession) -> None:
 
     await session.commit()
     print("[seed] demo data created", flush=True)
+
+
+async def ensure_category_demo(session: AsyncSession) -> None:
+    """기존 DB에 설비/전기/토건 구분 및 샘플 보강."""
+    from sqlalchemy import func, update
+
+    # 기존 설비에 category 기본값
+    await session.execute(
+        update(Equipment).where(Equipment.category.is_(None)).values(category="설비")
+    )
+    await session.execute(
+        update(EquipmentType).where(EquipmentType.category.is_(None)).values(category="설비")
+    )
+
+    # 전기/토건 샘플이 없으면 추가
+    elec_count = (
+        await session.execute(
+            select(func.count(Equipment.id)).where(Equipment.category == "전기")
+        )
+    ).scalar() or 0
+    if elec_count > 0:
+        await session.commit()
+        return
+
+    zone = (await session.execute(select(Zone).limit(1))).scalar_one_or_none()
+    if not zone:
+        await session.commit()
+        return
+
+    async def _get_or_create_type(name: str, category: str) -> EquipmentType:
+        row = (
+            await session.execute(select(EquipmentType).where(EquipmentType.name == name))
+        ).scalar_one_or_none()
+        if row:
+            row.category = category
+            return row
+        t = EquipmentType(name=name, category=category)
+        session.add(t)
+        await session.flush()
+        return t
+
+    t_panel = await _get_or_create_type("배전반", "전기")
+    t_light = await _get_or_create_type("조명", "전기")
+    t_door = await _get_or_create_type("출입문", "토건")
+    t_floor = await _get_or_create_type("바닥/도장", "토건")
+
+    # AHU/펌프 타입도 설비로 표시
+    for name in ("공조기(AHU)", "펌프"):
+        row = (
+            await session.execute(select(EquipmentType).where(EquipmentType.name == name))
+        ).scalar_one_or_none()
+        if row:
+            row.category = "설비"
+
+    await session.execute(
+        update(Equipment)
+        .where(Equipment.category == "설비")
+        .values(category="설비")
+    )
+
+    samples = [
+        ("EL-PANEL-01", "1층 주배전반", "전기", t_panel.id, "LS산전", "GIPAM"),
+        ("EL-LED-01", "기계실 LED 조명", "전기", t_light.id, "삼성", "LED-50W"),
+        ("CV-DOOR-01", "기계실 방화문", "토건", t_door.id, "현대도어", "FD-120"),
+        ("CV-FLOOR-01", "기계실 에폭시 바닥", "토건", t_floor.id, None, None),
+    ]
+    for code, name, cat, type_id, mfr, model in samples:
+        exists = (
+            await session.execute(select(Equipment).where(Equipment.code == code))
+        ).scalar_one_or_none()
+        if exists:
+            exists.category = cat
+            continue
+        session.add(
+            Equipment(
+                zone_id=zone.id,
+                equipment_type_id=type_id,
+                code=code,
+                name=name,
+                category=cat,
+                manufacturer=mfr,
+                model=model,
+                status="normal",
+            )
+        )
+
+    await session.commit()
+    print("[seed] category demo upgraded", flush=True)

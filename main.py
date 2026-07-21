@@ -23,7 +23,7 @@ from auth import (
     require_login,
     verify_password,
 )
-from database import AsyncSessionLocal, Base, engine, get_db
+from database import AsyncSessionLocal, Base, engine, get_db, ensure_schema_updates
 from init_data import seed_if_empty
 from models import (
     Building,
@@ -89,6 +89,7 @@ async def lifespan(app: FastAPI):
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+            await ensure_schema_updates()
             async with AsyncSessionLocal() as session:
                 await seed_if_empty(session)
             print(f"[startup] DB ready (attempt {attempt})", flush=True)
@@ -359,35 +360,103 @@ async def zone_create(
 
 # ── Equipment ─────────────────────────────────────────────────────────
 
+EQUIPMENT_CATEGORIES = ("설비", "전기", "토건")
+
 
 @app.get("/admin/equipment")
 async def equipment_list(
     request: Request,
+    building_id: int | None = None,
+    category: str | None = None,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Equipment)
-        .options(
-            selectinload(Equipment.zone)
-            .selectinload(Zone.floor)
-            .selectinload(Floor.building)
-            .selectinload(Building.site),
-            selectinload(Equipment.equipment_type),
+    buildings = (
+        await db.execute(
+            select(Building)
+            .options(selectinload(Building.site))
+            .order_by(Building.name)
         )
-        .order_by(Equipment.code)
-    )
-    equipment = result.scalars().all()
-    zones = (await db.execute(select(Zone).order_by(Zone.name))).scalars().all()
-    types = (await db.execute(select(EquipmentType).order_by(EquipmentType.name))).scalars().all()
-    templates_list = (
-        await db.execute(select(EquipmentTemplate).order_by(EquipmentTemplate.name))
     ).scalars().all()
+
+    selected_building = None
+    category_counts: dict[str, int] = {c: 0 for c in EQUIPMENT_CATEGORIES}
+    equipment: list = []
+    zones = []
+    types = []
+    templates_list = []
+
+    if building_id:
+        selected_building = await db.get(Building, building_id)
+        if selected_building:
+            # 건물별 카테고리 건수
+            count_q = await db.execute(
+                select(Equipment.category, func.count(Equipment.id))
+                .join(Zone)
+                .join(Floor)
+                .where(Floor.building_id == building_id, Equipment.is_active == True)
+                .group_by(Equipment.category)
+            )
+            for cat, cnt in count_q.all():
+                if cat in category_counts:
+                    category_counts[cat] = cnt
+
+            if category in EQUIPMENT_CATEGORIES:
+                result = await db.execute(
+                    select(Equipment)
+                    .join(Zone)
+                    .join(Floor)
+                    .where(
+                        Floor.building_id == building_id,
+                        Equipment.category == category,
+                        Equipment.is_active == True,
+                    )
+                    .options(
+                        selectinload(Equipment.zone)
+                        .selectinload(Zone.floor)
+                        .selectinload(Floor.building),
+                        selectinload(Equipment.equipment_type),
+                    )
+                    .order_by(Equipment.code)
+                )
+                equipment = result.scalars().all()
+
+                # 해당 건물 구역만
+                zones = (
+                    await db.execute(
+                        select(Zone)
+                        .join(Floor)
+                        .where(Floor.building_id == building_id)
+                        .order_by(Zone.name)
+                    )
+                ).scalars().all()
+                types = (
+                    await db.execute(
+                        select(EquipmentType)
+                        .where(EquipmentType.category == category)
+                        .order_by(EquipmentType.name)
+                    )
+                ).scalars().all()
+                templates_list = (
+                    await db.execute(
+                        select(EquipmentTemplate)
+                        .join(EquipmentType)
+                        .where(EquipmentType.category == category)
+                        .order_by(EquipmentTemplate.name)
+                    )
+                ).scalars().all()
+
     return templates.TemplateResponse(
         request,
         "equipment.html",
         {
             "user": user,
+            "buildings": buildings,
+            "selected_building": selected_building,
+            "building_id": building_id,
+            "category": category if category in EQUIPMENT_CATEGORIES else None,
+            "categories": EQUIPMENT_CATEGORIES,
+            "category_counts": category_counts,
             "equipment": equipment,
             "zones": zones,
             "types": types,
@@ -401,6 +470,8 @@ async def equipment_create(
     zone_id: int = Form(...),
     code: str = Form(...),
     name: str = Form(...),
+    category: str = Form("설비"),
+    building_id: int = Form(0),
     equipment_type_id: int = Form(0),
     template_id: int = Form(0),
     manufacturer: str = Form(""),
@@ -409,6 +480,7 @@ async def equipment_create(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    cat = category if category in EQUIPMENT_CATEGORIES else "설비"
     tpl_id = template_id if template_id > 0 else None
     type_id = equipment_type_id if equipment_type_id > 0 else None
 
@@ -416,6 +488,7 @@ async def equipment_create(
         zone_id=zone_id,
         code=code.strip(),
         name=name.strip(),
+        category=cat,
         equipment_type_id=type_id,
         template_id=tpl_id,
         manufacturer=manufacturer,
@@ -448,7 +521,10 @@ async def equipment_create(
 
     db.add(eq)
     await db.commit()
-    return RedirectResponse("/admin/equipment", status_code=303)
+    redirect = "/admin/equipment"
+    if building_id:
+        redirect = f"/admin/equipment?building_id={building_id}&category={cat}"
+    return RedirectResponse(redirect, status_code=303)
 
 
 @app.get("/admin/equipment/{eq_id}")
@@ -546,10 +622,12 @@ async def template_create(
 @app.post("/admin/equipment-types")
 async def equipment_type_create(
     name: str = Form(...),
+    category: str = Form("설비"),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    db.add(EquipmentType(name=name.strip()))
+    cat = category if category in EQUIPMENT_CATEGORIES else "설비"
+    db.add(EquipmentType(name=name.strip(), category=cat))
     await db.commit()
     return RedirectResponse("/admin/templates", status_code=303)
 

@@ -141,11 +141,19 @@ class Zone(Base):
     equipment = relationship("Equipment", back_populates="zone", cascade="all, delete-orphan")
 
 
+class EquipmentCategory(str, enum.Enum):
+    """건물 내 설비 대분류."""
+    facility = "설비"
+    electrical = "전기"
+    civil = "토건"
+
+
 class EquipmentType(Base):
     __tablename__ = "equipment_types"
 
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
+    category = Column(String(20), default="설비", nullable=False)  # 설비/전기/토건
     description = Column(Text, nullable=True)
     icon = Column(String(50), nullable=True)
 
@@ -179,6 +187,7 @@ class Equipment(Base):
     template_id = Column(Integer, ForeignKey("equipment_templates.id"), nullable=True)
     code = Column(String(64), unique=True, nullable=False, index=True)
     name = Column(String(200), nullable=False)
+    category = Column(String(20), default="설비", nullable=False, index=True)  # 설비/전기/토건
     manufacturer = Column(String(100), nullable=True)
     model = Column(String(100), nullable=True)
     serial_no = Column(String(100), nullable=True)
