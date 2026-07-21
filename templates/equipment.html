@@ -50,7 +50,7 @@
   {% if categories %}
   <div class="category-grid">
     {% for cat in categories %}
-    <a class="category-card category-{{ loop.index }}"
+    <a class="category-card category-palette-{{ (loop.index0 % 12) + 1 }}"
        href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat }}">
       <span class="category-name">{{ cat }}</span>
       <span class="category-count">{{ category_counts.get(cat, 0) }}건</span>
@@ -78,6 +78,7 @@
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
+<div class="category-tabs-wrap">
 <div class="category-tabs">
   {% for cat in categories %}
   <a class="category-tab {% if cat == category %}active{% endif %}"
@@ -86,6 +87,7 @@
     <small>({{ category_counts.get(cat, 0) }})</small>
   </a>
   {% endfor %}
+</div>
 </div>
 
 <div class="grid-2">
