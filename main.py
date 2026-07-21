@@ -272,7 +272,10 @@ async def sites_list(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Site).options(selectinload(Site.buildings)).order_by(Site.name)
+        select(Site)
+        .where(Site.is_active == True)
+        .options(selectinload(Site.buildings))
+        .order_by(Site.name)
     )
     sites = result.scalars().all()
     return templates.TemplateResponse(
@@ -295,6 +298,59 @@ async def site_create(
     return RedirectResponse("/admin/sites", status_code=303)
 
 
+@app.get("/admin/sites/{site_id}/edit")
+async def site_edit_page(
+    site_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active:
+        raise HTTPException(404)
+    return templates.TemplateResponse(
+        request, "site_edit.html", {"user": user, "site": site}
+    )
+
+
+@app.post("/admin/sites/{site_id}/edit")
+async def site_edit(
+    site_id: int,
+    name: str = Form(...),
+    code: str = Form(...),
+    address: str = Form(""),
+    manager_name: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active:
+        raise HTTPException(404)
+    site.name = name.strip()
+    site.code = code.strip()
+    site.address = address
+    site.manager_name = manager_name
+    await db.commit()
+    return RedirectResponse("/admin/sites", status_code=303)
+
+
+@app.post("/admin/sites/{site_id}/delete")
+async def site_delete(
+    site_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    site = await db.get(Site, site_id)
+    if not site:
+        raise HTTPException(404)
+    site.is_active = False
+    result = await db.execute(select(Building).where(Building.site_id == site_id))
+    for b in result.scalars().all():
+        b.is_active = False
+    await db.commit()
+    return RedirectResponse("/admin/sites", status_code=303)
+
+
 @app.get("/admin/buildings/{building_id}")
 async def building_detail(
     building_id: int,
@@ -311,7 +367,7 @@ async def building_detail(
         )
     )
     building = result.scalar_one_or_none()
-    if not building:
+    if not building or not building.is_active:
         raise HTTPException(404)
     return templates.TemplateResponse(
         request, "building_detail.html", {"user": user, "building": building}
@@ -327,6 +383,66 @@ async def building_create(
     db: AsyncSession = Depends(get_db),
 ):
     db.add(Building(site_id=site_id, name=name.strip(), code=code.strip()))
+    await db.commit()
+    return RedirectResponse("/admin/sites", status_code=303)
+
+
+@app.get("/admin/buildings/{building_id}/edit")
+async def building_edit_page(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Building)
+        .where(Building.id == building_id)
+        .options(selectinload(Building.site))
+    )
+    building = result.scalar_one_or_none()
+    if not building or not building.is_active:
+        raise HTTPException(404)
+    sites = (
+        await db.execute(select(Site).where(Site.is_active == True).order_by(Site.name))
+    ).scalars().all()
+    return templates.TemplateResponse(
+        request,
+        "building_edit.html",
+        {"user": user, "building": building, "sites": sites},
+    )
+
+
+@app.post("/admin/buildings/{building_id}/edit")
+async def building_edit(
+    building_id: int,
+    site_id: int = Form(...),
+    name: str = Form(...),
+    code: str = Form(...),
+    manager_name: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        raise HTTPException(404)
+    building.site_id = site_id
+    building.name = name.strip()
+    building.code = code.strip()
+    building.manager_name = manager_name
+    await db.commit()
+    return RedirectResponse(f"/admin/buildings/{building_id}", status_code=303)
+
+
+@app.post("/admin/buildings/{building_id}/delete")
+async def building_delete(
+    building_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    building = await db.get(Building, building_id)
+    if not building:
+        raise HTTPException(404)
+    building.is_active = False
     await db.commit()
     return RedirectResponse("/admin/sites", status_code=303)
 
@@ -374,6 +490,7 @@ async def equipment_list(
     buildings = (
         await db.execute(
             select(Building)
+            .where(Building.is_active == True)
             .options(selectinload(Building.site))
             .order_by(Building.name)
         )
@@ -388,6 +505,8 @@ async def equipment_list(
 
     if building_id:
         selected_building = await db.get(Building, building_id)
+        if selected_building and not selected_building.is_active:
+            selected_building = None
         if selected_building:
             # 건물별 카테고리 건수
             count_q = await db.execute(
@@ -536,7 +655,7 @@ async def equipment_detail(
 ):
     result = await db.execute(
         select(Equipment)
-        .where(Equipment.id == eq_id)
+        .where(Equipment.id == eq_id, Equipment.is_active == True)
         .options(
             selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
             selectinload(Equipment.consumables),
@@ -555,6 +674,133 @@ async def equipment_detail(
         "equipment_detail.html",
         {"user": user, "eq": eq, "qr_url": f"{base_url}/eq/{eq.code}"},
     )
+
+
+@app.get("/admin/equipment/{eq_id}/edit")
+async def equipment_edit_page(
+    eq_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Equipment)
+        .where(Equipment.id == eq_id, Equipment.is_active == True)
+        .options(
+            selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
+            selectinload(Equipment.equipment_type),
+        )
+    )
+    eq = result.scalar_one_or_none()
+    if not eq:
+        raise HTTPException(404)
+
+    building_id = eq.zone.floor.building_id if eq.zone and eq.zone.floor else 0
+    zones = []
+    if building_id:
+        zones = (
+            await db.execute(
+                select(Zone)
+                .join(Floor)
+                .where(Floor.building_id == building_id)
+                .order_by(Zone.name)
+            )
+        ).scalars().all()
+    types = (
+        await db.execute(
+            select(EquipmentType)
+            .where(EquipmentType.category == eq.category)
+            .order_by(EquipmentType.name)
+        )
+    ).scalars().all()
+    return templates.TemplateResponse(
+        request,
+        "equipment_edit.html",
+        {
+            "user": user,
+            "eq": eq,
+            "zones": zones,
+            "types": types,
+            "categories": EQUIPMENT_CATEGORIES,
+            "building_id": building_id,
+        },
+    )
+
+
+@app.post("/admin/equipment/{eq_id}/edit")
+async def equipment_edit(
+    eq_id: int,
+    zone_id: int = Form(...),
+    code: str = Form(...),
+    name: str = Form(...),
+    category: str = Form("설비"),
+    equipment_type_id: int = Form(0),
+    manufacturer: str = Form(""),
+    model: str = Form(""),
+    serial_no: str = Form(""),
+    manager_name: str = Form(""),
+    plc_tag: str = Form(""),
+    status: str = Form("normal"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    eq = await db.get(Equipment, eq_id)
+    if not eq or not eq.is_active:
+        raise HTTPException(404)
+    cat = category if category in EQUIPMENT_CATEGORIES else eq.category
+    eq.zone_id = zone_id
+    eq.code = code.strip()
+    eq.name = name.strip()
+    eq.category = cat
+    eq.equipment_type_id = equipment_type_id if equipment_type_id > 0 else None
+    eq.manufacturer = manufacturer
+    eq.model = model
+    eq.serial_no = serial_no or None
+    eq.manager_name = manager_name
+    eq.plc_tag = plc_tag or None
+    eq.status = status
+    await db.commit()
+
+    building_id = 0
+    zone = await db.get(Zone, zone_id)
+    if zone:
+        floor = await db.get(Floor, zone.floor_id)
+        if floor:
+            building_id = floor.building_id
+    if building_id:
+        return RedirectResponse(
+            f"/admin/equipment?building_id={building_id}&category={cat}",
+            status_code=303,
+        )
+    return RedirectResponse(f"/admin/equipment/{eq_id}", status_code=303)
+
+
+@app.post("/admin/equipment/{eq_id}/delete")
+async def equipment_delete(
+    eq_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Equipment)
+        .where(Equipment.id == eq_id)
+        .options(
+            selectinload(Equipment.zone).selectinload(Zone.floor),
+        )
+    )
+    eq = result.scalar_one_or_none()
+    if not eq:
+        raise HTTPException(404)
+    building_id = eq.zone.floor.building_id if eq.zone and eq.zone.floor else 0
+    cat = eq.category
+    eq.is_active = False
+    await db.commit()
+    if building_id:
+        return RedirectResponse(
+            f"/admin/equipment?building_id={building_id}&category={cat}",
+            status_code=303,
+        )
+    return RedirectResponse("/admin/equipment", status_code=303)
 
 
 # ── Equipment Templates ───────────────────────────────────────────────

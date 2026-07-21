@@ -10,16 +10,36 @@
     <h2>사업장 목록</h2>
     {% for site in sites %}
     <div class="site-block">
-      <h3>{{ site.name }} <small>({{ site.code }})</small></h3>
+      <div class="item-head">
+        <h3>{{ site.name }} <small>({{ site.code }})</small></h3>
+        <div class="row-actions">
+          <a class="btn btn-sm btn-secondary" href="/admin/sites/{{ site.id }}/edit">수정</a>
+          <form method="post" action="/admin/sites/{{ site.id }}/delete" class="inline-form"
+                onsubmit="return confirm('사업장 「{{ site.name }}」을(를) 삭제할까요?\n하위 건물도 함께 비활성화됩니다.');">
+            <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+          </form>
+        </div>
+      </div>
       <p class="text-muted">{{ site.address or '' }} · 담당: {{ site.manager_name or '-' }}</p>
       <ul>
-        {% for b in site.buildings %}
-        <li><a href="/admin/buildings/{{ b.id }}">{{ b.name }}</a> ({{ b.code }})</li>
+        {% for b in site.buildings if b.is_active %}
+        <li class="building-row">
+          <a href="/admin/buildings/{{ b.id }}">{{ b.name }}</a> ({{ b.code }})
+          <span class="row-actions">
+            <a class="link-action" href="/admin/buildings/{{ b.id }}/edit">수정</a>
+            <form method="post" action="/admin/buildings/{{ b.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('건물 「{{ b.name }}」을(를) 삭제할까요?');">
+              <button type="submit" class="link-action link-danger">삭제</button>
+            </form>
+          </span>
+        </li>
         {% else %}
         <li class="empty">건물 없음</li>
         {% endfor %}
       </ul>
     </div>
+    {% else %}
+    <p class="empty">등록된 사업장이 없습니다.</p>
     {% endfor %}
   </section>
 

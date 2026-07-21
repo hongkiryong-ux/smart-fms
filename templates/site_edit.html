@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}사업장 수정{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>사업장 수정</h1>
+  <p>{{ site.name }}</p>
+</header>
+
+<section class="card" style="max-width:480px">
+  <form method="post" action="/admin/sites/{{ site.id }}/edit" class="form-stack">
+    <label>사업장명</label>
+    <input type="text" name="name" value="{{ site.name }}" required />
+    <label>코드</label>
+    <input type="text" name="code" value="{{ site.code }}" required />
+    <label>주소</label>
+    <input type="text" name="address" value="{{ site.address or '' }}" />
+    <label>담당자</label>
+    <input type="text" name="manager_name" value="{{ site.manager_name or '' }}" />
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">저장</button>
+      <a class="btn btn-secondary" href="/admin/sites">취소</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

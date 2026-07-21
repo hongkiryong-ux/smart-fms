@@ -2,8 +2,19 @@
 {% block title %}{{ eq.name }}{% endblock %}
 {% block content %}
 <header class="page-header">
-  <h1>{{ eq.name }}</h1>
-  <p><code>{{ eq.code }}</code> · {{ eq.category }} · {{ eq.equipment_type.name if eq.equipment_type else '미분류' }}</p>
+  <div class="item-head">
+    <div>
+      <h1>{{ eq.name }}</h1>
+      <p><code>{{ eq.code }}</code> · {{ eq.category }} · {{ eq.equipment_type.name if eq.equipment_type else '미분류' }}</p>
+    </div>
+    <div class="row-actions">
+      <a class="btn btn-sm btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
+      <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
+            onsubmit="return confirm('「{{ eq.name }}」을(를) 삭제할까요?');">
+        <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+      </form>
+    </div>
+  </div>
 </header>
 
 <div class="grid-2">

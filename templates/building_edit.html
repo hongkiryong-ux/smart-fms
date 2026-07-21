@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}건물 수정{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>건물 수정</h1>
+  <p>{{ building.name }}</p>
+</header>
+
+<section class="card" style="max-width:480px">
+  <form method="post" action="/admin/buildings/{{ building.id }}/edit" class="form-stack">
+    <label>사업장</label>
+    <select name="site_id" required>
+      {% for site in sites %}
+      <option value="{{ site.id }}" {% if site.id == building.site_id %}selected{% endif %}>{{ site.name }}</option>
+      {% endfor %}
+    </select>
+    <label>건물명</label>
+    <input type="text" name="name" value="{{ building.name }}" required />
+    <label>코드</label>
+    <input type="text" name="code" value="{{ building.code }}" required />
+    <label>담당자</label>
+    <input type="text" name="manager_name" value="{{ building.manager_name or '' }}" />
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">저장</button>
+      <a class="btn btn-secondary" href="/admin/buildings/{{ building.id }}">취소</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

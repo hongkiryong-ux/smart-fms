@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ eq.name }} 수정{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>설비 수정</h1>
+  <p><code>{{ eq.code }}</code> · {{ eq.category }}</p>
+</header>
+
+<section class="card" style="max-width:520px">
+  <form method="post" action="/admin/equipment/{{ eq.id }}/edit" class="form-stack">
+    <label>구분</label>
+    <select name="category" required>
+      {% for cat in categories %}
+      <option value="{{ cat }}" {% if cat == eq.category %}selected{% endif %}>{{ cat }}</option>
+      {% endfor %}
+    </select>
+    <label>구역</label>
+    <select name="zone_id" required>
+      {% for z in zones %}
+      <option value="{{ z.id }}" {% if z.id == eq.zone_id %}selected{% endif %}>{{ z.name }}</option>
+      {% endfor %}
+    </select>
+    <label>코드</label>
+    <input type="text" name="code" value="{{ eq.code }}" required />
+    <label>명칭</label>
+    <input type="text" name="name" value="{{ eq.name }}" required />
+    <label>종류</label>
+    <select name="equipment_type_id">
+      <option value="0">선택</option>
+      {% for t in types %}
+      <option value="{{ t.id }}" {% if eq.equipment_type_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+    <label>제조사</label>
+    <input type="text" name="manufacturer" value="{{ eq.manufacturer or '' }}" />
+    <label>모델</label>
+    <input type="text" name="model" value="{{ eq.model or '' }}" />
+    <label>Serial</label>
+    <input type="text" name="serial_no" value="{{ eq.serial_no or '' }}" />
+    <label>담당자</label>
+    <input type="text" name="manager_name" value="{{ eq.manager_name or '' }}" />
+    <label>PLC TAG</label>
+    <input type="text" name="plc_tag" value="{{ eq.plc_tag or '' }}" />
+    <label>상태</label>
+    <select name="status">
+      {% for s in ['normal', 'warning', 'error'] %}
+      <option value="{{ s }}" {% if eq.status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">저장</button>
+      <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}">취소</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
