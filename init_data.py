@@ -300,8 +300,11 @@ async def seed_if_empty(session: AsyncSession) -> None:
 
 
 async def ensure_category_demo(session: AsyncSession) -> None:
-    """기존 DB에 설비/전기/토건 구분 및 샘플 보강."""
-    from excel_import import ensure_all_buildings
+    """기존 DB에 광양운영그룹 건물 목록 보강."""
+    try:
+        from excel_import import ensure_all_buildings
 
-    await ensure_all_buildings(session)
-    print("[seed] gwangyang buildings ensured", flush=True)
+        await ensure_all_buildings(session)
+        print("[seed] gwangyang buildings ensured", flush=True)
+    except Exception as e:
+        print(f"[seed] buildings ensure skipped: {e}", flush=True)

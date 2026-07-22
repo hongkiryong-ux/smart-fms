@@ -124,6 +124,7 @@ def _d1_status_label(status: D1Status) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """DB 초기화 실패해도 앱은 기동시켜 health check / 재시도 가능하게 함."""
     last_err: Exception | None = None
     for attempt in range(1, 6):
         try:
@@ -133,6 +134,7 @@ async def lifespan(app: FastAPI):
             async with AsyncSessionLocal() as session:
                 await seed_if_empty(session)
             print(f"[startup] DB ready (attempt {attempt})", flush=True)
+            last_err = None
             break
         except Exception as e:
             last_err = e
@@ -141,8 +143,12 @@ async def lifespan(app: FastAPI):
                 import asyncio
 
                 await asyncio.sleep(3)
-    else:
-        raise last_err  # type: ignore[misc]
+    if last_err is not None:
+        # 배포(health check)가 막히지 않도록 예외를 삼키고 기동 계속
+        print(
+            f"[startup] WARNING: continuing without full DB init: {last_err}",
+            flush=True,
+        )
     yield
 
 
@@ -583,26 +589,48 @@ async def equipment_list(
             categories = sorted(category_counts.keys())
 
             if category and category in categories:
-                result = await db.execute(
-                    select(Equipment)
-                    .join(Zone)
-                    .join(Floor)
-                    .where(
-                        Floor.building_id == building_id,
-                        Equipment.category == category,
-                        Equipment.is_active == True,
+                try:
+                    result = await db.execute(
+                        select(Equipment)
+                        .join(Zone)
+                        .join(Floor)
+                        .where(
+                            Floor.building_id == building_id,
+                            Equipment.category == category,
+                            Equipment.is_active == True,
+                        )
+                        .options(
+                            selectinload(Equipment.zone)
+                            .selectinload(Zone.floor)
+                            .selectinload(Floor.building),
+                            selectinload(Equipment.equipment_type),
+                            selectinload(Equipment.work_orders),
+                            selectinload(Equipment.maintenance_records),
+                        )
+                        .order_by(Equipment.code)
                     )
-                    .options(
-                        selectinload(Equipment.zone)
-                        .selectinload(Zone.floor)
-                        .selectinload(Floor.building),
-                        selectinload(Equipment.equipment_type),
-                        selectinload(Equipment.work_orders),
-                        selectinload(Equipment.maintenance_records),
+                    equipment = result.scalars().all()
+                except Exception as e:
+                    print(f"[equipment_list] fallback load: {e}", flush=True)
+                    await db.rollback()
+                    result = await db.execute(
+                        select(Equipment)
+                        .join(Zone)
+                        .join(Floor)
+                        .where(
+                            Floor.building_id == building_id,
+                            Equipment.category == category,
+                            Equipment.is_active == True,
+                        )
+                        .options(
+                            selectinload(Equipment.zone)
+                            .selectinload(Zone.floor)
+                            .selectinload(Floor.building),
+                            selectinload(Equipment.work_orders),
+                        )
+                        .order_by(Equipment.code)
                     )
-                    .order_by(Equipment.code)
-                )
-                equipment = result.scalars().all()
+                    equipment = result.scalars().all()
 
                 # 해당 건물 구역만
                 zones = (

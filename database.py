@@ -127,8 +127,11 @@ async def ensure_schema_updates() -> None:
     is_pg = "postgresql" in url or "postgres" in url
 
     # 신규 테이블은 별도 트랜잭션으로 확실히 생성
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        print(f"[db] create_all warning: {e}", flush=True)
 
     async def _exec(stmt: str) -> None:
         # 문장마다 독립 트랜잭션 — PG에서 한 문장 실패 시 전체 롤백 방지
