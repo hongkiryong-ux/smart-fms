@@ -597,6 +597,8 @@ async def equipment_list(
                         .selectinload(Zone.floor)
                         .selectinload(Floor.building),
                         selectinload(Equipment.equipment_type),
+                        selectinload(Equipment.work_orders),
+                        selectinload(Equipment.maintenance_records),
                     )
                     .order_by(Equipment.code)
                 )

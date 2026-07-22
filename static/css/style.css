@@ -746,27 +746,59 @@ code {
 .category-tab.active small { color: rgba(255, 255, 255, 0.85); }
 
 
-/* Equipment code link + popup */
-.eq-code-link {
+/* Equipment code button + native dialog */
+.eq-list-hint {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.eq-code-cell {
+  pointer-events: auto;
+  position: relative;
+  z-index: 8;
+}
+.eq-code-btn {
   display: inline-block;
-  padding: 0.2rem 0.35rem;
-  margin: -0.2rem -0.35rem;
-  color: var(--primary);
+  padding: 0.35rem 0.55rem;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #003876;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.85rem;
   font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 2px;
   cursor: pointer;
-  position: relative;
-  z-index: 7;
-  pointer-events: auto;
+  text-decoration: none;
   word-break: break-all;
+  max-width: 100%;
+  text-align: left;
 }
-.eq-code-link:hover {
-  color: var(--primary-light);
-  background: #eff6ff;
-  border-radius: 4px;
+.eq-code-btn:hover,
+.eq-code-btn:focus {
+  background: #003876;
+  color: #fff;
+  border-color: #003876;
+  outline: none;
+}
+.eq-dialog {
+  border: none;
+  border-radius: 14px;
+  padding: 0;
+  width: min(720px, calc(100vw - 2rem));
+  max-height: min(90vh, 900px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+}
+.eq-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.5);
+}
+.eq-dialog-top {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0.65rem 0.75rem 0;
+}
+.eq-dialog .eq-popup-body {
+  padding-bottom: 1rem;
 }
 button.link-action {
   background: none;

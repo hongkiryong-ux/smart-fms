@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-header">
   <h1>설비 관리</h1>
-  <p>건물 → 엑셀 시트(설비 구분) → 하위 항목 · <a href="/admin/equipment/import">엑셀 Import/Export</a></p>
+  <p>건물 → 엑셀 시트(설비 구분) → 코드 클릭 시 상세/정비의뢰 · <a href="/admin/equipment/import">엑셀 Import/Export</a></p>
 </header>
 
 {# ── 1단계: 건물 선택 ── #}
@@ -53,7 +53,7 @@
   <div class="category-grid">
     {% for cat in categories %}
     <a class="category-card category-palette-{{ (loop.index0 % 12) + 1 }}"
-       href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat }}">
+       href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat|urlencode }}">
       <span class="category-name">{{ cat }}</span>
       <span class="category-count">{{ category_counts.get(cat, 0) }}건</span>
       <span class="category-hint">하위 항목 보기</span>
@@ -84,7 +84,7 @@
 <div class="category-tabs">
   {% for cat in categories %}
   <a class="category-tab {% if cat == category %}active{% endif %}"
-     href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat }}">
+     href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat|urlencode }}">
     {{ cat }}
     <small>({{ category_counts.get(cat, 0) }})</small>
   </a>
@@ -92,53 +92,135 @@
 </div>
 </div>
 
+<p class="eq-list-hint">설비 <strong>코드</strong>를 클릭하면 상세 정보와 <strong>정비의뢰</strong> 메뉴가 열립니다.</p>
+
 <div class="grid-2">
-  <section class="card card-wide table-scroll">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+  <section class="card card-wide">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem">
       <h2 style="margin:0">{{ selected_building.name }} · {{ category }}</h2>
       <a class="btn btn-secondary btn-sm" href="/admin/equipment/export/{{ selected_building.id }}">엑셀 출력</a>
     </div>
     {% if equipment %}
+    <div class="table-scroll">
     <table class="data-table sheet-data-table">
       <thead>
         <tr>
-          <th>코드</th>
+          <th>코드 (클릭)</th>
           {% for col in list_columns %}
           <th>{{ col }}</th>
           {% endfor %}
-          <th>관리</th>
+          <th>바로가기</th>
         </tr>
       </thead>
       <tbody>
         {% for eq in equipment %}
-        <tr class="eq-row" data-eq-id="{{ eq.id }}">
+        <tr>
           <td class="eq-code-cell">
-            <a class="eq-code-link"
-               href="/admin/equipment/{{ eq.id }}"
-               data-eq-id="{{ eq.id }}"
-               title="클릭하면 상세 팝업">
+            <button type="button"
+                    class="eq-code-btn"
+                    data-open-dialog="eq-dialog-{{ eq.id }}">
               {{ eq.code }}
-            </a>
+            </button>
           </td>
           {% for col in list_columns %}
           <td>{{ field_value(eq, col) or '-' }}</td>
           {% endfor %}
           <td>
             <div class="row-actions">
-              <a class="link-action eq-detail-link"
-                 href="/admin/equipment/{{ eq.id }}"
-                 data-eq-id="{{ eq.id }}">상세</a>
+              <button type="button" class="link-action" data-open-dialog="eq-dialog-{{ eq.id }}">상세/정비의뢰</button>
               <a class="link-action" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
-              <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
-                    onsubmit="return confirm('「{{ eq.name }}」을(를) 삭제할까요?');">
-                <button type="submit" class="link-action link-danger">삭제</button>
-              </form>
             </div>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    </div>
+
+    {# 각 설비 상세 다이얼로그 (서버에서 바로 렌더 — fetch 불필요) #}
+    {% for eq in equipment %}
+    <dialog id="eq-dialog-{{ eq.id }}" class="eq-dialog">
+      <form method="dialog" class="eq-dialog-top">
+        <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+      </form>
+      <div class="eq-popup-body">
+        <div class="eq-popup-header" style="border:0;padding-top:0">
+          <div>
+            <h2 id="eq-popup-title">{{ eq.name }}</h2>
+            <p><code>{{ eq.code }}</code> · {{ eq.category }}
+              {% if eq.zone %} · {{ eq.zone.floor.name if eq.zone.floor else '' }} / {{ eq.zone.name }}{% endif %}
+            </p>
+          </div>
+        </div>
+
+        <div class="eq-popup-actions">
+          <form method="post" action="/admin/equipment/{{ eq.id }}/maintenance-request" class="inline-form">
+            <input type="hidden" name="title" value="[정비의뢰] {{ eq.code }} {{ eq.name }}" />
+            <button type="submit" class="btn btn-primary">정비의뢰</button>
+          </form>
+          <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}">전체 상세·이력</a>
+          <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
+        </div>
+
+        {% set ns = namespace(has_open=false) %}
+        {% for wo in eq.work_orders %}
+          {% if wo.status.value in ['received', 'assigned', 'in_progress'] %}
+            {% set ns.has_open = true %}
+          {% endif %}
+        {% endfor %}
+        {% if ns.has_open %}
+        <div class="eq-popup-section">
+          <h3>진행 중 정비</h3>
+          <ul class="eq-popup-list">
+            {% for wo in eq.work_orders %}
+            {% if wo.status.value in ['received', 'assigned', 'in_progress'] %}
+            <li>
+              <a href="/admin/work-orders/{{ wo.id }}">#{{ wo.id }} {{ wo.title }}</a>
+              <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
+            </li>
+            {% endif %}
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        <div class="eq-popup-section">
+          <h3>{{ category }} 사양</h3>
+          <dl class="info-dl sheet-info-dl eq-popup-dl">
+            <dt>코드</dt><dd><code>{{ eq.code }}</code></dd>
+            <dt>명칭</dt><dd>{{ eq.name }}</dd>
+            <dt>제조사</dt><dd>{{ eq.manufacturer or '-' }}</dd>
+            <dt>모델</dt><dd>{{ eq.model or '-' }}</dd>
+            {% for field in sheet_fields[:14] %}
+            <dt>{{ field }}</dt><dd>{{ field_value(eq, field) or '-' }}</dd>
+            {% endfor %}
+          </dl>
+        </div>
+
+        <div class="eq-popup-section">
+          <h3>최근 정비이력</h3>
+          {% set history = (eq.maintenance_records or [])[:5] %}
+          {% if history %}
+          <table class="data-table">
+            <thead><tr><th>일자</th><th>제목</th><th>작업자</th></tr></thead>
+            <tbody>
+              {% for h in history %}
+              <tr>
+                <td>{{ h.work_date }}</td>
+                <td>{{ h.title }}</td>
+                <td>{{ h.worker_name or '-' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="empty">등록된 정비이력이 없습니다.</p>
+          {% endif %}
+        </div>
+      </div>
+    </dialog>
+    {% endfor %}
+
     {% else %}
     <p class="empty">등록된 {{ category }} 항목이 없습니다. 우측에서 등록하거나 엑셀을 업로드하세요.</p>
     {% endif %}
@@ -169,73 +251,24 @@
     </p>
   </section>
 </div>
-{% endif %}
 
-{# 설비 상세 팝업 (목록 단계에서도 항상 DOM에 존재) #}
-<div id="eq-popup-overlay" class="eq-popup-overlay" hidden>
-  <div class="eq-popup-dialog" role="dialog" aria-modal="true" aria-labelledby="eq-popup-title">
-    <div id="eq-popup-content" class="eq-popup-content">
-      <p class="empty">불러오는 중…</p>
-    </div>
-  </div>
-</div>
 <script>
 (function () {
-  function openEqPopup(eqId) {
-    var overlay = document.getElementById('eq-popup-overlay');
-    var content = document.getElementById('eq-popup-content');
-    if (!overlay || !content) {
-      window.location.href = '/admin/equipment/' + eqId;
-      return;
+  function openDialog(id) {
+    var dlg = document.getElementById(id);
+    if (dlg && typeof dlg.showModal === 'function') {
+      dlg.showModal();
+    } else if (dlg) {
+      dlg.setAttribute('open', 'open');
     }
-    overlay.hidden = false;
-    content.innerHTML = '<p class="empty">불러오는 중…</p>';
-    document.body.style.overflow = 'hidden';
-    fetch('/admin/equipment/' + eqId + '/popup', {
-      credentials: 'same-origin',
-      headers: { 'Accept': 'text/html' }
-    })
-      .then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.text();
-      })
-      .then(function (html) {
-        content.innerHTML = html;
-      })
-      .catch(function () {
-        content.innerHTML =
-          '<div class="eq-popup-body" style="padding:1.25rem">' +
-          '<p class="alert alert-error">상세를 불러오지 못했습니다.</p>' +
-          '<a class="btn btn-primary" href="/admin/equipment/' + eqId + '">상세 페이지로 이동</a>' +
-          '<button type="button" class="btn btn-secondary" onclick="window.closeEqPopup()">닫기</button>' +
-          '</div>';
-      });
   }
-
-  function closeEqPopup() {
-    var overlay = document.getElementById('eq-popup-overlay');
-    if (overlay) overlay.hidden = true;
-    document.body.style.overflow = '';
-  }
-
-  window.openEqPopup = openEqPopup;
-  window.closeEqPopup = closeEqPopup;
-
   document.addEventListener('click', function (e) {
-    var link = e.target.closest('.eq-code-link, .eq-detail-link');
-    if (link && link.dataset.eqId) {
-      e.preventDefault();
-      openEqPopup(link.dataset.eqId);
-      return;
-    }
-    if (e.target.id === 'eq-popup-overlay') {
-      closeEqPopup();
-    }
-  });
-
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeEqPopup();
+    var btn = e.target.closest('[data-open-dialog]');
+    if (!btn) return;
+    e.preventDefault();
+    openDialog(btn.getAttribute('data-open-dialog'));
   });
 })();
 </script>
+{% endif %}
 {% endblock %}
