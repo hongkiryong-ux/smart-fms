@@ -372,13 +372,14 @@ body {
   position: sticky;
   left: 0;
   background: #fff;
-  z-index: 1;
+  z-index: 5;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.04);
 }
-.sheet-data-table th:first-child { background: #f8fafc; z-index: 2; }
+.sheet-data-table th:first-child { background: #f8fafc; z-index: 6; }
 .sheet-data-table tr:hover td { background: #f9fafb; }
 .sheet-data-table tr:hover td:first-child { background: #f9fafb; }
 .sheet-data-table code { color: var(--primary); font-size: 0.8rem; }
+.eq-code-cell { pointer-events: auto; }
 .table-scroll { overflow: auto; max-width: 100%; border: 1px solid var(--border); border-radius: 8px; }
 .sheet-info-dl { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr; gap: 0.35rem 1rem; }
 .sheet-info-dl dt { font-weight: 600; color: var(--muted); }
@@ -745,20 +746,28 @@ code {
 .category-tab.active small { color: rgba(255, 255, 255, 0.85); }
 
 
-/* Equipment code button + popup */
-.eq-code-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-}
-.eq-code-btn code {
+/* Equipment code link + popup */
+.eq-code-link {
+  display: inline-block;
+  padding: 0.2rem 0.35rem;
+  margin: -0.2rem -0.35rem;
   color: var(--primary);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 2px;
+  cursor: pointer;
+  position: relative;
+  z-index: 7;
+  pointer-events: auto;
+  word-break: break-all;
 }
-.eq-code-btn:hover code { color: var(--primary-light); }
+.eq-code-link:hover {
+  color: var(--primary-light);
+  background: #eff6ff;
+  border-radius: 4px;
+}
 button.link-action {
   background: none;
   border: none;

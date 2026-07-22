@@ -112,17 +112,22 @@
       <tbody>
         {% for eq in equipment %}
         <tr class="eq-row" data-eq-id="{{ eq.id }}">
-          <td>
-            <button type="button" class="eq-code-btn" onclick="openEqPopup({{ eq.id }})" title="상세 보기">
-              <code>{{ eq.code }}</code>
-            </button>
+          <td class="eq-code-cell">
+            <a class="eq-code-link"
+               href="/admin/equipment/{{ eq.id }}"
+               data-eq-id="{{ eq.id }}"
+               title="클릭하면 상세 팝업">
+              {{ eq.code }}
+            </a>
           </td>
           {% for col in list_columns %}
           <td>{{ field_value(eq, col) or '-' }}</td>
           {% endfor %}
           <td>
             <div class="row-actions">
-              <button type="button" class="link-action" onclick="openEqPopup({{ eq.id }})">상세</button>
+              <a class="link-action eq-detail-link"
+                 href="/admin/equipment/{{ eq.id }}"
+                 data-eq-id="{{ eq.id }}">상세</a>
               <a class="link-action" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
               <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
                     onsubmit="return confirm('「{{ eq.name }}」을(를) 삭제할까요?');">
@@ -166,35 +171,71 @@
 </div>
 {% endif %}
 
-{# 설비 상세 팝업 #}
-<div id="eq-popup-overlay" class="eq-popup-overlay" hidden onclick="if(event.target===this)closeEqPopup()">
-  <div class="eq-popup-dialog" role="dialog" aria-modal="true">
+{# 설비 상세 팝업 (목록 단계에서도 항상 DOM에 존재) #}
+<div id="eq-popup-overlay" class="eq-popup-overlay" hidden>
+  <div class="eq-popup-dialog" role="dialog" aria-modal="true" aria-labelledby="eq-popup-title">
     <div id="eq-popup-content" class="eq-popup-content">
       <p class="empty">불러오는 중…</p>
     </div>
   </div>
 </div>
 <script>
-async function openEqPopup(eqId) {
-  const overlay = document.getElementById('eq-popup-overlay');
-  const content = document.getElementById('eq-popup-content');
-  overlay.hidden = false;
-  content.innerHTML = '<p class="empty">불러오는 중…</p>';
-  try {
-    const res = await fetch('/admin/equipment/' + eqId + '/popup');
-    if (!res.ok) throw new Error('load failed');
-    content.innerHTML = await res.text();
-  } catch (e) {
-    content.innerHTML = '<p class="alert alert-error">상세 정보를 불러오지 못했습니다.</p>';
+(function () {
+  function openEqPopup(eqId) {
+    var overlay = document.getElementById('eq-popup-overlay');
+    var content = document.getElementById('eq-popup-content');
+    if (!overlay || !content) {
+      window.location.href = '/admin/equipment/' + eqId;
+      return;
+    }
+    overlay.hidden = false;
+    content.innerHTML = '<p class="empty">불러오는 중…</p>';
+    document.body.style.overflow = 'hidden';
+    fetch('/admin/equipment/' + eqId + '/popup', {
+      credentials: 'same-origin',
+      headers: { 'Accept': 'text/html' }
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      })
+      .then(function (html) {
+        content.innerHTML = html;
+      })
+      .catch(function () {
+        content.innerHTML =
+          '<div class="eq-popup-body" style="padding:1.25rem">' +
+          '<p class="alert alert-error">상세를 불러오지 못했습니다.</p>' +
+          '<a class="btn btn-primary" href="/admin/equipment/' + eqId + '">상세 페이지로 이동</a>' +
+          '<button type="button" class="btn btn-secondary" onclick="window.closeEqPopup()">닫기</button>' +
+          '</div>';
+      });
   }
-  document.body.style.overflow = 'hidden';
-}
-function closeEqPopup() {
-  document.getElementById('eq-popup-overlay').hidden = true;
-  document.body.style.overflow = '';
-}
-document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') closeEqPopup();
-});
+
+  function closeEqPopup() {
+    var overlay = document.getElementById('eq-popup-overlay');
+    if (overlay) overlay.hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  window.openEqPopup = openEqPopup;
+  window.closeEqPopup = closeEqPopup;
+
+  document.addEventListener('click', function (e) {
+    var link = e.target.closest('.eq-code-link, .eq-detail-link');
+    if (link && link.dataset.eqId) {
+      e.preventDefault();
+      openEqPopup(link.dataset.eqId);
+      return;
+    }
+    if (e.target.id === 'eq-popup-overlay') {
+      closeEqPopup();
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeEqPopup();
+  });
+})();
 </script>
 {% endblock %}
