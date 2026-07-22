@@ -111,14 +111,18 @@
       </thead>
       <tbody>
         {% for eq in equipment %}
-        <tr>
-          <td><code>{{ eq.code }}</code></td>
+        <tr class="eq-row" data-eq-id="{{ eq.id }}">
+          <td>
+            <button type="button" class="eq-code-btn" onclick="openEqPopup({{ eq.id }})" title="상세 보기">
+              <code>{{ eq.code }}</code>
+            </button>
+          </td>
           {% for col in list_columns %}
           <td>{{ field_value(eq, col) or '-' }}</td>
           {% endfor %}
           <td>
             <div class="row-actions">
-              <a class="link-action" href="/admin/equipment/{{ eq.id }}">상세</a>
+              <button type="button" class="link-action" onclick="openEqPopup({{ eq.id }})">상세</button>
               <a class="link-action" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
               <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
                     onsubmit="return confirm('「{{ eq.name }}」을(를) 삭제할까요?');">
@@ -161,4 +165,36 @@
   </section>
 </div>
 {% endif %}
+
+{# 설비 상세 팝업 #}
+<div id="eq-popup-overlay" class="eq-popup-overlay" hidden onclick="if(event.target===this)closeEqPopup()">
+  <div class="eq-popup-dialog" role="dialog" aria-modal="true">
+    <div id="eq-popup-content" class="eq-popup-content">
+      <p class="empty">불러오는 중…</p>
+    </div>
+  </div>
+</div>
+<script>
+async function openEqPopup(eqId) {
+  const overlay = document.getElementById('eq-popup-overlay');
+  const content = document.getElementById('eq-popup-content');
+  overlay.hidden = false;
+  content.innerHTML = '<p class="empty">불러오는 중…</p>';
+  try {
+    const res = await fetch('/admin/equipment/' + eqId + '/popup');
+    if (!res.ok) throw new Error('load failed');
+    content.innerHTML = await res.text();
+  } catch (e) {
+    content.innerHTML = '<p class="alert alert-error">상세 정보를 불러오지 못했습니다.</p>';
+  }
+  document.body.style.overflow = 'hidden';
+}
+function closeEqPopup() {
+  document.getElementById('eq-popup-overlay').hidden = true;
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeEqPopup();
+});
+</script>
 {% endblock %}

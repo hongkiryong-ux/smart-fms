@@ -210,6 +210,31 @@ class Equipment(Base):
     pm_schedules = relationship("PMSchedule", back_populates="equipment")
     consumables = relationship("Consumable", back_populates="equipment")
     work_orders = relationship("WorkOrder", back_populates="equipment")
+    maintenance_records = relationship("MaintenanceRecord", back_populates="equipment")
+
+
+class MaintenanceRecord(Base):
+    """설비 정비이력 (정비완료 자동등록 + 수동등록)."""
+
+    __tablename__ = "maintenance_records"
+
+    id = Column(Integer, primary_key=True)
+    equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False, index=True)
+    work_order_id = Column(Integer, ForeignKey("work_orders.id"), nullable=True)
+    title = Column(String(300), nullable=False)
+    work_date = Column(Date, nullable=False)
+    worker_name = Column(String(100), nullable=True)
+    cause = Column(Text, nullable=True)
+    action = Column(Text, nullable=True)
+    parts_used = Column(Text, nullable=True)
+    work_hours = Column(Float, nullable=True)
+    cost = Column(Float, nullable=True)
+    note = Column(Text, nullable=True)
+    is_manual = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    equipment = relationship("Equipment", back_populates="maintenance_records")
+    work_order = relationship("WorkOrder")
 
 
 class PMSchedule(Base):

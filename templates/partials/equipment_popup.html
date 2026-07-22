@@ -1,0 +1,66 @@
+<div class="eq-popup-body">
+  <div class="eq-popup-header">
+    <div>
+      <h2>{{ eq.name }}</h2>
+      <p><code>{{ eq.code }}</code> · {{ eq.category }}
+        {% if eq.zone %} · {{ eq.zone.floor.name if eq.zone.floor else '' }} / {{ eq.zone.name }}{% endif %}
+      </p>
+    </div>
+    <button type="button" class="eq-popup-close" onclick="closeEqPopup()" aria-label="닫기">&times;</button>
+  </div>
+
+  <div class="eq-popup-actions">
+    <form method="post" action="/admin/equipment/{{ eq.id }}/maintenance-request" class="inline-form">
+      <input type="hidden" name="title" value="[정비의뢰] {{ eq.code }} {{ eq.name }}" />
+      <button type="submit" class="btn btn-primary">정비의뢰</button>
+    </form>
+    <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
+    <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}">전체 상세</a>
+  </div>
+
+  {% if open_orders %}
+  <div class="eq-popup-section">
+    <h3>진행 중 정비</h3>
+    <ul class="eq-popup-list">
+      {% for wo in open_orders %}
+      <li>
+        <a href="/admin/work-orders/{{ wo.id }}">#{{ wo.id }} {{ wo.title }}</a>
+        <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="eq-popup-section">
+    <h3>{{ eq.category }} 사양</h3>
+    <dl class="info-dl sheet-info-dl eq-popup-dl">
+      {% for field in sheet_fields[:12] %}
+      <dt>{{ field }}</dt><dd>{{ field_value(eq, field) or '-' }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+
+  <div class="eq-popup-section">
+    <h3>정비이력</h3>
+    {% if history %}
+    <table class="data-table">
+      <thead>
+        <tr><th>일자</th><th>제목</th><th>작업자</th><th>구분</th></tr>
+      </thead>
+      <tbody>
+        {% for h in history %}
+        <tr>
+          <td>{{ h.work_date }}</td>
+          <td>{{ h.title }}</td>
+          <td>{{ h.worker_name or '-' }}</td>
+          <td>{% if h.is_manual %}수동{% else %}자동{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">등록된 정비이력이 없습니다.</p>
+    {% endif %}
+  </div>
+</div>

@@ -36,6 +36,7 @@ from models import (
     EquipmentType,
     Floor,
     InventoryItem,
+    MaintenanceRecord,
     Partner,
     PMSchedule,
     Site,
@@ -59,15 +60,53 @@ def _fmt_kst(dt: datetime | None) -> str:
 
 def _status_label(status: WorkOrderStatus | str) -> str:
     labels = {
-        "received": "접수",
-        "assigned": "배정",
-        "in_progress": "작업중",
-        "completed": "완료",
-        "verified": "검수",
-        "closed": "종료",
+        "received": "정비의뢰",
+        "assigned": "정비의뢰",
+        "in_progress": "정비중",
+        "completed": "정비완료",
+        "verified": "정비완료",
+        "closed": "정비완료",
     }
     key = status.value if isinstance(status, WorkOrderStatus) else str(status)
     return labels.get(key, key)
+
+
+def _wo_process_step(status: WorkOrderStatus | str) -> int:
+    """1=정비의뢰, 2=정비중, 3=정비완료."""
+    key = status.value if isinstance(status, WorkOrderStatus) else str(status)
+    if key in ("completed", "verified", "closed"):
+        return 3
+    if key == "in_progress":
+        return 2
+    return 1
+
+
+async def _ensure_maintenance_history(db: AsyncSession, wo: WorkOrder) -> None:
+    """정비완료 시 설비 정비이력 자동 등록 (중복 방지)."""
+    if not wo.equipment_id:
+        return
+    existing = (
+        await db.execute(
+            select(MaintenanceRecord).where(MaintenanceRecord.work_order_id == wo.id)
+        )
+    ).scalar_one_or_none()
+    if existing:
+        return
+    db.add(
+        MaintenanceRecord(
+            equipment_id=wo.equipment_id,
+            work_order_id=wo.id,
+            title=wo.title,
+            work_date=(wo.completed_at or datetime.utcnow()).date(),
+            worker_name=wo.assignee_name,
+            cause=wo.cause,
+            action=wo.action,
+            parts_used=wo.parts_used,
+            work_hours=wo.work_hours,
+            cost=wo.cost,
+            is_manual=False,
+        )
+    )
 
 
 def _d1_status_label(status: D1Status) -> str:
@@ -135,6 +174,7 @@ templates.env.globals.update(
     fmt_kst=_fmt_kst,
     role_labels=ROLE_LABELS,
     wo_status_label=_status_label,
+    wo_process_step=_wo_process_step,
     d1_status_label=_d1_status_label,
 )
 
@@ -886,6 +926,7 @@ async def equipment_detail(
             selectinload(Equipment.consumables),
             selectinload(Equipment.pm_schedules),
             selectinload(Equipment.work_orders),
+            selectinload(Equipment.maintenance_records),
             selectinload(Equipment.equipment_type),
             selectinload(Equipment.template),
         )
@@ -895,6 +936,17 @@ async def equipment_detail(
         raise HTTPException(404)
     base_url = os.environ.get("PUBLIC_BASE_URL", str(request.base_url).rstrip("/"))
     sheet_fields = get_category_fields(eq.category, [eq])
+    history = sorted(
+        eq.maintenance_records or [],
+        key=lambda r: (r.work_date or date.min, r.id),
+        reverse=True,
+    )
+    open_orders = [
+        wo
+        for wo in (eq.work_orders or [])
+        if wo.status
+        not in (WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed)
+    ]
     return templates.TemplateResponse(
         request,
         "equipment_detail.html",
@@ -903,8 +955,134 @@ async def equipment_detail(
             "eq": eq,
             "qr_url": f"{base_url}/eq/{eq.code}",
             "sheet_fields": sheet_fields,
+            "history": history,
+            "open_orders": open_orders,
         },
     )
+
+
+@app.get("/admin/equipment/{eq_id}/popup")
+async def equipment_popup(
+    eq_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Equipment)
+        .where(Equipment.id == eq_id, Equipment.is_active == True)
+        .options(
+            selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
+            selectinload(Equipment.work_orders),
+            selectinload(Equipment.maintenance_records),
+        )
+    )
+    eq = result.scalar_one_or_none()
+    if not eq:
+        raise HTTPException(404)
+    sheet_fields = get_category_fields(eq.category, [eq])
+    history = sorted(
+        eq.maintenance_records or [],
+        key=lambda r: (r.work_date or date.min, r.id),
+        reverse=True,
+    )[:10]
+    open_orders = [
+        wo
+        for wo in (eq.work_orders or [])
+        if wo.status
+        not in (WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed)
+    ]
+    return templates.TemplateResponse(
+        request,
+        "partials/equipment_popup.html",
+        {
+            "user": user,
+            "eq": eq,
+            "sheet_fields": sheet_fields,
+            "history": history,
+            "open_orders": open_orders,
+        },
+    )
+
+
+@app.post("/admin/equipment/{eq_id}/maintenance-request")
+async def equipment_maintenance_request(
+    eq_id: int,
+    title: str = Form(""),
+    description: str = Form(""),
+    priority: str = Form("normal"),
+    assignee_name: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    eq = (
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.id == eq_id, Equipment.is_active == True)
+            .options(
+                selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building)
+            )
+        )
+    ).scalar_one_or_none()
+    if not eq:
+        raise HTTPException(404)
+
+    site_id = None
+    if eq.zone and eq.zone.floor and eq.zone.floor.building:
+        site_id = eq.zone.floor.building.site_id
+
+    wo_title = title.strip() or f"[정비의뢰] {eq.code} {eq.name}"
+    wo = WorkOrder(
+        title=wo_title,
+        description=description.strip() or f"{eq.category} 설비 정비의뢰",
+        priority=priority,
+        assignee_name=assignee_name.strip() or None,
+        equipment_id=eq.id,
+        site_id=site_id,
+        status=WorkOrderStatus.received,
+        work_type="정비",
+    )
+    db.add(wo)
+    await db.commit()
+    await db.refresh(wo)
+    return RedirectResponse(f"/admin/work-orders/{wo.id}", status_code=303)
+
+
+@app.post("/admin/equipment/{eq_id}/history")
+async def equipment_history_create(
+    eq_id: int,
+    title: str = Form(...),
+    work_date: str = Form(...),
+    worker_name: str = Form(""),
+    cause: str = Form(""),
+    action: str = Form(""),
+    parts_used: str = Form(""),
+    note: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    eq = await db.get(Equipment, eq_id)
+    if not eq or not eq.is_active:
+        raise HTTPException(404)
+    try:
+        wd = date.fromisoformat(work_date)
+    except ValueError:
+        wd = date.today()
+    db.add(
+        MaintenanceRecord(
+            equipment_id=eq_id,
+            title=title.strip(),
+            work_date=wd,
+            worker_name=worker_name.strip() or None,
+            cause=cause.strip() or None,
+            action=action.strip() or None,
+            parts_used=parts_used.strip() or None,
+            note=note.strip() or None,
+            is_manual=True,
+        )
+    )
+    await db.commit()
+    return RedirectResponse(f"/admin/equipment/{eq_id}", status_code=303)
 
 
 @app.get("/admin/equipment/{eq_id}/edit")
@@ -1154,6 +1332,22 @@ async def work_order_create(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    site_id = None
+    if equipment_id > 0:
+        eq = (
+            await db.execute(
+                select(Equipment)
+                .where(Equipment.id == equipment_id)
+                .options(
+                    selectinload(Equipment.zone)
+                    .selectinload(Zone.floor)
+                    .selectinload(Floor.building)
+                )
+            )
+        ).scalar_one_or_none()
+        if eq and eq.zone and eq.zone.floor and eq.zone.floor.building:
+            site_id = eq.zone.floor.building.site_id
+
     wo = WorkOrder(
         title=title.strip(),
         description=description,
@@ -1161,6 +1355,9 @@ async def work_order_create(
         assignee_name=assignee_name,
         equipment_id=equipment_id if equipment_id > 0 else None,
         partner_id=partner_id if partner_id > 0 else None,
+        site_id=site_id,
+        status=WorkOrderStatus.received,
+        work_type="정비",
     )
     db.add(wo)
     await db.commit()
@@ -1184,7 +1381,9 @@ async def work_order_detail(
     if not wo:
         raise HTTPException(404)
     return templates.TemplateResponse(
-        request, "work_order_detail.html", {"user": user, "wo": wo}
+        request,
+        "work_order_detail.html",
+        {"user": user, "wo": wo, "process_step": _wo_process_step(wo.status)},
     )
 
 
@@ -1194,19 +1393,51 @@ async def work_order_status(
     status: str = Form(...),
     action: str = Form(""),
     cause: str = Form(""),
+    assignee_name: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     wo = await db.get(WorkOrder, wo_id)
     if not wo:
         raise HTTPException(404)
+
+    # 3단계 프로세스만 허용
+    allowed = {"received", "in_progress", "completed"}
+    if status not in allowed:
+        status = "received"
+
     wo.status = WorkOrderStatus(status)
     if action:
         wo.action = action
     if cause:
         wo.cause = cause
-    if status in ("completed", "closed"):
+    if assignee_name.strip():
+        wo.assignee_name = assignee_name.strip()
+
+    if status == "completed":
         wo.completed_at = datetime.utcnow()
+        await _ensure_maintenance_history(db, wo)
+    await db.commit()
+    return RedirectResponse(f"/admin/work-orders/{wo_id}", status_code=303)
+
+
+@app.post("/admin/work-orders/{wo_id}/advance")
+async def work_order_advance(
+    wo_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """다음 단계로 진행: 정비의뢰 → 정비중 → 정비완료."""
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo:
+        raise HTTPException(404)
+    step = _wo_process_step(wo.status)
+    if step == 1:
+        wo.status = WorkOrderStatus.in_progress
+    elif step == 2:
+        wo.status = WorkOrderStatus.completed
+        wo.completed_at = datetime.utcnow()
+        await _ensure_maintenance_history(db, wo)
     await db.commit()
     return RedirectResponse(f"/admin/work-orders/{wo_id}", status_code=303)
 

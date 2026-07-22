@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}CMMS{% endblock %}
+{% block title %}정비관리{% endblock %}
 {% block content %}
 <header class="page-header">
-  <h1>CMMS 작업관리</h1>
-  <p>접수 → 배정 → 작업중 → 완료 → 검수 → 종료</p>
+  <h1>정비관리 (CMMS)</h1>
+  <p>정비의뢰 → 정비중 → 정비완료 · 완료 시 설비 정비이력 자동 등록</p>
 </header>
 
 <div class="grid-2">
   <section class="card card-wide">
-    <h2>작업 목록</h2>
+    <h2>정비 목록</h2>
     <table class="data-table">
       <thead>
         <tr>
@@ -26,22 +26,28 @@
         <tr>
           <td>#{{ wo.id }}</td>
           <td>{{ wo.title }}</td>
-          <td>{{ wo.equipment.name if wo.equipment else '-' }}</td>
+          <td>
+            {% if wo.equipment %}
+            <code>{{ wo.equipment.code }}</code> {{ wo.equipment.name }}
+            {% else %}-{% endif %}
+          </td>
           <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
           <td><span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span></td>
           <td>{{ fmt_kst(wo.created_at) }}</td>
           <td><a href="/admin/work-orders/{{ wo.id }}">상세</a></td>
         </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">등록된 정비의뢰가 없습니다.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
 
   <section class="card">
-    <h2>작업 접수</h2>
+    <h2>정비의뢰 접수</h2>
     <form method="post" action="/admin/work-orders" class="form-stack">
       <label>제목</label>
-      <input type="text" name="title" required />
+      <input type="text" name="title" required placeholder="예: 펌프 누수 정비" />
       <label>설비</label>
       <select name="equipment_id">
         <option value="0">선택</option>
@@ -65,7 +71,7 @@
         <option value="{{ p.id }}">{{ p.name }}</option>
         {% endfor %}
       </select>
-      <button type="submit" class="btn btn-primary">접수</button>
+      <button type="submit" class="btn btn-primary">정비의뢰</button>
     </form>
   </section>
 </div>

@@ -6,11 +6,43 @@
   <p>#{{ wo.id }} · <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span></p>
 </header>
 
+<section class="card process-card">
+  <h2>정비 진행 단계</h2>
+  <ol class="process-steps">
+    <li class="{% if process_step >= 1 %}done{% endif %} {% if process_step == 1 %}current{% endif %}">
+      <span class="step-num">1</span>
+      <span class="step-label">정비의뢰</span>
+    </li>
+    <li class="{% if process_step >= 2 %}done{% endif %} {% if process_step == 2 %}current{% endif %}">
+      <span class="step-num">2</span>
+      <span class="step-label">정비중</span>
+    </li>
+    <li class="{% if process_step >= 3 %}done{% endif %} {% if process_step == 3 %}current{% endif %}">
+      <span class="step-num">3</span>
+      <span class="step-label">정비완료</span>
+    </li>
+  </ol>
+  {% if process_step < 3 %}
+  <form method="post" action="/admin/work-orders/{{ wo.id }}/advance" class="process-advance">
+    <button type="submit" class="btn btn-primary">
+      {% if process_step == 1 %}정비중으로 진행{% else %}정비완료 처리{% endif %}
+    </button>
+  </form>
+  {% else %}
+  <p class="process-done-msg">정비가 완료되어 설비 정비이력에 자동 등록되었습니다.</p>
+  {% endif %}
+</section>
+
 <div class="grid-2">
   <section class="card">
     <h2>작업 정보</h2>
     <dl class="info-dl">
-      <dt>설비</dt><dd>{{ wo.equipment.name if wo.equipment else '-' }}</dd>
+      <dt>설비</dt>
+      <dd>
+        {% if wo.equipment %}
+        <a href="/admin/equipment/{{ wo.equipment.id }}">{{ wo.equipment.code }} — {{ wo.equipment.name }}</a>
+        {% else %}-{% endif %}
+      </dd>
       <dt>설명</dt><dd>{{ wo.description or '-' }}</dd>
       <dt>담당자</dt><dd>{{ wo.assignee_name or '-' }}</dd>
       <dt>협력사</dt><dd>{{ wo.partner.name if wo.partner else '-' }}</dd>
@@ -20,14 +52,16 @@
   </section>
 
   <section class="card">
-    <h2>상태 변경</h2>
+    <h2>상태 / 조치 내용</h2>
     <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="form-stack">
       <label>상태</label>
       <select name="status">
-        {% for s in ['received','assigned','in_progress','completed','verified','closed'] %}
-        <option value="{{ s }}" {% if wo.status.value == s %}selected{% endif %}>{{ wo_status_label(s) }}</option>
-        {% endfor %}
+        <option value="received" {% if process_step == 1 %}selected{% endif %}>정비의뢰</option>
+        <option value="in_progress" {% if process_step == 2 %}selected{% endif %}>정비중</option>
+        <option value="completed" {% if process_step == 3 %}selected{% endif %}>정비완료</option>
       </select>
+      <label>담당자</label>
+      <input type="text" name="assignee_name" value="{{ wo.assignee_name or '' }}" />
       <label>원인</label>
       <textarea name="cause" rows="2">{{ wo.cause or '' }}</textarea>
       <label>조치</label>
@@ -37,5 +71,10 @@
   </section>
 </div>
 
-<p><a href="/admin/work-orders">&larr; 작업 목록</a></p>
+<p>
+  <a href="/admin/work-orders">&larr; 정비 목록</a>
+  {% if wo.equipment %}
+  · <a href="/admin/equipment/{{ wo.equipment.id }}">설비 상세 / 정비이력</a>
+  {% endif %}
+</p>
 {% endblock %}

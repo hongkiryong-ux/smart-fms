@@ -8,6 +8,10 @@
       <p><code>{{ eq.code }}</code> · {{ eq.category }}</p>
     </div>
     <div class="row-actions">
+      <form method="post" action="/admin/equipment/{{ eq.id }}/maintenance-request" class="inline-form">
+        <input type="hidden" name="title" value="[정비의뢰] {{ eq.code }} {{ eq.name }}" />
+        <button type="submit" class="btn btn-sm btn-primary">정비의뢰</button>
+      </form>
       <a class="btn btn-sm btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
       <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
             onsubmit="return confirm('「{{ eq.name }}」을(를) 삭제할까요?');">
@@ -16,6 +20,20 @@
     </div>
   </div>
 </header>
+
+{% if open_orders %}
+<section class="card">
+  <h2>진행 중 정비</h2>
+  <ul class="eq-popup-list">
+    {% for wo in open_orders %}
+    <li>
+      <a href="/admin/work-orders/{{ wo.id }}">#{{ wo.id }} {{ wo.title }}</a>
+      <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 <div class="grid-2">
   <section class="card card-wide">
@@ -36,7 +54,66 @@
     <h2>QR / 모바일</h2>
     <p>현장 QR 스캔 URL:</p>
     <p><a href="{{ qr_url }}" target="_blank">{{ qr_url }}</a></p>
-    <p class="hint">qr_generate.py 실행 시 PNG 파일 생성</p>
+  </section>
+</div>
+
+<div class="grid-2">
+  <section class="card card-wide">
+    <h2>정비이력</h2>
+    {% if history %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>일자</th>
+          <th>제목</th>
+          <th>작업자</th>
+          <th>원인</th>
+          <th>조치</th>
+          <th>구분</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in history %}
+        <tr>
+          <td>{{ h.work_date }}</td>
+          <td>
+            {{ h.title }}
+            {% if h.work_order_id %}
+            <a href="/admin/work-orders/{{ h.work_order_id }}">#{{ h.work_order_id }}</a>
+            {% endif %}
+          </td>
+          <td>{{ h.worker_name or '-' }}</td>
+          <td>{{ h.cause or '-' }}</td>
+          <td>{{ h.action or '-' }}</td>
+          <td>{% if h.is_manual %}수동{% else %}자동{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">등록된 정비이력이 없습니다.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>정비이력 수동 등록</h2>
+    <form method="post" action="/admin/equipment/{{ eq.id }}/history" class="form-stack">
+      <label>제목</label>
+      <input type="text" name="title" required placeholder="예: 필터 교체" />
+      <label>작업일</label>
+      <input type="date" name="work_date" required />
+      <label>작업자</label>
+      <input type="text" name="worker_name" />
+      <label>원인</label>
+      <textarea name="cause" rows="2"></textarea>
+      <label>조치</label>
+      <textarea name="action" rows="2"></textarea>
+      <label>사용부품</label>
+      <input type="text" name="parts_used" />
+      <label>비고</label>
+      <textarea name="note" rows="2"></textarea>
+      <button type="submit" class="btn btn-primary">이력 등록</button>
+    </form>
   </section>
 </div>
 
@@ -54,9 +131,12 @@
     {% else %}<p class="empty">없음</p>{% endfor %}
   </section>
   <section class="card">
-    <h2>작업이력</h2>
+    <h2>정비의뢰 이력</h2>
     {% for wo in eq.work_orders[:5] %}
-    <div class="list-item"><a href="/admin/work-orders/{{ wo.id }}">{{ wo.title }}</a></div>
+    <div class="list-item">
+      <a href="/admin/work-orders/{{ wo.id }}">{{ wo.title }}</a>
+      <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
+    </div>
     {% else %}<p class="empty">없음</p>{% endfor %}
   </section>
 </div>
