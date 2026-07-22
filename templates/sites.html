@@ -3,15 +3,19 @@
 {% block content %}
 <header class="page-header">
   <h1>사업장 / 건물 관리</h1>
+  <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
 </header>
 
-<div class="grid-2">
-  <section class="card">
+<div class="grid-2 sites-layout">
+  <section class="card card-wide">
     <h2>사업장 목록</h2>
     {% for site in sites %}
-    <div class="site-block">
-      <div class="item-head">
-        <h3>{{ site.name }} <small>({{ site.code }})</small></h3>
+    <article class="site-card">
+      <div class="site-card-head">
+        <div class="site-card-title">
+          <span class="site-badge">{{ site.code }}</span>
+          <h3>{{ site.name }}</h3>
+        </div>
         <div class="row-actions">
           <a class="btn btn-sm btn-secondary" href="/admin/sites/{{ site.id }}/edit">수정</a>
           <form method="post" action="/admin/sites/{{ site.id }}/delete" class="inline-form"
@@ -20,24 +24,34 @@
           </form>
         </div>
       </div>
-      <p class="text-muted">{{ site.address or '' }} · 담당: {{ site.manager_name or '-' }}</p>
-      <ul>
+      <p class="site-meta">
+        {% if site.address %}<span>{{ site.address }}</span>{% endif %}
+        <span>담당 {{ site.manager_name or '-' }}</span>
+        <span class="site-building-count">
+          {{ site.buildings | selectattr('is_active') | list | length }}개 건물
+        </span>
+      </p>
+
+      <div class="site-building-grid">
         {% for b in site.buildings if b.is_active %}
-        <li class="building-row">
-          <a href="/admin/buildings/{{ b.id }}">{{ b.name }}</a> ({{ b.code }})
-          <span class="row-actions">
+        <div class="site-building-card site-building-palette-{{ (loop.index0 % 12) + 1 }}">
+          <a class="site-building-main" href="/admin/buildings/{{ b.id }}">
+            <strong>{{ b.name }}</strong>
+            <span class="site-building-code">{{ b.code }}</span>
+          </a>
+          <div class="site-building-actions">
             <a class="link-action" href="/admin/buildings/{{ b.id }}/edit">수정</a>
             <form method="post" action="/admin/buildings/{{ b.id }}/delete" class="inline-form"
                   onsubmit="return confirm('건물 「{{ b.name }}」을(를) 삭제할까요?');">
               <button type="submit" class="link-action link-danger">삭제</button>
             </form>
-          </span>
-        </li>
+          </div>
+        </div>
         {% else %}
-        <li class="empty">건물 없음</li>
+        <p class="empty">등록된 건물이 없습니다.</p>
         {% endfor %}
-      </ul>
-    </div>
+      </div>
+    </article>
     {% else %}
     <p class="empty">등록된 사업장이 없습니다.</p>
     {% endfor %}
@@ -47,9 +61,9 @@
     <h2>사업장 추가</h2>
     <form method="post" action="/admin/sites" class="form-stack">
       <label>사업장명</label>
-      <input type="text" name="name" required placeholder="광양제철소" />
+      <input type="text" name="name" required placeholder="광양운영그룹" />
       <label>코드</label>
-      <input type="text" name="code" required placeholder="GY" />
+      <input type="text" name="code" required placeholder="GY-OP" />
       <label>주소</label>
       <input type="text" name="address" />
       <label>담당자</label>

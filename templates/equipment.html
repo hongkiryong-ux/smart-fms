@@ -17,11 +17,13 @@
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/import">엑셀 Import / Export</a>
   </p>
   {% if buildings %}
-  <div class="building-grid">
+  <div class="eq-building-grid">
     {% for b in buildings %}
-    <a class="building-card" href="/admin/equipment?building_id={{ b.id }}">
+    <a class="eq-building-card eq-building-palette-{{ (loop.index0 % 12) + 1 }}"
+       href="/admin/equipment?building_id={{ b.id }}">
       <strong>{{ b.name }}</strong>
-      <span class="text-muted">{{ b.site.name if b.site else '' }} · {{ b.code }}</span>
+      <span class="eq-building-meta">{{ b.site.name if b.site else '' }}</span>
+      <span class="eq-building-code">{{ b.code }}</span>
     </a>
     {% endfor %}
   </div>

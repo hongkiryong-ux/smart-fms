@@ -384,18 +384,205 @@ body {
 .sheet-info-dl dt { font-weight: 600; color: var(--muted); }
 .readonly-input { background: #f1f5f9; cursor: default; }
 
-.site-block, .hierarchy-block, .template-block, .zone-block {
+.hierarchy-block, .template-block, .zone-block {
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border);
 }
 
-.site-block h3, .hierarchy-block h3, .template-block h3 {
+.hierarchy-block h3, .template-block h3 {
   margin: 0 0 0.25rem;
   font-size: 1rem;
 }
 
-.site-block ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+/* 사업장 / 건물 카드 */
+.sites-layout .card-wide { min-width: 0; }
+
+.site-card {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.site-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.site-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.site-card-title h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.site-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.site-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.site-building-count {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.site-building-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.65rem;
+}
+
+.site-building-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem 0.95rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--bld-accent, var(--primary));
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.site-building-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.site-building-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-decoration: none;
+  color: var(--text);
+  min-width: 0;
+}
+
+.site-building-main strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: keep-all;
+  color: var(--text);
+}
+
+.site-building-code {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.site-building-actions {
+  display: flex;
+  gap: 0.65rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.site-building-palette-1  { --bld-accent: #003876; }
+.site-building-palette-2  { --bld-accent: #b45309; }
+.site-building-palette-3  { --bld-accent: #059669; }
+.site-building-palette-4  { --bld-accent: #7c3aed; }
+.site-building-palette-5  { --bld-accent: #db2777; }
+.site-building-palette-6  { --bld-accent: #0891b2; }
+.site-building-palette-7  { --bld-accent: #ca8a04; }
+.site-building-palette-8  { --bld-accent: #dc2626; }
+.site-building-palette-9  { --bld-accent: #4f46e5; }
+.site-building-palette-10 { --bld-accent: #0d9488; }
+.site-building-palette-11 { --bld-accent: #c2410c; }
+.site-building-palette-12 { --bld-accent: #2563eb; }
+
+/* 설비관리 건물 선택 그리드 */
+.eq-building-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.75rem;
+}
+
+.eq-building-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 1rem 1.05rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--bld-accent, var(--primary));
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--text);
+  min-height: 88px;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.eq-building-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.eq-building-card strong {
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: keep-all;
+  color: var(--text);
+}
+
+.eq-building-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.eq-building-code {
+  margin-top: auto;
+  font-size: 0.72rem;
+  color: var(--bld-accent, var(--primary));
+  font-weight: 600;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.eq-building-palette-1  { --bld-accent: #003876; }
+.eq-building-palette-2  { --bld-accent: #b45309; }
+.eq-building-palette-3  { --bld-accent: #059669; }
+.eq-building-palette-4  { --bld-accent: #7c3aed; }
+.eq-building-palette-5  { --bld-accent: #db2777; }
+.eq-building-palette-6  { --bld-accent: #0891b2; }
+.eq-building-palette-7  { --bld-accent: #ca8a04; }
+.eq-building-palette-8  { --bld-accent: #dc2626; }
+.eq-building-palette-9  { --bld-accent: #4f46e5; }
+.eq-building-palette-10 { --bld-accent: #0d9488; }
+.eq-building-palette-11 { --bld-accent: #c2410c; }
+.eq-building-palette-12 { --bld-accent: #2563eb; }
 
 code {
   background: #f3f4f6;
@@ -424,34 +611,6 @@ code {
 }
 .mobile-card h2 { margin: 0 0 0.75rem; font-size: 1rem; color: var(--primary); }
 .mobile-footer { text-align: center; padding: 1rem; color: var(--muted); font-size: 0.8rem; }
-
-/* Equipment hierarchy */
-.building-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.building-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.9rem 1.15rem;
-  background: #f8fafc;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  text-decoration: none;
-  color: var(--text);
-  transition: border-color 0.15s, box-shadow 0.15s;
-  width: 100%;
-}
-
-.building-card:hover {
-  border-color: var(--primary-light);
-  box-shadow: 0 2px 8px rgba(0,56,118,0.12);
-}
-
-.building-card strong { color: var(--primary); font-size: 1.05rem; }
 
 .category-grid {
   display: grid;
