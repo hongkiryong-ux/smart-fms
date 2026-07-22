@@ -300,8 +300,27 @@ async def seed_if_empty(session: AsyncSession) -> None:
 
 
 async def ensure_category_demo(session: AsyncSession) -> None:
-    """기존 DB에 광양운영그룹 건물 목록 보강."""
+    """기존 DB 정리: 데모 사업장 비활성 + 광양운영그룹 건물 보강."""
     try:
+        from sqlalchemy import update
+
+        # 초기 데모 사업장(광양제철소 GY)은 운영 집계에서 제외
+        demo = (
+            await session.execute(select(Site).where(Site.code == "GY"))
+        ).scalar_one_or_none()
+        op = (
+            await session.execute(select(Site).where(Site.code == "GY-OP"))
+        ).scalar_one_or_none()
+        if demo and op and demo.is_active:
+            demo.is_active = False
+            await session.execute(
+                update(Building)
+                .where(Building.site_id == demo.id)
+                .values(is_active=False)
+            )
+            await session.commit()
+            print("[seed] demo site GY deactivated", flush=True)
+
         from excel_import import ensure_all_buildings
 
         await ensure_all_buildings(session)

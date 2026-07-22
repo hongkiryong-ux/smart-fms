@@ -234,27 +234,66 @@ async def dashboard(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    site_count = (await db.execute(select(func.count(Site.id)))).scalar() or 0
-    building_count = (await db.execute(select(func.count(Building.id)))).scalar() or 0
-    equipment_count = (await db.execute(select(func.count(Equipment.id)))).scalar() or 0
+    # 활성 사업장/건물/설비만 실시간 집계 (추가·삭제 시 자동 반영)
+    site_count = (
+        await db.execute(select(func.count(Site.id)).where(Site.is_active == True))
+    ).scalar() or 0
+    building_count = (
+        await db.execute(
+            select(func.count(Building.id))
+            .join(Site, Building.site_id == Site.id)
+            .where(Building.is_active == True, Site.is_active == True)
+        )
+    ).scalar() or 0
+    equipment_count = (
+        await db.execute(
+            select(func.count(Equipment.id))
+            .join(Zone, Equipment.zone_id == Zone.id)
+            .join(Floor, Zone.floor_id == Floor.id)
+            .join(Building, Floor.building_id == Building.id)
+            .join(Site, Building.site_id == Site.id)
+            .where(
+                Equipment.is_active == True,
+                Building.is_active == True,
+                Site.is_active == True,
+            )
+        )
+    ).scalar() or 0
     wo_total = (await db.execute(select(func.count(WorkOrder.id)))).scalar() or 0
     wo_progress = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
-                WorkOrder.status.in_([WorkOrderStatus.in_progress, WorkOrderStatus.assigned])
+                WorkOrder.status.in_(
+                    [WorkOrderStatus.received, WorkOrderStatus.assigned, WorkOrderStatus.in_progress]
+                )
             )
         )
     ).scalar() or 0
     wo_done = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
-                WorkOrder.status.in_([WorkOrderStatus.completed, WorkOrderStatus.closed])
+                WorkOrder.status.in_(
+                    [
+                        WorkOrderStatus.completed,
+                        WorkOrderStatus.verified,
+                        WorkOrderStatus.closed,
+                    ]
+                )
             )
         )
     ).scalar() or 0
     wo_urgent = (
         await db.execute(
-            select(func.count(WorkOrder.id)).where(WorkOrder.priority == "high")
+            select(func.count(WorkOrder.id)).where(
+                WorkOrder.priority == "high",
+                WorkOrder.status.in_(
+                    [
+                        WorkOrderStatus.received,
+                        WorkOrderStatus.assigned,
+                        WorkOrderStatus.in_progress,
+                    ]
+                ),
+            )
         )
     ).scalar() or 0
     pm_due = (
