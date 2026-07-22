@@ -117,53 +117,92 @@ Base = declarative_base()
 
 
 async def ensure_schema_updates() -> None:
-    """기존 DB에 새 컬럼 추가(마이그레이션 없이 운영할 때)."""
+    """기존 DB에 새 컬럼/테이블 추가(마이그레이션 없이 운영할 때)."""
     from sqlalchemy import text
-    from sqlalchemy.exc import OperationalError, ProgrammingError
+    from sqlalchemy.exc import DBAPIError, OperationalError, ProgrammingError
+
+    import models  # noqa: F401
 
     url = (_RAW_DATABASE_URL or "").lower()
     is_pg = "postgresql" in url or "postgres" in url
 
+    # 신규 테이블은 별도 트랜잭션으로 확실히 생성
     async with engine.begin() as conn:
-        if is_pg:
-            await conn.execute(
-                text(
-                    "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS category VARCHAR(20) DEFAULT '설비'"
-                )
+        await conn.run_sync(Base.metadata.create_all)
+
+    async def _exec(stmt: str) -> None:
+        # 문장마다 독립 트랜잭션 — PG에서 한 문장 실패 시 전체 롤백 방지
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except (OperationalError, ProgrammingError, DBAPIError) as e:
+            print(f"[db] schema skip: {e}", flush=True)
+
+    if is_pg:
+        await _exec(
+            "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT '설비'"
+        )
+        await _exec(
+            "ALTER TABLE equipment_types ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT '설비'"
+        )
+        await _exec(
+            "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS extra_data JSONB DEFAULT '{}'::jsonb"
+        )
+        await _exec(
+            "ALTER TABLE equipment ALTER COLUMN category TYPE VARCHAR(50) USING category::varchar(50)"
+        )
+        await _exec("UPDATE equipment SET category = '설비' WHERE category IS NULL")
+        await _exec(
+            "UPDATE equipment_types SET category = '설비' WHERE category IS NULL"
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS maintenance_records (
+                id SERIAL PRIMARY KEY,
+                equipment_id INTEGER NOT NULL REFERENCES equipment(id),
+                work_order_id INTEGER REFERENCES work_orders(id),
+                title VARCHAR(300) NOT NULL,
+                work_date DATE NOT NULL,
+                worker_name VARCHAR(100),
+                cause TEXT,
+                action TEXT,
+                parts_used TEXT,
+                work_hours DOUBLE PRECISION,
+                cost DOUBLE PRECISION,
+                note TEXT,
+                is_manual BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP WITHOUT TIME ZONE
             )
-            await conn.execute(
-                text(
-                    "ALTER TABLE equipment_types ADD COLUMN IF NOT EXISTS category VARCHAR(20) DEFAULT '설비'"
-                )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_maintenance_records_equipment_id ON maintenance_records (equipment_id)"
+        )
+    else:
+        for stmt in (
+            "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
+            "ALTER TABLE equipment_types ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
+            "ALTER TABLE equipment ADD COLUMN extra_data TEXT",
+            """
+            CREATE TABLE IF NOT EXISTS maintenance_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                equipment_id INTEGER NOT NULL,
+                work_order_id INTEGER,
+                title VARCHAR(300) NOT NULL,
+                work_date DATE NOT NULL,
+                worker_name VARCHAR(100),
+                cause TEXT,
+                action TEXT,
+                parts_used TEXT,
+                work_hours FLOAT,
+                cost FLOAT,
+                note TEXT,
+                is_manual BOOLEAN DEFAULT 0,
+                created_at DATETIME
             )
-            await conn.execute(
-                text(
-                    "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS extra_data JSONB DEFAULT '{}'"
-                )
-            )
-            await conn.execute(
-                text(
-                    "ALTER TABLE equipment ALTER COLUMN category TYPE VARCHAR(50)"
-                )
-            )
-            await conn.execute(
-                text("UPDATE equipment SET category = '설비' WHERE category IS NULL")
-            )
-            await conn.execute(
-                text(
-                    "UPDATE equipment_types SET category = '설비' WHERE category IS NULL"
-                )
-            )
-        else:
-            for stmt in (
-                "ALTER TABLE equipment ADD COLUMN category VARCHAR(20) DEFAULT '설비'",
-                "ALTER TABLE equipment_types ADD COLUMN category VARCHAR(20) DEFAULT '설비'",
-                "ALTER TABLE equipment ADD COLUMN extra_data TEXT",
-            ):
-                try:
-                    await conn.execute(text(stmt))
-                except OperationalError:
-                    pass
+            """,
+        ):
+            await _exec(stmt)
 
 
 async def get_db():
