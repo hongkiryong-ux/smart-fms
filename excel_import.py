@@ -361,16 +361,19 @@ def export_building_excel(
     building_name: str,
     equipment_by_sheet: dict[str, list[Equipment]],
 ) -> bytes:
-    """건물 설비를 엑셀 파일(bytes)로 출력."""
+    """건물 설비를 엑셀 파일(bytes)로 출력 (시트별 설비 + 정비이력)."""
     wb = Workbook()
     wb.remove(wb.active)
 
     header_fill = PatternFill(start_color="003876", end_color="003876", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
 
+    all_equipment: list[Equipment] = []
+
     for sheet_name, items in equipment_by_sheet.items():
         safe_name = sheet_name[:31]
         ws = wb.create_sheet(title=safe_name)
+        all_equipment.extend(items)
 
         if not items:
             ws.append(["데이터 없음"])
@@ -400,12 +403,63 @@ def export_building_excel(
             ] + [extra.get(k, "") for k in all_keys]
             ws.append(row)
 
+    # 정비이력 시트
+    hist_ws = wb.create_sheet(title="정비이력")
+    hist_headers = [
+        "설비코드",
+        "설비명",
+        "시트",
+        "작업일",
+        "제목",
+        "작업자",
+        "원인",
+        "작업내용(조치)",
+        "사용부품",
+        "비고",
+        "구분",
+        "작업번호",
+    ]
+    hist_ws.append(hist_headers)
+    for cell in hist_ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+
+    history_rows: list[tuple] = []
+    for eq in all_equipment:
+        for h in eq.maintenance_records or []:
+            history_rows.append((eq.code or "", eq.name or "", eq.category or "", h))
+    history_rows.sort(
+        key=lambda x: (str(x[3].work_date or ""), x[0]),
+        reverse=True,
+    )
+
+    for code, name, category, h in history_rows:
+        hist_ws.append(
+            [
+                code,
+                name,
+                category,
+                str(h.work_date) if h.work_date else "",
+                h.title or "",
+                h.worker_name or "",
+                h.cause or "",
+                h.action or "",
+                h.parts_used or "",
+                h.note or "",
+                "수동" if h.is_manual else "자동",
+                h.work_order_id or "",
+            ]
+        )
+    if not history_rows:
+        hist_ws.append(["정비이력 없음"])
+
     # 총괄 시트
     summary = wb.create_sheet(title="총괄", index=0)
     summary.append([f"{building_name} 설비현황"])
     summary.append(["시트", "건수"])
     for sheet_name, items in equipment_by_sheet.items():
         summary.append([sheet_name, len(items)])
+    summary.append(["정비이력", len(history_rows)])
 
     buf = io.BytesIO()
     wb.save(buf)

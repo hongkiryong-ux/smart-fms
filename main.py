@@ -936,9 +936,10 @@ async def equipment_export(
         .join(Zone)
         .join(Floor)
         .where(Floor.building_id == building_id, Equipment.is_active == True)
+        .options(selectinload(Equipment.maintenance_records))
         .order_by(Equipment.category, Equipment.code)
     )
-    items = result.scalars().all()
+    items = result.scalars().unique().all()
 
     by_sheet: dict[str, list] = {}
     for eq in items:

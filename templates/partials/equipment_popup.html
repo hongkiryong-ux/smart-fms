@@ -44,9 +44,17 @@
   <div class="eq-popup-section">
     <h3>정비이력</h3>
     {% if history %}
-    <table class="data-table">
+    <div class="table-scroll">
+    <table class="data-table hist-table">
       <thead>
-        <tr><th>일자</th><th>제목</th><th>작업자</th><th>구분</th></tr>
+        <tr>
+          <th>일자</th>
+          <th>제목</th>
+          <th>작업자</th>
+          <th>원인</th>
+          <th>작업내용(조치)</th>
+          <th>구분</th>
+        </tr>
       </thead>
       <tbody>
         {% for h in history %}
@@ -54,11 +62,14 @@
           <td>{{ h.work_date }}</td>
           <td>{{ h.title }}</td>
           <td>{{ h.worker_name or '-' }}</td>
+          <td class="hist-text">{{ h.cause or '-' }}</td>
+          <td class="hist-text">{{ h.action or h.note or '-' }}</td>
           <td>{% if h.is_manual %}수동{% else %}자동{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <p class="empty">등록된 정비이력이 없습니다.</p>
     {% endif %}

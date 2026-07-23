@@ -68,7 +68,8 @@
           <th>제목</th>
           <th>작업자</th>
           <th>원인</th>
-          <th>조치</th>
+          <th>작업내용(조치)</th>
+          <th>비고</th>
           <th>구분</th>
         </tr>
       </thead>
@@ -85,6 +86,7 @@
           <td>{{ h.worker_name or '-' }}</td>
           <td>{{ h.cause or '-' }}</td>
           <td>{{ h.action or '-' }}</td>
+          <td>{{ h.note or '-' }}</td>
           <td>{% if h.is_manual %}수동{% else %}자동{% endif %}</td>
         </tr>
         {% endfor %}
@@ -106,7 +108,7 @@
       <input type="text" name="worker_name" />
       <label>원인</label>
       <textarea name="cause" rows="2"></textarea>
-      <label>조치</label>
+      <label>작업내용(조치)</label>
       <textarea name="action" rows="2"></textarea>
       <label>사용부품</label>
       <input type="text" name="parts_used" />
