@@ -1,6 +1,7 @@
 # main.py
 from __future__ import annotations
 
+import json
 import os
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
@@ -1455,20 +1456,50 @@ async def work_orders_list(
         await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
     ).scalars().unique().all()
 
-    equipment = (
+    buildings = (
         await db.execute(
-            select(Equipment).where(Equipment.is_active == True).order_by(Equipment.code)
+            select(Building)
+            .join(Site, Building.site_id == Site.id)
+            .where(Building.is_active == True, Site.is_active == True)
+            .order_by(Building.name)
         )
     ).scalars().all()
-    partners = (await db.execute(select(Partner).where(Partner.is_active == True))).scalars().all()
+    equipment = (
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.is_active == True)
+            .options(
+                selectinload(Equipment.zone)
+                .selectinload(Zone.floor)
+                .selectinload(Floor.building)
+            )
+            .order_by(Equipment.code)
+        )
+    ).scalars().all()
+    # 건물별 설비 옵션용 building_id 매핑
+    equipment_opts = []
+    for eq in equipment:
+        bld_id = 0
+        if eq.zone and eq.zone.floor and eq.zone.floor.building:
+            bld_id = eq.zone.floor.building.id
+        equipment_opts.append(
+            {
+                "id": eq.id,
+                "code": eq.code,
+                "name": eq.name,
+                "category": eq.category or "",
+                "building_id": bld_id,
+            }
+        )
     return templates.TemplateResponse(
         request,
         "work_orders.html",
         {
             "user": user,
             "orders": orders,
-            "equipment": equipment,
-            "partners": partners,
+            "buildings": buildings,
+            "equipment_opts": equipment_opts,
+            "equipment_opts_json": json.dumps(equipment_opts, ensure_ascii=False),
             "filters": {
                 "q": q_val,
                 "status": status_val,
@@ -1483,38 +1514,45 @@ async def work_orders_list(
 
 @app.post("/admin/work-orders")
 async def work_order_create(
-    title: str = Form(...),
-    equipment_id: int = Form(0),
-    description: str = Form(""),
+    equipment_id: int = Form(...),
+    description: str = Form(...),
     priority: str = Form("normal"),
     assignee_name: str = Form(""),
-    partner_id: int = Form(0),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    site_id = None
-    if equipment_id > 0:
-        eq = (
-            await db.execute(
-                select(Equipment)
-                .where(Equipment.id == equipment_id)
-                .options(
-                    selectinload(Equipment.zone)
-                    .selectinload(Zone.floor)
-                    .selectinload(Floor.building)
-                )
-            )
-        ).scalar_one_or_none()
-        if eq and eq.zone and eq.zone.floor and eq.zone.floor.building:
-            site_id = eq.zone.floor.building.site_id
+    if equipment_id <= 0:
+        return RedirectResponse("/admin/work-orders?error=eq", status_code=303)
 
+    desc = description.strip()
+    if not desc:
+        return RedirectResponse("/admin/work-orders?error=desc", status_code=303)
+
+    eq = (
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.id == equipment_id, Equipment.is_active == True)
+            .options(
+                selectinload(Equipment.zone)
+                .selectinload(Zone.floor)
+                .selectinload(Floor.building)
+            )
+        )
+    ).scalar_one_or_none()
+    if not eq:
+        return RedirectResponse("/admin/work-orders?error=eq", status_code=303)
+
+    site_id = None
+    if eq.zone and eq.zone.floor and eq.zone.floor.building:
+        site_id = eq.zone.floor.building.site_id
+
+    title = f"[정비의뢰] {eq.code} {eq.name}"
     wo = WorkOrder(
-        title=title.strip(),
-        description=description,
-        priority=priority,
-        assignee_name=assignee_name,
-        equipment_id=equipment_id if equipment_id > 0 else None,
-        partner_id=partner_id if partner_id > 0 else None,
+        title=title,
+        description=desc,
+        priority=priority if priority in ("normal", "high") else "normal",
+        assignee_name=assignee_name.strip() or None,
+        equipment_id=eq.id,
         site_id=site_id,
         status=WorkOrderStatus.received,
         work_type="정비",

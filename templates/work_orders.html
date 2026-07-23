@@ -106,34 +106,82 @@
 
   <section class="card">
     <h2>정비의뢰 접수</h2>
-    <form method="post" action="/admin/work-orders" class="form-stack">
-      <label>제목</label>
-      <input type="text" name="title" required placeholder="예: 펌프 누수 정비" />
-      <label>설비</label>
-      <select name="equipment_id">
-        <option value="0">선택</option>
-        {% for eq in equipment %}
-        <option value="{{ eq.id }}">{{ eq.code }} - {{ eq.name }}</option>
+    {% if request.query_params.get('error') == 'eq' %}
+    <div class="alert alert-error">건물의 설비를 선택하세요.</div>
+    {% elif request.query_params.get('error') == 'desc' %}
+    <div class="alert alert-error">정비의뢰 내용을 입력하세요.</div>
+    {% endif %}
+    <form method="post" action="/admin/work-orders" class="form-stack" id="wo-create-form">
+      <label>건물</label>
+      <select id="wo-building" required>
+        <option value="">건물 선택</option>
+        {% for b in buildings %}
+        <option value="{{ b.id }}">{{ b.name }}</option>
         {% endfor %}
       </select>
+
+      <label>설비</label>
+      <select name="equipment_id" id="wo-equipment" required disabled>
+        <option value="">먼저 건물을 선택하세요</option>
+      </select>
+
       <label>정비의뢰 내용</label>
-      <textarea name="description" rows="3" placeholder="의뢰 내용을 입력하세요"></textarea>
+      <textarea name="description" rows="3" required placeholder="의뢰 내용을 입력하세요"></textarea>
+
       <label>우선순위</label>
       <select name="priority">
         <option value="normal">일반</option>
         <option value="high">긴급</option>
       </select>
+
       <label>담당자</label>
-      <input type="text" name="assignee_name" />
-      <label>협력사</label>
-      <select name="partner_id">
-        <option value="0">없음</option>
-        {% for p in partners %}
-        <option value="{{ p.id }}">{{ p.name }}</option>
-        {% endfor %}
-      </select>
+      <input type="text" name="assignee_name" placeholder="담당자명" />
+
       <button type="submit" class="btn btn-primary">정비의뢰</button>
     </form>
   </section>
 </div>
+
+<script type="application/json" id="wo-equipment-data">{{ equipment_opts_json | safe }}</script>
+<script>
+(function () {
+  var dataEl = document.getElementById('wo-equipment-data');
+  var buildingSel = document.getElementById('wo-building');
+  var equipSel = document.getElementById('wo-equipment');
+  if (!dataEl || !buildingSel || !equipSel) return;
+
+  var allEquip = [];
+  try { allEquip = JSON.parse(dataEl.textContent || '[]'); } catch (e) { allEquip = []; }
+
+  function fillEquipment(buildingId) {
+    equipSel.innerHTML = '';
+    if (!buildingId) {
+      equipSel.disabled = true;
+      equipSel.innerHTML = '<option value=\"\">먼저 건물을 선택하세요</option>';
+      return;
+    }
+    var list = allEquip.filter(function (e) { return String(e.building_id) === String(buildingId); });
+    if (!list.length) {
+      equipSel.disabled = true;
+      equipSel.innerHTML = '<option value=\"\">해당 건물에 설비가 없습니다</option>';
+      return;
+    }
+    equipSel.disabled = false;
+    var opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = '설비 선택';
+    equipSel.appendChild(opt0);
+    list.forEach(function (e) {
+      var opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = e.code + ' - ' + e.name + (e.category ? ' (' + e.category + ')' : '');
+      equipSel.appendChild(opt);
+    });
+  }
+
+  buildingSel.addEventListener('change', function () {
+    fillEquipment(buildingSel.value);
+  });
+})();
+</script>
 {% endblock %}
