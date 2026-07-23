@@ -1195,3 +1195,52 @@ button.link-action:hover { text-decoration: underline; }
   background: #e0e7ff;
   color: #3730a3;
 }
+
+.risk-5m {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  margin: 0.25rem 0;
+}
+.risk-5m legend {
+  padding: 0 0.35rem;
+  font-weight: 700;
+  color: #003876;
+}
+.risk-matrix-img {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.risk-help {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  color: #334155;
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+.risk-ai-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.risk-result-table td {
+  font-size: 0.82rem;
+  vertical-align: top;
+  white-space: normal;
+}
+.risk-improve {
+  white-space: pre-line;
+  max-width: 220px;
+}
+.badge.risk-g1 { background: #ecfdf5; color: #047857; }
+.badge.risk-g2 { background: #eff6ff; color: #1d4ed8; }
+.badge.risk-g3 { background: #fef9c3; color: #a16207; }
+.badge.risk-g4 { background: #ffedd5; color: #c2410c; }
+.badge.risk-g5 { background: #fee2e2; color: #b91c1c; }
+@media print {
+  .sidebar, .wo-list-head button, .risk-ai-opt, form#risk-form { display: none !important; }
+  .main-with-sidebar { margin: 0; padding: 0; }
+}

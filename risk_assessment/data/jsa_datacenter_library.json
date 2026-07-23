@@ -1,0 +1,2016 @@
+{
+  "source": "위험성평가Datacenter.pptx",
+  "jobs": {
+    "비상발전기 무부하 운전 / 점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "발전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·발전기 운전",
+        "hazard": "발전기 가동시 소음에 의한 청각장애 발생",
+        "current": "안전보호구 착용 (귀덮개,귀마개)",
+        "improvement": "안전보호구 착용 (귀덮개,귀마개)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 2,
+        "injury": "1"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전",
+        "hazard": "안전보호구 미 착용시 감전위험 (발전기 기동판넬)",
+        "current": "전압에 따른 적정 안전보호구 착용 (특고압\n고압)",
+        "improvement": "전압에 따른 적정 안전보호구 착용 (특고압\n고압)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전",
+        "hazard": "가동 중 발전기 고온부 신체 접촉에 의한 화상 (엔진부 냉각수 점검)",
+        "current": "안전보호구 착용 - 고온부 화상위험 게시물 설치",
+        "improvement": "안전보호구 착용 - 고온부 화상위험 게시물 설치",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "화상"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전",
+        "hazard": "기동시 부압에 의한 출입문 이용자 협착위험",
+        "current": "운전중 출입문 이용자제 - 안전보호구 착용",
+        "improvement": "운전중 출입문 이용자제 - 안전보호구 착용",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "협착"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·운전중 점검",
+        "hazard": "밧데리 단자부 접촉으로 감전 위험",
+        "current": "밧데리 보호캡 설치 - 안전보호구 착용 -",
+        "improvement": "밧데리 보호캡 설치 - 안전보호구 착용 -",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "점검중 & 이동중 실족",
+        "current": "안전보호구 착용 - 이동용 발판 사용",
+        "improvement": "안전보호구 착용 - 이동용 발판 사용",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "실족"
+      }
+    ],
+    "비상발전기 실부하 운전 / 점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "발전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·발전기 운전",
+        "hazard": "발전기 가동시 소음에 의한 청각장애 발생",
+        "current": "안전보호구 착용 (귀덮개,귀마개)",
+        "improvement": "안전보호구 착용 (귀덮개,귀마개)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "난청"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전",
+        "hazard": "안전보호구 미 착용 통전부 혼촉에 의한 감전위험 (CTTS, 제어반 등)",
+        "current": "전압에 따른 적정 안전보호구 착용 (특고압\n고압)",
+        "improvement": "전압에 따른 적정 안전보호구 착용 (특고압\n고압)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전",
+        "hazard": "가동 중 발전기 고온부 신체 접촉에 의한 화상 (엔진부 냉각수 점검)",
+        "current": "안전보호구 착용 - 고온부 화상위험 게시물 설치",
+        "improvement": "안전보호구 착용 - 고온부 화상위험 게시물 설치",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "화상"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전",
+        "hazard": "기동시 부압에 의한 출입문 이용자 협착위험",
+        "current": "운전중 출입문 이용자제 - 안전보호구 착용",
+        "improvement": "운전중 출입문 이용자제 - 안전보호구 착용",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "협착"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·운전중 점검",
+        "hazard": "밧데리 단자부 접촉으로 감전 위험",
+        "current": "밧데리 보호캡 설치 - 안전보호구 착용 -",
+        "improvement": "밧데리 보호캡 설치 - 안전보호구 착용 -",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "점검중 & 이동중 실족",
+        "current": "안전보호구 착용 - 이동용 발판 사용",
+        "improvement": "안전보호구 착용 - 이동용 발판 사용",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "실족"
+      }
+    ],
+    "정전 / 복전작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "기.전실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "정전 & 복전·단로기 / 차단기 조작",
+        "hazard": "적정 절연보호구 미 착용으로 인한 감전위험",
+        "current": "안전보호구 착용 - 절연보호구 착용 (절연장갑 등)",
+        "improvement": "안전보호구 착용 - 절연보호구 착용 (절연장갑 등)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "정전 & 복전",
+        "hazard": "차단기 인출 인입 작업 시 작업표준 미준수",
+        "current": "적정 공기구 비치 - 2인1조 작업표준 준수",
+        "improvement": "적정 공기구 비치 - 2인1조 작업표준 준수",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "화상"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "정전 & 복전",
+        "hazard": "부하상태 단로기 개방, 차단기 수동조작 중 아크발생",
+        "current": "전기실 내 지적확인 표지판 설치 - 안전보호구 착용",
+        "improvement": "전기실 내 지적확인 표지판 설치 - 안전보호구 착용",
+        "freq_before": 2,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "화상"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "정전 & 복전",
+        "hazard": "작업수순 미준수 (오조작 등)",
+        "current": "작업표준서 비치 - 전기 Flow VM화 - 2인1조 작업표준 준수",
+        "improvement": "작업표준서 비치 - 전기 Flow VM화 - 2인1조 작업표준 준수",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "기타"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "정전 & 복전·접지",
+        "hazard": "접지시 검전,방전 미 실시로 잔류 전류에 감전 위험",
+        "current": "2인 1조 작업(상호 지적) - 절연복,안면보호,장갑 착용",
+        "improvement": "2인 1조 작업(상호 지적) - 절연복,안면보호,장갑 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "정전 & 복전",
+        "hazard": "접지선 미철거 상태로 전원 투입",
+        "current": "2인 1조 작업(상호 지적)",
+        "improvement": "2인 1조 작업(상호 지적)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "화상"
+      }
+    ],
+    "UPS 정기점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업준비·현장이동",
+        "hazard": "발전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·UPS 점검",
+        "hazard": "UPS 점검 및 조작 시 충전부 접촉에 의한 감전위험(제어반,충전부)",
+        "current": "안전보호구 착용 (안전모,보안경,절연장갑)",
+        "improvement": "안전보호구 착용 (안전모,보안경,절연장갑)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "누전으로 인한 감전위험",
+        "current": "안전보호구 착용 - 작업전 누설저류 체크",
+        "improvement": "안전보호구 착용 - 작업전 누설저류 체크",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "UPS 판넬 개방 및 조립중 협착 위험",
+        "current": "안전보호구 착용 (안전모,장갑 등) - 개방시 지적확인 실시",
+        "improvement": "안전보호구 착용 (안전모,장갑 등) - 개방시 지적확인 실시",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "협착 감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "UPS 판넬 상부 열화상 측정 사다리이용 중 추락위험",
+        "current": "안전보호구 착용 (안전모,장갑 등) - 사다리 아웃트리거 설치 - 2인1조 작업표준",
+        "improvement": "안전보호구 착용 (안전모,장갑 등) - 사다리 아웃트리거 설치 - 2인1조 작업표준",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "추락"
+      }
+    ],
+    "UPS 비상운전": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업준비·현장이동",
+        "hazard": "발전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·UPS 점검",
+        "hazard": "충전부 접촉에 의한 감전위험(제어반,충전부)",
+        "current": "안전보호구 착용 (안전모,보안경,절연장갑)",
+        "improvement": "안전보호구 착용 (안전모,보안경,절연장갑)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "차단기 조작(비상)시 접촉에 의한 감전위험",
+        "current": "안전보호구 착용 - 지적확인 철저",
+        "improvement": "안전보호구 착용 - 지적확인 철저",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "UPS 판넬 개방 및 조립중 협착 위험",
+        "current": "안전보호구 착용 (안전모,장갑 등) - 개방시 지적확인 실시",
+        "improvement": "안전보호구 착용 (안전모,장갑 등) - 개방시 지적확인 실시",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "협착 감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "차단기 오조작 으로 인한 2차사고 위험",
+        "current": "지적확인 철저 - 2인1조 작업표준",
+        "improvement": "지적확인 철저 - 2인1조 작업표준",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "기타 (오조작)"
+      }
+    ],
+    "전력계통 Bus-Tie 전환운전": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "기.전실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "전환 작업·차단기 조작",
+        "hazard": "적정 절연보호구 미 착용으로 인한 감전위험",
+        "current": "안전보호구 착용 - 절연보호구 착용 (절연장갑 등)",
+        "improvement": "안전보호구 착용 - 절연보호구 착용 (절연장갑 등)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "전환 작업",
+        "hazard": "차단기 조작 입 출 작업시 접촉에 의한 감전 및 찰과상 위험",
+        "current": "안전보호구 착용 - 적정 공기구 비치 - 2인1조 작업표준 준수",
+        "improvement": "안전보호구 착용 - 적정 공기구 비치 - 2인1조 작업표준 준수",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "전환 작업",
+        "hazard": "작업수순 미준수에 의한 위험(오조작 등)",
+        "current": "작업표준서 비치 - 전기 Flow VM화 - 2인1조 작업표준 준수",
+        "improvement": "작업표준서 비치 - 전기 Flow VM화 - 2인1조 작업표준 준수",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "기타"
+      }
+    ],
+    "고.저압 판넬 점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업준비·현장이동",
+        "hazard": "전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·판넬 점검",
+        "hazard": "판넬 내부 개방 점검중 충전부 접촉에 의한 감전위험",
+        "current": "안전보호구 착용 (안전모,보안경,절연장갑) - 2인1조 작업준수",
+        "improvement": "안전보호구 착용 (안전모,보안경,절연장갑) - 2인1조 작업준수",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "누전으로 인한 감전위험",
+        "current": "안전보호구 착용 - 작업전 누설저류 체크",
+        "improvement": "안전보호구 착용 - 작업전 누설저류 체크",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "안전라인 걸림에 의한 전도위험",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "전도"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "UPS 판넬 상부 열화상 측정 사다리이용 중 추락위험",
+        "current": "안전보호구 착용 (안전모,장갑 등) - 사다리 아웃트리거 설치 - 2인1조 작업표준",
+        "improvement": "안전보호구 착용 (안전모,장갑 등) - 사다리 아웃트리거 설치 - 2인1조 작업표준",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "추락"
+      }
+    ],
+    "UPS Battery 시스템 정기점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "발전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·Battery 전압측정",
+        "hazard": "배터리설비 점검 중 충전부 혼촉 위험",
+        "current": "측정기 절연테이프 부착 - 개인보호구 착용 (안전모,보안경,절연장갑) - 위험표지(감전)",
+        "improvement": "측정기 절연테이프 부착 - 개인보호구 착용 (안전모,보안경,절연장갑) - 위험표지(감전)",
+        "freq_before": 4,
+        "sev_before": 2,
+        "freq_after": 4,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·충전중 점검",
+        "hazard": "열화상 측정중 혼촉",
+        "current": "안전보호구 착용 - 측정위치 vm화",
+        "improvement": "안전보호구 착용 - 측정위치 vm화",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "UPS 판넬 개방 및 조립중 협착 위험",
+        "current": "안전보호구 착용 (안전모,장갑 등) - 개방시 지적확인 실시",
+        "improvement": "안전보호구 착용 (안전모,장갑 등) - 개방시 지적확인 실시",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "협착 감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·시스템 점검",
+        "hazard": "배터리설비 통신상태 점검",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "기타"
+      }
+    ],
+    "조명설비 운전": [],
+    "공조설비 운전 및 정비": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업준비·현장이동",
+        "hazard": "공조실 이동중 출입구 측 미끄러짐",
+        "current": "안전보호구 착용 (안전화,안전모)",
+        "improvement": "안전보호구 착용 (안전화,안전모)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·공조기 운전 / 점검",
+        "hazard": "회전체 끼임 불안전한 자세 및 상태",
+        "current": "안전게시물 설치 - 전원차단 및 ILS실시",
+        "improvement": "안전게시물 설치 - 전원차단 및 ILS실시",
+        "freq_before": 4,
+        "sev_before": 3,
+        "freq_after": 4,
+        "sev_after": 3,
+        "injury": "끼임"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전",
+        "hazard": "배관,덕트 등 지지대 불안전한 자세 및 상태",
+        "current": "개인보호구 착용 (안전모,안전화) - 안전게시물 설치",
+        "improvement": "개인보호구 착용 (안전모,안전화) - 안전게시물 설치",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "충돌"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전",
+        "hazard": "팬모터 절연측정 중 충전부 접촉",
+        "current": "개인보호구 착용 (안전모,절연장갑) - 절연저항계 사용",
+        "improvement": "개인보호구 착용 (안전모,절연장갑) - 절연저항계 사용",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "정비·전원 On/off",
+        "hazard": "제어반 조작중 감전",
+        "current": "개인보호구 착용 (안전모,절연장갑)",
+        "improvement": "개인보호구 착용 (안전모,절연장갑)",
+        "freq_before": 1,
+        "sev_before": 2,
+        "freq_after": 1,
+        "sev_after": 2,
+        "injury": "감전"
+      }
+    ],
+    "냉각탑설비 점검 및 정비": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "옥상 이동 중 계단 .바닥 미끄러짐 전도",
+        "current": "안전보호구 착용 (안전화,안전모)",
+        "improvement": "안전보호구 착용 (안전화,안전모)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "전도 미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·냉각탑 설비 점검/정비",
+        "hazard": "냉각탑 상부 정비중 실족 추락위험",
+        "current": "안전 핸드레일 설치 - 안전보호구 착용 (안전대,안전화,안전모)",
+        "improvement": "안전 계단 설치 - 안전보호구 착용 (안전대,안전화,안전모)",
+        "freq_before": 3,
+        "sev_before": 3,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "냉각수살수 펌프 및 냉각팬 점검,정비시 밸트 끼임 위험",
+        "current": "안전보호구착용 (안전화,안전모) - 끼임위험 게시판 부착 - 작업 전 전원차단 및 ILS 실시",
+        "improvement": "안전보호구착용 (안전화,안전모) - 끼임위험 게시판 부착 - 작업 전 전원차단 및 ILS 실시",
+        "freq_before": 2,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "끼임"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "제어반 점검시 불안전한 자세 및 상태",
+        "current": "개인보호구 착용 (안전모,절연장갑)",
+        "improvement": "개인보호구 착용 (안전모,절연장갑)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "수직계단 이동중 추락",
+        "current": "안전블록 사용 - 추락위험 게시물 설치 - 안전보호구 착용",
+        "improvement": "안전블록 사용 - 추락위험 게시물 설치 - 안전보호구 착용",
+        "freq_before": 4,
+        "sev_before": 3,
+        "freq_after": 4,
+        "sev_after": 3,
+        "injury": "추락"
+      }
+    ],
+    "펌프류 운전 및 점검작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "옥상층 이동 중 돌출물에 의한 전도",
+        "current": "안전보호구 착용 - 안전 반사테이프 부착",
+        "improvement": "안전보호구 착용 - 안전 반사테이프 부착",
+        "freq_before": 5,
+        "sev_before": 1,
+        "freq_after": 5,
+        "sev_after": 1,
+        "injury": "전도"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·점검·일상점검",
+        "hazard": "점검 및 정비 시 돌출물 간섭에 의한 충돌 넘어짐 위험",
+        "current": "안전보호구 착용 - 안전 반사테이프 부착",
+        "improvement": "안전보호구 착용 - 안전 반사테이프 부착",
+        "freq_before": 5,
+        "sev_before": 1,
+        "freq_after": 5,
+        "sev_after": 1,
+        "injury": "충돌 넘어짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·점검",
+        "hazard": "제어반 점검시 불안전한 자세 및 상태",
+        "current": "개인보호구 착용 (안전모,절연장갑)",
+        "improvement": "개인보호구 착용 (안전모,절연장갑)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·점검·작업종료",
+        "hazard": "모터 절연상태 점검중 감전위험",
+        "current": "안전보호구 착용 (안전화,안전모) - 끼임 위험게시판",
+        "improvement": "안전보호구 착용 (안전화,안전모) - 끼임 위험게시판",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      }
+    ],
+    "급.배기팬 점검 및 정비": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "고소작업대 이동 중 간섭 및 발판(중량물) 설치",
+        "current": "안전보호구 착용 (안전화,안전모) - 2인1조 작업표준 (신호수 배치)",
+        "improvement": "안전보호구 착용 (안전화,안전모) - 2인1조 작업표준 (신호수 배치)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "근골격계 충돌 협착"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·급.배기 설비점검",
+        "hazard": "고소작업대 안전장치 불안전 상태",
+        "current": "안전장치 사용전 점검 - 지침서 비치 - 2인1조 작업표준 준수 (비상보턴 조작등)",
+        "improvement": "안전장치 사용전 점검 - 지침서 비치 - 2인1조 작업표준 준수 (비상보턴 조작등)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "회전체 끼임 불안전한 자세 및 상태",
+        "current": "작업 전 전원차단 및 ILS 실시",
+        "improvement": "작업 전 전원차단 및 ILS 실시",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "끼임"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "고소 불안전한 자세 및 상태",
+        "current": "충돌위험 게시물 설치 - 안전보호구 착용 (안전대,안전모,안전화) - 2인1조 작업표준 준수",
+        "improvement": "충돌위험 게시물 설치 - 안전보호구 착용 (안전대,안전모,안전화) - 2인1조 작업표준 준수",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "충돌 추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "모터 절연불량",
+        "current": "정기 절연저항 측정 - 전원 차단 및 ILS실시 - 안전보호구 착용 (절연장갑 등)",
+        "improvement": "정기 절연저항 측정 - 전원 차단 및 ILS실시 - 안전보호구 착용 (절연장갑 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "감전"
+      }
+    ],
+    "급수 단수작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업준비·현장이동",
+        "hazard": "기계실 배수로,돌출물",
+        "current": "안전보호구 착용 (안전화,안전모)",
+        "improvement": "안전보호구 착용 (안전화,안전모)",
+        "freq_before": 2,
+        "sev_before": 1,
+        "freq_after": 2,
+        "sev_after": 1,
+        "injury": "전도 충돌"
+      }
+    ],
+    "항온항습설비 운전 및 점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "항온항습실 이동 중 전도 추락위험",
+        "current": "안전보호구착용 - 발판사용(2층)",
+        "improvement": "안전보호구착용 - 발판사용(2,3층)",
+        "freq_before": 4,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "전도 추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·항온 항습설비 운전 및 점검",
+        "hazard": "중량물 취급으로 인한 근골격계 질환",
+        "current": "2인1조 작업표준",
+        "improvement": "2인1조 작업표준",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "근골격계"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "항온항습기 운전중 점검 정비시 판넬 도어 끼임 위험",
+        "current": "안전보호구 착용 - 안전게시물 부착",
+        "improvement": "안전보호구 착용 - 안전게시물 부착",
+        "freq_before": 2,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "끼임"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "제어반 점검시 불안전한 자세 및 상태",
+        "current": "개인보호구 착용 (안전모,절연장갑 등) - 활선 근접경보기 착용",
+        "improvement": "개인보호구 착용 (안전모,절연장갑 등) - 활선 근접경보기 착용",
+        "freq_before": 1,
+        "sev_before": 3,
+        "freq_after": 1,
+        "sev_after": 3,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·전원 On/off",
+        "hazard": "제어반 조작 중 감전",
+        "current": "개인보호구 착용 (안전모,절연장갑)",
+        "improvement": "개인보호구 착용 (안전모,절연장갑)",
+        "freq_before": 1,
+        "sev_before": 2,
+        "freq_after": 1,
+        "sev_after": 2,
+        "injury": "감전"
+      }
+    ],
+    "EHP 냉.난방시스템 점검 및 정비": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "현장 이동 시 미끄러짐",
+        "current": "안전보호구착용 (안전화,안전모)",
+        "improvement": "안전보호구착용 (안전화,안전모)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·EHP 냉.난방기 점검",
+        "hazard": "실내기 점검 정비 시 사다리 사용 추락 전도위험",
+        "current": "개인보호구 착용 - 이동용 사다리 사용시 2인1조 작업 - 사다리 아웃트리거 설치",
+        "improvement": "개인보호구 착용 - 이동용 사다리 사용시 2인1조 작업 - 사다리 아웃트리거 설치",
+        "freq_before": 2,
+        "sev_before": 3,
+        "freq_after": 2,
+        "sev_after": 3,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "실외기 점검 정비 시 커버 및 회전체 협착위험",
+        "current": "개인보호구 착용 - 작업 전 전원차단 및 ILS 실시",
+        "improvement": "개인보호구 착용 - 작업 전 전원차단 및 ILS 실시",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "협착"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "실내기 실외기 제어반 등 전장품 절연파괴 불안전한 상태",
+        "current": "개인보호구 착용 (안전모,절연장갑) - 회전체 모터 절연저항 정기점검",
+        "improvement": "개인보호구 착용 (안전모,절연장갑) - 회전체 모터 절연저항 정기점검",
+        "freq_before": 1,
+        "sev_before": 2,
+        "freq_after": 1,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "정비·전원 On/off",
+        "hazard": "제어반 조작중 감전",
+        "current": "개인보호구 착용 (안전모,절연장갑)",
+        "improvement": "개인보호구 착용 (안전모,절연장갑)",
+        "freq_before": 1,
+        "sev_before": 2,
+        "freq_after": 1,
+        "sev_after": 2,
+        "injury": "감전"
+      }
+    ],
+    "냉각수 단수작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업준비·현장이동",
+        "hazard": "현장 이동 시 미끄러짐",
+        "current": "안전보호구착용 (안전화,안전모)",
+        "improvement": "안전보호구착용 (안전화,안전모)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "작업·단수",
+        "hazard": "돌출물(서폿트 등) 간섭",
+        "current": "안전보호구착용 (안전화,안전모)",
+        "improvement": "안전보호구착용 (안전화,안전모)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "충돌"
+      }
+    ],
+    "공기흡입형 감지기(EDA) 점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업준비·현장이동",
+        "hazard": "현장 이동중 장애물 간섭",
+        "current": "안전보호구착용 (안전화,안전모)",
+        "improvement": "안전보호구착용 (안전화,안전모)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "전도"
+      }
+    ],
+    "자동화재탐지설비 점검": [
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·판넬 점검",
+        "hazard": "판넬 내부 개방 점검중 충전부 접촉에 의한 감전위험",
+        "current": "안전보호구 착용 (안전모,보안경,절연장갑)",
+        "improvement": "안전보호구 착용 (안전모,보안경,절연장갑)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "누전으로 인한 감전위험",
+        "current": "안전보호구 착용 - 작업전 누설저류 체크",
+        "improvement": "안전보호구 착용 - 작업전 누설저류 체크",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "오조작에 의한 점검",
+        "current": "지적확인 철저",
+        "improvement": "지적확인 철저",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "기타"
+      }
+    ],
+    "가스소화설비 점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "소화가스실 이동 중 바닥 미끄러짐",
+        "current": "안전보호구 착용 (안전화,안전모)",
+        "improvement": "안전보호구 착용 (안전화,안전모)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·가스실 점검",
+        "hazard": "가스작동 누설로 인한 질식위험",
+        "current": "출입문 개방 - 안전 pin 설치 - 2인1조 작업표준 - 산소공급기 이용",
+        "improvement": "출입문 개방 - 안전 pin 설치 - 2인1조 작업표준 - 산소공급기 이용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "질식"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "가스봄베 부속설비 점검 중 모서리 충돌위험",
+        "current": "개인보호구 착용 (안전모,안전화 등)",
+        "improvement": "개인보호구 착용 (안전모,안전화 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "충돌"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·현장점검",
+        "hazard": "고소점검 정비시 사다리 추락위험 (가스노즐,배관,감지기 등)",
+        "current": "안전보호구 착용 - 사다리 아웃트리거 설치 - 2인1조 작업표준",
+        "improvement": "안전보호구 착용 - 사다리 아웃트리거 설치 - 2인1조 작업표준",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "추락"
+      }
+    ],
+    "소방펌프 점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "이동 중 돌출물에 의한 전도",
+        "current": "안전보호구 착용 - 안전 반사테이프 부착",
+        "improvement": "안전보호구 착용 - 안전 반사테이프 부착",
+        "freq_before": 5,
+        "sev_before": 1,
+        "freq_after": 5,
+        "sev_after": 1,
+        "injury": "전도"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·점검·일상점검",
+        "hazard": "돌출물 간섭에 의한 충돌 넘어짐 위험",
+        "current": "안전보호구 착용 - 안전 반사테이프 부착",
+        "improvement": "안전보호구 착용 - 안전 반사테이프 부착",
+        "freq_before": 5,
+        "sev_before": 1,
+        "freq_after": 5,
+        "sev_after": 1,
+        "injury": "충돌 넘어짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·점검",
+        "hazard": "회전부 협착위험",
+        "current": "회전부 보호커버 설치 - 지적확인 철저",
+        "improvement": "회전부 보호커버 설치 - 지적확인 철저",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "협착"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·점검",
+        "hazard": "제어반 점검시 불안전한 자세 및 상태",
+        "current": "개인보호구 착용 (안전모,절연장갑)",
+        "improvement": "개인보호구 착용 (안전모,절연장갑)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "운전·점검·절연점검",
+        "hazard": "제어반 점검시 통전부 접촉 감전위험",
+        "current": "개인보호구 착용 (안전모,절연장갑)",
+        "improvement": "개인보호구 착용 (안전모,절연장갑)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "감전"
+      }
+    ],
+    "공동가대 설비점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "수직사다리 이동 중 미끄럼 추락",
+        "current": "안전보호구 착용 - 안전블럭 이용",
+        "improvement": "안전보호구 착용 - 안전블럭 이용",
+        "freq_before": 4,
+        "sev_before": 2,
+        "freq_after": 4,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비",
+        "hazard": "수직사다리 이동중 수공구 소지품 등 낙하",
+        "current": "작업자 수공구 착용금지 - 이동중 하부 접근금지",
+        "improvement": "작업자 수공구 착용금지 - 이동중 하부 접근금지",
+        "freq_before": 4,
+        "sev_before": 2,
+        "freq_after": 4,
+        "sev_after": 2,
+        "injury": "낙하/충돌"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·점검작업",
+        "hazard": "조도불량 돌출물 충돌",
+        "current": "안전보호구 착용 - 지적확인",
+        "improvement": "안전보호구 착용 - 지적확인",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "충돌"
+      }
+    ],
+    "저수조설비 점검 및 정비": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "저수조실 이동 중 출입구 경사면 미끄럼 사고위험",
+        "current": "출입구 미끄럼방지 테이프부착 -안전보호구 착용 (안전화,안전모)",
+        "improvement": "출입구 미끄럼방지 테이프부착 -안전보호구 착용 (안전화,안전모)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·정비·저수조 법정청소",
+        "hazard": "점검용 수직사다리 사용 중 불안전 상태 추락위험",
+        "current": "사다리 미끄럼방지 테이프부착 추락위험 게시물 부착 - 안전블럭 설치",
+        "improvement": "사다리 미끄럼방지 테이프부착 추락위험 게시물 부착 - 안전블럭 설치",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·정비",
+        "hazard": "탱크상부 작업자 불안전한 자세 및 상태",
+        "current": "안전보호구 착용 (안전화,안전모) - 안전난간 부분설치",
+        "improvement": "안전보호구 착용 (안전화,안전모) - 조명등 추가설치",
+        "freq_before": 4,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "충돌"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·정비",
+        "hazard": "탱크 법정 청소작업 질식위험",
+        "current": "산소농도측정기 휴대 (출입전 산소농도 측정) - 송풍기 설치",
+        "improvement": "산소농도측정기 휴대 (출입전 산소농도 측정) - 송풍기 설치",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "질식"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·정비",
+        "hazard": "작업 케이블 누전 등",
+        "current": "작업전 절연상태 확인 - 안전보호구 착용",
+        "improvement": "작업전 절연상태 확인 - 안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      }
+    ],
+    "공조기 필터 교체 작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "중량물(사다리) 취급",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "교체·외기필터 교체",
+        "hazard": "사다리 작업중 미끄러짐, 추락",
+        "current": "사다리 아웃트리거 설치 - 2인1조 안전작업 실시 - 안전보호구 착용",
+        "improvement": "사다리 아웃트리거 설치 - 2인1조 안전작업 실시 - 안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "교체·내부필터 교체",
+        "hazard": "공조기 운전중 점검구 출입문 협착",
+        "current": "2인1조 안전작업 실시 - 작업 전 공조기 정지 (전원차단)",
+        "improvement": "2인1조 안전작업 실시 - 작업 전 공조기 정지 (전원차단)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "협착"
+      }
+    ],
+    "접지설비 점검 및 접지저항 측정": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "기.전실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비",
+        "hazard": "옥상 피뢰도선 측 이동중 미끄러져 추락 위험",
+        "current": "옥상 이동 및 작업시 안전대 착용",
+        "improvement": "옥상 이동 및 작업시 안전대 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "측정·저항/누설전류측정",
+        "hazard": "적정 절연보호구 미 착용으로 인한 감전위험",
+        "current": "안전보호구 착용 - 절연보호구 착용 - 후크메타식 저항,전류 측정",
+        "improvement": "안전보호구 착용 - 절연보호구 착용 - 후크메타식 저항,전류 측정",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "감전"
+      }
+    ],
+    "항온항습기 필터 세척작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "이동 중 미끄러짐",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "전도"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·필터분해",
+        "hazard": "필터 분해중 찰과상 사다리 작업중 미끄러짐",
+        "current": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "improvement": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "찰과상 추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·필터이동",
+        "hazard": "세척장 이동중 미끄러짐",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·필터세척",
+        "hazard": "바닥 물기로 미끄러짐",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐 전도"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·필터취부",
+        "hazard": "필터 취부중 찰과상 사다리 작업중 전도",
+        "current": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "improvement": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "찰과상 전도"
+      }
+    ],
+    "시스템 에어컨 필터 세척 작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "중량물(사다리) 취급 사다리 높이 조절 중 손가락 끼임",
+        "current": "2인1조 안전작업 실시 - 안전보호구 착용",
+        "improvement": "2인1조 안전작업 실시 - 안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "충돌 끼임"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·필터 분해/취부",
+        "hazard": "사다리 작업중 미끄러짐, 추락",
+        "current": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "improvement": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·필터이동",
+        "hazard": "필터 세척장 이동중 전도",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "전도"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·필터세척",
+        "hazard": "바닥 물기로 미끄러짐",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·작업종료",
+        "hazard": "사다리 복원중 손가락 끼임",
+        "current": "장갑 착용",
+        "improvement": "장갑 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "끼임"
+      }
+    ],
+    "옥상 낮은 지붕층 점검/보수작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "수직사다리 이동 중 추락",
+        "current": "사다리 발판 미끄럼방지 테이프 부착 - 추락위험 표지부착 - 안전보호구 착용",
+        "improvement": "사다리 발판 미끄럼방지 테이프 부착 - 추락위험 표지부착 - 안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "미끄러짐 추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·보수·옥상 사다리 이동",
+        "hazard": "수직사다리 빗물에 의한 불안전 상태",
+        "current": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "improvement": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·보수·지붕이동",
+        "hazard": "지붕층 안전대 고정걸이 미설치 불안전 상태",
+        "current": "안전보호구 착용 - 2인1조 안전작업 실시 - 안전로프 사용",
+        "improvement": "안전보호구 착용 - 2인1조 안전작업 실시 - 안전로프 사용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·보수·방수작업",
+        "hazard": "우천시 실내누수 비상조치 (코킹 비닐설치 등)",
+        "current": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "improvement": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "미끄러짐 추락"
+      }
+    ],
+    "급탕탱크 점검/보수작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "수직사다리 이동 중 미끄럼 추락",
+        "current": "사다리 발판 미끄럼방지 테이프 부착 - 안전보호구 착용",
+        "improvement": "사다리 발판 미끄럼방지 테이프 부착 - 안전보호구 착용",
+        "freq_before": 2,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·안전변 테스트",
+        "hazard": "수직사다리 등받이 미설치 불안전한 상태",
+        "current": "안전보호구 착용 (안전모, 안전대,안전화) - 위험(추락)표지 부착",
+        "improvement": "안전보호구 착용 (안전모, 안전대,안전화) - 위험(추락)표지 부착",
+        "freq_before": 2,
+        "sev_before": 3,
+        "freq_after": 2,
+        "sev_after": 3,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "작업발판 없어 작업자 불안전한 자세",
+        "current": "안전보호구 착용 (안전모, 안전대,안전화)",
+        "improvement": "안전보호구 착용 (안전모, 안전대,안전화)",
+        "freq_before": 2,
+        "sev_before": 3,
+        "freq_after": 2,
+        "sev_after": 3,
+        "injury": "미끄러짐 추락"
+      }
+    ],
+    "변압기 초음파 코로나 측정작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "측정·Panel 도어개방",
+        "hazard": "절연보호구 미 착용으로 인한 감전위험",
+        "current": "안전보호구 착용 (안전모, 보안경, 안전화) - 절연보호구 착용 (절연 보호복, 절연장갑) - 활선경보장치 착용",
+        "improvement": "안전보호구 착용 (안전모, 보안경, 안전화) - 절연보호구 착용 (절연 보호복, 절연장갑) - 활선경보장치 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "측정·코로나 측정",
+        "hazard": "적정 절연보호구 미 착용으로 인한 감전위험",
+        "current": "안전거리 유지 - 안전보호구 착용 (안전모, 보안경, 안전화) - 절연보호구 착용 (절연 보호복, 절연장갑) - 활선경보장치 착용",
+        "improvement": "안전거리 유지 - 안전보호구 착용 (안전모, 보안경, 안전화) - 절연보호구 착용 (절연 보호복, 절연장갑) - 활선경보장치 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      }
+    ],
+    "유류저장탱크 설비점검": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "유류탱크실 이동 중 계단 미끄러짐",
+        "current": "안전보호구 착용 (안전화,안전모)",
+        "improvement": "안전보호구 착용 (안전화,안전모)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·탱크상부 점검",
+        "hazard": "탱크 점검용 수직사다리 이동중 불안전 상태 추락위험",
+        "current": "안전보호구 착용 - 안전게시물 설치 (추락위험) - 미끄럼방지 테이프 부착",
+        "improvement": "안전보호구 착용 - 안전게시물 설치 (추락위험) - 미끄럼방지 테이프 부착",
+        "freq_before": 4,
+        "sev_before": 2,
+        "freq_after": 4,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·탱크실 점검",
+        "hazard": "유증기 발생으로 인한 산소농도 저하",
+        "current": "정기 산소농도측정기 (측정주기: 1회\n주)",
+        "improvement": "정기 산소농도측정기 (측정주기: 1회\n주)",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "질식"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검",
+        "hazard": "유증기 발생으로 인한 폭발, 화재위험",
+        "current": "안전게시물 설치 (화재\n폭발위험) - CCTV설치",
+        "improvement": "안전게시물 설치 (화재\n폭발위험) - CCTV설치",
+        "freq_before": 4,
+        "sev_before": 1,
+        "freq_after": 4,
+        "sev_after": 1,
+        "injury": "화재 폭발"
+      }
+    ],
+    "실외기 전열핀 세척 작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "물호스 이동 중 미끄러짐 전도",
+        "current": "안전 보호구 착용 - 2인1조 안전작업 실시",
+        "improvement": "안전 보호구 착용 - 2인1조 안전작업 실시",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "전도"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·약품세척",
+        "hazard": "약품 피부접촉 안구 접촉시",
+        "current": "안전보호구 착용 (보안경,장갑,장화)",
+        "improvement": "안전보호구 착용 (보안경,장갑,장화)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "피부질환 안구부상"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "세척·고압세척",
+        "hazard": "바닥 물기로 미끄러짐 및 이동중 전도",
+        "current": "안전보호구 착용 (장화포함)",
+        "improvement": "안전보호구 착용 (장화포함)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐전도"
+      }
+    ],
+    "냉각탑 수조 청소작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "자재 이동 중 장애물 충돌 전도",
+        "current": "안전보호구 착용 - 이동동선 장애물 충돌 위험표지",
+        "improvement": "안전보호구 착용 - 이동동선 장애물 충돌 위험표지",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "전도 충돌"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "청소·수조배수",
+        "hazard": "배수밸브 설치위치 협소 작업자 불안전 자세",
+        "current": "안전보호구 착용 - 배수밸브 위치 이설 (외부 조작용이)",
+        "improvement": "안전보호구 착용 - 배수밸브 위치 이설 (외부 조작용이)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "찰과상"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "청소·수조 물청소",
+        "hazard": "배출수 물기에 의한 미끄러짐 및 전도",
+        "current": "안전보호구 착용 - 배출관 연장",
+        "improvement": "안전보호구 착용 - 배출관 연장",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐전도"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "청소",
+        "hazard": "전원차단 미실시 감전",
+        "current": "안전보호구 착용 - 전원차단 및 시건(ILS)",
+        "improvement": "안전보호구 착용 - 전원차단 및 시건(ILS)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "청소",
+        "hazard": "장기 반복적 동작에 의한 근골격계 질환",
+        "current": "안전보호구 착용 - 휴게시간 준수 - 배수구 확관(배수용이)",
+        "improvement": "안전보호구 착용 - 휴게시간 준수 - 배수구 확관(배수용이)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "근골격계질환"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "청소·이물제거",
+        "hazard": "바닥 이물질 미끄럼",
+        "current": "안전보호구 착용",
+        "improvement": "안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      }
+    ],
+    "상면공간 조명보수": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "자재, 공구 이동중 전도",
+        "current": "출입구 문턱 안전조치 (경사도 완화, 위험표지) - 안전보호구 착용",
+        "improvement": "출입구 문턱 안전조치 (경사도 완화, 위험표지) - 안전보호구 착용",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "전도"
+      },
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·사다리 설치",
+        "hazard": "사다리 중량물 취급 사다리 높이 조절 중 손가락 끼임",
+        "current": "2인1조 안전작업 실시 - 안전보호구 착용(장갑)",
+        "improvement": "2인1조 안전작업 실시 - 안전보호구 착용(장갑)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "전도 끼임"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "보수·등기구 / 안정기 보수",
+        "hazard": "통전 중 작업시 감전 추락사고(2차)",
+        "current": "전원차단 및 시건(ILS) - 2인1조 안전작업 실시",
+        "improvement": "전원차단 및 시건(ILS) - 2인1조 안전작업 실시",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전 추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "보수",
+        "hazard": "부품(등.안정기 등) 낙하",
+        "current": "2인 1조 작업표준",
+        "improvement": "2인 1조 작업표준",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "낙하"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "보수",
+        "hazard": "사다리 상부 작업중 불안전 자세로 추락",
+        "current": "2인 1조 작업표준",
+        "improvement": "계단형 사다리 이용 - 2인 1조 작업표준",
+        "freq_before": 4,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "추락"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "보수·사다리 철거",
+        "hazard": "사다리 복원중 손가락 끼임 중량물 취급",
+        "current": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "improvement": "안전보호구 착용 - 2인1조 안전작업 실시",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "끼임"
+      }
+    ],
+    "전기실 전력설비 열화상 측정작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "측정·고,저압Panel 도어개방",
+        "hazard": "절연보호구 미 착용으로 인한 충전부 혼촉 감전",
+        "current": "안전보호구 착용 (안전모, 보안경, 안전화) - 절연보호구 착용 (절연 보호복, 절연장갑) - 활선경보장치 착용",
+        "improvement": "안전보호구 착용 (안전모, 보안경, 안전화) - 절연보호구 착용 (절연 보호복, 절연장갑) - 활선경보장치 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "측정·열화상 측정",
+        "hazard": "열화상 측정시 불안전한 자세 및 상태로 감전",
+        "current": "안전거리 유지 - 안전보호구 착용 - 절연보호구 착용 - 활선경보장치 착용 - 2인 1조 작업",
+        "improvement": "안전거리 유지 - 안전보호구 착용 - 절연보호구 착용 - 활선경보장치 착용 - 2인 1조 작업",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      }
+    ],
+    "전동기 절연측정 작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "옥상 이동시 구조물에 부딪혀 찰과상 위험 바닥 수문으로 이한 미끄러짐 위험",
+        "current": "안전보호구 착용 ( 안전모, 안전화) - 구조물 충돌 방지 VM 및 충격 완화장치 설치",
+        "improvement": "안전보호구 착용 ( 안전모, 안전화) - 구조물 충돌 방지 VM 및 충격 완화장치 설치",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐, 추돌"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·전원 On/off",
+        "hazard": "제어반 조작 중 감전",
+        "current": "개인보호구 착용 (안전모,절연장갑)",
+        "improvement": "개인보호구 착용 (안전모,절연장갑)",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "점검·절연저항 측정",
+        "hazard": "절연 저항 측정 중 전원 투입으로 감전 위험",
+        "current": "차단기 Off 후 Tag 부착 및 ILS 실시 - 검전 및 절연장갑 착용",
+        "improvement": "차단기 Off 후 Tag 부착 및 ILS 실시 - 검전 및 절연장갑 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      }
+    ],
+    "분전반 열화상 측정작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "전기실 이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "측정·고,저압Panel 도어개방",
+        "hazard": "절연보호구 미 착용으로 인한 충전부 혼촉 감전",
+        "current": "안전보호구 착용 (안전모, 보안경, 안전화) - 절연보호구 착용 (절연 보호복, 절연장갑) - 활선경보장치 착용",
+        "improvement": "안전보호구 착용 (안전모, 보안경, 안전화) - 절연보호구 착용 (절연 보호복, 절연장갑) - 활선경보장치 착용",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "측정·열화상 측정",
+        "hazard": "열화상 측정시 불안전한 자세 및 상태로 감전",
+        "current": "안전거리 유지 - 안전보호구 착용 - 절연보호구 착용 - 활선경보장치 착용 - 2인 1조 작업",
+        "improvement": "안전거리 유지 - 안전보호구 착용 - 절연보호구 착용 - 활선경보장치 착용 - 2인 1조 작업",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      }
+    ],
+    "UPS 배터리 긴급조치": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "작업·배터리 분해",
+        "hazard": "통전부 혼촉 (전원차단 미조치 등)",
+        "current": "안전보호구 착용 (보호복, 안면보호구, 내열장갑 등) - 작업표준서 현장비치",
+        "improvement": "안전보호구 착용 (보호복, 안면보호구, 내열장갑 등) - 작업표준서 현장비치",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "감전"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "작업·취외",
+        "hazard": "중량물 취급",
+        "current": "2인1조 작업준수",
+        "improvement": "2인1조 작업준수",
+        "freq_before": 3,
+        "sev_before": 2,
+        "freq_after": 3,
+        "sev_after": 2,
+        "injury": "기타"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "작업·이동",
+        "hazard": "배터리 옥외 이동",
+        "current": "2인1조 작업준수 - 이동식 냉각수조 비치",
+        "improvement": "2인1조 작업준수 - 이동식 냉각수조 비치",
+        "freq_before": 3,
+        "sev_before": 1,
+        "freq_after": 3,
+        "sev_after": 1,
+        "injury": "전도 화상"
+      }
+    ],
+    "건물 내 층간 계단이동": [
+      {
+        "phase": "작업 중",
+        "unit_task": "이동·계단이동",
+        "hazard": "이용객 안전의식 저하",
+        "current": "이용객 안전규칙 부착 - 미끄러짐 위험표지 부착",
+        "improvement": "이용객 안전규칙 부착 - 미끄러짐 위험표지 부착",
+        "freq_before": 5,
+        "sev_before": 1,
+        "freq_after": 5,
+        "sev_after": 1,
+        "injury": "미끄러짐 실족"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "이동",
+        "hazard": "안전 핸드레일 미설치 불안전 상태",
+        "current": "이동시 난간대 사용",
+        "improvement": "안전 핸드레일 설치",
+        "freq_before": 5,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": ""
+      }
+    ],
+    "차수판 설치작업": [
+      {
+        "phase": "작업 전",
+        "unit_task": "작업 준비·현장이동",
+        "hazard": "이동 중 출입구 바닥 경사면 미끄러짐 위험",
+        "current": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "improvement": "바닥 경사면 미끄럼방지 논슬립 테이프 부착 - 안전보호구 착용 (안전화, 안전모 등)",
+        "freq_before": 2,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "미끄러짐"
+      },
+      {
+        "phase": "작업 전",
+        "unit_task": "자재준비·자재준비",
+        "hazard": "중량물 이동시 추돌, 근골격계 손상 등 위험",
+        "current": "안전 보호구 착용 -2인 1조 작업 -중량물 이동시 대차 이용",
+        "improvement": "안전 보호구 착용 -2인 1조 작업 -중량물 이동시 대차 이용",
+        "freq_before": 2,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "찰과상"
+      },
+      {
+        "phase": "작업 중",
+        "unit_task": "설치·차수판 설치",
+        "hazard": "차수판 설치중 손가락 끼임",
+        "current": "2인 1조 작업 - 안전보호구 착용(안전장갑)",
+        "improvement": "2인 1조 작업 - 안전보호구 착용(안전장갑)",
+        "freq_before": 2,
+        "sev_before": 2,
+        "freq_after": 2,
+        "sev_after": 2,
+        "injury": "부딪힘"
+      }
+    ]
+  }
+}

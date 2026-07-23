@@ -1,0 +1,326 @@
+{
+  "version": 1,
+  "source": "유해위험요인 파악표 + law.go.kr(산업안전보건기준에 관한 규칙) 검증",
+  "scenarios": [
+    {
+      "id": "forklift_blocked_view",
+      "category": "기계적",
+      "situation": "화물 적재로 전방 시야 차단 → 충돌·협착",
+      "patterns": ["시야.*차단", "전방.*시야", "적재.*시야", "화물.*시야", "시야.*가림", "전조등"],
+      "injury_patterns": ["충돌", "깔림", "협착"],
+      "unit_patterns": ["지게차", "하역", "운반"],
+      "law_key": "rule_179",
+      "priority": 92
+    },
+    {
+      "id": "forklift_overspeed",
+      "category": "기계적",
+      "situation": "제한속도(10km/h) 초과 운행 → 충돌",
+      "patterns": ["과속", "속도.*초과", "10km", "급출발", "급정지", "급회전", "제한속도"],
+      "injury_patterns": ["충돌", "깔림"],
+      "unit_patterns": ["지게차", "차량계"],
+      "law_key": "rule_98",
+      "priority": 90
+    },
+    {
+      "id": "forklift_leave_seat",
+      "category": "기계적",
+      "situation": "운전석 이탈 시 시동키·운전조작 미조치 → 오작동·충돌",
+      "patterns": ["운전석.*이탈", "시동키", "키.*꽂", "운전위치.*이탈", "조작.*미조치"],
+      "injury_patterns": ["충돌", "깔림"],
+      "unit_patterns": ["지게차", "차량계"],
+      "law_key": "rule_99",
+      "priority": 90
+    },
+    {
+      "id": "forklift_no_seatbelt",
+      "category": "기계적",
+      "situation": "좌석 안전띠 미착용 → 전도·낙상",
+      "patterns": ["안전띠.*미", "좌석.*안전띠", "안전벨트.*미", "띠.*미착"],
+      "injury_patterns": ["전도", "추락", "넘어짐"],
+      "unit_patterns": ["지게차"],
+      "law_key": "rule_183",
+      "priority": 91
+    },
+    {
+      "id": "forklift_reverse_alarm",
+      "category": "기계적",
+      "situation": "후진 시 경보·유도자 미배치 → 충돌·깔림",
+      "patterns": ["후진", "후진경보", "후진.*경보", "유도자", "경보.*미"],
+      "injury_patterns": ["충돌", "깔림"],
+      "unit_patterns": ["지게차", "차량계"],
+      "law_key": "rule_76",
+      "priority": 88
+    },
+    {
+      "id": "machine_guard",
+      "category": "기계적",
+      "situation": "방호장치 미설치·무력화 → 끼임·협착",
+      "patterns": ["방호.*미", "방호장치", "끼임", "협착", "회전체", "프레스"],
+      "injury_patterns": ["끼임", "협착", "절단"],
+      "law_key": "rule_38",
+      "priority": 85
+    },
+    {
+      "id": "maintenance_while_running",
+      "category": "기계적",
+      "situation": "가동 중 정비·급유 → 끼임·절단",
+      "patterns": ["가동.*정비", "운전.*정비", "급유.*가동", "가동.*급유", "운전정지.*미"],
+      "injury_patterns": ["끼임", "협착", "절단"],
+      "law_key": "rule_92",
+      "priority": 90
+    },
+    {
+      "id": "ppe_not_provided",
+      "category": "작업환경",
+      "situation": "안전모·안전화 등 보호구 미지급·미착용",
+      "patterns": ["보호구.*미", "안전모.*미", "안전화.*미", "미착용", "보호구.*미지급"],
+      "injury_patterns": ["타박", "찰과상", "골절"],
+      "law_key": "rule_32",
+      "priority": 86
+    },
+    {
+      "id": "no_passageway",
+      "category": "작업환경",
+      "situation": "정리·정돈 미흡으로 안전통로 확보 불가",
+      "patterns": ["통로.*미", "통로.*없", "안전통로", "통행로", "정리.*정돈.*미", "적치.*통로"],
+      "injury_patterns": ["넘어짐", "충돌"],
+      "law_key": "rule_22",
+      "priority": 84
+    },
+    {
+      "id": "trip_hazard",
+      "category": "작업환경",
+      "situation": "자재·잡자재 방치 → 넘어짐·전도",
+      "patterns": ["자재.*방치", "잡자재", "넘어질.*우려", "걸림", "전도.*우려", "정리.*미"],
+      "injury_patterns": ["넘어짐", "전도", "실족"],
+      "law_key": "rule_3",
+      "priority": 82
+    },
+    {
+      "id": "slippery_floor",
+      "category": "작업환경",
+      "situation": "미끄러운 바닥·경사면 → 넘어짐",
+      "patterns": ["미끄", "경사", "바닥.*미끄", "논슬립.*미", "넘어짐"],
+      "injury_patterns": ["넘어짐", "실족", "전도"],
+      "law_key": "rule_5",
+      "priority": 80
+    },
+    {
+      "id": "fall_from_height",
+      "category": "작업환경",
+      "situation": "고소·개구부 작업 시 추락방호 미흡",
+      "patterns": ["추락", "고소", "개구부", "안전난간", "낙하", "2m"],
+      "injury_patterns": ["추락", "낙하"],
+      "law_key": "rule_41",
+      "priority": 88
+    },
+    {
+      "id": "ladder_unsafe",
+      "category": "작업환경",
+      "situation": "사다리·고소작업대 부적절 사용 → 추락",
+      "patterns": ["사다리", "고소작업대", "작업대.*미", "비계"],
+      "injury_patterns": ["추락", "낙하"],
+      "law_key": "rule_63",
+      "priority": 84
+    },
+    {
+      "id": "heavy_load_limit",
+      "category": "작업특성",
+      "situation": "과도한 중량물 인력 취급 → 근골격계질환",
+      "patterns": ["중량물", "과중", "25kg", "20kg", "무거", "들어.*올"],
+      "injury_patterns": ["근골격", "요통", "허리"],
+      "law_key": "rule_663",
+      "priority": 88
+    },
+    {
+      "id": "msd_posture",
+      "category": "작업특성",
+      "situation": "반복·부적절 자세·무리한 힘 → 근골격계질환",
+      "patterns": ["반복.*동작", "부적절.*자세", "무리한.*힘", "근골격", "허리.*통", "목.*통"],
+      "injury_patterns": ["근골격", "요통"],
+      "law_key": "rule_661",
+      "priority": 86
+    },
+    {
+      "id": "vibration_hazard",
+      "category": "작업특성",
+      "situation": "진동작업 유해성 미고지 → 진동장해",
+      "patterns": ["진동", "핸드.*arm", "착압.*공구"],
+      "injury_patterns": ["진동", "혈관", "신경"],
+      "law_key": "rule_519",
+      "priority": 82
+    },
+    {
+      "id": "noise_exposure",
+      "category": "작업환경",
+      "situation": "소음작업 환경 → 청력장해",
+      "patterns": ["소음", "데시벨", "db", "청각", "난청"],
+      "injury_patterns": ["청각", "난청", "소음"],
+      "law_key": "rule_514",
+      "priority": 88
+    },
+    {
+      "id": "hearing_protection",
+      "category": "작업환경",
+      "situation": "귀마개·귀덮개 미착용 → 청력장해",
+      "patterns": ["귀마개", "귀덮개", "청력보호", "청력.*미"],
+      "injury_patterns": ["청각", "난청"],
+      "law_key": "rule_516",
+      "priority": 90
+    },
+    {
+      "id": "live_part_exposure",
+      "category": "전기",
+      "situation": "충전부 노출·방호 미흡 → 감전",
+      "patterns": ["충전부", "활선", "노출.*전기", "감전", "충전.*노출"],
+      "injury_patterns": ["감전"],
+      "law_key": "rule_301",
+      "priority": 92
+    },
+    {
+      "id": "no_grounding",
+      "category": "전기",
+      "situation": "전기기계·분전반 접지 미흡 → 감전",
+      "patterns": ["접지.*미", "접지.*불량", "누전", "분전", "접지저항"],
+      "injury_patterns": ["감전"],
+      "law_key": "rule_302",
+      "priority": 90
+    },
+    {
+      "id": "electrical_work",
+      "category": "전기",
+      "situation": "전기작업 절차·자격 미준수 → 감전",
+      "patterns": ["전기작업", "정전", "복전", "오조작", "작업수순"],
+      "injury_patterns": ["감전"],
+      "law_key": "rule_19",
+      "priority": 86
+    },
+    {
+      "id": "leakage_breaker",
+      "category": "전기",
+      "situation": "누전차단기 미설치 → 감전",
+      "patterns": ["누전차단", "누전.*차단기", "감전.*누전"],
+      "injury_patterns": ["감전"],
+      "law_key": "rule_304",
+      "priority": 88
+    },
+    {
+      "id": "loto_energy",
+      "category": "전기",
+      "situation": "잔류에너지·LOTO 미실시 → 감전·끼임",
+      "patterns": ["loto", "잔류에너지", "잠금", "운전정지", "에너지.*차단"],
+      "injury_patterns": ["감전", "끼임"],
+      "law_key": "rule_92",
+      "priority": 88
+    },
+    {
+      "id": "fire_welding",
+      "category": "화학·화재",
+      "situation": "화기작업·용접 화재·폭발 위험",
+      "patterns": ["용접", "화기", "불꽃", "인화", "화재.*우려"],
+      "injury_patterns": ["화재", "화상", "폭발"],
+      "law_key": "rule_64",
+      "priority": 86
+    },
+    {
+      "id": "fire_extinguisher",
+      "category": "화학·화재",
+      "situation": "소화기·소화설비 표지·점검 미흡",
+      "patterns": ["소화기", "소화설비", "소화.*점검", "소화.*표지"],
+      "injury_patterns": ["화재"],
+      "law_key": "fire_fac_10",
+      "priority": 84
+    },
+    {
+      "id": "co2_extinguisher",
+      "category": "화학·화재",
+      "situation": "밀폐·통품불량 장소 CO2 소화기 부적절 → 질식",
+      "patterns": ["이산화탄소.*소화", "co2.*소화", "밀폐.*소화기"],
+      "injury_patterns": ["질식"],
+      "law_key": "rule_628",
+      "priority": 86
+    },
+    {
+      "id": "msds_missing",
+      "category": "화학·화재",
+      "situation": "화학물질 MSDS·유해성 표시 미비",
+      "patterns": ["msds", "물질안전", "유해.*표시", "경고.*표시", "화학.*라벨"],
+      "injury_patterns": ["화학", "피부", "중독"],
+      "law_key": "rule_449",
+      "priority": 84
+    },
+    {
+      "id": "chemical_handling",
+      "category": "화학·화재",
+      "situation": "유해·위험물질 부적절 취급·누출",
+      "patterns": ["유해.*물질", "화학.*누출", "약품", "누출", "위험물"],
+      "injury_patterns": ["화학", "중독", "피부"],
+      "law_key": "rule_454",
+      "priority": 82
+    },
+    {
+      "id": "confined_space",
+      "category": "작업특성",
+      "situation": "밀폐공간 산소결핍·유해가스 → 질식",
+      "patterns": ["밀폐", "질식", "산소결핍", "산소부족", "유해가스"],
+      "injury_patterns": ["질식", "산소결핍"],
+      "law_key": "rule_436",
+      "priority": 92
+    },
+    {
+      "id": "crane_lifting",
+      "category": "기계적",
+      "situation": "크레인·달기운반기계 부적절 사용 → 낙하·협착",
+      "patterns": ["크레인", "호이스트", "체인블록", "인양", "달기"],
+      "injury_patterns": ["낙하", "협착", "깔림"],
+      "law_key": "rule_94",
+      "priority": 86
+    },
+    {
+      "id": "heavy_object_handling",
+      "category": "작업특성",
+      "situation": "중량물 취급 방법·장비 미흡",
+      "patterns": ["하역", "운반.*중량", "인력.*운반", "들어.*운반"],
+      "injury_patterns": ["근골격", "협착", "깔림"],
+      "law_key": "rule_663",
+      "priority": 80
+    },
+    {
+      "id": "dust_exposure",
+      "category": "작업환경",
+      "situation": "분진 발생 작업 → 호흡기·피부 질환",
+      "patterns": ["분진", "석고", "방진", "먼지"],
+      "injury_patterns": ["분진", "호흡", "업무상질병"],
+      "law_key": "rule_72",
+      "priority": 84
+    },
+    {
+      "id": "heat_burn",
+      "category": "작업환경",
+      "situation": "고온부·증기 접촉 → 화상",
+      "patterns": ["화상", "고온", "증기", "스팀", "냉각수.*고온"],
+      "injury_patterns": ["화상"],
+      "law_key": "rule_97",
+      "priority": 84
+    },
+    {
+      "id": "fire_detection",
+      "category": "화학·화재",
+      "situation": "화재탐지·소방설비 미점검",
+      "patterns": ["화재탐지", "esda", "감지.*설비", "소방.*점검", "스프링클러"],
+      "injury_patterns": ["화재"],
+      "law_key": "fire_fac_10",
+      "priority": 88
+    },
+    {
+      "id": "emergency_plan",
+      "category": "작업특성",
+      "situation": "비상조치·대피 절차 미흡",
+      "patterns": ["비상.*대응", "비상.*운전", "대피", "긴급.*조치"],
+      "injury_patterns": [],
+      "law_key": "osh_act_41",
+      "priority": 78
+    }
+  ]
+}

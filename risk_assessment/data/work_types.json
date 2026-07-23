@@ -1,0 +1,2473 @@
+{
+  "major_categories": [
+    {
+      "id": "common",
+      "name": "공통"
+    },
+    {
+      "id": "civil",
+      "name": "토건"
+    },
+    {
+      "id": "mechanical",
+      "name": "기계"
+    },
+    {
+      "id": "electrical",
+      "name": "전기"
+    },
+    {
+      "id": "fire",
+      "name": "소방"
+    },
+    {
+      "id": "lighting",
+      "name": "조명"
+    }
+  ],
+  "presets": [
+    {
+      "id": "common_중량물_취급",
+      "major_category": "common",
+      "sub_category": "공통",
+      "name": "중량물 취급",
+      "description": "공통 - 중량물 취급",
+      "keywords": [
+        "중량물",
+        "취급",
+        "공통"
+      ],
+      "aliases": [
+        "중량물취급",
+        "중량물 취급",
+        "중량물 이동"
+      ],
+      "five_m_one_e": {
+        "Man": "중량물 취급 교육 이수, 2인 이상 운반·신호자, 근골격계 예방·스트레칭",
+        "Machine": "이동대차·체인블록·크레인(해당), 양중기구·보조로프·줄걸이·지지대",
+        "Material": "중량물 무게·무게중심, 낙하·전도·협착, 손잡이·고정 미흡",
+        "Method": "작업표준·안전작업계획서, 무게측정·동선·요철 제거, 2인1조·통일신호, 크레인·계단 운반 수칙",
+        "Management": "작업구역 통제·안전표지, 이동대차·로프 점검, TBM·순회점검",
+        "Environment": "좁은 통로·계단·요철, 통행자 혼재, 미끄럼·전도"
+      }
+    },
+    {
+      "id": "common_밀폐공간_작업",
+      "major_category": "common",
+      "sub_category": "공통",
+      "name": "밀폐공간 작업",
+      "description": "공통 - 밀폐공간 작업",
+      "keywords": [
+        "밀폐공간",
+        "작업",
+        "공통"
+      ],
+      "aliases": [
+        "밀폐공간작업",
+        "밀폐공간 작업",
+        "밀폐공간",
+        "밀폐 공간 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "밀폐공간 특별안전교육, 전담 감시인·2인1조, 구조·긴급대응 훈련 이수",
+        "Machine": "가스측정기(교정·Zero Cal), 송기마스크, 강제환기·송풍기, 구출용 삼각대·윈치",
+        "Material": "산소결핍·유해가스(H2S·CO·가연성가스), 잔류액·역류, 슬러지·습기",
+        "Method": "밀폐공간 작업허가, 배관차단·LOTO·표지, 가스측정(상·중·하), 환기 후 진입, 연속측정·교신",
+        "Management": "밀폐공간 프로그램, 출입통제·휀스, 감시인 상시배치, 비상연락·구조절차",
+        "Environment": "밀폐·환기불량·어두움, 수직통로·사다리, 고온·습기·감전"
+      }
+    },
+    {
+      "id": "civil_외벽_코킹_작업",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "외벽 코킹 작업",
+      "description": "건축 - 외벽 코킹 작업",
+      "keywords": [
+        "외벽",
+        "코킹",
+        "작업",
+        "건축"
+      ],
+      "aliases": [
+        "외벽코킹작업",
+        "외벽 코킹 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "외벽 코킹 작업 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 고소작업대, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "고소·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_외벽_커튼월_교체",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "외벽 커튼월 교체",
+      "description": "건축 - 외벽 커튼월 교체",
+      "keywords": [
+        "외벽",
+        "커튼월",
+        "교체",
+        "건축"
+      ],
+      "aliases": [
+        "외벽커튼월교체",
+        "외벽 커튼월 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "외벽 커튼월 교체 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 고소작업대, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "고소·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_바닥_침하_보수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "바닥 침하 보수",
+      "description": "건축 - 바닥 침하 보수",
+      "keywords": [
+        "바닥",
+        "침하",
+        "보수",
+        "건축"
+      ],
+      "aliases": [
+        "바닥침하보수",
+        "바닥 침하 보수"
+      ],
+      "five_m_one_e": {
+        "Man": "바닥 침하 보수 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_도장작업",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "도장작업",
+      "description": "건축 - 도장작업",
+      "keywords": [
+        "도장작업",
+        "건축"
+      ],
+      "aliases": [
+        "도장작업"
+      ],
+      "five_m_one_e": {
+        "Man": "도장작업 고소·건축 특별교육, 2인1조, 안전대·안전모, 화재감시자",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "도료·유기용제·MSDS, 중량물, 분진",
+        "Method": "화재위험작업 허가·환기, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_실내_인테리어_공사",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "실내 인테리어 공사",
+      "description": "건축 - 실내 인테리어 공사",
+      "keywords": [
+        "실내",
+        "인테리어",
+        "공사",
+        "건축"
+      ],
+      "aliases": [
+        "실내인테리어공사",
+        "실내 인테리어 공사"
+      ],
+      "five_m_one_e": {
+        "Man": "실내 인테리어 공사 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_외부_바닥_석재_교체",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "외부 바닥 석재 교체",
+      "description": "건축 - 외부 바닥 석재 교체",
+      "keywords": [
+        "외부",
+        "바닥",
+        "석재",
+        "교체",
+        "건축"
+      ],
+      "aliases": [
+        "외부바닥석재교체",
+        "외부 바닥 석재 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "외부 바닥 석재 교체 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_외벽청소",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "외벽청소",
+      "description": "건축 - 외벽청소",
+      "keywords": [
+        "외벽청소",
+        "건축"
+      ],
+      "aliases": [
+        "외벽청소"
+      ],
+      "five_m_one_e": {
+        "Man": "외벽청소 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 고소작업대, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "고소·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_철물_제작설치_보수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "철물 제작설치 보수",
+      "description": "건축 - 철물 제작설치 보수",
+      "keywords": [
+        "철물",
+        "제작설치",
+        "보수",
+        "건축"
+      ],
+      "aliases": [
+        "철물제작설치보수",
+        "철물 제작설치 보수"
+      ],
+      "five_m_one_e": {
+        "Man": "철물 제작설치 보수 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_벽체_샌드위치_판넬_보수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "벽체 샌드위치 판넬 보수",
+      "description": "건축 - 벽체 샌드위치 판넬 보수",
+      "keywords": [
+        "벽체",
+        "샌드위치",
+        "판넬",
+        "보수",
+        "건축"
+      ],
+      "aliases": [
+        "벽체샌드위치판넬보수",
+        "벽체 샌드위치 판넬 보수"
+      ],
+      "five_m_one_e": {
+        "Man": "벽체 샌드위치 판넬 보수 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_미장_보수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "미장 보수",
+      "description": "건축 - 미장 보수",
+      "keywords": [
+        "미장",
+        "보수",
+        "건축"
+      ],
+      "aliases": [
+        "미장보수",
+        "미장 보수"
+      ],
+      "five_m_one_e": {
+        "Man": "미장 보수 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_천정_tex_흡음재_교체_보수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "천정 tex 흡음재 교체 보수",
+      "description": "건축 - 천정 tex 흡음재 교체 보수",
+      "keywords": [
+        "천정",
+        "tex",
+        "흡음재",
+        "교체",
+        "보수",
+        "건축"
+      ],
+      "aliases": [
+        "천정tex흡음재교체보수",
+        "천정 tex 흡음재 교체 보수"
+      ],
+      "five_m_one_e": {
+        "Man": "천정 tex 흡음재 교체 보수 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_디럭스_타일_보수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "디럭스 타일 보수",
+      "description": "건축 - 디럭스 타일 보수",
+      "keywords": [
+        "디럭스",
+        "타일",
+        "보수",
+        "건축"
+      ],
+      "aliases": [
+        "디럭스타일보수",
+        "디럭스 타일 보수"
+      ],
+      "five_m_one_e": {
+        "Man": "디럭스 타일 보수 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_습식_타일_보수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "습식 타일 보수",
+      "description": "건축 - 습식 타일 보수",
+      "keywords": [
+        "습식",
+        "타일",
+        "보수",
+        "건축"
+      ],
+      "aliases": [
+        "습식타일보수",
+        "습식 타일 보수"
+      ],
+      "five_m_one_e": {
+        "Man": "습식 타일 보수 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_gutter_보수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "Gutter 보수",
+      "description": "건축 - Gutter 보수",
+      "keywords": [
+        "Gutter",
+        "보수",
+        "건축"
+      ],
+      "aliases": [
+        "Gutter보수",
+        "Gutter 보수"
+      ],
+      "five_m_one_e": {
+        "Man": "Gutter 보수 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 고소작업대, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "고소·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "civil_옥상방수_폴리우레아_방수",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "옥상방수(폴리우레아 방수)",
+      "description": "건축 - 옥상방수(폴리우레아 방수)",
+      "keywords": [
+        "옥상방수",
+        "폴리우레아",
+        "방수",
+        "건축"
+      ],
+      "aliases": [
+        "옥상방수(폴리우레아방수)",
+        "옥상방수"
+      ],
+      "five_m_one_e": {
+        "Man": "옥상방수(폴리우레아 방수) 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 고소작업대, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "고소·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "mechanical_순환펌프_분해정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "순환펌프 분해정비",
+      "description": "기계 - 순환펌프 분해정비",
+      "keywords": [
+        "순환펌프",
+        "분해정비",
+        "기계"
+      ],
+      "aliases": [
+        "순환펌프분해정비",
+        "순환펌프 분해정비"
+      ],
+      "five_m_one_e": {
+        "Man": "순환펌프 분해정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "순환펌프 분해정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "유체·잔류수·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_배관_정비_용접__부속류_교체",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "배관 정비(용접, 부속류 교체)",
+      "description": "기계 - 배관 정비(용접, 부속류 교체)",
+      "keywords": [
+        "배관",
+        "정비",
+        "용접",
+        "부속류",
+        "교체",
+        "기계"
+      ],
+      "aliases": [
+        "배관정비(용접,부속류교체)",
+        "배관 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "배관 정비(용접, 부속류 교체) 정비·LOTO 교육, 2인1조, 용접·화재 주의",
+        "Machine": "배관 정비(용접, 부속류 교체) 대상 설비, 밸브·계기, 용접기",
+        "Material": "스팀·고온·압력, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_공조기_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "공조기 정비",
+      "description": "기계 - 공조기 정비",
+      "keywords": [
+        "공조기",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "공조기정비",
+        "공조기 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "공조기 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "공조기 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "부품·패킹·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_저수조_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "저수조 정비",
+      "description": "기계 - 저수조 정비",
+      "keywords": [
+        "저수조",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "저수조정비",
+        "저수조 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "저수조 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "저수조 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "유체·잔류수·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_보일러_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "보일러 정비",
+      "description": "기계 - 보일러 정비",
+      "keywords": [
+        "보일러",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "보일러정비",
+        "보일러 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "보일러 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "보일러 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "스팀·고온·압력, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_열교환기_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "열교환기 정비",
+      "description": "기계 - 열교환기 정비",
+      "keywords": [
+        "열교환기",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "열교환기정비",
+        "열교환기 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "열교환기 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "열교환기 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "스팀·고온·압력, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_에어컨_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "에어컨 정비",
+      "description": "기계 - 에어컨 정비",
+      "keywords": [
+        "에어컨",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "에어컨정비",
+        "에어컨 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "에어컨 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "에어컨 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "부품·패킹·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_배수펌프_분해정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "배수펌프 분해정비",
+      "description": "기계 - 배수펌프 분해정비",
+      "keywords": [
+        "배수펌프",
+        "분해정비",
+        "기계"
+      ],
+      "aliases": [
+        "배수펌프분해정비",
+        "배수펌프 분해정비"
+      ],
+      "five_m_one_e": {
+        "Man": "배수펌프 분해정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "배수펌프 분해정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "유체·잔류수·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_급_배기팬_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "급,배기팬 정비",
+      "description": "기계 - 급,배기팬 정비",
+      "keywords": [
+        "배기팬",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "급,배기팬정비",
+        "급,배기팬 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "급,배기팬 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "급,배기팬 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "부품·패킹·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_팽창탱크_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "팽창탱크 정비",
+      "description": "기계 - 팽창탱크 정비",
+      "keywords": [
+        "팽창탱크",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "팽창탱크정비",
+        "팽창탱크 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "팽창탱크 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "팽창탱크 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "유체·잔류수·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_냉각탑_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "냉각탑 정비",
+      "description": "기계 - 냉각탑 정비",
+      "keywords": [
+        "냉각탑",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "냉각탑정비",
+        "냉각탑 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "냉각탑 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "냉각탑 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "유체·잔류수·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_냉동기_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "냉동기 정비",
+      "description": "기계 - 냉동기 정비",
+      "keywords": [
+        "냉동기",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "냉동기정비",
+        "냉동기 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "냉동기 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "냉동기 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "유체·잔류수·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "mechanical_스프링쿨러_배관_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "스프링쿨러 배관 정비",
+      "description": "기계 - 스프링쿨러 배관 정비",
+      "keywords": [
+        "스프링쿨러",
+        "배관",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "스프링쿨러배관정비",
+        "스프링쿨러 배관 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "스프링쿨러 배관 정비 정비·LOTO 교육, 2인1조, 잔압·잔류에너지 주의",
+        "Machine": "스프링쿨러 배관 정비 대상 설비, 밸브·계기, 공구·크레인(해당)",
+        "Material": "유체·잔류수·윤활유, MSDS(해당)",
+        "Method": "LOTO, 잔압·잔류에너지 해제, 분해·조립 순서, 시운전 전 확인",
+        "Management": "작업허가, 체크리스트, 정기점검·교육",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼, 화기(용접)"
+      }
+    },
+    {
+      "id": "electrical_수_배전설비_점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "수,배전설비 점검",
+      "description": "전기 - 수,배전설비 점검",
+      "keywords": [
+        "배전설비",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "수,배전설비점검",
+        "수,배전설비 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "수,배전설비 점검 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_조명설비_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "조명설비 교체",
+      "description": "전기 - 조명설비 교체",
+      "keywords": [
+        "조명설비",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "조명설비교체",
+        "조명설비 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "조명설비 교체 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_차단기교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "차단기교체",
+      "description": "전기 - 차단기교체",
+      "keywords": [
+        "차단기교체",
+        "전기"
+      ],
+      "aliases": [
+        "차단기교체"
+      ],
+      "five_m_one_e": {
+        "Man": "차단기교체 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_전자_접촉기_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "전자 접촉기 교체",
+      "description": "전기 - 전자 접촉기 교체",
+      "keywords": [
+        "전자",
+        "접촉기",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "전자접촉기교체",
+        "전자 접촉기 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "전자 접촉기 교체 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_비상발e_점검__정비",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "비상발E 점검, 정비",
+      "description": "전기 - 비상발E 점검, 정비",
+      "keywords": [
+        "비상발E",
+        "점검",
+        "정비",
+        "전기"
+      ],
+      "aliases": [
+        "비상발E점검,정비",
+        "비상발E 점검, 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "비상발E 점검, 정비 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_열화상_카메라_측정",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "열화상 카메라 측정",
+      "description": "전기 - 열화상 카메라 측정",
+      "keywords": [
+        "열화상",
+        "카메라",
+        "측정",
+        "전기"
+      ],
+      "aliases": [
+        "열화상카메라측정",
+        "열화상 카메라 측정"
+      ],
+      "five_m_one_e": {
+        "Man": "열화상 카메라 측정 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 열화상카메라",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_ups축전지_점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "UPS축전지 점검",
+      "description": "전기 - UPS축전지 점검",
+      "keywords": [
+        "UPS축전지",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "UPS축전지점검",
+        "UPS축전지 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "UPS축전지 점검 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_축전지_점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "축전지 점검",
+      "description": "전기 - 축전지 점검",
+      "keywords": [
+        "축전지",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "축전지점검",
+        "축전지 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "축전지 점검 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_인버터_점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "인버터 점검",
+      "description": "전기 - 인버터 점검",
+      "keywords": [
+        "인버터",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "인버터점검",
+        "인버터 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "인버터 점검 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_콘센트_및_oa플로어_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "콘센트 및 OA플로어 교체",
+      "description": "전기 - 콘센트 및 OA플로어 교체",
+      "keywords": [
+        "콘센트",
+        "OA플로어",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "콘센트및OA플로어교체",
+        "콘센트 및 OA플로어 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "콘센트 및 OA플로어 교체 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_배수펌프_점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "배수펌프 점검",
+      "description": "전기 - 배수펌프 점검",
+      "keywords": [
+        "배수펌프",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "배수펌프점검",
+        "배수펌프 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "배수펌프 점검 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_구동기_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "구동기 교체",
+      "description": "전기 - 구동기 교체",
+      "keywords": [
+        "구동기",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "구동기교체",
+        "구동기 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "구동기 교체 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_분전반_점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "분전반 점검",
+      "description": "전기 - 분전반 점검",
+      "keywords": [
+        "분전반",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "분전반점검",
+        "분전반 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "분전반 점검 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_케이블포설",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "케이블포설",
+      "description": "전기 - 케이블포설",
+      "keywords": [
+        "케이블포설",
+        "전기"
+      ],
+      "aliases": [
+        "케이블포설"
+      ],
+      "five_m_one_e": {
+        "Man": "케이블포설 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_자동문_정비",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "자동문 정비",
+      "description": "전기 - 자동문 정비",
+      "keywords": [
+        "자동문",
+        "정비",
+        "전기"
+      ],
+      "aliases": [
+        "자동문정비",
+        "자동문 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "자동문 정비 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_고소_조명_설비_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "고소 조명 설비 교체",
+      "description": "전기 - 고소 조명 설비 교체",
+      "keywords": [
+        "고소",
+        "조명",
+        "설비",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "고소조명설비교체",
+        "고소 조명 설비 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "고소 조명 설비 교체 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_cctv_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "CCTV 교체",
+      "description": "전기 - CCTV 교체",
+      "keywords": [
+        "CCTV",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "CCTV교체",
+        "CCTV 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "CCTV 교체 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_스프링쿨러_배관_정비_전기_연동",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "스프링쿨러 배관 정비(전기·연동)",
+      "description": "전기 - 스프링쿨러 배관 정비(전기·연동)",
+      "keywords": [
+        "스프링쿨러",
+        "배관",
+        "정비",
+        "전기",
+        "연동",
+        "전기"
+      ],
+      "aliases": [
+        "스프링쿨러배관정비(전기·연동)",
+        "스프링쿨러 배관 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "스프링쿨러 배관 정비(전기·연동) 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_롤스크린_정비",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "롤스크린 정비",
+      "description": "전기 - 롤스크린 정비",
+      "keywords": [
+        "롤스크린",
+        "정비",
+        "전기"
+      ],
+      "aliases": [
+        "롤스크린정비",
+        "롤스크린 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "롤스크린 정비 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_엘리베이터_승강로_정비",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "엘리베이터 승강로 정비",
+      "description": "전기 - 엘리베이터 승강로 정비",
+      "keywords": [
+        "엘리베이터",
+        "승강로",
+        "정비",
+        "전기"
+      ],
+      "aliases": [
+        "엘리베이터승강로정비",
+        "엘리베이터 승강로 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "엘리베이터 승강로 정비 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_방화셔터__연동제어기_정비",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "방화셔터, 연동제어기 정비",
+      "description": "전기 - 방화셔터, 연동제어기 정비",
+      "keywords": [
+        "방화셔터",
+        "연동제어기",
+        "정비",
+        "전기"
+      ],
+      "aliases": [
+        "방화셔터,연동제어기정비",
+        "방화셔터, 연동제어기 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "방화셔터, 연동제어기 정비 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_감지기_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "감지기 교체",
+      "description": "전기 - 감지기 교체",
+      "keywords": [
+        "감지기",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "감지기교체",
+        "감지기 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "감지기 교체 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_유도등_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "유도등 교체",
+      "description": "전기 - 유도등 교체",
+      "keywords": [
+        "유도등",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "유도등교체",
+        "유도등 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "유도등 교체 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_축전지_교체",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "축전지 교체",
+      "description": "전기 - 축전지 교체",
+      "keywords": [
+        "축전지",
+        "교체",
+        "전기"
+      ],
+      "aliases": [
+        "축전지교체",
+        "축전지 교체"
+      ],
+      "five_m_one_e": {
+        "Man": "축전지 교체 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_비상발전기_운전___점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "비상발전기 운전 / 점검",
+      "description": "전기 - 비상발전기 운전 / 점검",
+      "keywords": [
+        "비상발전기",
+        "운전",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "비상발전기운전/점검",
+        "비상발전기 운전 / 점검",
+        "비상발전기 무부하 운전 / 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "비상발전기 운전 / 점검 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_비상발전기_실부하_운전__점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "비상발전기 실부하 운전/ 점검",
+      "description": "전기 - 비상발전기 실부하 운전/ 점검",
+      "keywords": [
+        "비상발전기",
+        "실부하",
+        "운전",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "비상발전기실부하운전/점검",
+        "비상발전기 실부하 운전/ 점검",
+        "비상발전기 실부하 운전 / 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "비상발전기 실부하 운전/ 점검 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_정전_복전_작업",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "정전/복전 작업",
+      "description": "전기 - 정전/복전 작업",
+      "keywords": [
+        "정전",
+        "복전",
+        "작업",
+        "전기"
+      ],
+      "aliases": [
+        "정전/복전작업",
+        "정전/복전 작업",
+        "정전 / 복전작업"
+      ],
+      "five_m_one_e": {
+        "Man": "정전/복전 작업 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_ups_운전_점검작업",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "UPS 운전/점검작업",
+      "description": "전기 - UPS 운전/점검작업",
+      "keywords": [
+        "UPS",
+        "운전",
+        "점검작업",
+        "전기"
+      ],
+      "aliases": [
+        "UPS운전/점검작업",
+        "UPS 운전/점검작업",
+        "UPS 정기점검"
+      ],
+      "five_m_one_e": {
+        "Man": "UPS 운전/점검작업 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_ups_비상운전",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "UPS 비상운전",
+      "description": "전기 - UPS 비상운전",
+      "keywords": [
+        "UPS",
+        "비상운전",
+        "전기"
+      ],
+      "aliases": [
+        "UPS비상운전",
+        "UPS 비상운전"
+      ],
+      "five_m_one_e": {
+        "Man": "UPS 비상운전 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_전력계통_bus_tie_전환운전_작업",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "전력계통 BUS-TIE 전환운전 작업",
+      "description": "전기 - 전력계통 BUS-TIE 전환운전 작업",
+      "keywords": [
+        "전력계통",
+        "BUS",
+        "TIE",
+        "전환운전",
+        "작업",
+        "전기"
+      ],
+      "aliases": [
+        "전력계통BUS-TIE전환운전작업",
+        "전력계통 BUS-TIE 전환운전 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "전력계통 BUS-TIE 전환운전 작업 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_고_저압_판넬_점검",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "고.저압 판넬 점검",
+      "description": "전기 - 고.저압 판넬 점검",
+      "keywords": [
+        "저압",
+        "판넬",
+        "점검",
+        "전기"
+      ],
+      "aliases": [
+        "고.저압판넬점검",
+        "고.저압 판넬 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "고.저압 판넬 점검 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_battery_점검작업",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "Battery 점검작업",
+      "description": "전기 - Battery 점검작업",
+      "keywords": [
+        "Battery",
+        "점검작업",
+        "전기"
+      ],
+      "aliases": [
+        "Battery점검작업",
+        "Battery 점검작업",
+        "UPS Battery 시스템 정기점검"
+      ],
+      "five_m_one_e": {
+        "Man": "Battery 점검작업 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_조명설비_운전",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "조명설비 운전",
+      "description": "전기 - 조명설비 운전",
+      "keywords": [
+        "조명설비",
+        "운전",
+        "전기"
+      ],
+      "aliases": [
+        "조명설비운전",
+        "조명설비 운전"
+      ],
+      "five_m_one_e": {
+        "Man": "조명설비 운전 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "mechanical_공조설비_운전_및_점검",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "공조설비 운전 및 점검",
+      "description": "기계 - 공조설비 운전 및 점검",
+      "keywords": [
+        "공조설비",
+        "운전",
+        "점검",
+        "기계"
+      ],
+      "aliases": [
+        "공조설비운전및점검",
+        "공조설비 운전 및 점검",
+        "공조설비 운전 및 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "공조설비 운전 및 점검 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "공조설비 운전 및 점검 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_냉각탑_설비_운전_및_점검_작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "냉각탑 설비 운전 및 점검 작업",
+      "description": "기계 - 냉각탑 설비 운전 및 점검 작업",
+      "keywords": [
+        "냉각탑",
+        "설비",
+        "운전",
+        "점검",
+        "작업",
+        "기계"
+      ],
+      "aliases": [
+        "냉각탑설비운전및점검작업",
+        "냉각탑 설비 운전 및 점검 작업",
+        "냉각탑설비 점검 및 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "냉각탑 설비 운전 및 점검 작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "냉각탑 설비 운전 및 점검 작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "유체·잔류수·압력, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_펌프류_운전_및_점검_작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "펌프류 운전 및 점검 작업",
+      "description": "기계 - 펌프류 운전 및 점검 작업",
+      "keywords": [
+        "펌프류",
+        "운전",
+        "점검",
+        "작업",
+        "기계"
+      ],
+      "aliases": [
+        "펌프류운전및점검작업",
+        "펌프류 운전 및 점검 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "펌프류 운전 및 점검 작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "펌프류 운전 및 점검 작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "유체·잔류수·압력, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_급_배기팬_설비_점검_및_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "급.배기팬 설비 점검 및 정비",
+      "description": "기계 - 급.배기팬 설비 점검 및 정비",
+      "keywords": [
+        "배기팬",
+        "설비",
+        "점검",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "급.배기팬설비점검및정비",
+        "급.배기팬 설비 점검 및 정비",
+        "급.배기팬 점검 및 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "급.배기팬 설비 점검 및 정비 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "급.배기팬 설비 점검 및 정비 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_급수_단수작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "급수 단수작업",
+      "description": "기계 - 급수 단수작업",
+      "keywords": [
+        "급수",
+        "단수작업",
+        "기계"
+      ],
+      "aliases": [
+        "급수단수작업",
+        "급수 단수작업"
+      ],
+      "five_m_one_e": {
+        "Man": "급수 단수작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "급수 단수작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "유체·잔류수·압력, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_항온항습설비_운전_및_점검",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "항온항습설비 운전 및 점검",
+      "description": "기계 - 항온항습설비 운전 및 점검",
+      "keywords": [
+        "항온항습설비",
+        "운전",
+        "점검",
+        "기계"
+      ],
+      "aliases": [
+        "항온항습설비운전및점검",
+        "항온항습설비 운전 및 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "항온항습설비 운전 및 점검 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "항온항습설비 운전 및 점검 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_ehp_냉_난방시스템_점검_및_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "EHP 냉.난방시스템 점검 및 정비",
+      "description": "기계 - EHP 냉.난방시스템 점검 및 정비",
+      "keywords": [
+        "EHP",
+        "난방시스템",
+        "점검",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "EHP냉.난방시스템점검및정비",
+        "EHP 냉.난방시스템 점검 및 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "EHP 냉.난방시스템 점검 및 정비 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "EHP 냉.난방시스템 점검 및 정비 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_냉각수_단수작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "냉각수 단수작업",
+      "description": "기계 - 냉각수 단수작업",
+      "keywords": [
+        "냉각수",
+        "단수작업",
+        "기계"
+      ],
+      "aliases": [
+        "냉각수단수작업",
+        "냉각수 단수작업"
+      ],
+      "five_m_one_e": {
+        "Man": "냉각수 단수작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "냉각수 단수작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "유체·잔류수·압력, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "fire_공기흡입형_감지기_esda__점검",
+      "major_category": "fire",
+      "sub_category": "소방",
+      "name": "공기흡입형 감지기(ESDA) 점검",
+      "description": "소방 - 공기흡입형 감지기(ESDA) 점검",
+      "keywords": [
+        "공기흡입형",
+        "감지기",
+        "ESDA",
+        "점검",
+        "소방"
+      ],
+      "aliases": [
+        "공기흡입형감지기(ESDA)점검",
+        "공기흡입형 감지기",
+        "공기흡입형 감지기(EDA) 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "공기흡입형 감지기(ESDA) 점검 소방·소화설비 특별교육, 2인1조, 화재·가스설비 교육",
+        "Machine": "감지기, 소화펌프, 가스소화설비, 측정·시험장비",
+        "Material": "소화약제, 가스, 유류, 누출·분진",
+        "Method": "LOTO, 작업허가, 화기엄금, 설비격리·표지",
+        "Management": "소방안전관리, 정기점검, 작업표준·기록",
+        "Environment": "협소, 습기, 소음, 화기·전기 혼재"
+      }
+    },
+    {
+      "id": "fire_자동화재탐지설비_점검",
+      "major_category": "fire",
+      "sub_category": "소방",
+      "name": "자동화재탐지설비 점검",
+      "description": "소방 - 자동화재탐지설비 점검",
+      "keywords": [
+        "자동화재탐지설비",
+        "점검",
+        "소방"
+      ],
+      "aliases": [
+        "자동화재탐지설비점검",
+        "자동화재탐지설비 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "자동화재탐지설비 점검 소방·소화설비 특별교육, 2인1조, 화재·가스설비 교육",
+        "Machine": "감지기, 소화펌프, 가스소화설비, 측정·시험장비",
+        "Material": "소화약제, 가스, 유류, 누출·분진",
+        "Method": "LOTO, 작업허가, 화기엄금, 설비격리·표지",
+        "Management": "소방안전관리, 정기점검, 작업표준·기록",
+        "Environment": "협소, 습기, 소음, 화기·전기 혼재"
+      }
+    },
+    {
+      "id": "fire_가스소화설비_점검",
+      "major_category": "fire",
+      "sub_category": "소방",
+      "name": "가스소화설비 점검",
+      "description": "소방 - 가스소화설비 점검",
+      "keywords": [
+        "가스소화설비",
+        "점검",
+        "소방"
+      ],
+      "aliases": [
+        "가스소화설비점검",
+        "가스소화설비 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "가스소화설비 점검 소방·소화설비 특별교육, 2인1조, 화재·가스설비 교육",
+        "Machine": "감지기, 소화펌프, 가스소화설비, 측정·시험장비",
+        "Material": "소화약제, 가스, 유류, 누출·분진",
+        "Method": "LOTO, 작업허가, 화기엄금, 설비격리·표지",
+        "Management": "소방안전관리, 정기점검, 작업표준·기록",
+        "Environment": "협소, 습기, 소음, 화기·전기 혼재"
+      }
+    },
+    {
+      "id": "fire_소방펌프_점검",
+      "major_category": "fire",
+      "sub_category": "소방",
+      "name": "소방펌프 점검",
+      "description": "소방 - 소방펌프 점검",
+      "keywords": [
+        "소방펌프",
+        "점검",
+        "소방"
+      ],
+      "aliases": [
+        "소방펌프점검",
+        "소방펌프 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "소방펌프 점검 소방·소화설비 특별교육, 2인1조, 화재·가스설비 교육",
+        "Machine": "감지기, 소화펌프, 가스소화설비, 측정·시험장비",
+        "Material": "소화약제, 가스, 유류, 누출·분진",
+        "Method": "LOTO, 작업허가, 화기엄금, 설비격리·표지",
+        "Management": "소방안전관리, 정기점검, 작업표준·기록",
+        "Environment": "협소, 습기, 소음, 화기·전기 혼재"
+      }
+    },
+    {
+      "id": "civil_공동가대_점검",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "공동가대 점검",
+      "description": "건축 - 공동가대 점검",
+      "keywords": [
+        "공동가대",
+        "점검",
+        "건축"
+      ],
+      "aliases": [
+        "공동가대점검",
+        "공동가대 점검",
+        "공동가대 설비점검"
+      ],
+      "five_m_one_e": {
+        "Man": "공동가대 점검 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "mechanical_저수조_설비_점검_및_정비",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "저수조 설비 점검 및 정비",
+      "description": "기계 - 저수조 설비 점검 및 정비",
+      "keywords": [
+        "저수조",
+        "설비",
+        "점검",
+        "정비",
+        "기계"
+      ],
+      "aliases": [
+        "저수조설비점검및정비",
+        "저수조 설비 점검 및 정비"
+      ],
+      "five_m_one_e": {
+        "Man": "저수조 설비 점검 및 정비 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "저수조 설비 점검 및 정비 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "유체·잔류수·압력, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_공조기_필터_교체_작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "공조기 필터 교체 작업",
+      "description": "기계 - 공조기 필터 교체 작업",
+      "keywords": [
+        "공조기",
+        "필터",
+        "교체",
+        "작업",
+        "기계"
+      ],
+      "aliases": [
+        "공조기필터교체작업",
+        "공조기 필터 교체 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "공조기 필터 교체 작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "공조기 필터 교체 작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "electrical_접지설비_점검_및_접지저항_측정",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "접지설비 점검 및 접지저항 측정",
+      "description": "전기 - 접지설비 점검 및 접지저항 측정",
+      "keywords": [
+        "접지설비",
+        "점검",
+        "접지저항",
+        "측정",
+        "전기"
+      ],
+      "aliases": [
+        "접지설비점검및접지저항측정",
+        "접지설비 점검 및 접지저항 측정"
+      ],
+      "five_m_one_e": {
+        "Man": "접지설비 점검 및 접지저항 측정 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "mechanical_항온항습기_필터_세척_작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "항온항습기 필터 세척 작업",
+      "description": "기계 - 항온항습기 필터 세척 작업",
+      "keywords": [
+        "항온항습기",
+        "필터",
+        "세척",
+        "작업",
+        "기계"
+      ],
+      "aliases": [
+        "항온항습기필터세척작업",
+        "항온항습기 필터 세척 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "항온항습기 필터 세척 작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "항온항습기 필터 세척 작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_시스템_에어컨_필터_세척_작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "시스템 에어컨 필터 세척 작업",
+      "description": "기계 - 시스템 에어컨 필터 세척 작업",
+      "keywords": [
+        "시스템",
+        "에어컨",
+        "필터",
+        "세척",
+        "작업",
+        "기계"
+      ],
+      "aliases": [
+        "시스템에어컨필터세척작업",
+        "시스템 에어컨 필터 세척 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "시스템 에어컨 필터 세척 작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "시스템 에어컨 필터 세척 작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "civil_낮은_지붕층_점검_보수작업",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "낮은 지붕층 점검/보수작업",
+      "description": "건축 - 낮은 지붕층 점검/보수작업",
+      "keywords": [
+        "낮은",
+        "지붕층",
+        "점검",
+        "보수작업",
+        "건축"
+      ],
+      "aliases": [
+        "낮은지붕층점검/보수작업",
+        "낮은 지붕층 점검/보수작업",
+        "옥상 낮은 지붕층 점검/보수작업"
+      ],
+      "five_m_one_e": {
+        "Man": "낮은 지붕층 점검/보수작업 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "mechanical_급탕탱크_상부_점검_조작",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "급탕탱크 상부 점검/조작",
+      "description": "기계 - 급탕탱크 상부 점검/조작",
+      "keywords": [
+        "급탕탱크",
+        "상부",
+        "점검",
+        "조작",
+        "기계"
+      ],
+      "aliases": [
+        "급탕탱크상부점검/조작",
+        "급탕탱크 상부 점검/조작",
+        "급탕탱크 점검/보수작업"
+      ],
+      "five_m_one_e": {
+        "Man": "급탕탱크 상부 점검/조작 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "급탕탱크 상부 점검/조작 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "유체·잔류수·압력, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "electrical_변압기_초음파_코로나_측정작업",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "변압기 초음파 코로나 측정작업",
+      "description": "전기 - 변압기 초음파 코로나 측정작업",
+      "keywords": [
+        "변압기",
+        "초음파",
+        "코로나",
+        "측정작업",
+        "전기"
+      ],
+      "aliases": [
+        "변압기초음파코로나측정작업",
+        "변압기 초음파 코로나 측정작업"
+      ],
+      "five_m_one_e": {
+        "Man": "변압기 초음파 코로나 측정작업 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "fire_유류저장탱크_설비점검",
+      "major_category": "fire",
+      "sub_category": "소방",
+      "name": "유류저장탱크 설비점검",
+      "description": "소방 - 유류저장탱크 설비점검",
+      "keywords": [
+        "유류저장탱크",
+        "설비점검",
+        "소방"
+      ],
+      "aliases": [
+        "유류저장탱크설비점검",
+        "유류저장탱크 설비점검"
+      ],
+      "five_m_one_e": {
+        "Man": "유류저장탱크 설비점검 소방·소화설비 특별교육, 2인1조, 화재·가스설비 교육",
+        "Machine": "감지기, 소화펌프, 가스소화설비, 측정·시험장비",
+        "Material": "소화약제, 가스, 유류, 누출·분진",
+        "Method": "LOTO, 작업허가, 화기엄금, 설비격리·표지",
+        "Management": "소방안전관리, 정기점검, 작업표준·기록",
+        "Environment": "협소, 습기, 소음, 화기·전기 혼재"
+      }
+    },
+    {
+      "id": "mechanical_실외기_전열핀_세척_작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "실외기 전열핀 세척 작업",
+      "description": "기계 - 실외기 전열핀 세척 작업",
+      "keywords": [
+        "실외기",
+        "전열핀",
+        "세척",
+        "작업",
+        "기계"
+      ],
+      "aliases": [
+        "실외기전열핀세척작업",
+        "실외기 전열핀 세척 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "실외기 전열핀 세척 작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "실외기 전열핀 세척 작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "mechanical_냉각탑_수조_청소작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "냉각탑 수조 청소작업",
+      "description": "기계 - 냉각탑 수조 청소작업",
+      "keywords": [
+        "냉각탑",
+        "수조",
+        "청소작업",
+        "기계"
+      ],
+      "aliases": [
+        "냉각탑수조청소작업",
+        "냉각탑 수조 청소작업"
+      ],
+      "five_m_one_e": {
+        "Man": "냉각탑 수조 청소작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "냉각탑 수조 청소작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "유체·잔류수·압력, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "lighting_상면공간_조명_보수작업",
+      "major_category": "lighting",
+      "sub_category": "조명",
+      "name": "상면공간 조명 보수작업",
+      "description": "조명 - 상면공간 조명 보수작업",
+      "keywords": [
+        "상면공간",
+        "조명",
+        "보수작업",
+        "조명"
+      ],
+      "aliases": [
+        "상면공간조명보수작업",
+        "상면공간 조명 보수작업",
+        "상면공간 조명보수"
+      ],
+      "five_m_one_e": {
+        "Man": "상면공간 조명 보수작업 전기·조명 특별교육, 2인1조, 고소·감전 교육",
+        "Machine": "조명기구, 분전반, 고소작업대, 절연공구",
+        "Material": "잔류전압, 케이블, 중량물",
+        "Method": "LOTO, 검전·접지, 고소·추락방호, 작업허가",
+        "Management": "전기안전관리, 정기점검, 작업표준",
+        "Environment": "고소·상면공간, 통로·조명, 습기·감전"
+      }
+    },
+    {
+      "id": "electrical_전기실_전력설비_열화상_측정작업",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "전기실 전력설비 열화상 측정작업",
+      "description": "전기 - 전기실 전력설비 열화상 측정작업",
+      "keywords": [
+        "전기실",
+        "전력설비",
+        "열화상",
+        "측정작업",
+        "전기"
+      ],
+      "aliases": [
+        "전기실전력설비열화상측정작업",
+        "전기실 전력설비 열화상 측정작업"
+      ],
+      "five_m_one_e": {
+        "Man": "전기실 전력설비 열화상 측정작업 전기작업 특별교육, 2인1조, 측정·교체 교육",
+        "Machine": "조명·CCTV·제어기, 열화상카메라",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "mechanical_전동기_절연측정_작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "전동기 절연측정 작업",
+      "description": "기계 - 전동기 절연측정 작업",
+      "keywords": [
+        "전동기",
+        "절연측정",
+        "작업",
+        "기계"
+      ],
+      "aliases": [
+        "전동기절연측정작업",
+        "전동기 절연측정 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "전동기 절연측정 작업 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "전동기 절연측정 작업 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "electrical_상면공간_분전반_열화상_측정작업",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "상면공간 분전반 열화상 측정작업",
+      "description": "전기 - 상면공간 분전반 열화상 측정작업",
+      "keywords": [
+        "상면공간",
+        "분전반",
+        "열화상",
+        "측정작업",
+        "전기"
+      ],
+      "aliases": [
+        "상면공간분전반열화상측정작업",
+        "상면공간 분전반 열화상 측정작업",
+        "분전반 열화상 측정작업"
+      ],
+      "five_m_one_e": {
+        "Man": "상면공간 분전반 열화상 측정작업 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 열화상카메라",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 고소·추락방호",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 고소·2m 이상, 정전기·감전"
+      }
+    },
+    {
+      "id": "electrical_ups_battery_에러_비상조치",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "UPS Battery 에러 비상조치",
+      "description": "전기 - UPS Battery 에러 비상조치",
+      "keywords": [
+        "UPS",
+        "Battery",
+        "에러",
+        "비상조치",
+        "전기"
+      ],
+      "aliases": [
+        "UPSBattery에러비상조치",
+        "UPS Battery 에러 비상조치",
+        "UPS 배터리 긴급조치"
+      ],
+      "five_m_one_e": {
+        "Man": "UPS Battery 에러 비상조치 전기작업 특별교육, 2인1조, 절연장갑·절연공구",
+        "Machine": "분전반·측정기·검전기, 공구",
+        "Material": "잔류전압·충전부, 케이블·단자, 축전지·전해액(해당)",
+        "Method": "LOTO, 검전·접지, 작업허가, 전원차단 확인",
+        "Management": "전기안전관리, 정기검사, 작업표준·기록",
+        "Environment": "습기·협소, 통로·조명, 정전기·감전"
+      }
+    },
+    {
+      "id": "civil_건물내_층간_계단이동",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "건물내 층간 계단이동",
+      "description": "건축 - 건물내 층간 계단이동",
+      "keywords": [
+        "건물내",
+        "층간",
+        "계단이동",
+        "건축"
+      ],
+      "aliases": [
+        "건물내층간계단이동",
+        "건물내 층간 계단이동",
+        "건물 내 층간 계단이동"
+      ],
+      "five_m_one_e": {
+        "Man": "건물내 층간 계단이동 고소·건축 특별교육, 2인1조, 안전대·안전모, 추락방호",
+        "Machine": "이동식비계·사다리, 공구, 절단·연마공구, 양중(해당시)",
+        "Material": "코킹재·시멘트·타일·패널·석재, 중량물, 분진",
+        "Method": "작업허가·TBM, 추락방호, 낙하물 방지, 단계별 공법",
+        "Management": "고소작업·작업표준, 순회점검, 아차사고 반영",
+        "Environment": "실내·외부, 기상·바람, 분진·소음, 협소"
+      }
+    },
+    {
+      "id": "mechanical_장비반입_유압_리프트_점검_1회_월",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "장비반입 유압 리프트 점검(1회/월)",
+      "description": "기계 - 장비반입 유압 리프트 점검(1회/월)",
+      "keywords": [
+        "장비반입",
+        "유압",
+        "리프트",
+        "점검",
+        "1회",
+        "기계"
+      ],
+      "aliases": [
+        "장비반입유압리프트점검(1회/월)",
+        "장비반입 유압 리프트 점검"
+      ],
+      "five_m_one_e": {
+        "Man": "장비반입 유압 리프트 점검(1회/월) 설비운전·점검 교육, 2인1조, LOTO·에너지차단",
+        "Machine": "장비반입 유압 리프트 점검(1회/월) 대상 설비, 밸브·계기, 운전패넬",
+        "Material": "고온·저온·윤활유, MSDS(해당)",
+        "Method": "LOTO, 운전·점검표준, 작업허가, 시운전 전 확인",
+        "Management": "정기점검, 체크리스트, 비상연락망",
+        "Environment": "소음·진동, 고온·저온, 협소·미끄럼"
+      }
+    },
+    {
+      "id": "legacy_지게차_드럼_상하차",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "지게차 드럼 상하차",
+      "description": "지게차 드럼 상하차",
+      "keywords": [
+        "지게차",
+        "드럼",
+        "상하차"
+      ],
+      "aliases": [
+        "지게차 드럼 상하차"
+      ],
+      "five_m_one_e": {
+        "Man": "지게차 자격, 신호수, 위험물 교육",
+        "Machine": "지게차, 포크, 후진경보",
+        "Material": "인화성 드럼, 위험물",
+        "Method": "저속주행, 적정하중, 지정통로",
+        "Management": "점검, 출입통제",
+        "Environment": "야적장, 경사, 우천"
+      }
+    },
+    {
+      "id": "legacy_고소작업_비계_사다리",
+      "major_category": "civil",
+      "sub_category": "건축",
+      "name": "고소작업(비계·사다리)",
+      "description": "고소작업(비계·사다리)",
+      "keywords": [
+        "고소작업",
+        "비계",
+        "사다리"
+      ],
+      "aliases": [
+        "고소작업(비계·사다리)"
+      ],
+      "five_m_one_e": {
+        "Man": "고소교육, 안전대, 2인1조",
+        "Machine": "비계, 사다리, 추락방지",
+        "Material": "공구, 자재",
+        "Method": "점검, 부착, 낙하방지",
+        "Management": "허가, 기상기준",
+        "Environment": "2m 이상, 바람"
+      }
+    },
+    {
+      "id": "legacy_용접_절단_작업",
+      "major_category": "mechanical",
+      "sub_category": "기계",
+      "name": "용접·절단 작업",
+      "description": "용접·절단 작업",
+      "keywords": [
+        "용접",
+        "절단",
+        "작업"
+      ],
+      "aliases": [
+        "용접·절단 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "용접교육, 화재감시",
+        "Machine": "용접기, 절단기",
+        "Material": "가스, 스패터",
+        "Method": "화재허가, 30분 감시",
+        "Management": "소화기, 표준",
+        "Environment": "환기, 가연물"
+      }
+    },
+    {
+      "id": "legacy_전기판넬_배선_작업",
+      "major_category": "electrical",
+      "sub_category": "전기",
+      "name": "전기판넬·배선 작업",
+      "description": "전기판넬·배선 작업",
+      "keywords": [
+        "전기판넬",
+        "배선",
+        "작업"
+      ],
+      "aliases": [
+        "전기판넬·배선 작업"
+      ],
+      "five_m_one_e": {
+        "Man": "전기특별교육, 2인1조",
+        "Machine": "분전반, 검전기",
+        "Material": "잔류전압",
+        "Method": "LOTO, 검전·접지",
+        "Management": "전기안전, 검사",
+        "Environment": "습기, 협소"
+      }
+    }
+  ]
+}

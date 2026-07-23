@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}위험성평가{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>P-WIDE 위험성평가</h1>
+  <p>작업 선택 → 5M1E 확인 → JSA 위험성평가 생성 (데스크톱 프로그램 웹 버전)</p>
+</header>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>① 작업 선택 / 5M1E</h2>
+    <form method="post" action="/admin/risk-assessment/assess" class="form-stack" id="risk-form">
+      <label>대분류</label>
+      <select id="risk-major" name="major_category">
+        <option value="">전체</option>
+        {% for m in majors %}
+        <option value="{{ m.id }}">{{ m.name }}</option>
+        {% endfor %}
+      </select>
+
+      <label>작업(프리셋)</label>
+      <select id="risk-preset" name="preset_id">
+        <option value="">직접 입력</option>
+      </select>
+
+      <label>작업명</label>
+      <input type="text" name="work_name" id="risk-work-name" required
+             value="{{ work_name or '' }}"
+             placeholder="예: 중량물 취급, 밀폐공간 작업" />
+
+      <fieldset class="risk-5m">
+        <legend>5M1E</legend>
+        <label>Man (사람)</label>
+        <textarea name="Man" id="risk-man" rows="2">{{ five_m.Man if five_m else '' }}</textarea>
+        <label>Machine (설비)</label>
+        <textarea name="Machine" id="risk-machine" rows="2">{{ five_m.Machine if five_m else '' }}</textarea>
+        <label>Material (물질)</label>
+        <textarea name="Material" id="risk-material" rows="2">{{ five_m.Material if five_m else '' }}</textarea>
+        <label>Method (방법)</label>
+        <textarea name="Method" id="risk-method" rows="2">{{ five_m.Method if five_m else '' }}</textarea>
+        <label>Management (관리)</label>
+        <textarea name="Management" id="risk-management" rows="2">{{ five_m.Management if five_m else '' }}</textarea>
+        <label>Environment (환경)</label>
+        <textarea name="Environment" id="risk-environment" rows="2">{{ five_m.Environment if five_m else '' }}</textarea>
+      </fieldset>
+
+      <label class="risk-ai-opt">
+        <input type="checkbox" name="use_ai" value="1" {% if ai_ready %}{% else %}disabled{% endif %} {% if use_ai %}checked{% endif %} />
+        AI 작성 모드 {% if not ai_ready %}<small class="text-muted">(OPENAI_API_KEY 미설정 · 로컬 DB 사용)</small>{% endif %}
+      </label>
+
+      <button type="submit" class="btn btn-primary">위험성평가 생성</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>위험등급 매트릭스</h2>
+    <img src="/static/risk/risk_grade_matrix.png" alt="위험등급 매트릭스" class="risk-matrix-img" />
+    <p class="d1-hint">빈도×강도로 등급을 산출합니다. 개선 후 등급 감소를 목표로 합니다.</p>
+    <h3>사용 안내</h3>
+    <ol class="risk-help">
+      <li>대분류·작업을 선택하면 5M1E가 자동 채워집니다.</li>
+      <li>내용을 수정한 뒤 <strong>위험성평가 생성</strong>을 누릅니다.</li>
+      <li>결과는 로컬 JSA·법령 DB로 즉시 생성됩니다.</li>
+      <li>Render에 OPENAI_API_KEY를 넣으면 AI 모드도 사용할 수 있습니다.</li>
+    </ol>
+  </section>
+</div>
+
+{% if result_rows is defined %}
+<section class="card" style="margin-top:1rem" id="risk-result">
+  <div class="wo-list-head">
+    <h2>② 평가 결과 — {{ work_name }}
+      <small class="text-muted">({{ mode_label }} · {{ result_rows|length }}건)</small>
+    </h2>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="window.print()">인쇄/PDF</button>
+  </div>
+  <div class="table-scroll">
+    <table class="data-table risk-result-table">
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>단계</th>
+          <th>단위작업</th>
+          <th>유해·위험요인</th>
+          <th>재해유형</th>
+          <th>빈도</th>
+          <th>강도</th>
+          <th>등급</th>
+          <th>개선대책</th>
+          <th>법적근거</th>
+          <th>개선후</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in result_rows %}
+        <tr>
+          <td>{{ r.work_class }}</td>
+          <td>{{ r.phase }}</td>
+          <td>{{ r.unit_task }}</td>
+          <td>{{ r.hazard }}</td>
+          <td>{{ r.injury }}</td>
+          <td>{{ r.freq_before }}</td>
+          <td>{{ r.sev_before }}</td>
+          <td><span class="badge risk-g{{ r.grade_before }}">{{ r.grade_before }} {{ r.grade_before_label }}</span></td>
+          <td class="risk-improve">{{ r.improvements }}</td>
+          <td>
+            {% if r.law_url %}
+            <a href="{{ r.law_url }}" target="_blank" rel="noopener">{{ r.law }}</a>
+            {% else %}{{ r.law or '-' }}{% endif %}
+          </td>
+          <td><span class="badge risk-g{{ r.grade_after }}">{{ r.grade_after }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<script type="application/json" id="risk-presets-data">{{ presets_json | safe }}</script>
+<script>
+(function () {
+  var major = document.getElementById('risk-major');
+  var preset = document.getElementById('risk-preset');
+  var dataEl = document.getElementById('risk-presets-data');
+  var presets = [];
+  try { presets = JSON.parse(dataEl.textContent || '[]'); } catch (e) { presets = []; }
+
+  var fields = {
+    name: document.getElementById('risk-work-name'),
+    Man: document.getElementById('risk-man'),
+    Machine: document.getElementById('risk-machine'),
+    Material: document.getElementById('risk-material'),
+    Method: document.getElementById('risk-method'),
+    Management: document.getElementById('risk-management'),
+    Environment: document.getElementById('risk-environment')
+  };
+
+  function rebuildOptions() {
+    var m = major.value || '';
+    var keep = preset.value;
+    preset.innerHTML = '';
+    var opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = '직접 입력';
+    preset.appendChild(opt0);
+    presets.forEach(function (p) {
+      if (m && p.major_category && p.major_category !== m) return;
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      var label = p.name || p.id;
+      if (p.sub_category || p.major_category) {
+        label = '[' + (p.sub_category || p.major_category) + '] ' + label;
+      }
+      opt.textContent = label;
+      if (String(p.id) === String(keep)) opt.selected = true;
+      preset.appendChild(opt);
+    });
+  }
+
+  function applyPreset() {
+    var id = preset.value;
+    if (!id) return;
+    var p = presets.find(function (x) { return String(x.id) === String(id); });
+    if (!p) return;
+    fields.name.value = p.name || '';
+    var fm = p.five_m_one_e || {};
+    ['Man','Machine','Material','Method','Management','Environment'].forEach(function (k) {
+      fields[k].value = fm[k] || '';
+    });
+  }
+
+  major.addEventListener('change', rebuildOptions);
+  preset.addEventListener('change', applyPreset);
+  rebuildOptions();
+
+  {% if result_rows is defined %}
+  var el = document.getElementById('risk-result');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  {% endif %}
+})();
+</script>
+{% endblock %}

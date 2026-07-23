@@ -1742,6 +1742,108 @@ async def work_order_advance(
 # ── D-1 Plans ─────────────────────────────────────────────────────────
 
 
+@app.get("/admin/risk-assessment")
+async def risk_assessment_page(
+    request: Request,
+    user: User = Depends(require_login),
+):
+    import os
+
+    from risk_assessment import get_engine
+
+    eng = get_engine()
+    presets = eng.all_presets()
+    return templates.TemplateResponse(
+        request,
+        "risk_assessment.html",
+        {
+            "user": user,
+            "majors": eng.major_categories(),
+            "presets": presets,
+            "presets_json": json.dumps(
+                [
+                    {
+                        "id": p.get("id"),
+                        "name": p.get("name"),
+                        "major_category": p.get("major_category") or "",
+                        "sub_category": p.get("sub_category") or "",
+                        "five_m_one_e": p.get("five_m_one_e") or {},
+                    }
+                    for p in presets
+                ],
+                ensure_ascii=False,
+            ),
+            "ai_ready": bool(os.environ.get("OPENAI_API_KEY", "").strip()),
+        },
+    )
+
+
+@app.post("/admin/risk-assessment/assess")
+async def risk_assessment_run(
+    request: Request,
+    work_name: str = Form(...),
+    Man: str = Form(""),
+    Machine: str = Form(""),
+    Material: str = Form(""),
+    Method: str = Form(""),
+    Management: str = Form(""),
+    Environment: str = Form(""),
+    major_category: str = Form(""),
+    preset_id: str = Form(""),
+    use_ai: str = Form(""),
+    user: User = Depends(require_login),
+):
+    import os
+
+    from risk_assessment import get_engine
+
+    eng = get_engine()
+    five_m = {
+        "Man": Man.strip(),
+        "Machine": Machine.strip(),
+        "Material": Material.strip(),
+        "Method": Method.strip(),
+        "Management": Management.strip(),
+        "Environment": Environment.strip(),
+    }
+    rows, mode = eng.assess(
+        work_name=work_name.strip(),
+        five_m=five_m,
+        use_ai=bool(use_ai),
+    )
+    presets = eng.all_presets()
+    return templates.TemplateResponse(
+        request,
+        "risk_assessment.html",
+        {
+            "user": user,
+            "majors": eng.major_categories(),
+            "presets": presets,
+            "presets_json": json.dumps(
+                [
+                    {
+                        "id": p.get("id"),
+                        "name": p.get("name"),
+                        "major_category": p.get("major_category") or "",
+                        "sub_category": p.get("sub_category") or "",
+                        "five_m_one_e": p.get("five_m_one_e") or {},
+                    }
+                    for p in presets
+                ],
+                ensure_ascii=False,
+            ),
+            "ai_ready": bool(os.environ.get("OPENAI_API_KEY", "").strip()),
+            "work_name": work_name.strip(),
+            "five_m": five_m,
+            "use_ai": bool(use_ai),
+            "result_rows": rows,
+            "mode_label": "AI 평가" if mode == "ai" else "로컬 JSA/법령 DB",
+            "selected_major": major_category,
+            "selected_preset": preset_id,
+        },
+    )
+
+
 @app.get("/admin/d1")
 async def d1_list(
     request: Request,
