@@ -56,6 +56,17 @@ def _today_kst() -> date:
     return datetime.now(KST).date()
 
 
+def _building_sort_key(name: str | None) -> tuple:
+    """건물명 가나다 → ABC → 기타 순."""
+    from auth import nav_building_sort_key
+
+    return nav_building_sort_key(name)
+
+
+def _sort_buildings(buildings: list) -> list:
+    return sorted(buildings, key=lambda b: _building_sort_key(getattr(b, "name", None)))
+
+
 def _fmt_kst(dt: datetime | None) -> str:
     if dt is None:
         return ""
@@ -667,14 +678,17 @@ async def equipment_list(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    buildings = (
-        await db.execute(
-            select(Building)
-            .where(Building.is_active == True)
-            .options(selectinload(Building.site))
-            .order_by(Building.name)
+    buildings = _sort_buildings(
+        list(
+            (
+                await db.execute(
+                    select(Building)
+                    .where(Building.is_active == True)
+                    .options(selectinload(Building.site))
+                )
+            ).scalars().all()
         )
-    ).scalars().all()
+    )
 
     selected_building = None
     categories: list[str] = []
@@ -683,6 +697,7 @@ async def equipment_list(
     zones = []
     sheet_fields: list[str] = []
     list_columns: list[str] = []
+    show_all_categories = False
 
     if building_id:
         selected_building = await db.get(Building, building_id)
@@ -690,63 +705,72 @@ async def equipment_list(
             selected_building = None
         if selected_building:
             category_counts = await _building_category_counts(db, building_id)
-            categories = sorted(category_counts.keys())
+            categories = sorted(category_counts.keys(), key=_building_sort_key)
 
-            if category and category in categories:
-                try:
-                    result = await db.execute(
-                        select(Equipment)
-                        .join(Zone)
-                        .join(Floor)
-                        .where(
-                            Floor.building_id == building_id,
-                            Equipment.category == category,
-                            Equipment.is_active == True,
-                        )
-                        .options(
-                            selectinload(Equipment.zone)
-                            .selectinload(Zone.floor)
-                            .selectinload(Floor.building),
-                            selectinload(Equipment.equipment_type),
-                            selectinload(Equipment.work_orders),
-                            selectinload(Equipment.maintenance_records),
-                        )
-                        .order_by(Equipment.code)
-                    )
-                    equipment = result.scalars().all()
-                except Exception as e:
-                    print(f"[equipment_list] fallback load: {e}", flush=True)
-                    await db.rollback()
-                    result = await db.execute(
-                        select(Equipment)
-                        .join(Zone)
-                        .join(Floor)
-                        .where(
-                            Floor.building_id == building_id,
-                            Equipment.category == category,
-                            Equipment.is_active == True,
-                        )
-                        .options(
-                            selectinload(Equipment.zone)
-                            .selectinload(Zone.floor)
-                            .selectinload(Floor.building),
-                            selectinload(Equipment.work_orders),
-                        )
-                        .order_by(Equipment.code)
-                    )
-                    equipment = result.scalars().all()
+            zones = (
+                await db.execute(
+                    select(Zone)
+                    .join(Floor)
+                    .where(Floor.building_id == building_id)
+                    .order_by(Zone.name)
+                )
+            ).scalars().all()
 
-                # 해당 건물 구역만
-                zones = (
-                    await db.execute(
-                        select(Zone)
-                        .join(Floor)
-                        .where(Floor.building_id == building_id)
-                        .order_by(Zone.name)
+            active_category = category if category and category in categories else None
+            show_all_categories = active_category is None
+
+            try:
+                q = (
+                    select(Equipment)
+                    .join(Zone)
+                    .join(Floor)
+                    .where(
+                        Floor.building_id == building_id,
+                        Equipment.is_active == True,
                     )
-                ).scalars().all()
-                sheet_fields = get_category_fields(category, equipment)
-                list_columns = list_display_fields(category, equipment)
+                    .options(
+                        selectinload(Equipment.zone)
+                        .selectinload(Zone.floor)
+                        .selectinload(Floor.building),
+                        selectinload(Equipment.equipment_type),
+                        selectinload(Equipment.work_orders),
+                        selectinload(Equipment.maintenance_records),
+                    )
+                    .order_by(Equipment.category, Equipment.code)
+                )
+                if active_category:
+                    q = q.where(Equipment.category == active_category)
+                equipment = (await db.execute(q)).scalars().all()
+            except Exception as e:
+                print(f"[equipment_list] fallback load: {e}", flush=True)
+                await db.rollback()
+                q = (
+                    select(Equipment)
+                    .join(Zone)
+                    .join(Floor)
+                    .where(
+                        Floor.building_id == building_id,
+                        Equipment.is_active == True,
+                    )
+                    .options(
+                        selectinload(Equipment.zone)
+                        .selectinload(Zone.floor)
+                        .selectinload(Floor.building),
+                        selectinload(Equipment.work_orders),
+                    )
+                    .order_by(Equipment.category, Equipment.code)
+                )
+                if active_category:
+                    q = q.where(Equipment.category == active_category)
+                equipment = (await db.execute(q)).scalars().all()
+
+            if active_category:
+                sheet_fields = get_category_fields(active_category, equipment)
+                list_columns = list_display_fields(active_category, equipment)
+            else:
+                list_columns = ["명칭", "제조사", "모델"]
+
+            category = active_category
 
     return templates.TemplateResponse(
         request,
@@ -756,7 +780,8 @@ async def equipment_list(
             "buildings": buildings,
             "selected_building": selected_building,
             "building_id": building_id,
-            "category": category if category in categories else None,
+            "category": category,
+            "show_all_categories": show_all_categories,
             "categories": categories,
             "category_counts": category_counts,
             "equipment": equipment,

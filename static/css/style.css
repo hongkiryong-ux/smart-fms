@@ -61,6 +61,66 @@ body {
   color: #fff;
 }
 
+.nav-expandable { list-style: none; }
+.nav-parent-row {
+  display: flex;
+  align-items: stretch;
+}
+.nav-parent-link {
+  flex: 1;
+  min-width: 0;
+}
+.nav-toggle {
+  flex: 0 0 2.25rem;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.75);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.nav-toggle:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+.nav-toggle-icon {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.nav-expandable.is-open > .nav-parent-row .nav-toggle-icon {
+  transform: rotate(180deg);
+}
+.nav-sub {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.35rem;
+  display: none;
+  max-height: min(42vh, 360px);
+  overflow-y: auto;
+}
+.nav-expandable.is-open > .nav-sub {
+  display: block;
+}
+.nav-sub a {
+  padding: 0.4rem 1rem 0.4rem 1.85rem;
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-sub a:hover,
+.nav-sub a.active {
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+}
+.nav-sub-empty {
+  padding: 0.4rem 1rem 0.4rem 1.85rem;
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.45);
+}
+
 .sidebar-footer {
   padding: 1rem;
   border-top: 1px solid rgba(255,255,255,0.15);

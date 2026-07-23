@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import User, UserRole
+from models import Building, User, UserRole
 
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PW = os.environ.get("ADMIN_PW", "password123")
@@ -26,14 +26,46 @@ def verify_password(password: str, password_hash: str) -> bool:
     return secrets.compare_digest(hash_password(password), password_hash)
 
 
+def nav_building_sort_key(name: str | None) -> tuple:
+    """건물명 가나다 → ABC → 숫자 → 기타."""
+    n = (name or "").strip()
+    if not n:
+        return (3, "")
+    ch = n[0]
+    if "\uac00" <= ch <= "\ud7a3" or "\u3131" <= ch <= "\u318e":
+        group = 0
+    elif ch.isascii() and ch.isalpha():
+        group = 1
+    elif ch.isdigit():
+        group = 2
+    else:
+        group = 3
+    return (group, n.casefold())
+
+
 async def get_current_user(
     request: Request, db: AsyncSession = Depends(get_db)
 ) -> User | None:
     user_id = request.session.get("user_id")
     if not user_id:
+        request.state.nav_buildings = []
         return None
     result = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if not hasattr(request.state, "nav_buildings"):
+        request.state.nav_buildings = []
+        if user:
+            try:
+                rows = (
+                    await db.execute(select(Building).where(Building.is_active == True))
+                ).scalars().all()
+                request.state.nav_buildings = sorted(
+                    list(rows),
+                    key=lambda b: nav_building_sort_key(getattr(b, "name", None)),
+                )
+            except Exception:
+                request.state.nav_buildings = []
+    return user
 
 
 def require_login(

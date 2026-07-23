@@ -3,10 +3,10 @@
 {% block content %}
 <header class="page-header">
   <h1>설비 관리</h1>
-  <p>건물 → 엑셀 시트(설비 구분) → 코드 클릭 시 상세/정비의뢰 · <a href="/admin/equipment/import">엑셀 Import/Export</a></p>
+  <p>좌측 메뉴에서 건물을 선택하면 설비가 표시됩니다 · <a href="/admin/equipment/import">엑셀 Import/Export</a></p>
 </header>
 
-{# ── 1단계: 건물 선택 ── #}
+{# ── 건물 미선택: 안내 + 건물 카드 ── #}
 {% if not selected_building %}
 <section class="card">
   <h2>건물 선택</h2>
@@ -14,6 +14,7 @@
   <div class="alert alert-error">{{ error }}</div>
   {% endif %}
   <p class="text-muted" style="margin-bottom:1rem">
+    사이드바 <strong>설비관리</strong>를 펼쳐 건물을 선택하거나, 아래에서 선택하세요.
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/import">엑셀 Import / Export</a>
   </p>
   {% if buildings %}
@@ -34,54 +35,35 @@
   {% endif %}
 </section>
 
-{# ── 2단계: 카테고리(시트) 선택 ── #}
-{% elif not category %}
-<section class="card">
-  <div class="breadcrumb-nav">
-    <a href="/admin/equipment">건물 목록</a>
-    <span>›</span>
-    <strong>{{ selected_building.name }}</strong>
-  </div>
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">
-    <h2 style="margin:0">{{ selected_building.name }} — 시트(구분) 선택</h2>
-    <div>
-      <a class="btn btn-secondary btn-sm" href="/admin/equipment/export/{{ selected_building.id }}">엑셀 출력</a>
-      <a class="btn btn-secondary btn-sm" href="/admin/equipment/import?building_id={{ selected_building.id }}">엑셀 업데이트</a>
-    </div>
-  </div>
-  {% if categories %}
-  <div class="category-grid">
-    {% for cat in categories %}
-    <a class="category-card category-palette-{{ (loop.index0 % 12) + 1 }}"
-       href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat|urlencode }}">
-      <span class="category-name">{{ cat }}</span>
-      <span class="category-count">{{ category_counts.get(cat, 0) }}건</span>
-      <span class="category-hint">하위 항목 보기</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p class="empty">등록된 설비가 없습니다.
-    <a href="/admin/equipment/import?building_id={{ selected_building.id }}">엑셀 파일을 업로드</a>하여 설비를 등록하세요.</p>
-  {% endif %}
-</section>
-
-{# ── 3단계: 하위 항목 목록 ── #}
+{# ── 건물 선택됨: 설비 목록 ── #}
 {% else %}
 <div class="breadcrumb-nav">
   <a href="/admin/equipment">건물 목록</a>
   <span>›</span>
-  <a href="/admin/equipment?building_id={{ selected_building.id }}">{{ selected_building.name }}</a>
-  <span>›</span>
-  <strong>{{ category }}</strong>
+  <strong>{{ selected_building.name }}</strong>
+  {% if category %}<span>›</span><strong>{{ category }}</strong>{% endif %}
 </div>
 
 {% if error %}
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem">
+  <h2 style="margin:0">{{ selected_building.name }}{% if category %} · {{ category }}{% else %} · 전체 설비{% endif %}</h2>
+  <div>
+    <a class="btn btn-secondary btn-sm" href="/admin/equipment/export/{{ selected_building.id }}">엑셀 출력</a>
+    <a class="btn btn-secondary btn-sm" href="/admin/equipment/import?building_id={{ selected_building.id }}">엑셀 업데이트</a>
+  </div>
+</div>
+
+{% if categories %}
 <div class="category-tabs-wrap">
 <div class="category-tabs">
+  <a class="category-tab {% if show_all_categories %}active{% endif %}"
+     href="/admin/equipment?building_id={{ selected_building.id }}">
+    전체
+    <small>({{ category_counts.values()|sum }})</small>
+  </a>
   {% for cat in categories %}
   <a class="category-tab {% if cat == category %}active{% endif %}"
      href="/admin/equipment?building_id={{ selected_building.id }}&category={{ cat|urlencode }}">
@@ -91,14 +73,14 @@
   {% endfor %}
 </div>
 </div>
+{% endif %}
 
 <p class="eq-list-hint">설비 <strong>코드</strong>를 클릭하면 상세 정보와 <strong>정비의뢰</strong> 메뉴가 열립니다.</p>
 
 <div class="grid-2">
   <section class="card card-wide">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem">
-      <h2 style="margin:0">{{ selected_building.name }} · {{ category }}</h2>
-      <a class="btn btn-secondary btn-sm" href="/admin/equipment/export/{{ selected_building.id }}">엑셀 출력</a>
+      <h2 style="margin:0">설비 목록 <small class="text-muted">({{ equipment|length }}건)</small></h2>
     </div>
     {% if equipment %}
     <div class="table-scroll">
@@ -106,6 +88,7 @@
       <thead>
         <tr>
           <th>코드 (클릭)</th>
+          {% if show_all_categories %}<th>시트</th>{% endif %}
           {% for col in list_columns %}
           <th>{{ col }}</th>
           {% endfor %}
@@ -122,6 +105,9 @@
               {{ eq.code }}
             </button>
           </td>
+          {% if show_all_categories %}
+          <td>{{ eq.category or '-' }}</td>
+          {% endif %}
           {% for col in list_columns %}
           <td>{{ field_value(eq, col) or '-' }}</td>
           {% endfor %}
@@ -137,7 +123,6 @@
     </table>
     </div>
 
-    {# 각 설비 상세 다이얼로그 (서버에서 바로 렌더 — fetch 불필요) #}
     {% for eq in equipment %}
     <dialog id="eq-dialog-{{ eq.id }}" class="eq-dialog">
       <form method="dialog" class="eq-dialog-top">
@@ -146,7 +131,7 @@
       <div class="eq-popup-body">
         <div class="eq-popup-header" style="border:0;padding-top:0">
           <div>
-            <h2 id="eq-popup-title">{{ eq.name }}</h2>
+            <h2>{{ eq.name }}</h2>
             <p><code>{{ eq.code }}</code> · {{ eq.category }}
               {% if eq.zone %} · {{ eq.zone.floor.name if eq.zone.floor else '' }} / {{ eq.zone.name }}{% endif %}
             </p>
@@ -185,7 +170,7 @@
         {% endif %}
 
         <div class="eq-popup-section">
-          <h3>{{ category }} 사양</h3>
+          <h3>{{ eq.category or '설비' }} 사양</h3>
           <dl class="info-dl sheet-info-dl eq-popup-dl">
             <dt>코드</dt><dd><code>{{ eq.code }}</code></dd>
             <dt>명칭</dt><dd>{{ eq.name }}</dd>
@@ -236,10 +221,12 @@
     {% endfor %}
 
     {% else %}
-    <p class="empty">등록된 {{ category }} 항목이 없습니다. 우측에서 등록하거나 엑셀을 업로드하세요.</p>
+    <p class="empty">등록된 설비가 없습니다.
+      <a href="/admin/equipment/import?building_id={{ selected_building.id }}">엑셀을 업로드</a>하여 설비를 등록하세요.</p>
     {% endif %}
   </section>
 
+  {% if category %}
   <section class="card equipment-form-card">
     <h2>{{ category }} 수동 등록</h2>
     <form method="post" action="/admin/equipment" class="form-stack">
@@ -264,6 +251,7 @@
       <a href="/admin/equipment/import?building_id={{ selected_building.id }}">엑셀로 일괄 업데이트</a>
     </p>
   </section>
+  {% endif %}
 </div>
 
 <script>

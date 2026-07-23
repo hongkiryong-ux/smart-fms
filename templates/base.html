@@ -10,6 +10,8 @@
 </head>
 <body>
   {% if user %}
+  {% set eq_path = '/equipment' in request.url.path %}
+  {% set nav_bid = request.query_params.get('building_id') %}
   <nav class="sidebar">
     <div class="sidebar-brand">
       <strong>Smart FMS</strong>
@@ -18,7 +20,30 @@
     <ul class="nav-menu">
       <li><a href="/admin/dashboard" class="{% if request.url.path == '/admin/dashboard' %}active{% endif %}">Dashboard</a></li>
       <li><a href="/admin/sites" class="{% if '/sites' in request.url.path or '/buildings' in request.url.path %}active{% endif %}">사업장/건물</a></li>
-      <li><a href="/admin/equipment" class="{% if '/equipment' in request.url.path %}active{% endif %}">설비관리</a></li>
+      <li class="nav-expandable{% if eq_path %} is-open{% endif %}" id="nav-equipment">
+        <div class="nav-parent-row">
+          <a href="/admin/equipment"
+             class="nav-parent-link{% if eq_path and not nav_bid %} active{% endif %}">설비관리</a>
+          <button type="button"
+                  class="nav-toggle"
+                  aria-expanded="{% if eq_path %}true{% else %}false{% endif %}"
+                  aria-controls="nav-equipment-sub"
+                  title="건물 목록 펼치기">
+            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <ul class="nav-sub" id="nav-equipment-sub">
+          {% for b in request.state.nav_buildings or [] %}
+          <li>
+            <a href="/admin/equipment?building_id={{ b.id }}"
+               class="{% if nav_bid == b.id|string %}active{% endif %}"
+               title="{{ b.name }}">{{ b.name }}</a>
+          </li>
+          {% else %}
+          <li class="nav-sub-empty">등록된 건물 없음</li>
+          {% endfor %}
+        </ul>
+      </li>
       <li><a href="/admin/templates" class="{% if '/templates' in request.url.path %}active{% endif %}">설비템플릿</a></li>
       <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
       <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
@@ -32,6 +57,20 @@
       <a href="/admin/logout">로그아웃</a>
     </div>
   </nav>
+  <script>
+  (function () {
+    var item = document.getElementById('nav-equipment');
+    if (!item) return;
+    var btn = item.querySelector('.nav-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var open = item.classList.toggle('is-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  })();
+  </script>
   {% endif %}
 
   <div class="{% if user %}main-with-sidebar{% else %}main-full{% endif %}">

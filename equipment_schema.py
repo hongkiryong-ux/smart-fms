@@ -104,6 +104,7 @@ def field_value(eq: Equipment, field: str) -> str:
         "MAKER": eq.manufacturer,
         "TYPE": eq.model,
         "형식": eq.model,
+        "모델": eq.model,
         "Serial No": eq.serial_no,
         "Serial No.": eq.serial_no,
     }
