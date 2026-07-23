@@ -1,106 +1,140 @@
 {% extends "base.html" %}
 {% block title %}D-1 작업{% endblock %}
+
+{% macro wo_board_table(orders, partners, empty_msg) %}
+  <div class="table-scroll">
+  <table class="data-table wo-list-table wo-list-compact">
+    <thead>
+      <tr>
+        <th>설비</th>
+        <th>정비의뢰내용</th>
+        <th>등록일</th>
+        <th>예정일</th>
+        <th>우선순위</th>
+        <th>협력사</th>
+        <th>진행</th>
+        <th>조치내용</th>
+        <th>저장</th>
+        <th>상세</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for wo in orders %}
+      <tr>
+        <td class="wo-eq-cell" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
+          {% if wo.equipment %}
+          <code>{{ wo.equipment.code }}</code>
+          {% else %}-{% endif %}
+        </td>
+        <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
+          <span class="wo-req-text">
+            {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
+          </span>
+        </td>
+        <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
+        <td>
+          <input type="date"
+                 name="scheduled_date"
+                 form="d1-wo-form-{{ wo.id }}"
+                 class="wo-sched-input"
+                 value="{{ wo.scheduled_date or '' }}"
+                 title="정비 예정일" />
+        </td>
+        <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
+        <td>
+          <select name="partner_id" form="d1-wo-form-{{ wo.id }}" class="wo-partner-select" title="협력사">
+            <option value="0">미지정</option>
+            {% for p in partners %}
+            <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <form id="d1-wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
+            <input type="hidden" name="redirect" value="d1" />
+            <select name="status" class="wo-status-select" form="d1-wo-form-{{ wo.id }}">
+              <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
+              <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
+              <option value="completed" {% if wo.status.value in ['completed','verified','closed'] %}selected{% endif %}>정비완료</option>
+            </select>
+          </form>
+        </td>
+        <td>
+          <input type="text"
+                 name="action"
+                 form="d1-wo-form-{{ wo.id }}"
+                 class="wo-action-input"
+                 value="{{ wo.action or '' }}"
+                 placeholder="조치내용"
+                 title="{{ wo.action or '' }}" />
+        </td>
+        <td>
+          <button type="submit" form="d1-wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
+        </td>
+        <td>
+          <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="empty">{{ empty_msg }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% endmacro %}
+
 {% block content %}
 <header class="page-header">
   <h1>D-1 작업계획</h1>
-  <p>오늘 {{ today }} · 정비 예정일 기준 당일·익일 작업 표시 · JSA/TBM/작업허가</p>
+  <p>오늘 {{ today }} · 정비 예정일 기준 당일·익일 · 예정·완료 목록</p>
 </header>
 
-<div class="d1-day-grid">
+<div class="d1-board">
   <section class="card">
-    <h2>오늘 작업 <small class="text-muted">({{ today }})</small></h2>
-    <p class="d1-hint">당일 예정된 정비·D-1 작업 목록</p>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>구분</th>
-          <th>설비/제목</th>
-          <th>작업내용</th>
-          <th>협력사</th>
-          <th>상태</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for wo in today_works %}
-        <tr>
-          <td><span class="badge badge-wo">정비</span>{% if wo.priority == 'high' %} <span class="badge badge-urgent">긴급</span>{% endif %}</td>
-          <td>
-            {% if wo.equipment %}<code>{{ wo.equipment.code }}</code> {% endif %}
-            {{ wo.equipment.name if wo.equipment else wo.title }}
-          </td>
-          <td class="d1-content-cell" title="{{ wo.description or wo.title }}">{{ wo.description or wo.title }}</td>
-          <td>{{ wo.partner.name if wo.partner else '-' }}</td>
-          <td>{{ wo_status_label(wo.status) }}</td>
-          <td><a href="/admin/work-orders/{{ wo.id }}">상세</a></td>
-        </tr>
-        {% endfor %}
-        {% for plan in today_plans %}
-        <tr>
-          <td><span class="badge badge-d1">D-1</span>{% if plan.is_urgent %} <span class="badge badge-urgent">긴급</span>{% endif %}</td>
-          <td>{{ plan.title }}{% if plan.equipment %} · {{ plan.equipment.code }}{% endif %}</td>
-          <td class="d1-content-cell" title="{{ plan.work_content or '' }}">{{ plan.work_content or '-' }}</td>
-          <td>{{ plan.partner.name if plan.partner else '-' }}</td>
-          <td>{{ d1_status_label(plan.status) }}</td>
-          <td><a href="/admin/d1/{{ plan.id }}">상세</a></td>
-        </tr>
-        {% endfor %}
-        {% if not today_works and not today_plans %}
-        <tr><td colspan="6" class="empty">오늘 예정된 작업이 없습니다.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
+    <div class="wo-list-head">
+      <h2>
+        오늘 작업
+        <small class="text-muted">({{ today }} · {{ today_works|length }}건)</small>
+      </h2>
+    </div>
+    {{ wo_board_table(today_works, partners, "오늘 예정된 정비가 없습니다.") }}
   </section>
 
   <section class="card">
-    <h2>내일 작업 (D-1) <small class="text-muted">({{ tomorrow }})</small></h2>
-    <p class="d1-hint">작업 하루 전 · 다음날 작업할 내용</p>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>구분</th>
-          <th>설비/제목</th>
-          <th>작업내용</th>
-          <th>협력사</th>
-          <th>상태</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for wo in tomorrow_works %}
-        <tr>
-          <td><span class="badge badge-wo">정비</span>{% if wo.priority == 'high' %} <span class="badge badge-urgent">긴급</span>{% endif %}</td>
-          <td>
-            {% if wo.equipment %}<code>{{ wo.equipment.code }}</code> {% endif %}
-            {{ wo.equipment.name if wo.equipment else wo.title }}
-          </td>
-          <td class="d1-content-cell" title="{{ wo.description or wo.title }}">{{ wo.description or wo.title }}</td>
-          <td>{{ wo.partner.name if wo.partner else '-' }}</td>
-          <td>{{ wo_status_label(wo.status) }}</td>
-          <td><a href="/admin/work-orders/{{ wo.id }}">상세</a></td>
-        </tr>
-        {% endfor %}
-        {% for plan in tomorrow_plans %}
-        <tr>
-          <td><span class="badge badge-d1">D-1</span>{% if plan.is_urgent %} <span class="badge badge-urgent">긴급</span>{% endif %}</td>
-          <td>{{ plan.title }}{% if plan.equipment %} · {{ plan.equipment.code }}{% endif %}</td>
-          <td class="d1-content-cell" title="{{ plan.work_content or '' }}">{{ plan.work_content or '-' }}</td>
-          <td>{{ plan.partner.name if plan.partner else '-' }}</td>
-          <td>{{ d1_status_label(plan.status) }}</td>
-          <td><a href="/admin/d1/{{ plan.id }}">상세</a></td>
-        </tr>
-        {% endfor %}
-        {% if not tomorrow_works and not tomorrow_plans %}
-        <tr><td colspan="6" class="empty">내일 예정된 작업이 없습니다.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
+    <div class="wo-list-head">
+      <h2>
+        내일 작업
+        <small class="text-muted">({{ tomorrow }} · {{ tomorrow_works|length }}건)</small>
+      </h2>
+    </div>
+    {{ wo_board_table(tomorrow_works, partners, "내일 예정된 정비가 없습니다.") }}
+  </section>
+
+  <section class="card">
+    <div class="wo-list-head">
+      <h2>
+        정비 예정항목
+        <small class="text-muted">({{ scheduled_works|length }}건)</small>
+      </h2>
+    </div>
+    <p class="d1-hint">오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)</p>
+    {{ wo_board_table(scheduled_works, partners, "기타 예정 정비가 없습니다.") }}
+  </section>
+
+  <section class="card">
+    <div class="wo-list-head">
+      <h2>
+        정비완료항목
+        <small class="text-muted">(최근 {{ completed_works|length }}건)</small>
+      </h2>
+    </div>
+    {{ wo_board_table(completed_works, partners, "완료된 정비가 없습니다.") }}
   </section>
 </div>
 
 <div class="grid-2" style="margin-top:1rem">
   <section class="card card-wide">
-    <h2>전체 작업계획</h2>
+    <h2>D-1 작업계획 (JSA/TBM)</h2>
     <table class="data-table">
       <thead>
         <tr>

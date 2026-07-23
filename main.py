@@ -1749,6 +1749,8 @@ async def work_order_status(
             wo.completed_at = None
 
     await db.commit()
+    if redirect == "d1":
+        return RedirectResponse("/admin/d1", status_code=303)
     if redirect == "list":
         params = {
             k: v
@@ -2197,6 +2199,11 @@ async def d1_list(
         WorkOrderStatus.assigned,
         WorkOrderStatus.in_progress,
     ]
+    done_statuses = [
+        WorkOrderStatus.completed,
+        WorkOrderStatus.verified,
+        WorkOrderStatus.closed,
+    ]
 
     plans = (
         await db.execute(
@@ -2214,22 +2221,46 @@ async def d1_list(
     today_plans = [p for p in plans if p.work_date == today]
     tomorrow_plans = [p for p in plans if p.work_date == tomorrow]
 
-    wo_rows = (
+    open_works = (
         await db.execute(
             select(WorkOrder)
-            .where(
-                WorkOrder.scheduled_date.in_([today, tomorrow]),
-                WorkOrder.status.in_(open_statuses),
-            )
+            .where(WorkOrder.status.in_(open_statuses))
             .options(
                 selectinload(WorkOrder.equipment),
                 selectinload(WorkOrder.partner),
             )
-            .order_by(WorkOrder.priority.desc(), WorkOrder.id.asc())
+            .order_by(
+                WorkOrder.scheduled_date.asc().nullslast(),
+                WorkOrder.priority.desc(),
+                WorkOrder.id.asc(),
+            )
         )
     ).scalars().unique().all()
-    today_works = [w for w in wo_rows if w.scheduled_date == today]
-    tomorrow_works = [w for w in wo_rows if w.scheduled_date == tomorrow]
+
+    today_works = [w for w in open_works if w.scheduled_date == today]
+    tomorrow_works = [w for w in open_works if w.scheduled_date == tomorrow]
+    # 오늘·내일 외 미완료(예정일 없음·과거·모레 이후)
+    scheduled_works = [
+        w
+        for w in open_works
+        if w.scheduled_date not in (today, tomorrow)
+    ]
+
+    completed_works = (
+        await db.execute(
+            select(WorkOrder)
+            .where(WorkOrder.status.in_(done_statuses))
+            .options(
+                selectinload(WorkOrder.equipment),
+                selectinload(WorkOrder.partner),
+            )
+            .order_by(
+                WorkOrder.completed_at.desc().nullslast(),
+                WorkOrder.id.desc(),
+            )
+            .limit(100)
+        )
+    ).scalars().unique().all()
 
     sites = (
         await db.execute(select(Site).where(Site.is_active == True).order_by(Site.name))
@@ -2261,6 +2292,8 @@ async def d1_list(
             "tomorrow_plans": tomorrow_plans,
             "today_works": today_works,
             "tomorrow_works": tomorrow_works,
+            "scheduled_works": scheduled_works,
+            "completed_works": completed_works,
             "sites": sites,
             "buildings": buildings,
             "equipment": equipment,
