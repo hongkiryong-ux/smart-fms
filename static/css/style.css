@@ -974,6 +974,44 @@ button.link-action:hover { text-decoration: underline; }
   background: #fff;
 }
 .wo-filter-tilde { color: var(--muted); }
+.wo-status-checks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.35rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.wo-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.28rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+  background: #f1f5f9;
+}
+.wo-check input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+.wo-check:hover { background: #e2e8f0; }
+.wo-check.is-on {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
 .wo-list-compact td {
   vertical-align: middle;
   white-space: nowrap;

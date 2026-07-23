@@ -9,7 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1381,7 +1381,7 @@ async def equipment_type_create(
 async def work_orders_list(
     request: Request,
     q: str = "",
-    status: str = "",
+    status: list[str] = Query(default=[]),
     priority: str = "",
     date_from: str = "",
     date_to: str = "",
@@ -1389,7 +1389,16 @@ async def work_orders_list(
     db: AsyncSession = Depends(get_db),
 ):
     q_val = (q or "").strip()
-    status_val = (status or "").strip()
+    # 확인란 다중선택 + 콤마 구분(리다이렉트 호환)
+    allowed_status = {"received", "in_progress", "completed"}
+    status_vals: list[str] = []
+    seen_status: set[str] = set()
+    for raw in status or []:
+        for part in str(raw).split(","):
+            key = part.strip()
+            if key in allowed_status and key not in seen_status:
+                seen_status.add(key)
+                status_vals.append(key)
     priority_val = (priority or "").strip()
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
@@ -1414,22 +1423,28 @@ async def work_orders_list(
             )
         )
 
-    if status_val == "received":
-        filters.append(
-            WorkOrder.status.in_([WorkOrderStatus.received, WorkOrderStatus.assigned])
-        )
-    elif status_val == "in_progress":
-        filters.append(WorkOrder.status == WorkOrderStatus.in_progress)
-    elif status_val == "completed":
-        filters.append(
-            WorkOrder.status.in_(
-                [
-                    WorkOrderStatus.completed,
-                    WorkOrderStatus.verified,
-                    WorkOrderStatus.closed,
-                ]
+    if status_vals:
+        status_conds = []
+        if "received" in status_vals:
+            status_conds.append(
+                WorkOrder.status.in_(
+                    [WorkOrderStatus.received, WorkOrderStatus.assigned]
+                )
             )
-        )
+        if "in_progress" in status_vals:
+            status_conds.append(WorkOrder.status == WorkOrderStatus.in_progress)
+        if "completed" in status_vals:
+            status_conds.append(
+                WorkOrder.status.in_(
+                    [
+                        WorkOrderStatus.completed,
+                        WorkOrderStatus.verified,
+                        WorkOrderStatus.closed,
+                    ]
+                )
+            )
+        if status_conds:
+            filters.append(or_(*status_conds))
 
     if priority_val in ("normal", "high"):
         filters.append(WorkOrder.priority == priority_val)
@@ -1503,7 +1518,8 @@ async def work_orders_list(
             "equipment_opts_json": json.dumps(equipment_opts, ensure_ascii=False),
             "filters": {
                 "q": q_val,
-                "status": status_val,
+                "status": ",".join(status_vals),
+                "statuses": status_vals,
                 "priority": priority_val,
                 "date_from": date_from_val,
                 "date_to": date_to_val,

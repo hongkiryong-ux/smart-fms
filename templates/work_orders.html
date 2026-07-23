@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-header">
   <h1>정비관리 (CMMS)</h1>
-  <p>정비의뢰 → 정비진행 → 정비완료 · 검색/필터 후 목록에서 바로 상태·조치 저장</p>
+  <p>정비의뢰 → 정비진행 → 정비완료 · 진행상태 확인란 클릭 시 즉시 필터</p>
 </header>
 
 <div class="grid-2">
@@ -12,19 +12,38 @@
       <h2>정비 목록 <small class="text-muted">({{ result_count }}건)</small></h2>
     </div>
 
-    <form method="get" action="/admin/work-orders" class="wo-filter-bar">
+    <form method="get" action="/admin/work-orders" class="wo-filter-bar" id="wo-filter-form">
       <input type="search"
              name="q"
              value="{{ filters.q }}"
              placeholder="설비코드·명칭·의뢰내용·조치·담당자 검색"
              class="wo-filter-q" />
-      <select name="status" class="wo-filter-select">
-        <option value="">진행 전체</option>
-        <option value="received" {% if filters.status == 'received' %}selected{% endif %}>정비의뢰</option>
-        <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>정비진행</option>
-        <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>정비완료</option>
-      </select>
-      <select name="priority" class="wo-filter-select">
+
+      <div class="wo-status-checks" role="group" aria-label="진행상태 필터">
+        <label class="wo-check{% if 'received' in filters.statuses %} is-on{% endif %}">
+          <input type="checkbox"
+                 name="status"
+                 value="received"
+                 {% if 'received' in filters.statuses %}checked{% endif %} />
+          <span>정비의뢰</span>
+        </label>
+        <label class="wo-check{% if 'in_progress' in filters.statuses %} is-on{% endif %}">
+          <input type="checkbox"
+                 name="status"
+                 value="in_progress"
+                 {% if 'in_progress' in filters.statuses %}checked{% endif %} />
+          <span>정비진행</span>
+        </label>
+        <label class="wo-check{% if 'completed' in filters.statuses %} is-on{% endif %}">
+          <input type="checkbox"
+                 name="status"
+                 value="completed"
+                 {% if 'completed' in filters.statuses %}checked{% endif %} />
+          <span>정비완료</span>
+        </label>
+      </div>
+
+      <select name="priority" class="wo-filter-select" onchange="this.form.submit()">
         <option value="">우선순위 전체</option>
         <option value="high" {% if filters.priority == 'high' %}selected{% endif %}>긴급</option>
         <option value="normal" {% if filters.priority == 'normal' %}selected{% endif %}>일반</option>
@@ -145,6 +164,16 @@
 <script type="application/json" id="wo-equipment-data">{{ equipment_opts_json | safe }}</script>
 <script>
 (function () {
+  var filterForm = document.getElementById('wo-filter-form');
+  if (filterForm) {
+    filterForm.querySelectorAll('input[name="status"]').forEach(function (cb) {
+      cb.addEventListener('change', function () { filterForm.submit(); });
+    });
+    filterForm.querySelectorAll('input[name="date_from"], input[name="date_to"]').forEach(function (el) {
+      el.addEventListener('change', function () { filterForm.submit(); });
+    });
+  }
+
   var dataEl = document.getElementById('wo-equipment-data');
   var buildingSel = document.getElementById('wo-building');
   var equipSel = document.getElementById('wo-equipment');
