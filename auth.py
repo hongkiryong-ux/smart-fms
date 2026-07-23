@@ -36,9 +36,16 @@ async def get_current_user(
     return result.scalar_one_or_none()
 
 
-def require_login(user: User | None = Depends(get_current_user)) -> User:
+def require_login(
+    request: Request, user: User | None = Depends(get_current_user)
+) -> User:
     if not user:
-        raise HTTPException(status_code=303, headers={"Location": "/admin/login"})
+        # 303을 HTTPException으로 내면 일부 환경에서 오류 페이지로 보일 수 있음
+        raise HTTPException(
+            status_code=401,
+            detail="login_required",
+            headers={"X-Redirect": "/admin/login"},
+        )
     return user
 
 

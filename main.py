@@ -10,7 +10,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import and_, func, or_, select
@@ -200,6 +201,50 @@ templates.env.globals.update(
     wo_process_step=_wo_process_step,
     d1_status_label=_d1_status_label,
 )
+
+
+@app.exception_handler(HTTPException)
+async def _http_exception_handler(request: Request, exc: HTTPException):
+    # 미로그인 → 로그인 페이지로 이동
+    if exc.status_code in (401, 303) and (
+        exc.detail == "login_required"
+        or (exc.headers or {}).get("Location") == "/admin/login"
+        or (exc.headers or {}).get("X-Redirect") == "/admin/login"
+    ):
+        return RedirectResponse("/admin/login", status_code=303)
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    import traceback
+
+    # HTTPException은 전용 핸들러로
+    if isinstance(exc, HTTPException):
+        return await _http_exception_handler(request, exc)
+
+    print(f"[error] {request.method} {request.url.path}: {exc}", flush=True)
+    traceback.print_exc()
+    accept = (request.headers.get("accept") or "").lower()
+    if "text/html" in accept or str(request.url.path).startswith("/admin"):
+        try:
+            return templates.TemplateResponse(
+                request,
+                "error.html",
+                {
+                    "user": None,
+                    "status_code": 500,
+                    "message": "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+                    "detail": str(exc)[:500],
+                },
+                status_code=500,
+            )
+        except Exception:
+            pass
+    return JSONResponse(
+        {"detail": "internal_error", "message": str(exc)[:300]},
+        status_code=500,
+    )
 
 
 @app.get("/health")
@@ -1749,16 +1794,32 @@ async def risk_assessment_page(
 ):
     import os
 
-    from risk_assessment import get_engine
+    try:
+        from risk_assessment import get_engine
 
-    eng = get_engine()
-    presets = eng.all_presets()
+        eng = get_engine()
+        presets = eng.all_presets()
+        majors = eng.major_categories()
+    except Exception as e:
+        print(f"[risk] engine load failed: {e}", flush=True)
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {
+                "user": user,
+                "status_code": 500,
+                "message": "위험성평가 엔진을 불러오지 못했습니다.",
+                "detail": str(e)[:500],
+            },
+            status_code=500,
+        )
+
     return templates.TemplateResponse(
         request,
         "risk_assessment.html",
         {
             "user": user,
-            "majors": eng.major_categories(),
+            "majors": majors,
             "presets": presets,
             "presets_json": json.dumps(
                 [

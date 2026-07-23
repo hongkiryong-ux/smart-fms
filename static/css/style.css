@@ -1244,3 +1244,13 @@ button.link-action:hover { text-decoration: underline; }
   .sidebar, .wo-list-head button, .risk-ai-opt, form#risk-form { display: none !important; }
   .main-with-sidebar { margin: 0; padding: 0; }
 }
+
+.error-detail {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  overflow: auto;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}

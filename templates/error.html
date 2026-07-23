@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}오류{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>오류 {{ status_code or 500 }}</h1>
+  <p>{{ message or '요청을 처리하지 못했습니다.' }}</p>
+</header>
+<section class="card" style="max-width:640px">
+  {% if detail %}
+  <pre class="error-detail">{{ detail }}</pre>
+  {% endif %}
+  <p><a class="btn btn-primary" href="/admin/dashboard">대시보드로</a>
+     <a class="btn btn-secondary" href="/admin/login">로그인</a></p>
+</section>
+{% endblock %}
