@@ -44,6 +44,7 @@
         {% else %}-{% endif %}
       </dd>
       <dt>의뢰내용</dt><dd>{{ wo.description or '-' }}</dd>
+      <dt>예정일</dt><dd>{{ wo.scheduled_date or '-' }}</dd>
       <dt>담당자</dt><dd>{{ wo.assignee_name or '-' }}</dd>
       <dt>협력사</dt><dd>{{ wo.partner.name if wo.partner else '-' }}</dd>
       <dt>등록</dt><dd>{{ fmt_kst_date(wo.created_at) }}</dd>
@@ -67,6 +68,8 @@
         <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
         {% endfor %}
       </select>
+      <label>정비 예정일</label>
+      <input type="date" name="scheduled_date" value="{{ wo.scheduled_date or '' }}" />
       <label>담당자</label>
       <input type="text" name="assignee_name" value="{{ wo.assignee_name or '' }}" />
       <label>원인</label>

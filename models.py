@@ -302,6 +302,7 @@ class WorkOrder(Base):
     parts_used = Column(Text, nullable=True)
     cost = Column(Float, nullable=True)
     work_hours = Column(Float, nullable=True)
+    scheduled_date = Column(Date, nullable=True)  # 정비 예정일
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 

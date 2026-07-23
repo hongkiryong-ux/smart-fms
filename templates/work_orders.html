@@ -3,137 +3,159 @@
 {% block content %}
 <header class="page-header">
   <h1>정비관리 (CMMS)</h1>
-  <p>정비의뢰 → 정비진행 → 정비완료 · 진행상태 확인란 클릭 시 즉시 필터</p>
+  <p>정비의뢰 → 정비진행 → 정비완료 · 예정일 지정 시 D-1에 자동 표시</p>
 </header>
 
-<div class="grid-2">
-  <section class="card card-wide">
-    <div class="wo-list-head">
-      <h2>정비 목록 <small class="text-muted">({{ result_count }}건)</small></h2>
+<section class="card">
+  <div class="wo-list-head">
+    <h2>
+      정비 목록
+      <small class="text-muted">({{ result_count }}건)</small>
+    </h2>
+    <button type="button"
+            class="wo-add-icon"
+            data-open-dialog="wo-create-dialog"
+            title="정비의뢰 접수">
+      <span class="wo-add-plus" aria-hidden="true">＋</span>
+      <span class="wo-add-label">정비의뢰</span>
+    </button>
+  </div>
+
+  <form method="get" action="/admin/work-orders" class="wo-filter-bar" id="wo-filter-form">
+    <input type="search"
+           name="q"
+           value="{{ filters.q }}"
+           placeholder="설비코드·명칭·의뢰내용·조치·담당자 검색"
+           class="wo-filter-q" />
+
+    <div class="wo-status-checks" role="group" aria-label="진행상태 필터">
+      <label class="wo-check{% if 'received' in filters.statuses %} is-on{% endif %}">
+        <input type="checkbox"
+               name="status"
+               value="received"
+               {% if 'received' in filters.statuses %}checked{% endif %} />
+        <span>정비의뢰</span>
+      </label>
+      <label class="wo-check{% if 'in_progress' in filters.statuses %} is-on{% endif %}">
+        <input type="checkbox"
+               name="status"
+               value="in_progress"
+               {% if 'in_progress' in filters.statuses %}checked{% endif %} />
+        <span>정비진행</span>
+      </label>
+      <label class="wo-check{% if 'completed' in filters.statuses %} is-on{% endif %}">
+        <input type="checkbox"
+               name="status"
+               value="completed"
+               {% if 'completed' in filters.statuses %}checked{% endif %} />
+        <span>정비완료</span>
+      </label>
     </div>
 
-    <form method="get" action="/admin/work-orders" class="wo-filter-bar" id="wo-filter-form">
-      <input type="search"
-             name="q"
-             value="{{ filters.q }}"
-             placeholder="설비코드·명칭·의뢰내용·조치·담당자 검색"
-             class="wo-filter-q" />
+    <select name="priority" class="wo-filter-select" onchange="this.form.submit()">
+      <option value="">우선순위 전체</option>
+      <option value="high" {% if filters.priority == 'high' %}selected{% endif %}>긴급</option>
+      <option value="normal" {% if filters.priority == 'normal' %}selected{% endif %}>일반</option>
+    </select>
+    <input type="date" name="date_from" value="{{ filters.date_from }}" class="wo-filter-date" title="등록일 시작" />
+    <span class="wo-filter-tilde">~</span>
+    <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo-filter-date" title="등록일 종료" />
+    <button type="submit" class="btn btn-sm btn-primary">검색</button>
+    <a class="btn btn-sm btn-secondary" href="/admin/work-orders">초기화</a>
+  </form>
 
-      <div class="wo-status-checks" role="group" aria-label="진행상태 필터">
-        <label class="wo-check{% if 'received' in filters.statuses %} is-on{% endif %}">
-          <input type="checkbox"
-                 name="status"
-                 value="received"
-                 {% if 'received' in filters.statuses %}checked{% endif %} />
-          <span>정비의뢰</span>
-        </label>
-        <label class="wo-check{% if 'in_progress' in filters.statuses %} is-on{% endif %}">
-          <input type="checkbox"
-                 name="status"
-                 value="in_progress"
-                 {% if 'in_progress' in filters.statuses %}checked{% endif %} />
-          <span>정비진행</span>
-        </label>
-        <label class="wo-check{% if 'completed' in filters.statuses %} is-on{% endif %}">
-          <input type="checkbox"
-                 name="status"
-                 value="completed"
-                 {% if 'completed' in filters.statuses %}checked{% endif %} />
-          <span>정비완료</span>
-        </label>
-      </div>
-
-      <select name="priority" class="wo-filter-select" onchange="this.form.submit()">
-        <option value="">우선순위 전체</option>
-        <option value="high" {% if filters.priority == 'high' %}selected{% endif %}>긴급</option>
-        <option value="normal" {% if filters.priority == 'normal' %}selected{% endif %}>일반</option>
-      </select>
-      <input type="date" name="date_from" value="{{ filters.date_from }}" class="wo-filter-date" title="등록일 시작" />
-      <span class="wo-filter-tilde">~</span>
-      <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo-filter-date" title="등록일 종료" />
-      <button type="submit" class="btn btn-sm btn-primary">검색</button>
-      <a class="btn btn-sm btn-secondary" href="/admin/work-orders">초기화</a>
-    </form>
-
-    <div class="table-scroll">
-    <table class="data-table wo-list-table wo-list-compact">
-      <thead>
-        <tr>
-          <th>설비</th>
-          <th>정비의뢰내용</th>
-          <th>등록일</th>
-          <th>우선순위</th>
-          <th>협력사</th>
-          <th>진행</th>
-          <th>조치내용</th>
-          <th>저장</th>
-          <th>상세</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for wo in orders %}
-        <tr>
-          <td class="wo-eq-cell" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
-            {% if wo.equipment %}
-            <code>{{ wo.equipment.code }}</code>
-            {% else %}-{% endif %}
-          </td>
-          <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
-            <span class="wo-req-text">
-              {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
-            </span>
-          </td>
-          <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
-          <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
-          <td>
-            <select name="partner_id" form="wo-form-{{ wo.id }}" class="wo-partner-select" title="협력사">
-              <option value="0">미지정</option>
-              {% for p in partners %}
-              <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
-              {% endfor %}
+  <div class="table-scroll">
+  <table class="data-table wo-list-table wo-list-compact">
+    <thead>
+      <tr>
+        <th>설비</th>
+        <th>정비의뢰내용</th>
+        <th>등록일</th>
+        <th>예정일</th>
+        <th>우선순위</th>
+        <th>협력사</th>
+        <th>진행</th>
+        <th>조치내용</th>
+        <th>저장</th>
+        <th>상세</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for wo in orders %}
+      <tr>
+        <td class="wo-eq-cell" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
+          {% if wo.equipment %}
+          <code>{{ wo.equipment.code }}</code>
+          {% else %}-{% endif %}
+        </td>
+        <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
+          <span class="wo-req-text">
+            {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
+          </span>
+        </td>
+        <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
+        <td>
+          <input type="date"
+                 name="scheduled_date"
+                 form="wo-form-{{ wo.id }}"
+                 class="wo-sched-input"
+                 value="{{ wo.scheduled_date or '' }}"
+                 title="정비 예정일" />
+        </td>
+        <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
+        <td>
+          <select name="partner_id" form="wo-form-{{ wo.id }}" class="wo-partner-select" title="협력사">
+            <option value="0">미지정</option>
+            {% for p in partners %}
+            <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
+            <input type="hidden" name="redirect" value="list" />
+            <input type="hidden" name="q" value="{{ filters.q }}" />
+            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+            <select name="status" class="wo-status-select" form="wo-form-{{ wo.id }}">
+              <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
+              <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
+              <option value="completed" {% if wo.status.value in ['completed','verified','closed'] %}selected{% endif %}>정비완료</option>
             </select>
-          </td>
-          <td>
-            <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
-              <input type="hidden" name="redirect" value="list" />
-              <input type="hidden" name="q" value="{{ filters.q }}" />
-              <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-              <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-              <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-              <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-              <select name="status" class="wo-status-select" form="wo-form-{{ wo.id }}">
-                <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
-                <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
-                <option value="completed" {% if wo.status.value in ['completed','verified','closed'] %}selected{% endif %}>정비완료</option>
-              </select>
-            </form>
-          </td>
-          <td>
-            <input type="text"
-                   name="action"
-                   form="wo-form-{{ wo.id }}"
-                   class="wo-action-input"
-                   value="{{ wo.action or '' }}"
-                   placeholder="조치내용"
-                   title="{{ wo.action or '' }}" />
-          </td>
-          <td>
-            <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
-          </td>
-          <td>
-            <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="9" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    </div>
-  </section>
+          </form>
+        </td>
+        <td>
+          <input type="text"
+                 name="action"
+                 form="wo-form-{{ wo.id }}"
+                 class="wo-action-input"
+                 value="{{ wo.action or '' }}"
+                 placeholder="조치내용"
+                 title="{{ wo.action or '' }}" />
+        </td>
+        <td>
+          <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
+        </td>
+        <td>
+          <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
 
-  <section class="card">
-    <h2>정비의뢰 접수</h2>
+<dialog id="wo-create-dialog" class="eq-dialog wo-create-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <strong>정비의뢰 접수</strong>
+    <button type="submit" class="btn btn-sm btn-secondary" value="cancel">닫기</button>
+  </form>
+  <div class="eq-popup-body">
     {% if request.query_params.get('error') == 'eq' %}
     <div class="alert alert-error">건물의 설비를 선택하세요.</div>
     {% elif request.query_params.get('error') == 'desc' %}
@@ -156,23 +178,48 @@
       <label>정비의뢰 내용</label>
       <textarea name="description" rows="3" required placeholder="의뢰 내용을 입력하세요"></textarea>
 
+      <label>정비 예정일</label>
+      <input type="date" name="scheduled_date" />
+
       <label>우선순위</label>
       <select name="priority">
         <option value="normal">일반</option>
         <option value="high">긴급</option>
       </select>
 
+      <label>협력사</label>
+      <select name="partner_id">
+        <option value="0">미지정</option>
+        {% for p in partners %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+
       <label>담당자</label>
       <input type="text" name="assignee_name" placeholder="담당자명" />
 
-      <button type="submit" class="btn btn-primary">정비의뢰</button>
+      <button type="submit" class="btn btn-primary">정비의뢰 등록</button>
     </form>
-  </section>
-</div>
+  </div>
+</dialog>
 
 <script type="application/json" id="wo-equipment-data">{{ equipment_opts_json | safe }}</script>
 <script>
 (function () {
+  function openDialog(id) {
+    var el = document.getElementById(id);
+    if (el && typeof el.showModal === 'function') el.showModal();
+  }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-open-dialog]');
+    if (!btn) return;
+    e.preventDefault();
+    openDialog(btn.getAttribute('data-open-dialog'));
+  });
+  {% if request.query_params.get('open') or request.query_params.get('error') %}
+  openDialog('wo-create-dialog');
+  {% endif %}
+
   var filterForm = document.getElementById('wo-filter-form');
   if (filterForm) {
     filterForm.querySelectorAll('input[name="status"]').forEach(function (cb) {

@@ -181,11 +181,15 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "CREATE INDEX IF NOT EXISTS ix_maintenance_records_equipment_id ON maintenance_records (equipment_id)"
         )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS scheduled_date DATE"
+        )
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
             "ALTER TABLE equipment_types ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
             "ALTER TABLE equipment ADD COLUMN extra_data TEXT",
+            "ALTER TABLE work_orders ADD COLUMN scheduled_date DATE",
             """
             CREATE TABLE IF NOT EXISTS maintenance_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

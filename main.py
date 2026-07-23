@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -49,6 +49,10 @@ from models import (
 )
 
 KST = ZoneInfo("Asia/Seoul")
+
+
+def _today_kst() -> date:
+    return datetime.now(KST).date()
 
 
 def _fmt_kst(dt: datetime | None) -> str:
@@ -1542,15 +1546,17 @@ async def work_order_create(
     description: str = Form(...),
     priority: str = Form("normal"),
     assignee_name: str = Form(""),
+    scheduled_date: str = Form(""),
+    partner_id: int = Form(0),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     if equipment_id <= 0:
-        return RedirectResponse("/admin/work-orders?error=eq", status_code=303)
+        return RedirectResponse("/admin/work-orders?error=eq&open=1", status_code=303)
 
     desc = description.strip()
     if not desc:
-        return RedirectResponse("/admin/work-orders?error=desc", status_code=303)
+        return RedirectResponse("/admin/work-orders?error=desc&open=1", status_code=303)
 
     eq = (
         await db.execute(
@@ -1564,11 +1570,24 @@ async def work_order_create(
         )
     ).scalar_one_or_none()
     if not eq:
-        return RedirectResponse("/admin/work-orders?error=eq", status_code=303)
+        return RedirectResponse("/admin/work-orders?error=eq&open=1", status_code=303)
 
     site_id = None
     if eq.zone and eq.zone.floor and eq.zone.floor.building:
         site_id = eq.zone.floor.building.site_id
+
+    sched = None
+    if scheduled_date.strip():
+        try:
+            sched = date.fromisoformat(scheduled_date.strip())
+        except ValueError:
+            sched = None
+
+    partner_fk = None
+    if partner_id and partner_id > 0:
+        partner = await db.get(Partner, partner_id)
+        if partner and partner.is_active:
+            partner_fk = partner.id
 
     title = f"[정비의뢰] {eq.code} {eq.name}"
     wo = WorkOrder(
@@ -1578,6 +1597,8 @@ async def work_order_create(
         assignee_name=assignee_name.strip() or None,
         equipment_id=eq.id,
         site_id=site_id,
+        partner_id=partner_fk,
+        scheduled_date=sched,
         status=WorkOrderStatus.received,
         work_type="정비",
     )
@@ -1627,6 +1648,7 @@ async def work_order_status(
     cause: str = Form(""),
     assignee_name: str = Form(""),
     partner_id: int = Form(0),
+    scheduled_date: str = Form(""),
     redirect: str = Form(""),
     q: str = Form(""),
     filter_status: str = Form(""),
@@ -1660,6 +1682,15 @@ async def work_order_status(
         wo.partner_id = partner.id if partner and partner.is_active else None
     else:
         wo.partner_id = None
+
+    # 정비 예정일
+    if scheduled_date.strip():
+        try:
+            wo.scheduled_date = date.fromisoformat(scheduled_date.strip())
+        except ValueError:
+            pass
+    else:
+        wo.scheduled_date = None
 
     if status == "completed":
         wo.completed_at = datetime.utcnow()
@@ -1717,6 +1748,14 @@ async def d1_list(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    today = _today_kst()
+    tomorrow = today + timedelta(days=1)
+    open_statuses = [
+        WorkOrderStatus.received,
+        WorkOrderStatus.assigned,
+        WorkOrderStatus.in_progress,
+    ]
+
     plans = (
         await db.execute(
             select(D1Plan)
@@ -1729,16 +1768,57 @@ async def d1_list(
             .order_by(D1Plan.work_date.desc())
         )
     ).scalars().all()
-    sites = (await db.execute(select(Site))).scalars().all()
-    buildings = (await db.execute(select(Building))).scalars().all()
-    equipment = (await db.execute(select(Equipment))).scalars().all()
-    partners = (await db.execute(select(Partner).where(Partner.is_active == True))).scalars().all()
+
+    today_plans = [p for p in plans if p.work_date == today]
+    tomorrow_plans = [p for p in plans if p.work_date == tomorrow]
+
+    wo_rows = (
+        await db.execute(
+            select(WorkOrder)
+            .where(
+                WorkOrder.scheduled_date.in_([today, tomorrow]),
+                WorkOrder.status.in_(open_statuses),
+            )
+            .options(
+                selectinload(WorkOrder.equipment),
+                selectinload(WorkOrder.partner),
+            )
+            .order_by(WorkOrder.priority.desc(), WorkOrder.id.asc())
+        )
+    ).scalars().unique().all()
+    today_works = [w for w in wo_rows if w.scheduled_date == today]
+    tomorrow_works = [w for w in wo_rows if w.scheduled_date == tomorrow]
+
+    sites = (
+        await db.execute(select(Site).where(Site.is_active == True).order_by(Site.name))
+    ).scalars().all()
+    buildings = (
+        await db.execute(
+            select(Building).where(Building.is_active == True).order_by(Building.name)
+        )
+    ).scalars().all()
+    equipment = (
+        await db.execute(
+            select(Equipment).where(Equipment.is_active == True).order_by(Equipment.code)
+        )
+    ).scalars().all()
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "d1_plans.html",
         {
             "user": user,
             "plans": plans,
+            "today": today,
+            "tomorrow": tomorrow,
+            "today_plans": today_plans,
+            "tomorrow_plans": tomorrow_plans,
+            "today_works": today_works,
+            "tomorrow_works": tomorrow_works,
             "sites": sites,
             "buildings": buildings,
             "equipment": equipment,

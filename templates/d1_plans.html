@@ -3,12 +3,104 @@
 {% block content %}
 <header class="page-header">
   <h1>D-1 작업계획</h1>
-  <p>위험성평가(JSA) · TBM · 작업허가 자동 생성</p>
+  <p>오늘 {{ today }} · 정비 예정일 기준 당일·익일 작업 표시 · JSA/TBM/작업허가</p>
 </header>
 
-<div class="grid-2">
+<div class="d1-day-grid">
+  <section class="card">
+    <h2>오늘 작업 <small class="text-muted">({{ today }})</small></h2>
+    <p class="d1-hint">당일 예정된 정비·D-1 작업 목록</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>설비/제목</th>
+          <th>작업내용</th>
+          <th>협력사</th>
+          <th>상태</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for wo in today_works %}
+        <tr>
+          <td><span class="badge badge-wo">정비</span>{% if wo.priority == 'high' %} <span class="badge badge-urgent">긴급</span>{% endif %}</td>
+          <td>
+            {% if wo.equipment %}<code>{{ wo.equipment.code }}</code> {% endif %}
+            {{ wo.equipment.name if wo.equipment else wo.title }}
+          </td>
+          <td class="d1-content-cell" title="{{ wo.description or wo.title }}">{{ wo.description or wo.title }}</td>
+          <td>{{ wo.partner.name if wo.partner else '-' }}</td>
+          <td>{{ wo_status_label(wo.status) }}</td>
+          <td><a href="/admin/work-orders/{{ wo.id }}">상세</a></td>
+        </tr>
+        {% endfor %}
+        {% for plan in today_plans %}
+        <tr>
+          <td><span class="badge badge-d1">D-1</span>{% if plan.is_urgent %} <span class="badge badge-urgent">긴급</span>{% endif %}</td>
+          <td>{{ plan.title }}{% if plan.equipment %} · {{ plan.equipment.code }}{% endif %}</td>
+          <td class="d1-content-cell" title="{{ plan.work_content or '' }}">{{ plan.work_content or '-' }}</td>
+          <td>{{ plan.partner.name if plan.partner else '-' }}</td>
+          <td>{{ d1_status_label(plan.status) }}</td>
+          <td><a href="/admin/d1/{{ plan.id }}">상세</a></td>
+        </tr>
+        {% endfor %}
+        {% if not today_works and not today_plans %}
+        <tr><td colspan="6" class="empty">오늘 예정된 작업이 없습니다.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>내일 작업 (D-1) <small class="text-muted">({{ tomorrow }})</small></h2>
+    <p class="d1-hint">작업 하루 전 · 다음날 작업할 내용</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>설비/제목</th>
+          <th>작업내용</th>
+          <th>협력사</th>
+          <th>상태</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for wo in tomorrow_works %}
+        <tr>
+          <td><span class="badge badge-wo">정비</span>{% if wo.priority == 'high' %} <span class="badge badge-urgent">긴급</span>{% endif %}</td>
+          <td>
+            {% if wo.equipment %}<code>{{ wo.equipment.code }}</code> {% endif %}
+            {{ wo.equipment.name if wo.equipment else wo.title }}
+          </td>
+          <td class="d1-content-cell" title="{{ wo.description or wo.title }}">{{ wo.description or wo.title }}</td>
+          <td>{{ wo.partner.name if wo.partner else '-' }}</td>
+          <td>{{ wo_status_label(wo.status) }}</td>
+          <td><a href="/admin/work-orders/{{ wo.id }}">상세</a></td>
+        </tr>
+        {% endfor %}
+        {% for plan in tomorrow_plans %}
+        <tr>
+          <td><span class="badge badge-d1">D-1</span>{% if plan.is_urgent %} <span class="badge badge-urgent">긴급</span>{% endif %}</td>
+          <td>{{ plan.title }}{% if plan.equipment %} · {{ plan.equipment.code }}{% endif %}</td>
+          <td class="d1-content-cell" title="{{ plan.work_content or '' }}">{{ plan.work_content or '-' }}</td>
+          <td>{{ plan.partner.name if plan.partner else '-' }}</td>
+          <td>{{ d1_status_label(plan.status) }}</td>
+          <td><a href="/admin/d1/{{ plan.id }}">상세</a></td>
+        </tr>
+        {% endfor %}
+        {% if not tomorrow_works and not tomorrow_plans %}
+        <tr><td colspan="6" class="empty">내일 예정된 작업이 없습니다.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<div class="grid-2" style="margin-top:1rem">
   <section class="card card-wide">
-    <h2>작업계획 목록</h2>
+    <h2>전체 작업계획</h2>
     <table class="data-table">
       <thead>
         <tr>
@@ -28,10 +120,12 @@
           <td>{{ plan.title }}</td>
           <td>{{ plan.equipment.name if plan.equipment else '-' }}</td>
           <td>{{ plan.partner.name if plan.partner else '-' }}</td>
-          <td>{% if plan.is_urgent %}🔴{% else %}-{% endif %}</td>
+          <td>{% if plan.is_urgent %}긴급{% else %}-{% endif %}</td>
           <td><span class="badge badge-d1">{{ d1_status_label(plan.status) }}</span></td>
           <td><a href="/admin/d1/{{ plan.id }}">상세</a></td>
         </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">등록된 D-1 계획이 없습니다.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -41,7 +135,7 @@
     <h2>D-1 등록</h2>
     <form method="post" action="/admin/d1" class="form-stack">
       <label>작업일</label>
-      <input type="date" name="work_date" required />
+      <input type="date" name="work_date" required value="{{ tomorrow }}" />
       <label>제목</label>
       <input type="text" name="title" required />
       <label>작업내용</label>
