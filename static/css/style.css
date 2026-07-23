@@ -1254,3 +1254,101 @@ button.link-action:hover { text-decoration: underline; }
   font-size: 0.82rem;
   white-space: pre-wrap;
 }
+
+.risk-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .risk-layout { grid-template-columns: 1fr; }
+}
+.risk-sidebar h2, .risk-main h2 { margin-top: 0; }
+.risk-mode-switch {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+.risk-mode-opt {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.risk-mode-opt.is-on {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.risk-mode-opt input { margin: 0; }
+.btn-block { width: 100%; }
+.risk-intro {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.risk-meta-block {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+@media (max-width: 800px) {
+  .risk-meta-block { grid-template-columns: 1fr 1fr; }
+}
+.risk-form-table th,
+.risk-form-table td {
+  font-size: 0.78rem;
+  white-space: normal;
+  vertical-align: top;
+}
+.risk-form-table th { background: #eef3fa; }
+.badge.risk-grade {
+  background: #eef2ff;
+  color: #3730a3;
+  white-space: nowrap;
+}
+.risk-cmd-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.75rem 0;
+}
+.risk-q {
+  flex: 1 1 160px;
+  min-width: 140px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.risk-cmd-result {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  max-height: 420px;
+  overflow: auto;
+}
+.risk-cmd-result pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'Malgun Gothic', sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.risk-matrix-box { margin-top: 1rem; }

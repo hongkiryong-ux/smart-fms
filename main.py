@@ -142,6 +142,9 @@ def _d1_status_label(status: D1Status) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """DB 초기화 실패해도 앱은 기동시켜 health check / 재시도 가능하게 함."""
+    import os as _os
+
+    _os.environ.setdefault("LAW_WEB_SEARCH", "0")
     last_err: Exception | None = None
     for attempt in range(1, 6):
         try:
@@ -1787,56 +1790,59 @@ async def work_order_advance(
 # ── D-1 Plans ─────────────────────────────────────────────────────────
 
 
+def _risk_page_context(user, **extra):
+    import os
+
+    from risk_assessment import list_majors, list_presets
+
+    majors = list_majors()
+    presets = list_presets()
+    major_id_map = {m["name"]: m["id"] for m in majors if m.get("name")}
+    ctx = {
+        "user": user,
+        "majors": majors,
+        "presets": presets,
+        "presets_json": json.dumps(presets, ensure_ascii=False),
+        "major_id_map_json": json.dumps(major_id_map, ensure_ascii=False),
+        "ai_ready": bool(os.environ.get("OPENAI_API_KEY", "").strip()),
+        "use_ai": False,
+        "five_m": {},
+        "meta": {},
+        "selected_major": "",
+        "preset_name": "",
+        "preset_name_json": '""',
+        "work_name": "",
+        "error_msg": "",
+        "command_result": "",
+    }
+    ctx.update(extra)
+    if "preset_name" in extra or "preset_name_json" not in extra:
+        ctx["preset_name_json"] = json.dumps(ctx.get("preset_name") or "", ensure_ascii=False)
+    return ctx
+
+
 @app.get("/admin/risk-assessment")
 async def risk_assessment_page(
     request: Request,
     user: User = Depends(require_login),
 ):
-    import os
-
     try:
-        from risk_assessment import get_engine
-
-        eng = get_engine()
-        presets = eng.all_presets()
-        majors = eng.major_categories()
+        return templates.TemplateResponse(
+            request, "risk_assessment.html", _risk_page_context(user)
+        )
     except Exception as e:
-        print(f"[risk] engine load failed: {e}", flush=True)
+        print(f"[risk] page failed: {e}", flush=True)
         return templates.TemplateResponse(
             request,
             "error.html",
             {
                 "user": user,
                 "status_code": 500,
-                "message": "위험성평가 엔진을 불러오지 못했습니다.",
+                "message": "위험성평가 화면을 불러오지 못했습니다.",
                 "detail": str(e)[:500],
             },
             status_code=500,
         )
-
-    return templates.TemplateResponse(
-        request,
-        "risk_assessment.html",
-        {
-            "user": user,
-            "majors": majors,
-            "presets": presets,
-            "presets_json": json.dumps(
-                [
-                    {
-                        "id": p.get("id"),
-                        "name": p.get("name"),
-                        "major_category": p.get("major_category") or "",
-                        "sub_category": p.get("sub_category") or "",
-                        "five_m_one_e": p.get("five_m_one_e") or {},
-                    }
-                    for p in presets
-                ],
-                ensure_ascii=False,
-            ),
-            "ai_ready": bool(os.environ.get("OPENAI_API_KEY", "").strip()),
-        },
-    )
 
 
 @app.post("/admin/risk-assessment/assess")
@@ -1849,16 +1855,17 @@ async def risk_assessment_run(
     Method: str = Form(""),
     Management: str = Form(""),
     Environment: str = Form(""),
-    major_category: str = Form(""),
-    preset_id: str = Form(""),
-    use_ai: str = Form(""),
+    major_name: str = Form(""),
+    preset_name: str = Form(""),
+    use_ai: str = Form("0"),
+    department: str = Form(""),
+    evaluator: str = Form(""),
+    assessment_no: str = Form(""),
+    apply_type: str = Form("정기평가"),
     user: User = Depends(require_login),
 ):
-    import os
+    from risk_assessment import assess, get_preset
 
-    from risk_assessment import get_engine
-
-    eng = get_engine()
     five_m = {
         "Man": Man.strip(),
         "Machine": Machine.strip(),
@@ -1867,41 +1874,195 @@ async def risk_assessment_run(
         "Management": Management.strip(),
         "Environment": Environment.strip(),
     }
-    rows, mode = eng.assess(
-        work_name=work_name.strip(),
-        five_m=five_m,
-        use_ai=bool(use_ai),
-    )
-    presets = eng.all_presets()
+    # 프리셋만 고르고 5M이 비면 자동 채움
+    if preset_name.strip() and not any(five_m.values()):
+        p = get_preset(name=preset_name.strip())
+        if p and p.get("five_m_one_e"):
+            five_m = {k: (p["five_m_one_e"].get(k) or "") for k in five_m}
+
+    meta = {
+        "department": department.strip(),
+        "evaluator": evaluator.strip() or user.name,
+        "assessment_no": assessment_no.strip(),
+        "apply_type": apply_type.strip() or "정기평가",
+    }
+    try:
+        result = assess(
+            work_name=work_name.strip(),
+            five_m=five_m,
+            use_ai=(use_ai == "1"),
+            major_name=major_name.strip(),
+            meta=meta,
+        )
+    except Exception as e:
+        print(f"[risk] assess failed: {e}", flush=True)
+        return templates.TemplateResponse(
+            request,
+            "risk_assessment.html",
+            _risk_page_context(
+                user,
+                work_name=work_name.strip(),
+                five_m=five_m,
+                meta=meta,
+                selected_major=major_name.strip(),
+                preset_name=preset_name.strip(),
+                use_ai=(use_ai == "1"),
+                error_msg=f"평가 중 오류: {e}",
+            ),
+            status_code=500,
+        )
+
+    # 세션에 결과 보관 (HTML 내보내기·추가명령용)
+    request.session["risk_last"] = {
+        "work_name": result["work_name"],
+        "report_text": result["report_text"],
+        "five_m": five_m,
+        "major_name": major_name.strip(),
+        "meta": meta,
+    }
+
     return templates.TemplateResponse(
         request,
         "risk_assessment.html",
-        {
-            "user": user,
-            "majors": eng.major_categories(),
-            "presets": presets,
-            "presets_json": json.dumps(
-                [
-                    {
-                        "id": p.get("id"),
-                        "name": p.get("name"),
-                        "major_category": p.get("major_category") or "",
-                        "sub_category": p.get("sub_category") or "",
-                        "five_m_one_e": p.get("five_m_one_e") or {},
-                    }
-                    for p in presets
-                ],
-                ensure_ascii=False,
-            ),
-            "ai_ready": bool(os.environ.get("OPENAI_API_KEY", "").strip()),
-            "work_name": work_name.strip(),
-            "five_m": five_m,
-            "use_ai": bool(use_ai),
-            "result_rows": rows,
-            "mode_label": "AI 평가" if mode == "ai" else "로컬 JSA/법령 DB",
-            "selected_major": major_category,
-            "selected_preset": preset_id,
-        },
+        _risk_page_context(
+            user,
+            work_name=result["work_name"],
+            five_m=five_m,
+            meta=meta,
+            selected_major=major_name.strip(),
+            preset_name=preset_name.strip() or result["work_name"],
+            use_ai=(result["mode"] == "ai"),
+            form_rows=result["form_rows"],
+            result_rows=result["rows"],
+            report_text=result["report_text"],
+            mode_label=result["mode_label"],
+            error_msg=result.get("error") or "",
+        ),
+    )
+
+
+@app.post("/admin/risk-assessment/export-html")
+async def risk_assessment_export_html(
+    request: Request,
+    work_name: str = Form(""),
+    report_text: str = Form(""),
+    user: User = Depends(require_login),
+):
+    from datetime import datetime as _dt
+    from html import escape
+    from io import BytesIO
+    from urllib.parse import quote
+
+    last = request.session.get("risk_last") or {}
+    job = (work_name or last.get("work_name") or "위험성평가").strip()
+    body = (report_text or last.get("report_text") or "").strip()
+    if not body:
+        return RedirectResponse("/admin/risk-assessment", status_code=303)
+
+    html_body = escape(body).replace("\n", "<br>\n")
+    stamp = _dt.now().strftime("%Y%m%d_%H%M")
+    html = f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>P-WIDE 위험성평가 - {escape(job)}</title>
+<style>
+body {{ font-family: 'Malgun Gothic', sans-serif; max-width: 1200px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }}
+h1 {{ color: #2b5797; border-bottom: 2px solid #2b5797; padding-bottom: 0.5rem; }}
+</style>
+</head>
+<body>
+<h1>P-WIDE 위험성평가 도우미 V3</h1>
+<p><strong>작업/설비:</strong> {escape(job)}</p>
+<p><strong>생성일시:</strong> {_dt.now():%Y-%m-%d %H:%M:%S}</p>
+<hr>
+<div>{html_body}</div>
+</body>
+</html>"""
+    filename = quote(f"{job}_{stamp}.html")
+    return StreamingResponse(
+        BytesIO(html.encode("utf-8")),
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
+@app.post("/admin/risk-assessment/command")
+async def risk_assessment_command(
+    request: Request,
+    command_num: int = Form(...),
+    work_name: str = Form(...),
+    major_name: str = Form(""),
+    Man: str = Form(""),
+    Machine: str = Form(""),
+    Material: str = Form(""),
+    Method: str = Form(""),
+    Management: str = Form(""),
+    Environment: str = Form(""),
+    report_text: str = Form(""),
+    user_question: str = Form(""),
+    user: User = Depends(require_login),
+):
+    from risk_assessment.web_bridge import run_additional
+
+    five_m = {
+        "Man": Man.strip(),
+        "Machine": Machine.strip(),
+        "Material": Material.strip(),
+        "Method": Method.strip(),
+        "Management": Management.strip(),
+        "Environment": Environment.strip(),
+    }
+    last = request.session.get("risk_last") or {}
+    try:
+        result_text = run_additional(
+            command_num,
+            work_name.strip(),
+            five_m,
+            report_text or last.get("report_text") or "",
+            major_name=major_name.strip(),
+            user_question=user_question.strip(),
+        )
+    except Exception as e:
+        result_text = f"추가 명령 실행 오류: {e}"
+
+    # 직전 평가 결과가 있으면 함께 다시 표시
+    form_rows = None
+    mode_label = ""
+    if last.get("work_name"):
+        try:
+            from risk_assessment import assess
+
+            again = assess(
+                work_name=last["work_name"],
+                five_m=last.get("five_m") or five_m,
+                use_ai=False,
+                major_name=last.get("major_name") or major_name,
+                meta=last.get("meta") or {},
+            )
+            form_rows = again["form_rows"]
+            mode_label = again["mode_label"]
+            report_text = again["report_text"]
+        except Exception:
+            report_text = last.get("report_text") or report_text
+    else:
+        report_text = report_text
+
+    return templates.TemplateResponse(
+        request,
+        "risk_assessment.html",
+        _risk_page_context(
+            user,
+            work_name=work_name.strip(),
+            five_m=five_m,
+            meta=last.get("meta") or {},
+            selected_major=major_name.strip(),
+            preset_name=work_name.strip(),
+            form_rows=form_rows,
+            report_text=report_text,
+            mode_label=mode_label or "로컬 전용",
+            command_result=result_text,
+        ),
     )
 
 

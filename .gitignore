@@ -5,3 +5,6 @@ smart_fms.db
 qr_codes/
 .env.render
 .env
+risk_assessment/data/ai_settings.json
+risk_assessment/output/
+risk_assessment/app/__pycache__/

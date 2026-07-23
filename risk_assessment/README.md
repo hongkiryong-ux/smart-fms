@@ -1,7 +1,10 @@
 # P-WIDE 위험성평가 (웹)
 
-데스크톱 배포판(`0. P-WIDE-RiskAssessment`)의 JSA·법령 데이터와 프롬프트를
-Smart FMS 웹(`/admin/risk-assessment`)에서 사용할 수 있도록 포팅한 모듈입니다.
+원본 위치: `C:\Users\USER\Desktop\1. p-wide-risk-assessment`
 
-- 로컬 모드: `data/` JSA 라이브러리·법령 시나리오 매칭
-- AI 모드: Render 환경변수 `OPENAI_API_KEY` 설정 시 사용
+원본 `app/` 패키지(LocalAssessmentEngine, WorkTypeLookup, risk_form, report_exporter 등)를
+그대로 사용해 Smart FMS `/admin/risk-assessment`에서 동작합니다.
+
+- 로컬 모드: API 없이 JSA·법령 인덱스 평가 (원본과 동일)
+- AI 모드: `OPENAI_API_KEY` 설정 시 (웹 로그인/Playwright 제외)
+- `LAW_WEB_SEARCH` 기본값 `0` (Render 속도·안정성)
