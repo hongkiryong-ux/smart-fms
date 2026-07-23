@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}협력사 수정{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>협력사 수정</h1>
+  <p>{{ partner.name }}</p>
+</header>
+
+{% if request.query_params.get('error') == 'code' %}
+<div class="alert alert-error">이미 사용 중인 협력사 코드입니다.</div>
+{% elif request.query_params.get('error') == 'required' %}
+<div class="alert alert-error">업체명과 코드는 필수입니다.</div>
+{% endif %}
+
+<section class="card" style="max-width:480px">
+  <form method="post" action="/admin/partners/{{ partner.id }}/edit" class="form-stack">
+    <label>업체명</label>
+    <input type="text" name="name" value="{{ partner.name }}" required />
+    <label>코드</label>
+    <input type="text" name="code" value="{{ partner.code }}" required />
+    <label>담당자</label>
+    <input type="text" name="contact_name" value="{{ partner.contact_name or '' }}" />
+    <label>연락처</label>
+    <input type="text" name="phone" value="{{ partner.phone or '' }}" />
+    <label>이메일</label>
+    <input type="email" name="email" value="{{ partner.email or '' }}" />
+    <label>계약만료</label>
+    <input type="date" name="contract_end" value="{{ partner.contract_end or '' }}" />
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">저장</button>
+      <a class="btn btn-secondary" href="/admin/partners">취소</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

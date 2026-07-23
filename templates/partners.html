@@ -3,14 +3,29 @@
 {% block content %}
 <header class="page-header">
   <h1>협력사 Portal</h1>
+  <p>협력사 등록 · 수정 · 삭제</p>
 </header>
 
+{% if request.query_params.get('error') == 'code' %}
+<div class="alert alert-error">이미 사용 중인 협력사 코드입니다.</div>
+{% elif request.query_params.get('error') == 'required' %}
+<div class="alert alert-error">업체명과 코드는 필수입니다.</div>
+{% endif %}
+
 <div class="grid-2">
-  <section class="card">
+  <section class="card card-wide">
     <h2>협력사 목록</h2>
     <table class="data-table">
       <thead>
-        <tr><th>코드</th><th>업체명</th><th>담당</th><th>연락처</th><th>계약만료</th></tr>
+        <tr>
+          <th>코드</th>
+          <th>업체명</th>
+          <th>담당</th>
+          <th>연락처</th>
+          <th>이메일</th>
+          <th>계약만료</th>
+          <th>관리</th>
+        </tr>
       </thead>
       <tbody>
         {% for p in partners %}
@@ -19,8 +34,20 @@
           <td>{{ p.name }}</td>
           <td>{{ p.contact_name or '-' }}</td>
           <td>{{ p.phone or '-' }}</td>
+          <td>{{ p.email or '-' }}</td>
           <td>{{ p.contract_end or '-' }}</td>
+          <td class="row-actions">
+            <a class="link-action" href="/admin/partners/{{ p.id }}/edit">수정</a>
+            <form method="post"
+                  action="/admin/partners/{{ p.id }}/delete"
+                  class="inline-form"
+                  onsubmit="return confirm('「{{ p.name }}」 협력사를 삭제할까요?');">
+              <button type="submit" class="link-action link-danger">삭제</button>
+            </form>
+          </td>
         </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">등록된 협력사가 없습니다.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -37,6 +64,10 @@
       <input type="text" name="contact_name" />
       <label>연락처</label>
       <input type="text" name="phone" />
+      <label>이메일</label>
+      <input type="email" name="email" />
+      <label>계약만료</label>
+      <input type="date" name="contract_end" />
       <button type="submit" class="btn btn-primary">등록</button>
     </form>
   </section>

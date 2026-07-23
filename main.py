@@ -1889,7 +1889,13 @@ async def partners_list(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    partners = (await db.execute(select(Partner).order_by(Partner.name))).scalars().all()
+    partners = (
+        await db.execute(
+            select(Partner)
+            .where(Partner.is_active == True)
+            .order_by(Partner.name)
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request, "partners.html", {"user": user, "partners": partners}
     )
@@ -1901,12 +1907,129 @@ async def partner_create(
     code: str = Form(...),
     contact_name: str = Form(""),
     phone: str = Form(""),
+    email: str = Form(""),
+    contract_end: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    code_val = code.strip()
+    name_val = name.strip()
+    if not name_val or not code_val:
+        return RedirectResponse("/admin/partners?error=required", status_code=303)
+
+    existing = (
+        await db.execute(select(Partner).where(Partner.code == code_val))
+    ).scalar_one_or_none()
+    if existing and existing.is_active:
+        return RedirectResponse("/admin/partners?error=code", status_code=303)
+    if existing and not existing.is_active:
+        existing.is_active = True
+        existing.name = name_val
+        existing.contact_name = contact_name.strip() or None
+        existing.phone = phone.strip() or None
+        existing.email = email.strip() or None
+        existing.contract_end = (
+            date.fromisoformat(contract_end) if contract_end.strip() else None
+        )
+        await db.commit()
+        return RedirectResponse("/admin/partners", status_code=303)
+
+    end_date = None
+    if contract_end.strip():
+        try:
+            end_date = date.fromisoformat(contract_end.strip())
+        except ValueError:
+            end_date = None
+
     db.add(
-        Partner(name=name.strip(), code=code.strip(), contact_name=contact_name, phone=phone)
+        Partner(
+            name=name_val,
+            code=code_val,
+            contact_name=contact_name.strip() or None,
+            phone=phone.strip() or None,
+            email=email.strip() or None,
+            contract_end=end_date,
+        )
     )
+    await db.commit()
+    return RedirectResponse("/admin/partners", status_code=303)
+
+
+@app.get("/admin/partners/{partner_id}/edit")
+async def partner_edit_page(
+    partner_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    partner = await db.get(Partner, partner_id)
+    if not partner or not partner.is_active:
+        raise HTTPException(404)
+    return templates.TemplateResponse(
+        request, "partner_edit.html", {"user": user, "partner": partner}
+    )
+
+
+@app.post("/admin/partners/{partner_id}/edit")
+async def partner_edit(
+    partner_id: int,
+    name: str = Form(...),
+    code: str = Form(...),
+    contact_name: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    contract_end: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    partner = await db.get(Partner, partner_id)
+    if not partner or not partner.is_active:
+        raise HTTPException(404)
+
+    code_val = code.strip()
+    name_val = name.strip()
+    if not name_val or not code_val:
+        return RedirectResponse(
+            f"/admin/partners/{partner_id}/edit?error=required", status_code=303
+        )
+
+    dup = (
+        await db.execute(
+            select(Partner).where(Partner.code == code_val, Partner.id != partner_id)
+        )
+    ).scalar_one_or_none()
+    if dup and dup.is_active:
+        return RedirectResponse(
+            f"/admin/partners/{partner_id}/edit?error=code", status_code=303
+        )
+
+    end_date = None
+    if contract_end.strip():
+        try:
+            end_date = date.fromisoformat(contract_end.strip())
+        except ValueError:
+            end_date = None
+
+    partner.name = name_val
+    partner.code = code_val
+    partner.contact_name = contact_name.strip() or None
+    partner.phone = phone.strip() or None
+    partner.email = email.strip() or None
+    partner.contract_end = end_date
+    await db.commit()
+    return RedirectResponse("/admin/partners", status_code=303)
+
+
+@app.post("/admin/partners/{partner_id}/delete")
+async def partner_delete(
+    partner_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    partner = await db.get(Partner, partner_id)
+    if not partner:
+        raise HTTPException(404)
+    partner.is_active = False
     await db.commit()
     return RedirectResponse("/admin/partners", status_code=303)
 
