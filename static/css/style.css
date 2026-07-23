@@ -1418,3 +1418,124 @@ button.link-action:hover { text-decoration: underline; }
   line-height: 1.45;
 }
 .risk-matrix-box { display: none; }
+
+/* 위험성평가 — A4 가로 인쇄/PDF */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  .sidebar,
+  .risk-input-card,
+  .risk-page-header,
+  .risk-matrix-thumb,
+  .row-actions,
+  .risk-cmd-bar,
+  .risk-cmd-result,
+  .risk-result-card > h3,
+  .d1-hint,
+  #risk-export-report,
+  #risk-rows-json,
+  #risk-presets-data {
+    display: none !important;
+  }
+
+  .main-with-sidebar {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .risk-result-card.card,
+  .card.risk-result-card {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .risk-result-card .wo-list-head {
+    margin: 0 0 3mm !important;
+  }
+
+  .risk-result-card h2 {
+    font-size: 13pt !important;
+    margin: 0 !important;
+  }
+
+  .risk-result-card h2 small {
+    font-size: 9pt !important;
+    color: #444 !important;
+  }
+
+  .risk-meta-block {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1mm 4mm !important;
+    margin-bottom: 3mm !important;
+    font-size: 9pt !important;
+  }
+
+  .table-scroll {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .risk-form-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    font-size: 7pt !important;
+    page-break-inside: auto;
+  }
+
+  .risk-form-table thead {
+    display: table-header-group;
+  }
+
+  .risk-form-table tr {
+    page-break-inside: avoid;
+  }
+
+  .risk-form-table th,
+  .risk-form-table td {
+    font-size: 7pt !important;
+    padding: 1.2mm 0.8mm !important;
+    border: 0.35pt solid #222 !important;
+    vertical-align: top !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .risk-form-table th {
+    background: #e8eef6 !important;
+    font-weight: 700 !important;
+  }
+
+  .badge.risk-grade {
+    background: transparent !important;
+    color: #000 !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  .risk-form-table a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+}
+

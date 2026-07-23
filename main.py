@@ -1814,6 +1814,7 @@ def _risk_page_context(user, **extra):
         "work_name": "",
         "error_msg": "",
         "command_result": "",
+        "rows_json": "[]",
     }
     ctx.update(extra)
     if "preset_name" in extra or "preset_name_json" not in extra:
@@ -1912,14 +1913,12 @@ async def risk_assessment_run(
             status_code=500,
         )
 
-    # 세션에 결과 보관 (HTML/Excel 내보내기·추가명령용)
+    # 세션에는 가벼운 메타만 보관 (쿠키 용량 초과 방지 — 내보내기는 폼 POST 사용)
     request.session["risk_last"] = {
         "work_name": result["work_name"],
-        "report_text": result["report_text"],
         "five_m": five_m,
         "major_name": major_name.strip(),
         "meta": {**(meta or {}), "mode": result["mode"]},
-        "rows": result["rows"],
     }
 
     return templates.TemplateResponse(
@@ -1935,6 +1934,7 @@ async def risk_assessment_run(
             use_ai=(result["mode"] == "ai"),
             form_rows=result["form_rows"],
             result_rows=result["rows"],
+            rows_json=json.dumps(result["rows"], ensure_ascii=False),
             report_text=result["report_text"],
             mode_label=result["mode_label"],
             error_msg=result.get("error") or "",
@@ -1947,6 +1947,17 @@ async def risk_assessment_export_html(
     request: Request,
     work_name: str = Form(""),
     report_text: str = Form(""),
+    Man: str = Form(""),
+    Machine: str = Form(""),
+    Material: str = Form(""),
+    Method: str = Form(""),
+    Management: str = Form(""),
+    Environment: str = Form(""),
+    major_name: str = Form(""),
+    department: str = Form(""),
+    evaluator: str = Form(""),
+    assessment_no: str = Form(""),
+    apply_type: str = Form("정기평가"),
     user: User = Depends(require_login),
 ):
     from datetime import datetime as _dt
@@ -1954,11 +1965,36 @@ async def risk_assessment_export_html(
     from io import BytesIO
     from urllib.parse import quote
 
-    last = request.session.get("risk_last") or {}
-    job = (work_name or last.get("work_name") or "위험성평가").strip()
-    body = (report_text or last.get("report_text") or "").strip()
+    from risk_assessment.web_bridge import assess
+
+    job = (work_name or "").strip() or "위험성평가"
+    body = (report_text or "").strip()
     if not body:
-        return RedirectResponse("/admin/risk-assessment", status_code=303)
+        five_m = {
+            "Man": Man.strip(),
+            "Machine": Machine.strip(),
+            "Material": Material.strip(),
+            "Method": Method.strip(),
+            "Management": Management.strip(),
+            "Environment": Environment.strip(),
+        }
+        rebuilt = assess(
+            job,
+            five_m,
+            use_ai=False,
+            major_name=major_name.strip(),
+            meta={
+                "department": department.strip(),
+                "evaluator": evaluator.strip() or user.name,
+                "assessment_no": assessment_no.strip(),
+                "apply_type": apply_type.strip() or "정기평가",
+            },
+        )
+        job = rebuilt.get("work_name") or job
+        body = (rebuilt.get("report_text") or "").strip()
+
+    if not body:
+        return JSONResponse({"ok": False, "error": "내보낼 평가 결과가 없습니다."}, status_code=400)
 
     html_body = escape(body).replace("\n", "<br>\n")
     stamp = _dt.now().strftime("%Y%m%d_%H%M")
@@ -1991,6 +2027,19 @@ h1 {{ color: #2b5797; border-bottom: 2px solid #2b5797; padding-bottom: 0.5rem; 
 @app.post("/admin/risk-assessment/export-excel")
 async def risk_assessment_export_excel(
     request: Request,
+    work_name: str = Form(""),
+    rows_json: str = Form(""),
+    Man: str = Form(""),
+    Machine: str = Form(""),
+    Material: str = Form(""),
+    Method: str = Form(""),
+    Management: str = Form(""),
+    Environment: str = Form(""),
+    major_name: str = Form(""),
+    department: str = Form(""),
+    evaluator: str = Form(""),
+    assessment_no: str = Form(""),
+    apply_type: str = Form("정기평가"),
     user: User = Depends(require_login),
 ):
     from datetime import datetime as _dt
@@ -1999,30 +2048,49 @@ async def risk_assessment_export_excel(
 
     from risk_assessment.web_bridge import assess, export_excel_bytes
 
-    last = request.session.get("risk_last") or {}
-    job = (last.get("work_name") or "위험성평가").strip()
-    rows = last.get("rows") or []
-    meta = dict(last.get("meta") or {})
+    job = (work_name or "").strip() or "위험성평가"
+    meta = {
+        "department": department.strip(),
+        "evaluator": evaluator.strip() or user.name,
+        "assessment_no": assessment_no.strip(),
+        "apply_type": apply_type.strip() or "정기평가",
+    }
 
-    # 세션에 rows가 없으면(쿠키 용량 등) 동일 조건으로 재평가
-    if not rows and last.get("five_m") is not None:
-        rebuilt = assess(
-            job,
-            last.get("five_m") or {},
-            use_ai=False,
-            major_name=last.get("major_name") or "",
-            meta=meta,
-        )
-        rows = rebuilt.get("rows") or []
-        job = rebuilt.get("work_name") or job
-
-    if not rows:
-        return RedirectResponse("/admin/risk-assessment", status_code=303)
+    rows = []
+    if (rows_json or "").strip():
+        try:
+            parsed = json.loads(rows_json)
+            if isinstance(parsed, list):
+                rows = parsed
+        except json.JSONDecodeError:
+            rows = []
 
     try:
+        if not rows:
+            five_m = {
+                "Man": Man.strip(),
+                "Machine": Machine.strip(),
+                "Material": Material.strip(),
+                "Method": Method.strip(),
+                "Management": Management.strip(),
+                "Environment": Environment.strip(),
+            }
+            rebuilt = assess(
+                job,
+                five_m,
+                use_ai=False,
+                major_name=major_name.strip(),
+                meta=meta,
+            )
+            rows = rebuilt.get("rows") or []
+            job = rebuilt.get("work_name") or job
+            meta = {**meta, "mode": rebuilt.get("mode") or "local"}
+        if not rows:
+            return JSONResponse({"ok": False, "error": "내보낼 평가 결과가 없습니다."}, status_code=400)
         data = export_excel_bytes(job, rows, meta)
-    except Exception:
-        return RedirectResponse("/admin/risk-assessment", status_code=303)
+    except Exception as e:
+        print(f"[risk] export-excel failed: {e}", flush=True)
+        return JSONResponse({"ok": False, "error": f"Excel 저장 실패: {e}"}, status_code=500)
 
     stamp = _dt.now().strftime("%Y%m%d_%H%M")
     filename = quote(f"{job}_{stamp}.xlsx")
@@ -2074,6 +2142,7 @@ async def risk_assessment_command(
 
     # 직전 평가 결과가 있으면 함께 다시 표시
     form_rows = None
+    result_rows = None
     mode_label = ""
     if last.get("work_name"):
         try:
@@ -2087,10 +2156,11 @@ async def risk_assessment_command(
                 meta=last.get("meta") or {},
             )
             form_rows = again["form_rows"]
+            result_rows = again["rows"]
             mode_label = again["mode_label"]
             report_text = again["report_text"]
         except Exception:
-            report_text = last.get("report_text") or report_text
+            report_text = report_text
     else:
         report_text = report_text
 
@@ -2105,6 +2175,8 @@ async def risk_assessment_command(
             selected_major=major_name.strip(),
             preset_name=work_name.strip(),
             form_rows=form_rows,
+            result_rows=result_rows,
+            rows_json=json.dumps(result_rows or [], ensure_ascii=False),
             report_text=report_text,
             mode_label=mode_label or "로컬 전용",
             command_result=result_text,

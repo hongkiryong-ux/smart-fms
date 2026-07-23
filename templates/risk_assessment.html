@@ -113,14 +113,12 @@
       <small class="text-muted">({{ mode_label }} · {{ form_rows|length }}건)</small>
     </h2>
     <div class="row-actions">
-      <button type="button" class="btn btn-sm btn-secondary" onclick="window.print()">인쇄/PDF</button>
-      <form method="post" action="/admin/risk-assessment/export-html" class="inline-form">
-        <button type="submit" class="btn btn-sm btn-primary">HTML 저장</button>
-      </form>
-      <form method="post" action="/admin/risk-assessment/export-excel" class="inline-form">
-        <button type="submit" class="btn btn-sm btn-primary">Excel 저장</button>
-      </form>
+      <button type="button" class="btn btn-sm btn-secondary" id="risk-print-btn">인쇄/PDF</button>
+      <button type="button" class="btn btn-sm btn-primary" id="risk-html-btn">HTML 저장</button>
+      <button type="button" class="btn btn-sm btn-primary" id="risk-excel-btn">Excel 저장</button>
     </div>
+  <textarea id="risk-export-report" hidden readonly>{{ report_text }}</textarea>
+  <script type="application/json" id="risk-rows-json">{{ rows_json | safe }}</script>
   </div>
 
   <div class="risk-meta-block">
@@ -278,6 +276,94 @@
   major.addEventListener('change', filterByMajor);
   preset.addEventListener('change', applyPreset);
   rebuild();
+
+  function exportFormData(withReport) {
+    var form = document.getElementById('risk-form');
+    var fd = new FormData();
+    var keys = [
+      'work_name', 'major_name', 'Man', 'Machine', 'Material', 'Method',
+      'Management', 'Environment', 'department', 'evaluator', 'assessment_no', 'apply_type'
+    ];
+    keys.forEach(function (k) {
+      var el = form.elements.namedItem(k);
+      fd.append(k, el ? el.value : '');
+    });
+    if (withReport) {
+      var rep = document.getElementById('risk-export-report');
+      fd.append('report_text', rep ? rep.value : '');
+    }
+    var rowsEl = document.getElementById('risk-rows-json');
+    if (rowsEl) fd.append('rows_json', rowsEl.textContent || '[]');
+    return fd;
+  }
+
+  function filenameFromDisposition(cd, fallback) {
+    if (!cd) return fallback;
+    var m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+    if (!m) return fallback;
+    try { return decodeURIComponent(m[1] || m[2]); } catch (e) { return m[1] || m[2] || fallback; }
+  }
+
+  async function downloadExport(url, fd, fallbackName) {
+    try {
+      var res = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' });
+      var ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (!res.ok) {
+        var msg = '저장에 실패했습니다.';
+        if (ct.indexOf('application/json') >= 0) {
+          var j = await res.json();
+          if (j && j.error) msg = j.error;
+        }
+        alert(msg);
+        return;
+      }
+      if (res.redirected) {
+        alert('세션이 만료되었거나 저장에 실패했습니다. 다시 평가 후 저장해 주세요.');
+        return;
+      }
+      var blob = await res.blob();
+      var name = filenameFromDisposition(res.headers.get('Content-Disposition'), fallbackName);
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+    } catch (e) {
+      alert('저장 중 오류: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  var htmlBtn = document.getElementById('risk-html-btn');
+  var excelBtn = document.getElementById('risk-excel-btn');
+  var printBtn = document.getElementById('risk-print-btn');
+  if (htmlBtn) {
+    htmlBtn.addEventListener('click', function () {
+      var job = (document.getElementById('risk-work-name') || {}).value || '위험성평가';
+      downloadExport('/admin/risk-assessment/export-html', exportFormData(true), job + '.html');
+    });
+  }
+  if (excelBtn) {
+    excelBtn.addEventListener('click', function () {
+      var job = (document.getElementById('risk-work-name') || {}).value || '위험성평가';
+      excelBtn.disabled = true;
+      excelBtn.textContent = '생성 중…';
+      downloadExport('/admin/risk-assessment/export-excel', exportFormData(false), job + '.xlsx')
+        .finally(function () {
+          excelBtn.disabled = false;
+          excelBtn.textContent = 'Excel 저장';
+        });
+    });
+  }
+  if (printBtn) {
+    printBtn.addEventListener('click', function () {
+      document.body.classList.add('risk-printing');
+      window.print();
+      setTimeout(function () { document.body.classList.remove('risk-printing'); }, 500);
+    });
+  }
+
   {% if form_rows is defined %}
   var el = document.getElementById('risk-result');
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
