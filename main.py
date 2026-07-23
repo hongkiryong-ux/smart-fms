@@ -58,11 +58,22 @@ def _fmt_kst(dt: datetime | None) -> str:
     return dt.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _fmt_kst_date(dt: datetime | date | None) -> str:
+    """등록일 등 연-월-일만 표시."""
+    if dt is None:
+        return ""
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(KST).strftime("%Y-%m-%d")
+    return dt.strftime("%Y-%m-%d")
+
+
 def _status_label(status: WorkOrderStatus | str) -> str:
     labels = {
         "received": "정비의뢰",
         "assigned": "정비의뢰",
-        "in_progress": "정비중",
+        "in_progress": "정비진행",
         "completed": "정비완료",
         "verified": "정비완료",
         "closed": "정비완료",
@@ -178,6 +189,7 @@ templates.env.globals["field_value"] = field_value
 templates.env.globals["name_fields"] = set(NAME_KEYS)
 templates.env.globals.update(
     fmt_kst=_fmt_kst,
+    fmt_kst_date=_fmt_kst_date,
     role_labels=ROLE_LABELS,
     wo_status_label=_status_label,
     wo_process_step=_wo_process_step,
@@ -1463,6 +1475,7 @@ async def work_order_status(
     action: str = Form(""),
     cause: str = Form(""),
     assignee_name: str = Form(""),
+    redirect: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1476,17 +1489,23 @@ async def work_order_status(
         status = "received"
 
     wo.status = WorkOrderStatus(status)
-    if action:
-        wo.action = action
-    if cause:
-        wo.cause = cause
+    wo.action = action.strip() or None
+    if cause.strip():
+        wo.cause = cause.strip()
     if assignee_name.strip():
         wo.assignee_name = assignee_name.strip()
 
     if status == "completed":
         wo.completed_at = datetime.utcnow()
         await _ensure_maintenance_history(db, wo)
+    elif status != "completed":
+        # 완료가 아니면 완료시각 유지/해제 — 재진행 시 완료시각 비움
+        if status in ("received", "in_progress"):
+            wo.completed_at = None
+
     await db.commit()
+    if redirect == "list":
+        return RedirectResponse("/admin/work-orders", status_code=303)
     return RedirectResponse(f"/admin/work-orders/{wo_id}", status_code=303)
 
 

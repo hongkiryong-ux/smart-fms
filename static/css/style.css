@@ -936,3 +936,48 @@ button.link-action:hover { text-decoration: underline; }
   color: #047857;
   font-weight: 600;
 }
+
+/* 정비 목록 인라인 편집 */
+.wo-list-table td { vertical-align: top; }
+.wo-title-cell strong { display: block; margin-bottom: 0.25rem; }
+.wo-desc {
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 0.4rem;
+  max-width: 280px;
+}
+.wo-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wo-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 200px;
+}
+.wo-status-select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.wo-inline-form textarea {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  resize: vertical;
+  min-height: 52px;
+  font-family: inherit;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}

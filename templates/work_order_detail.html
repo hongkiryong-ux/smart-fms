@@ -15,7 +15,7 @@
     </li>
     <li class="{% if process_step >= 2 %}done{% endif %} {% if process_step == 2 %}current{% endif %}">
       <span class="step-num">2</span>
-      <span class="step-label">정비중</span>
+      <span class="step-label">정비진행</span>
     </li>
     <li class="{% if process_step >= 3 %}done{% endif %} {% if process_step == 3 %}current{% endif %}">
       <span class="step-num">3</span>
@@ -25,7 +25,7 @@
   {% if process_step < 3 %}
   <form method="post" action="/admin/work-orders/{{ wo.id }}/advance" class="process-advance">
     <button type="submit" class="btn btn-primary">
-      {% if process_step == 1 %}정비중으로 진행{% else %}정비완료 처리{% endif %}
+      {% if process_step == 1 %}정비진행으로 변경{% else %}정비완료 처리{% endif %}
     </button>
   </form>
   {% else %}
@@ -43,11 +43,11 @@
         <a href="/admin/equipment/{{ wo.equipment.id }}">{{ wo.equipment.code }} — {{ wo.equipment.name }}</a>
         {% else %}-{% endif %}
       </dd>
-      <dt>설명</dt><dd>{{ wo.description or '-' }}</dd>
+      <dt>의뢰내용</dt><dd>{{ wo.description or '-' }}</dd>
       <dt>담당자</dt><dd>{{ wo.assignee_name or '-' }}</dd>
       <dt>협력사</dt><dd>{{ wo.partner.name if wo.partner else '-' }}</dd>
-      <dt>등록</dt><dd>{{ fmt_kst(wo.created_at) }}</dd>
-      <dt>완료</dt><dd>{{ fmt_kst(wo.completed_at) if wo.completed_at else '-' }}</dd>
+      <dt>등록</dt><dd>{{ fmt_kst_date(wo.created_at) }}</dd>
+      <dt>완료</dt><dd>{{ fmt_kst_date(wo.completed_at) if wo.completed_at else '-' }}</dd>
     </dl>
   </section>
 
@@ -57,14 +57,14 @@
       <label>상태</label>
       <select name="status">
         <option value="received" {% if process_step == 1 %}selected{% endif %}>정비의뢰</option>
-        <option value="in_progress" {% if process_step == 2 %}selected{% endif %}>정비중</option>
+        <option value="in_progress" {% if process_step == 2 %}selected{% endif %}>정비진행</option>
         <option value="completed" {% if process_step == 3 %}selected{% endif %}>정비완료</option>
       </select>
       <label>담당자</label>
       <input type="text" name="assignee_name" value="{{ wo.assignee_name or '' }}" />
       <label>원인</label>
       <textarea name="cause" rows="2">{{ wo.cause or '' }}</textarea>
-      <label>조치</label>
+      <label>조치내용</label>
       <textarea name="action" rows="2">{{ wo.action or '' }}</textarea>
       <button type="submit" class="btn btn-primary">저장</button>
     </form>
