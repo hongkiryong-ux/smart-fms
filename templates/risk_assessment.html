@@ -1,73 +1,68 @@
 {% extends "base.html" %}
 {% block title %}위험성평가{% endblock %}
 {% block content %}
-<header class="page-header">
-  <h1>P-WIDE 위험성평가 도우미 V3</h1>
-  <p>원본 데스크톱과 동일 엔진 · 로컬 JSA/법령 DB · 작업선택 → 5M1E → 평가표</p>
+<header class="page-header risk-page-header">
+  <div>
+    <h1>P-WIDE 위험성평가</h1>
+    <p>작업선택 · 5M1E · JSA 평가표</p>
+  </div>
+  <img src="/static/risk/risk_grade_matrix.png" alt="위험등급" class="risk-matrix-thumb" title="R = F × S" />
 </header>
 
 {% if error_msg %}
 <div class="alert alert-error">{{ error_msg }}</div>
 {% endif %}
 
-<div class="risk-layout">
-  <aside class="card risk-sidebar">
-    <h2>실행 설정</h2>
-    <form method="post" action="/admin/risk-assessment/assess" class="form-stack" id="risk-form">
-      <label>실행 모드</label>
-      <div class="risk-mode-switch">
-        <label class="risk-mode-opt{% if not use_ai %} is-on{% endif %}">
-          <input type="radio" name="use_ai" value="0" {% if not use_ai %}checked{% endif %} />
-          로컬 전용
-        </label>
-        <label class="risk-mode-opt{% if use_ai %} is-on{% endif %}">
-          <input type="radio" name="use_ai" value="1" {% if use_ai %}checked{% endif %} {% if not ai_ready %}disabled{% endif %} />
-          AI 작성{% if not ai_ready %} <small>(API키 없음)</small>{% endif %}
-        </label>
+<section class="card risk-input-card">
+  <form method="post" action="/admin/risk-assessment/assess" id="risk-form">
+    <div class="risk-top-row">
+      <div class="risk-field">
+        <label>모드</label>
+        <div class="risk-mode-switch">
+          <label class="risk-mode-opt{% if not use_ai %} is-on{% endif %}">
+            <input type="radio" name="use_ai" value="0" {% if not use_ai %}checked{% endif %} />
+            로컬
+          </label>
+          <label class="risk-mode-opt{% if use_ai %} is-on{% endif %}">
+            <input type="radio" name="use_ai" value="1" {% if use_ai %}checked{% endif %} {% if not ai_ready %}disabled{% endif %} />
+            AI{% if not ai_ready %} <small>키없음</small>{% endif %}
+          </label>
+        </div>
       </div>
-
-      <label>대분류</label>
-      <select id="risk-major" name="major_name">
-        <option value="">전체</option>
-        {% for m in majors %}
-        <option value="{{ m.name }}" {% if selected_major == m.name %}selected{% endif %}>{{ m.name }}</option>
-        {% endfor %}
-      </select>
-
-      <label>소분류(작업유형)</label>
-      <select id="risk-preset" name="preset_name">
-        <option value="">직접 입력</option>
-      </select>
-
-      <label>작업/설비명</label>
-      <input type="text" name="work_name" id="risk-work-name" required
-             value="{{ work_name or '' }}"
-             placeholder="예: 중량물 취급, 밀폐공간 작업" />
-
-      <fieldset class="risk-5m">
-        <legend>조건2 · 5M1E</legend>
-        <label>1. Man (사람)</label>
-        <textarea name="Man" id="risk-man" rows="2">{{ five_m.Man if five_m else '' }}</textarea>
-        <label>2. Machine (설비)</label>
-        <textarea name="Machine" id="risk-machine" rows="2">{{ five_m.Machine if five_m else '' }}</textarea>
-        <label>3. Material (물질)</label>
-        <textarea name="Material" id="risk-material" rows="2">{{ five_m.Material if five_m else '' }}</textarea>
-        <label>4. Method (방법)</label>
-        <textarea name="Method" id="risk-method" rows="2">{{ five_m.Method if five_m else '' }}</textarea>
-        <label>5. Management (관리)</label>
-        <textarea name="Management" id="risk-management" rows="2">{{ five_m.Management if five_m else '' }}</textarea>
-        <label>6. Environment (환경)</label>
-        <textarea name="Environment" id="risk-environment" rows="2">{{ five_m.Environment if five_m else '' }}</textarea>
-      </fieldset>
-
-      <fieldset class="risk-5m">
-        <legend>평가서 정보</legend>
+      <div class="risk-field">
+        <label>대분류</label>
+        <select id="risk-major" name="major_name">
+          <option value="">전체</option>
+          {% for m in majors %}
+          <option value="{{ m.name }}" {% if selected_major == m.name %}selected{% endif %}>{{ m.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="risk-field risk-field-grow">
+        <label>소분류(작업유형)</label>
+        <select id="risk-preset" name="preset_name">
+          <option value="">직접 입력</option>
+        </select>
+      </div>
+      <div class="risk-field risk-field-grow">
+        <label>작업/설비명</label>
+        <input type="text" name="work_name" id="risk-work-name" required
+               value="{{ work_name or '' }}"
+               placeholder="예: 중량물 취급" />
+      </div>
+      <div class="risk-field">
         <label>부서</label>
         <input type="text" name="department" value="{{ meta.department if meta else '' }}" />
+      </div>
+      <div class="risk-field">
         <label>평가담당</label>
         <input type="text" name="evaluator" value="{{ meta.evaluator if meta else user.name }}" />
+      </div>
+      <div class="risk-field">
         <label>평가서 NO</label>
         <input type="text" name="assessment_no" value="{{ meta.assessment_no if meta else '' }}" />
+      </div>
+      <div class="risk-field">
         <label>적용구분</label>
         <select name="apply_type">
           {% set at = meta.apply_type if meta else '정기평가' %}
@@ -75,125 +70,136 @@
           <option value="수시평가" {% if at == '수시평가' %}selected{% endif %}>수시평가</option>
           <option value="최초평가" {% if at == '최초평가' %}selected{% endif %}>최초평가</option>
         </select>
-      </fieldset>
-
-      <button type="submit" class="btn btn-primary btn-block">위험성평가 시작</button>
-    </form>
-
-    <div class="risk-matrix-box">
-      <h3>위험등급 매트릭스</h3>
-      <img src="/static/risk/risk_grade_matrix.png" alt="위험등급 매트릭스" class="risk-matrix-img" />
-      <p class="d1-hint">R = F × S · A~F급 (원본 V3와 동일)</p>
-    </div>
-  </aside>
-
-  <section class="card risk-main">
-    <h2>조건1 안내</h2>
-    <div class="risk-intro">
-      <p>▣ 안녕하세요 P-WIDE 위험성평가 도우미(V3)입니다.</p>
-      <p>위험성평가의 사전조사 과정에 사용하는 프로그램입니다.</p>
-      <ol>
-        <li>대분류·소분류로 작업을 선택합니다.</li>
-        <li>5M1E 자동채움 내용을 확인하고 수정합니다.</li>
-        <li><strong>위험성평가 시작</strong>으로 JSA 평가표를 생성합니다.</li>
-        <li>필요 시 추가 명령(1~7)으로 작업표준·법령·사고사례 등을 조회합니다.</li>
-      </ol>
-    </div>
-
-    {% if form_rows is defined %}
-    <div class="wo-list-head" id="risk-result">
-      <h2>평가 결과 — {{ work_name }}
-        <small class="text-muted">({{ mode_label }} · {{ form_rows|length }}건)</small>
-      </h2>
-      <div class="row-actions">
-        <button type="button" class="btn btn-sm btn-secondary" onclick="window.print()">인쇄/PDF</button>
-        <form method="post" action="/admin/risk-assessment/export-html" class="inline-form">
-          <button type="submit" class="btn btn-sm btn-primary">HTML 저장</button>
-        </form>
+      </div>
+      <div class="risk-field risk-field-action">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn btn-primary">위험성평가 시작</button>
       </div>
     </div>
 
-    <div class="risk-meta-block">
-      <div>부서명: {{ meta.department or '-' }}</div>
-      <div>평가서NO: {{ meta.assessment_no or '-' }}</div>
-      <div>작업명: {{ work_name }}</div>
-      <div>평가담당: {{ meta.evaluator or '-' }}</div>
+    <div class="risk-5m-grid">
+      <div class="risk-5m-item">
+        <label>Man (사람)</label>
+        <textarea name="Man" id="risk-man" rows="2">{{ five_m.Man if five_m else '' }}</textarea>
+      </div>
+      <div class="risk-5m-item">
+        <label>Machine (설비)</label>
+        <textarea name="Machine" id="risk-machine" rows="2">{{ five_m.Machine if five_m else '' }}</textarea>
+      </div>
+      <div class="risk-5m-item">
+        <label>Material (물질)</label>
+        <textarea name="Material" id="risk-material" rows="2">{{ five_m.Material if five_m else '' }}</textarea>
+      </div>
+      <div class="risk-5m-item">
+        <label>Method (방법)</label>
+        <textarea name="Method" id="risk-method" rows="2">{{ five_m.Method if five_m else '' }}</textarea>
+      </div>
+      <div class="risk-5m-item">
+        <label>Management (관리)</label>
+        <textarea name="Management" id="risk-management" rows="2">{{ five_m.Management if five_m else '' }}</textarea>
+      </div>
+      <div class="risk-5m-item">
+        <label>Environment (환경)</label>
+        <textarea name="Environment" id="risk-environment" rows="2">{{ five_m.Environment if five_m else '' }}</textarea>
+      </div>
     </div>
+  </form>
+</section>
 
-    <div class="table-scroll">
-      <table class="data-table risk-form-table">
-        <thead>
-          <tr>
-            <th>작업순서</th>
-            <th>작업공정</th>
-            <th>재해형태</th>
-            <th>유해위험요인</th>
-            <th>F</th><th>S</th><th>R</th>
-            <th>현재안전조치(전)</th>
-            <th>결과(전)</th>
-            <th>F</th><th>S</th><th>R</th>
-            <th>현재안전조치(후)</th>
-            <th>결과(후)</th>
-            <th>법적근거</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in form_rows %}
-          <tr>
-            <td>{{ r.work_sequence }}</td>
-            <td>{{ r.work_process }}</td>
-            <td>{{ r.disaster_type }}</td>
-            <td>{{ r.hazard_factor }}</td>
-            <td>{{ r.f_before }}</td>
-            <td>{{ r.s_before }}</td>
-            <td>{{ r.r_before }}</td>
-            <td>{{ r.measures_before }}</td>
-            <td><span class="badge risk-grade">{{ r.result_before }}</span></td>
-            <td>{{ r.f_after }}</td>
-            <td>{{ r.s_after }}</td>
-            <td>{{ r.r_after }}</td>
-            <td class="risk-improve">{{ r.measures_after }}</td>
-            <td><span class="badge risk-grade">{{ r.result_after }}</span></td>
-            <td>
-              {% if r.law_url %}
-              <a href="{{ r.law_url }}" target="_blank" rel="noopener">{{ r.law }}</a>
-              {% else %}{{ r.law or '-' }}{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+{% if form_rows is defined %}
+<section class="card risk-result-card" id="risk-result">
+  <div class="wo-list-head">
+    <h2>평가 결과 — {{ work_name }}
+      <small class="text-muted">({{ mode_label }} · {{ form_rows|length }}건)</small>
+    </h2>
+    <div class="row-actions">
+      <button type="button" class="btn btn-sm btn-secondary" onclick="window.print()">인쇄/PDF</button>
+      <form method="post" action="/admin/risk-assessment/export-html" class="inline-form">
+        <button type="submit" class="btn btn-sm btn-primary">HTML 저장</button>
+      </form>
     </div>
-    <p class="d1-hint">※ R = F × S · 원본 P-WIDE LocalAssessmentEngine 결과</p>
+  </div>
 
-    <h3>추가 명령 (1~7)</h3>
-    <form method="post" action="/admin/risk-assessment/command" class="risk-cmd-bar">
-      <input type="hidden" name="work_name" value="{{ work_name }}" />
-      <input type="hidden" name="major_name" value="{{ selected_major }}" />
-      <input type="hidden" name="Man" value="{{ five_m.Man if five_m else '' }}" />
-      <input type="hidden" name="Machine" value="{{ five_m.Machine if five_m else '' }}" />
-      <input type="hidden" name="Material" value="{{ five_m.Material if five_m else '' }}" />
-      <input type="hidden" name="Method" value="{{ five_m.Method if five_m else '' }}" />
-      <input type="hidden" name="Management" value="{{ five_m.Management if five_m else '' }}" />
-      <input type="hidden" name="Environment" value="{{ five_m.Environment if five_m else '' }}" />
-      <input type="hidden" name="report_text" value="{{ report_text }}" />
-      <button type="submit" name="command_num" value="1" class="btn btn-sm btn-secondary">1 작업표준</button>
-      <button type="submit" name="command_num" value="2" class="btn btn-sm btn-secondary">2 기술자료</button>
-      <button type="submit" name="command_num" value="3" class="btn btn-sm btn-secondary">3 사고사례</button>
-      <button type="submit" name="command_num" value="4" class="btn btn-sm btn-secondary">4 진행단계</button>
-      <button type="submit" name="command_num" value="5" class="btn btn-sm btn-secondary">5 법령조항</button>
-      <button type="submit" name="command_num" value="6" class="btn btn-sm btn-secondary">6 교육자료</button>
-      <button type="submit" name="command_num" value="7" class="btn btn-sm btn-secondary">7 기타</button>
-      <input type="text" name="user_question" placeholder="7번 기타 질문 입력" class="risk-q" />
-    </form>
-    {% if command_result %}
-    <div class="risk-cmd-result">
-      <pre>{{ command_result }}</pre>
-    </div>
-    {% endif %}
-    {% endif %}
-  </section>
-</div>
+  <div class="risk-meta-block">
+    <div>부서명: {{ meta.department or '-' }}</div>
+    <div>평가서NO: {{ meta.assessment_no or '-' }}</div>
+    <div>작업명: {{ work_name }}</div>
+    <div>평가담당: {{ meta.evaluator or '-' }}</div>
+  </div>
+
+  <div class="table-scroll">
+    <table class="data-table risk-form-table">
+      <thead>
+        <tr>
+          <th>작업순서</th>
+          <th>작업공정</th>
+          <th>재해형태</th>
+          <th>유해위험요인</th>
+          <th>F</th><th>S</th><th>R</th>
+          <th>현재안전조치(전)</th>
+          <th>결과(전)</th>
+          <th>F</th><th>S</th><th>R</th>
+          <th>현재안전조치(후)</th>
+          <th>결과(후)</th>
+          <th>법적근거</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in form_rows %}
+        <tr>
+          <td>{{ r.work_sequence }}</td>
+          <td>{{ r.work_process }}</td>
+          <td>{{ r.disaster_type }}</td>
+          <td>{{ r.hazard_factor }}</td>
+          <td>{{ r.f_before }}</td>
+          <td>{{ r.s_before }}</td>
+          <td>{{ r.r_before }}</td>
+          <td>{{ r.measures_before }}</td>
+          <td><span class="badge risk-grade">{{ r.result_before }}</span></td>
+          <td>{{ r.f_after }}</td>
+          <td>{{ r.s_after }}</td>
+          <td>{{ r.r_after }}</td>
+          <td class="risk-improve">{{ r.measures_after }}</td>
+          <td><span class="badge risk-grade">{{ r.result_after }}</span></td>
+          <td>
+            {% if r.law_url %}
+            <a href="{{ r.law_url }}" target="_blank" rel="noopener">{{ r.law }}</a>
+            {% else %}{{ r.law or '-' }}{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="d1-hint">※ R = F × S</p>
+
+  <h3>추가 명령 (1~7)</h3>
+  <form method="post" action="/admin/risk-assessment/command" class="risk-cmd-bar">
+    <input type="hidden" name="work_name" value="{{ work_name }}" />
+    <input type="hidden" name="major_name" value="{{ selected_major }}" />
+    <input type="hidden" name="Man" value="{{ five_m.Man if five_m else '' }}" />
+    <input type="hidden" name="Machine" value="{{ five_m.Machine if five_m else '' }}" />
+    <input type="hidden" name="Material" value="{{ five_m.Material if five_m else '' }}" />
+    <input type="hidden" name="Method" value="{{ five_m.Method if five_m else '' }}" />
+    <input type="hidden" name="Management" value="{{ five_m.Management if five_m else '' }}" />
+    <input type="hidden" name="Environment" value="{{ five_m.Environment if five_m else '' }}" />
+    <input type="hidden" name="report_text" value="{{ report_text }}" />
+    <button type="submit" name="command_num" value="1" class="btn btn-sm btn-secondary">1 작업표준</button>
+    <button type="submit" name="command_num" value="2" class="btn btn-sm btn-secondary">2 기술자료</button>
+    <button type="submit" name="command_num" value="3" class="btn btn-sm btn-secondary">3 사고사례</button>
+    <button type="submit" name="command_num" value="4" class="btn btn-sm btn-secondary">4 진행단계</button>
+    <button type="submit" name="command_num" value="5" class="btn btn-sm btn-secondary">5 법령조항</button>
+    <button type="submit" name="command_num" value="6" class="btn btn-sm btn-secondary">6 교육자료</button>
+    <button type="submit" name="command_num" value="7" class="btn btn-sm btn-secondary">7 기타</button>
+    <input type="text" name="user_question" placeholder="7번 기타 질문 입력" class="risk-q" />
+  </form>
+  {% if command_result %}
+  <div class="risk-cmd-result">
+    <pre>{{ command_result }}</pre>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
 
 <script type="application/json" id="risk-presets-data">{{ presets_json | safe }}</script>
 <script>
@@ -212,23 +218,15 @@
     Management: document.getElementById('risk-management'),
     Environment: document.getElementById('risk-environment')
   };
-    var selectedName = {{ preset_name_json | safe }};
+  var selectedName = {{ preset_name_json | safe }};
 
   function rebuild() {
-    var m = major.value || '';
     preset.innerHTML = '';
     var opt0 = document.createElement('option');
     opt0.value = '';
     opt0.textContent = '직접 입력 / 검색';
     preset.appendChild(opt0);
     presets.forEach(function (p) {
-      var majorId = '';
-      // major filter by matching major name via data from server (major_category is id)
-      // We pass major_name_map in presets? Use major select name vs category id from majors list
-      if (m) {
-        var majEl = major.options[major.selectedIndex];
-        // filter client-side: presets include major_category id; map name->id from option data
-      }
       var opt = document.createElement('option');
       opt.value = p.name;
       opt.textContent = (p.sub_category ? '[' + p.sub_category + '] ' : '') + p.name;
@@ -274,7 +272,7 @@
     });
   });
 
-  major.addEventListener('change', function () { filterByMajor(); });
+  major.addEventListener('change', filterByMajor);
   preset.addEventListener('change', applyPreset);
   rebuild();
   {% if form_rows is defined %}
