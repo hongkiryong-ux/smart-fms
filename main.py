@@ -1912,13 +1912,14 @@ async def risk_assessment_run(
             status_code=500,
         )
 
-    # 세션에 결과 보관 (HTML 내보내기·추가명령용)
+    # 세션에 결과 보관 (HTML/Excel 내보내기·추가명령용)
     request.session["risk_last"] = {
         "work_name": result["work_name"],
         "report_text": result["report_text"],
         "five_m": five_m,
         "major_name": major_name.strip(),
-        "meta": meta,
+        "meta": {**(meta or {}), "mode": result["mode"]},
+        "rows": result["rows"],
     }
 
     return templates.TemplateResponse(
@@ -1983,6 +1984,51 @@ h1 {{ color: #2b5797; border-bottom: 2px solid #2b5797; padding-bottom: 0.5rem; 
     return StreamingResponse(
         BytesIO(html.encode("utf-8")),
         media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
+@app.post("/admin/risk-assessment/export-excel")
+async def risk_assessment_export_excel(
+    request: Request,
+    user: User = Depends(require_login),
+):
+    from datetime import datetime as _dt
+    from io import BytesIO
+    from urllib.parse import quote
+
+    from risk_assessment.web_bridge import assess, export_excel_bytes
+
+    last = request.session.get("risk_last") or {}
+    job = (last.get("work_name") or "위험성평가").strip()
+    rows = last.get("rows") or []
+    meta = dict(last.get("meta") or {})
+
+    # 세션에 rows가 없으면(쿠키 용량 등) 동일 조건으로 재평가
+    if not rows and last.get("five_m") is not None:
+        rebuilt = assess(
+            job,
+            last.get("five_m") or {},
+            use_ai=False,
+            major_name=last.get("major_name") or "",
+            meta=meta,
+        )
+        rows = rebuilt.get("rows") or []
+        job = rebuilt.get("work_name") or job
+
+    if not rows:
+        return RedirectResponse("/admin/risk-assessment", status_code=303)
+
+    try:
+        data = export_excel_bytes(job, rows, meta)
+    except Exception:
+        return RedirectResponse("/admin/risk-assessment", status_code=303)
+
+    stamp = _dt.now().strftime("%Y%m%d_%H%M")
+    filename = quote(f"{job}_{stamp}.xlsx")
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
     )
 

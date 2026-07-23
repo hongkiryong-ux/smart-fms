@@ -132,11 +132,37 @@ def form_rows_to_dict(form_rows) -> list[dict]:
     return out
 
 
-def build_report_text(job_name: str, rows, meta: dict | None = None) -> str:
-    from app.report_exporter import AssessmentBundle, ReportMeta, format_report_text
+def dicts_to_risk_rows(row_dicts: list[dict] | None):
+    from app.local_engine import RiskRow
+
+    rows = []
+    for d in row_dicts or []:
+        rows.append(
+            RiskRow(
+                work_class=str(d.get("work_class") or ""),
+                phase=str(d.get("phase") or ""),
+                unit_task=str(d.get("unit_task") or ""),
+                hazard=str(d.get("hazard") or ""),
+                injury=str(d.get("injury") or ""),
+                current=str(d.get("current") or ""),
+                freq_before=int(d.get("freq_before") or 1),
+                sev_before=int(d.get("sev_before") or 1),
+                improvements=str(d.get("improvements") or ""),
+                law=str(d.get("law") or ""),
+                law_url=str(d.get("law_url") or ""),
+                freq_after=int(d.get("freq_after") or 1),
+                sev_after=int(d.get("sev_after") or 1),
+                source=str(d.get("source") or ""),
+            )
+        )
+    return rows
+
+
+def _make_bundle(job_name: str, rows, meta: dict | None = None):
+    from app.report_exporter import AssessmentBundle, ReportMeta
 
     m = meta or {}
-    bundle = AssessmentBundle(
+    return AssessmentBundle(
         meta=ReportMeta(
             job_name=job_name,
             department=m.get("department") or "",
@@ -149,7 +175,32 @@ def build_report_text(job_name: str, rows, meta: dict | None = None) -> str:
         rows=rows,
         mode=m.get("mode") or "local",
     )
-    return format_report_text(bundle)
+
+
+def build_report_text(job_name: str, rows, meta: dict | None = None) -> str:
+    from app.report_exporter import format_report_text
+
+    return format_report_text(_make_bundle(job_name, rows, meta))
+
+
+def export_excel_bytes(
+    job_name: str,
+    row_dicts: list[dict] | None,
+    meta: dict | None = None,
+) -> bytes:
+    """원본 export_to_excel로 위험성평가서 .xlsx 바이트 생성."""
+    from tempfile import TemporaryDirectory
+
+    from app.report_exporter import export_to_excel
+
+    rows = dicts_to_risk_rows(row_dicts)
+    if not rows:
+        raise ValueError("내보낼 평가 결과가 없습니다.")
+    bundle = _make_bundle(job_name, rows, meta)
+    with TemporaryDirectory() as td:
+        path = Path(td) / "risk_assessment.xlsx"
+        export_to_excel(bundle, path)
+        return path.read_bytes()
 
 
 def assess(
