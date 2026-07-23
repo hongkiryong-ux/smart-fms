@@ -937,38 +937,61 @@ button.link-action:hover { text-decoration: underline; }
   font-weight: 600;
 }
 
-/* 정비 목록 인라인 편집 */
-.wo-list-table td { vertical-align: top; }
-.wo-title-cell strong { display: block; margin-bottom: 0.25rem; }
-.wo-desc {
-  color: var(--text);
-  font-size: 0.88rem;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
-  margin-bottom: 0.4rem;
-  max-width: 280px;
+/* 정비 목록 — 항목당 한 줄 */
+.wo-list-compact td {
+  vertical-align: middle;
+  white-space: nowrap;
+  padding: 0.45rem 0.55rem;
 }
-.wo-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.wo-inline-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  min-width: 200px;
+.wo-list-compact th {
+  white-space: nowrap;
+}
+.wo-eq-cell {
+  max-width: 180px;
+}
+.wo-eq-cell code {
+  display: inline;
+  margin-right: 0.25rem;
+}
+.wo-eq-name {
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wo-req-cell {
+  max-width: 260px;
+  white-space: nowrap !important;
+}
+.wo-req-text {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.wo-date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.wo-row-form {
+  margin: 0;
+  display: inline;
 }
 .wo-status-select {
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 0.9rem;
-}
-.wo-inline-form textarea {
-  padding: 0.4rem 0.5rem;
+  padding: 0.3rem 0.4rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.85rem;
-  resize: vertical;
-  min-height: 52px;
+  max-width: 110px;
+}
+.wo-action-input {
+  width: 160px;
+  min-width: 120px;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
   font-family: inherit;
 }
 .sr-only {

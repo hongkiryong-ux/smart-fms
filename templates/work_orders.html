@@ -10,52 +10,62 @@
   <section class="card card-wide">
     <h2>정비 목록</h2>
     <div class="table-scroll">
-    <table class="data-table wo-list-table">
+    <table class="data-table wo-list-table wo-list-compact">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>제목 / 의뢰내용</th>
           <th>설비</th>
-          <th>우선순위</th>
+          <th>정비의뢰내용</th>
           <th>등록일</th>
-          <th>진행 / 조치</th>
+          <th>우선순위</th>
+          <th>진행</th>
+          <th>조치내용</th>
+          <th>저장</th>
+          <th>상세</th>
         </tr>
       </thead>
       <tbody>
         {% for wo in orders %}
         <tr>
-          <td><a href="/admin/work-orders/{{ wo.id }}">#{{ wo.id }}</a></td>
-          <td class="wo-title-cell">
-            <strong>{{ wo.title }}</strong>
-            <div class="wo-desc">{{ wo.description or '(의뢰내용 없음)' }}</div>
-            <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
-          </td>
-          <td>
+          <td class="wo-eq-cell">
             {% if wo.equipment %}
-            <code>{{ wo.equipment.code }}</code><br />
-            <span class="text-muted">{{ wo.equipment.name }}</span>
+            <code>{{ wo.equipment.code }}</code>
+            <span class="wo-eq-name">{{ wo.equipment.name }}</span>
             {% else %}-{% endif %}
           </td>
-          <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
+          <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
+            <span class="wo-req-text">
+              {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
+            </span>
+          </td>
           <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
-          <td class="wo-inline-actions">
-            <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-inline-form">
+          <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
+          <td>
+            <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
               <input type="hidden" name="redirect" value="list" />
-              <label class="sr-only">상태</label>
-              <select name="status" class="wo-status-select">
+              <select name="status" class="wo-status-select" form="wo-form-{{ wo.id }}">
                 <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
                 <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
                 <option value="completed" {% if wo.status.value in ['completed','verified','closed'] %}selected{% endif %}>정비완료</option>
               </select>
-              <label class="sr-only">조치내용</label>
-              <textarea name="action" rows="2" placeholder="조치내용 입력">{{ wo.action or '' }}</textarea>
-              <button type="submit" class="btn btn-sm btn-primary">저장</button>
-              <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
             </form>
+          </td>
+          <td>
+            <input type="text"
+                   name="action"
+                   form="wo-form-{{ wo.id }}"
+                   class="wo-action-input"
+                   value="{{ wo.action or '' }}"
+                   placeholder="조치내용 입력" />
+          </td>
+          <td>
+            <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
+          </td>
+          <td>
+            <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="empty">등록된 정비의뢰가 없습니다.</td></tr>
+        <tr><td colspan="8" class="empty">등록된 정비의뢰가 없습니다.</td></tr>
         {% endfor %}
       </tbody>
     </table>
