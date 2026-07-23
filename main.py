@@ -1472,6 +1472,12 @@ async def work_orders_list(
         await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
     ).scalars().unique().all()
 
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)
+        )
+    ).scalars().all()
+
     buildings = (
         await db.execute(
             select(Building)
@@ -1513,6 +1519,7 @@ async def work_orders_list(
         {
             "user": user,
             "orders": orders,
+            "partners": partners,
             "buildings": buildings,
             "equipment_opts": equipment_opts,
             "equipment_opts_json": json.dumps(equipment_opts, ensure_ascii=False),
@@ -1595,10 +1602,20 @@ async def work_order_detail(
     ).scalar_one_or_none()
     if not wo:
         raise HTTPException(404)
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "work_order_detail.html",
-        {"user": user, "wo": wo, "process_step": _wo_process_step(wo.status)},
+        {
+            "user": user,
+            "wo": wo,
+            "partners": partners,
+            "process_step": _wo_process_step(wo.status),
+        },
     )
 
 
@@ -1609,6 +1626,7 @@ async def work_order_status(
     action: str = Form(""),
     cause: str = Form(""),
     assignee_name: str = Form(""),
+    partner_id: int = Form(0),
     redirect: str = Form(""),
     q: str = Form(""),
     filter_status: str = Form(""),
@@ -1635,6 +1653,13 @@ async def work_order_status(
         wo.cause = cause.strip()
     if assignee_name.strip():
         wo.assignee_name = assignee_name.strip()
+
+    # 협력사 지정/해제
+    if partner_id and partner_id > 0:
+        partner = await db.get(Partner, partner_id)
+        wo.partner_id = partner.id if partner and partner.is_active else None
+    else:
+        wo.partner_id = None
 
     if status == "completed":
         wo.completed_at = datetime.utcnow()

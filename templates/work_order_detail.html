@@ -60,6 +60,13 @@
         <option value="in_progress" {% if process_step == 2 %}selected{% endif %}>정비진행</option>
         <option value="completed" {% if process_step == 3 %}selected{% endif %}>정비완료</option>
       </select>
+      <label>협력사</label>
+      <select name="partner_id">
+        <option value="0">미지정</option>
+        {% for p in partners %}
+        <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
       <label>담당자</label>
       <input type="text" name="assignee_name" value="{{ wo.assignee_name or '' }}" />
       <label>원인</label>

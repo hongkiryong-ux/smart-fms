@@ -63,6 +63,7 @@
           <th>정비의뢰내용</th>
           <th>등록일</th>
           <th>우선순위</th>
+          <th>협력사</th>
           <th>진행</th>
           <th>조치내용</th>
           <th>저장</th>
@@ -72,10 +73,9 @@
       <tbody>
         {% for wo in orders %}
         <tr>
-          <td class="wo-eq-cell">
+          <td class="wo-eq-cell" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
             {% if wo.equipment %}
             <code>{{ wo.equipment.code }}</code>
-            <span class="wo-eq-name">{{ wo.equipment.name }}</span>
             {% else %}-{% endif %}
           </td>
           <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
@@ -85,6 +85,14 @@
           </td>
           <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
           <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
+          <td>
+            <select name="partner_id" form="wo-form-{{ wo.id }}" class="wo-partner-select" title="협력사">
+              <option value="0">미지정</option>
+              {% for p in partners %}
+              <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
           <td>
             <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
               <input type="hidden" name="redirect" value="list" />
@@ -106,7 +114,8 @@
                    form="wo-form-{{ wo.id }}"
                    class="wo-action-input"
                    value="{{ wo.action or '' }}"
-                   placeholder="조치내용 입력" />
+                   placeholder="조치내용"
+                   title="{{ wo.action or '' }}" />
           </td>
           <td>
             <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
@@ -116,7 +125,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+        <tr><td colspan="9" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
         {% endfor %}
       </tbody>
     </table>
