@@ -3,12 +3,39 @@
 {% block content %}
 <header class="page-header">
   <h1>정비관리 (CMMS)</h1>
-  <p>정비의뢰 → 정비진행 → 정비완료 · 목록에서 바로 상태·조치내용 저장 가능</p>
+  <p>정비의뢰 → 정비진행 → 정비완료 · 검색/필터 후 목록에서 바로 상태·조치 저장</p>
 </header>
 
 <div class="grid-2">
   <section class="card card-wide">
-    <h2>정비 목록</h2>
+    <div class="wo-list-head">
+      <h2>정비 목록 <small class="text-muted">({{ result_count }}건)</small></h2>
+    </div>
+
+    <form method="get" action="/admin/work-orders" class="wo-filter-bar">
+      <input type="search"
+             name="q"
+             value="{{ filters.q }}"
+             placeholder="설비코드·명칭·의뢰내용·조치·담당자 검색"
+             class="wo-filter-q" />
+      <select name="status" class="wo-filter-select">
+        <option value="">진행 전체</option>
+        <option value="received" {% if filters.status == 'received' %}selected{% endif %}>정비의뢰</option>
+        <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>정비진행</option>
+        <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>정비완료</option>
+      </select>
+      <select name="priority" class="wo-filter-select">
+        <option value="">우선순위 전체</option>
+        <option value="high" {% if filters.priority == 'high' %}selected{% endif %}>긴급</option>
+        <option value="normal" {% if filters.priority == 'normal' %}selected{% endif %}>일반</option>
+      </select>
+      <input type="date" name="date_from" value="{{ filters.date_from }}" class="wo-filter-date" title="등록일 시작" />
+      <span class="wo-filter-tilde">~</span>
+      <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo-filter-date" title="등록일 종료" />
+      <button type="submit" class="btn btn-sm btn-primary">검색</button>
+      <a class="btn btn-sm btn-secondary" href="/admin/work-orders">초기화</a>
+    </form>
+
     <div class="table-scroll">
     <table class="data-table wo-list-table wo-list-compact">
       <thead>
@@ -42,6 +69,11 @@
           <td>
             <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
               <input type="hidden" name="redirect" value="list" />
+              <input type="hidden" name="q" value="{{ filters.q }}" />
+              <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+              <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+              <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+              <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
               <select name="status" class="wo-status-select" form="wo-form-{{ wo.id }}">
                 <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
                 <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
@@ -65,7 +97,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="empty">등록된 정비의뢰가 없습니다.</td></tr>
+        <tr><td colspan="8" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -938,6 +938,42 @@ button.link-action:hover { text-decoration: underline; }
 }
 
 /* 정비 목록 — 항목당 한 줄 */
+.wo-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.wo-list-head h2 { margin: 0; }
+.wo-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.wo-filter-q {
+  flex: 1 1 200px;
+  min-width: 180px;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.wo-filter-select,
+.wo-filter-date {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+}
+.wo-filter-tilde { color: var(--muted); }
 .wo-list-compact td {
   vertical-align: middle;
   white-space: nowrap;

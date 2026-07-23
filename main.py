@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.middleware.sessions import SessionMiddleware
@@ -1378,17 +1378,88 @@ async def equipment_type_create(
 @app.get("/admin/work-orders")
 async def work_orders_list(
     request: Request,
+    q: str = "",
+    status: str = "",
+    priority: str = "",
+    date_from: str = "",
+    date_to: str = "",
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    q_val = (q or "").strip()
+    status_val = (status or "").strip()
+    priority_val = (priority or "").strip()
+    date_from_val = (date_from or "").strip()
+    date_to_val = (date_to or "").strip()
+
+    stmt = (
+        select(WorkOrder)
+        .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
+        .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
+    )
+    filters = []
+
+    if q_val:
+        like = f"%{q_val}%"
+        filters.append(
+            or_(
+                WorkOrder.title.ilike(like),
+                WorkOrder.description.ilike(like),
+                WorkOrder.action.ilike(like),
+                WorkOrder.assignee_name.ilike(like),
+                Equipment.code.ilike(like),
+                Equipment.name.ilike(like),
+            )
+        )
+
+    if status_val == "received":
+        filters.append(
+            WorkOrder.status.in_([WorkOrderStatus.received, WorkOrderStatus.assigned])
+        )
+    elif status_val == "in_progress":
+        filters.append(WorkOrder.status == WorkOrderStatus.in_progress)
+    elif status_val == "completed":
+        filters.append(
+            WorkOrder.status.in_(
+                [
+                    WorkOrderStatus.completed,
+                    WorkOrderStatus.verified,
+                    WorkOrderStatus.closed,
+                ]
+            )
+        )
+
+    if priority_val in ("normal", "high"):
+        filters.append(WorkOrder.priority == priority_val)
+
+    if date_from_val:
+        try:
+            filters.append(
+                WorkOrder.created_at
+                >= datetime.fromisoformat(date_from_val).replace(tzinfo=None)
+            )
+        except ValueError:
+            pass
+    if date_to_val:
+        try:
+            # 종료일 포함 (다음날 0시 미만)
+            end = datetime.fromisoformat(date_to_val).replace(tzinfo=None)
+            filters.append(WorkOrder.created_at < end.replace(hour=23, minute=59, second=59, microsecond=999999))
+        except ValueError:
+            pass
+
+    if filters:
+        stmt = stmt.where(and_(*filters))
+
     orders = (
+        await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
+    ).scalars().unique().all()
+
+    equipment = (
         await db.execute(
-            select(WorkOrder)
-            .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
-            .order_by(WorkOrder.created_at.desc())
+            select(Equipment).where(Equipment.is_active == True).order_by(Equipment.code)
         )
     ).scalars().all()
-    equipment = (await db.execute(select(Equipment).order_by(Equipment.code))).scalars().all()
     partners = (await db.execute(select(Partner).where(Partner.is_active == True))).scalars().all()
     return templates.TemplateResponse(
         request,
@@ -1398,6 +1469,14 @@ async def work_orders_list(
             "orders": orders,
             "equipment": equipment,
             "partners": partners,
+            "filters": {
+                "q": q_val,
+                "status": status_val,
+                "priority": priority_val,
+                "date_from": date_from_val,
+                "date_to": date_to_val,
+            },
+            "result_count": len(orders),
         },
     )
 
@@ -1476,9 +1555,16 @@ async def work_order_status(
     cause: str = Form(""),
     assignee_name: str = Form(""),
     redirect: str = Form(""),
+    q: str = Form(""),
+    filter_status: str = Form(""),
+    filter_priority: str = Form(""),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    from urllib.parse import urlencode
+
     wo = await db.get(WorkOrder, wo_id)
     if not wo:
         raise HTTPException(404)
@@ -1505,7 +1591,19 @@ async def work_order_status(
 
     await db.commit()
     if redirect == "list":
-        return RedirectResponse("/admin/work-orders", status_code=303)
+        params = {
+            k: v
+            for k, v in {
+                "q": q.strip(),
+                "status": filter_status.strip(),
+                "priority": filter_priority.strip(),
+                "date_from": date_from.strip(),
+                "date_to": date_to.strip(),
+            }.items()
+            if v
+        }
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
     return RedirectResponse(f"/admin/work-orders/{wo_id}", status_code=303)
 
 
