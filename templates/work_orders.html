@@ -78,6 +78,7 @@
         <th>조치내용</th>
         <th>저장</th>
         <th>상세</th>
+        <th>삭제</th>
       </tr>
     </thead>
     <tbody>
@@ -141,9 +142,21 @@
         <td>
           <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
         </td>
+        <td>
+          <form method="post" action="/admin/work-orders/{{ wo.id }}/delete" class="inline-form"
+                onsubmit="return confirm('이 정비의뢰를 삭제할까요?');">
+            <input type="hidden" name="redirect" value="list" />
+            <input type="hidden" name="q" value="{{ filters.q }}" />
+            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+            <button type="submit" class="link-action link-danger">삭제</button>
+          </form>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="10" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      <tr><td colspan="11" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>

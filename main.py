@@ -335,32 +335,39 @@ async def dashboard(
             )
         )
     ).scalar() or 0
-    wo_total = (await db.execute(select(func.count(WorkOrder.id)))).scalar() or 0
+    wo_total = (
+        await db.execute(
+            select(func.count(WorkOrder.id)).where(WorkOrder.is_active == True)
+        )
+    ).scalar() or 0
     wo_progress = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,
                 WorkOrder.status.in_(
                     [WorkOrderStatus.received, WorkOrderStatus.assigned, WorkOrderStatus.in_progress]
-                )
+                ),
             )
         )
     ).scalar() or 0
     wo_done = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,
                 WorkOrder.status.in_(
                     [
                         WorkOrderStatus.completed,
                         WorkOrderStatus.verified,
                         WorkOrderStatus.closed,
                     ]
-                )
+                ),
             )
         )
     ).scalar() or 0
     wo_urgent = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,
                 WorkOrder.priority == "high",
                 WorkOrder.status.in_(
                     [
@@ -394,7 +401,10 @@ async def dashboard(
 
     recent_wo = (
         await db.execute(
-            select(WorkOrder).order_by(WorkOrder.created_at.desc()).limit(5)
+            select(WorkOrder)
+            .where(WorkOrder.is_active == True)
+            .order_by(WorkOrder.created_at.desc())
+            .limit(5)
         )
     ).scalars().all()
     upcoming_pm = (
@@ -1104,7 +1114,8 @@ async def equipment_detail(
     open_orders = [
         wo
         for wo in (eq.work_orders or [])
-        if wo.status
+        if getattr(wo, "is_active", True)
+        and wo.status
         not in (WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed)
     ]
     return templates.TemplateResponse(
@@ -1149,7 +1160,8 @@ async def equipment_popup(
     open_orders = [
         wo
         for wo in (eq.work_orders or [])
-        if wo.status
+        if getattr(wo, "is_active", True)
+        and wo.status
         not in (WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed)
     ]
     return templates.TemplateResponse(
@@ -1351,9 +1363,13 @@ async def equipment_edit(
 @app.post("/admin/equipment/{eq_id}/delete")
 async def equipment_delete(
     eq_id: int,
+    redirect_building_id: int = Form(0),
+    redirect_category: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    from urllib.parse import quote
+
     result = await db.execute(
         select(Equipment)
         .where(Equipment.id == eq_id)
@@ -1364,13 +1380,22 @@ async def equipment_delete(
     eq = result.scalar_one_or_none()
     if not eq:
         raise HTTPException(404)
-    building_id = eq.zone.floor.building_id if eq.zone and eq.zone.floor else 0
-    cat = eq.category
+    building_id = (
+        redirect_building_id
+        if redirect_building_id > 0
+        else (eq.zone.floor.building_id if eq.zone and eq.zone.floor else 0)
+    )
+    cat = (redirect_category or "").strip() or eq.category
     eq.is_active = False
     await db.commit()
     if building_id:
+        if cat:
+            return RedirectResponse(
+                f"/admin/equipment?building_id={building_id}&category={quote(cat)}",
+                status_code=303,
+            )
         return RedirectResponse(
-            f"/admin/equipment?building_id={building_id}&category={cat}",
+            f"/admin/equipment?building_id={building_id}",
             status_code=303,
         )
     return RedirectResponse("/admin/equipment", status_code=303)
@@ -1484,6 +1509,7 @@ async def work_orders_list(
         select(WorkOrder)
         .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
         .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
+        .where(WorkOrder.is_active == True)
     )
     filters = []
 
@@ -1690,7 +1716,7 @@ async def work_order_detail(
     wo = (
         await db.execute(
             select(WorkOrder)
-            .where(WorkOrder.id == wo_id)
+            .where(WorkOrder.id == wo_id, WorkOrder.is_active == True)
             .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
         )
     ).scalar_one_or_none()
@@ -1734,7 +1760,7 @@ async def work_order_status(
     from urllib.parse import urlencode
 
     wo = await db.get(WorkOrder, wo_id)
-    if not wo:
+    if not wo or not wo.is_active:
         raise HTTPException(404)
 
     # 3단계 프로세스만 허용
@@ -1793,6 +1819,42 @@ async def work_order_status(
     return RedirectResponse(f"/admin/work-orders/{wo_id}", status_code=303)
 
 
+@app.post("/admin/work-orders/{wo_id}/delete")
+async def work_order_delete(
+    wo_id: int,
+    redirect: str = Form("list"),
+    q: str = Form(""),
+    filter_status: str = Form(""),
+    filter_priority: str = Form(""),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import urlencode
+
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+    wo.is_active = False
+    await db.commit()
+    if redirect == "d1":
+        return RedirectResponse("/admin/d1", status_code=303)
+    params = {
+        k: v
+        for k, v in {
+            "q": q.strip(),
+            "status": filter_status.strip(),
+            "priority": filter_priority.strip(),
+            "date_from": date_from.strip(),
+            "date_to": date_to.strip(),
+        }.items()
+        if v
+    }
+    qs = f"?{urlencode(params)}" if params else ""
+    return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
+
+
 @app.post("/admin/work-orders/{wo_id}/advance")
 async def work_order_advance(
     wo_id: int,
@@ -1801,7 +1863,7 @@ async def work_order_advance(
 ):
     """다음 단계로 진행: 정비의뢰 → 정비중 → 정비완료."""
     wo = await db.get(WorkOrder, wo_id)
-    if not wo:
+    if not wo or not wo.is_active:
         raise HTTPException(404)
     step = _wo_process_step(wo.status)
     if step == 1:
@@ -2249,7 +2311,10 @@ async def d1_list(
     open_works = (
         await db.execute(
             select(WorkOrder)
-            .where(WorkOrder.status.in_(open_statuses))
+            .where(
+                WorkOrder.is_active == True,
+                WorkOrder.status.in_(open_statuses),
+            )
             .options(
                 selectinload(WorkOrder.equipment),
                 selectinload(WorkOrder.partner),
@@ -2274,7 +2339,10 @@ async def d1_list(
     completed_works = (
         await db.execute(
             select(WorkOrder)
-            .where(WorkOrder.status.in_(done_statuses))
+            .where(
+                WorkOrder.is_active == True,
+                WorkOrder.status.in_(done_statuses),
+            )
             .options(
                 selectinload(WorkOrder.equipment),
                 selectinload(WorkOrder.partner),

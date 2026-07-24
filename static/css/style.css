@@ -1154,7 +1154,9 @@ button.link-action:hover { text-decoration: underline; }
 .wo-list-compact th:nth-child(9),
 .wo-list-compact td:nth-child(9) { width: 5%; }
 .wo-list-compact th:nth-child(10),
-.wo-list-compact td:nth-child(10) { width: 5%; }
+.wo-list-compact td:nth-child(10) { width: 4%; }
+.wo-list-compact th:nth-child(11),
+.wo-list-compact td:nth-child(11) { width: 4%; }
 .wo-eq-cell {
   max-width: none;
 }
