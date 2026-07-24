@@ -62,13 +62,39 @@
     var item = document.getElementById('nav-equipment');
     if (!item) return;
     var btn = item.querySelector('.nav-toggle');
-    if (!btn) return;
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      var open = item.classList.toggle('is-open');
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
+    var link = item.querySelector('.nav-parent-link');
+    var key = 'nav-eq-open';
+
+    function setOpen(open) {
+      item.classList.toggle('is-open', !!open);
+      if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      try { sessionStorage.setItem(key, open ? '1' : '0'); } catch (e) {}
+    }
+
+    var stored = null;
+    try { stored = sessionStorage.getItem(key); } catch (e) {}
+    if (stored === '0') setOpen(false);
+    else if (stored === '1') setOpen(true);
+    // stored 없으면 서버 렌더(is-open) 유지
+
+    if (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(!item.classList.contains('is-open'));
+      });
+    }
+    if (link) {
+      link.addEventListener('click', function (e) {
+        // 이미 펼쳐진 상태에서 다시 누르면 닫기 (페이지 이동 없음)
+        if (item.classList.contains('is-open')) {
+          e.preventDefault();
+          setOpen(false);
+          return;
+        }
+        setOpen(true);
+      });
+    }
   })();
   </script>
   {% endif %}
