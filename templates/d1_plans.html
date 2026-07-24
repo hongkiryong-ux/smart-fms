@@ -16,6 +16,7 @@
         <th>조치내용</th>
         <th>저장</th>
         <th>상세</th>
+        <th>삭제</th>
       </tr>
     </thead>
     <tbody>
@@ -74,9 +75,16 @@
         <td>
           <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
         </td>
+        <td>
+          <form method="post" action="/admin/work-orders/{{ wo.id }}/delete" class="inline-form"
+                onsubmit="return confirm('이 정비의뢰를 삭제할까요?');">
+            <input type="hidden" name="redirect" value="d1" />
+            <button type="submit" class="link-action link-danger">삭제</button>
+          </form>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="10" class="empty">{{ empty_msg }}</td></tr>
+      <tr><td colspan="11" class="empty">{{ empty_msg }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
