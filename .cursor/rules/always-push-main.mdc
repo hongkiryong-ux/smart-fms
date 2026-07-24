@@ -1,0 +1,16 @@
+---
+description: FMS 변경 후 commit과 origin main push까지 항상 완료
+alwaysApply: true
+---
+
+# Git 배포 규칙 (Smart FMS)
+
+기능/수정 작업을 마치면 **사용자에게 따로 묻지 말고** 아래를 끝까지 수행한다.
+
+1. 관련 파일만 stage 후 commit (한글 커밋 메시지, why 중심)
+2. `git push origin main`까지 완료
+3. push가 승인(approval)이나 보호 정책에 막히면, 승인 요청을 즉시 재시도해 푸시가 성공할 때까지 처리한다
+4. secrets(`.env`, API 키 등)는 커밋하지 않는다
+5. `data/`, `schemas.json` 등 로컬 샘플은 요청 없으면 커밋하지 않는다
+
+이 저장소는 Render가 `main`을 배포하므로, **push 없이 작업을 끝내지 않는다.**
