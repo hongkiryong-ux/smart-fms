@@ -193,6 +193,41 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "ALTER TABLE material_items ADD COLUMN IF NOT EXISTS location VARCHAR(200)"
         )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS material_groups (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL UNIQUE
+            )
+            """
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS material_items (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(200) NOT NULL UNIQUE,
+                quantity INTEGER DEFAULT 0,
+                spec VARCHAR(300),
+                remarks TEXT,
+                group_name VARCHAR(100) NOT NULL DEFAULT '소모품',
+                location VARCHAR(200),
+                created_at TIMESTAMP WITHOUT TIME ZONE,
+                updated_at TIMESTAMP WITHOUT TIME ZONE
+            )
+            """
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS material_logs (
+                id SERIAL PRIMARY KEY,
+                action VARCHAR(50) NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                quantity INTEGER DEFAULT 0,
+                reason TEXT,
+                created_at TIMESTAMP WITHOUT TIME ZONE
+            )
+            """
+        )
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",

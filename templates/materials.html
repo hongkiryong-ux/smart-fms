@@ -150,16 +150,16 @@
         {% for it in items %}
         <tr data-name="{{ it.name }}"
             data-qty="{{ it.quantity }}"
-            data-spec="{{ it.spec or '' }}"
-            data-remarks="{{ it.remarks or '' }}"
+            data-spec="{{ it.spec }}"
+            data-remarks="{{ it.remarks }}"
             data-group="{{ it.group_name }}"
-            data-location="{{ it.location or '' }}">
+            data-location="{{ it.location }}">
           <td>{{ it.name }}</td>
           <td>{{ it.quantity }}</td>
-          <td>{{ it.spec or '' }}</td>
-          <td>{{ it.remarks or '' }}</td>
+          <td>{{ it.spec }}</td>
+          <td>{{ it.remarks }}</td>
           <td>{{ it.group_name }}</td>
-          <td>{{ it.location or '' }}</td>
+          <td>{{ it.location }}</td>
         </tr>
         {% else %}
         <tr><td colspan="6" class="empty">표시할 자재가 없습니다.</td></tr>
@@ -196,7 +196,7 @@
         <tbody>
           {% for lg in logs %}
           <tr>
-            <td>{{ fmt_kst(lg.created_at) }}</td>
+            <td>{{ lg.created_at_fmt }}</td>
             <td>{{ lg.action }}</td>
             <td>{{ lg.name }}</td>
             <td>{{ lg.quantity }}</td>

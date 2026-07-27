@@ -2571,15 +2571,42 @@ async def _ensure_material_groups(db: AsyncSession) -> list[str]:
         for g in (await db.execute(select(MaterialItem.group_name).distinct())).scalars().all()
         if g
     }
+    changed = False
     for name in list(MATERIAL_DEFAULT_GROUPS) + list(item_groups):
         if name and name not in existing:
             db.add(MaterialGroup(name=name))
             existing.add(name)
-    await db.flush()
+            changed = True
+    if changed:
+        await db.flush()
     rows = (
         await db.execute(select(MaterialGroup.name).order_by(MaterialGroup.name))
     ).scalars().all()
     return list(rows)
+
+
+def _material_item_dict(it: MaterialItem) -> dict:
+    return {
+        "id": it.id,
+        "name": it.name,
+        "quantity": int(it.quantity or 0),
+        "spec": it.spec or "",
+        "remarks": it.remarks or "",
+        "group_name": it.group_name or "",
+        "location": it.location or "",
+    }
+
+
+def _material_log_dict(lg: MaterialLog) -> dict:
+    return {
+        "id": lg.id,
+        "action": lg.action,
+        "name": lg.name,
+        "quantity": int(lg.quantity or 0),
+        "reason": lg.reason or "",
+        "created_at": lg.created_at,
+        "created_at_fmt": _fmt_kst(lg.created_at),
+    }
 
 
 @app.get("/admin/materials")
@@ -2591,48 +2618,63 @@ async def materials_page(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    groups = await _ensure_material_groups(db)
-    await db.commit()
+    try:
+        groups = await _ensure_material_groups(db)
 
-    q_val = (q or "").strip()
-    group_val = (group or "").strip()
-    stmt = select(MaterialItem).order_by(MaterialItem.group_name, MaterialItem.name)
-    if group_val:
-        stmt = stmt.where(MaterialItem.group_name == group_val)
-    if q_val:
-        like = f"%{q_val}%"
-        stmt = stmt.where(
-            or_(
+        q_val = (q or "").strip()
+        group_val = (group or "").strip()
+        stmt = select(MaterialItem).order_by(MaterialItem.group_name, MaterialItem.name)
+        if group_val:
+            stmt = stmt.where(MaterialItem.group_name == group_val)
+        if q_val:
+            like = f"%{q_val}%"
+            filters = [
                 MaterialItem.name.ilike(like),
                 MaterialItem.spec.ilike(like),
                 MaterialItem.remarks.ilike(like),
                 MaterialItem.group_name.ilike(like),
-                MaterialItem.location.ilike(like),
-            )
-        )
-    items = (await db.execute(stmt)).scalars().all()
-    all_items = (
-        await db.execute(select(MaterialItem).order_by(MaterialItem.name))
-    ).scalars().all()
-    items_json = json.dumps(
-        [
+            ]
+            # location 컬럼이 아직 없는 구 DB 대비
+            try:
+                filters.append(MaterialItem.location.ilike(like))
+            except Exception:
+                pass
+            stmt = stmt.where(or_(*filters))
+
+        items = [_material_item_dict(it) for it in (await db.execute(stmt)).scalars().all()]
+        all_items = [
+            _material_item_dict(it)
+            for it in (
+                await db.execute(select(MaterialItem).order_by(MaterialItem.name))
+            ).scalars().all()
+        ]
+        items_json = json.dumps(all_items, ensure_ascii=False)
+        logs = [
+            _material_log_dict(lg)
+            for lg in (
+                await db.execute(
+                    select(MaterialLog)
+                    .order_by(MaterialLog.created_at.desc())
+                    .limit(300)
+                )
+            ).scalars().all()
+        ]
+        await db.commit()
+    except Exception as e:
+        print(f"[materials] page failed: {e}", flush=True)
+        await db.rollback()
+        return templates.TemplateResponse(
+            request,
+            "error.html",
             {
-                "name": it.name,
-                "quantity": it.quantity,
-                "spec": it.spec or "",
-                "remarks": it.remarks or "",
-                "group_name": it.group_name,
-                "location": it.location or "",
-            }
-            for it in all_items
-        ],
-        ensure_ascii=False,
-    )
-    logs = (
-        await db.execute(
-            select(MaterialLog).order_by(MaterialLog.created_at.desc()).limit(300)
+                "user": user,
+                "status_code": 500,
+                "message": "자재관리 화면을 불러오지 못했습니다.",
+                "detail": str(e)[:500],
+            },
+            status_code=500,
         )
-    ).scalars().all()
+
     return templates.TemplateResponse(
         request,
         "materials.html",
