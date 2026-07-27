@@ -110,6 +110,7 @@ engine = _create_engine()
 AsyncSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
+    expire_on_commit=False,  # Jinja 템플릿이 commit 이후 ORM 속성 접근 시 greenlet 오류 방지
     bind=engine,
 )
 

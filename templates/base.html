@@ -10,10 +10,10 @@
 </head>
 <body>
   {% set is_popup = request.query_params.get('popup') == '1' %}
-  {% if user %}
+  {% if user and not is_popup %}
   {% set eq_path = '/equipment' in request.url.path %}
   {% set nav_bid = request.query_params.get('building_id') %}
-  <nav class="sidebar{% if is_popup %} is-hidden-popup{% endif %}">
+  <nav class="sidebar">
     <div class="sidebar-brand">
       <strong>Smart FMS</strong>
       <small>POSCO WIDE</small>

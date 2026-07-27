@@ -2559,8 +2559,8 @@ async def _material_record_log(
     )
 
 
-async def _ensure_material_groups(db: AsyncSession) -> list[str]:
-    """그룹 테이블 + 자재에 있는 그룹을 합쳐 정렬된 이름 목록 반환."""
+async def _list_material_groups(db: AsyncSession) -> list[str]:
+    """조회 전용: DB·자재·기본 그룹을 합쳐 정렬 (GET에서 commit 하지 않음)."""
     existing = {
         g.name
         for g in (await db.execute(select(MaterialGroup))).scalars().all()
@@ -2571,18 +2571,27 @@ async def _ensure_material_groups(db: AsyncSession) -> list[str]:
         for g in (await db.execute(select(MaterialItem.group_name).distinct())).scalars().all()
         if g
     }
-    changed = False
+    return sorted(set(MATERIAL_DEFAULT_GROUPS) | existing | item_groups)
+
+
+async def _ensure_material_groups(db: AsyncSession) -> list[str]:
+    """쓰기 경로용: 기본/자재 그룹을 DB에 반영 후 목록 반환."""
+    existing = {
+        g.name
+        for g in (await db.execute(select(MaterialGroup))).scalars().all()
+        if g.name
+    }
+    item_groups = {
+        g
+        for g in (await db.execute(select(MaterialItem.group_name).distinct())).scalars().all()
+        if g
+    }
     for name in list(MATERIAL_DEFAULT_GROUPS) + list(item_groups):
         if name and name not in existing:
             db.add(MaterialGroup(name=name))
             existing.add(name)
-            changed = True
-    if changed:
-        await db.flush()
-    rows = (
-        await db.execute(select(MaterialGroup.name).order_by(MaterialGroup.name))
-    ).scalars().all()
-    return list(rows)
+    await db.flush()
+    return await _list_material_groups(db)
 
 
 def _material_item_dict(it: MaterialItem) -> dict:
@@ -2618,8 +2627,9 @@ async def materials_page(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    # GET은 읽기만 — commit 금지(템플릿 렌더 시 만료된 user ORM 접근 → greenlet 500 방지)
     try:
-        groups = await _ensure_material_groups(db)
+        groups = await _list_material_groups(db)
 
         q_val = (q or "").strip()
         group_val = (group or "").strip()
@@ -2628,18 +2638,15 @@ async def materials_page(
             stmt = stmt.where(MaterialItem.group_name == group_val)
         if q_val:
             like = f"%{q_val}%"
-            filters = [
-                MaterialItem.name.ilike(like),
-                MaterialItem.spec.ilike(like),
-                MaterialItem.remarks.ilike(like),
-                MaterialItem.group_name.ilike(like),
-            ]
-            # location 컬럼이 아직 없는 구 DB 대비
-            try:
-                filters.append(MaterialItem.location.ilike(like))
-            except Exception:
-                pass
-            stmt = stmt.where(or_(*filters))
+            stmt = stmt.where(
+                or_(
+                    MaterialItem.name.ilike(like),
+                    MaterialItem.spec.ilike(like),
+                    MaterialItem.remarks.ilike(like),
+                    MaterialItem.group_name.ilike(like),
+                    MaterialItem.location.ilike(like),
+                )
+            )
 
         items = [_material_item_dict(it) for it in (await db.execute(stmt)).scalars().all()]
         all_items = [
@@ -2659,9 +2666,6 @@ async def materials_page(
                 )
             ).scalars().all()
         ]
-        # 그룹 신규 반영. expire_on_commit=False — nav_buildings 등 세션 객체 만료로 인한 greenlet 오류 방지
-        db.expire_on_commit = False
-        await db.commit()
     except Exception as e:
         print(f"[materials] page failed: {e}", flush=True)
         await db.rollback()
