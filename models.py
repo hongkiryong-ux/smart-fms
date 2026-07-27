@@ -354,6 +354,34 @@ class InventoryItem(Base):
     unit_price = Column(Float, nullable=True)
 
 
+class MaterialItem(Base):
+    """자재관리(원본 inventory 앱) — 품명 단위 재고."""
+
+    __tablename__ = "material_items"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), unique=True, nullable=False)
+    quantity = Column(Integer, default=0)
+    spec = Column(String(300), nullable=True)
+    remarks = Column(Text, nullable=True)
+    group_name = Column(String(50), nullable=False, default="소모품")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MaterialLog(Base):
+    """자재 입고/출고/삭제 로그."""
+
+    __tablename__ = "material_logs"
+
+    id = Column(Integer, primary_key=True)
+    action = Column(String(50), nullable=False)  # 입고, 출고, 삭제, 등록, 초기화
+    name = Column(String(200), nullable=False)
+    quantity = Column(Integer, default=0)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class AppSetting(Base):
     __tablename__ = "app_settings"
 

@@ -1622,3 +1622,101 @@ button.link-action:hover { text-decoration: underline; }
   }
 }
 
+/* 자재관리 */
+.sidebar.is-hidden-popup { display: none !important; }
+.materials-popup-main {
+  margin: 0 !important;
+  padding: 0.75rem !important;
+  min-height: 100vh;
+  background: #eef2f7;
+}
+.materials-app-popup {
+  margin: 0;
+  min-height: calc(100vh - 1.5rem);
+  border-radius: 0;
+}
+.materials-popup-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 1.05rem;
+}
+.materials-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+.materials-search {
+  display: inline-flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+.materials-search input {
+  min-width: 180px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.materials-form-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 900px) {
+  .materials-form-grid { grid-template-columns: 1fr; }
+}
+.materials-add-form,
+.materials-quick {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+}
+.materials-add-form h3,
+.materials-quick h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+.materials-add-form label,
+.materials-quick label {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0.35rem 0 0.15rem;
+}
+.materials-add-form input,
+.materials-add-form select,
+.materials-quick select {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 0.25rem;
+}
+.materials-add-form .btn { margin-top: 0.65rem; }
+.materials-table tbody tr {
+  cursor: pointer;
+}
+.materials-table tbody tr.is-selected {
+  background: #e8f0fe;
+}
+.materials-dialog {
+  width: min(420px, calc(100vw - 2rem));
+}
+.materials-logs-dialog {
+  width: min(860px, calc(100vw - 2rem));
+}
+.alert-ok {
+  background: #dcfce7;
+  color: #166534;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+

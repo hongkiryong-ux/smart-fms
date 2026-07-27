@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}자재관리{% endblock %}
+{% block content %}
+{% if not popup %}
+<header class="page-header">
+  <h1>자재관리</h1>
+  <p>입고 · 출고 · 삭제 · Excel · 로그 (원본 자재관리 프로그램과 동일)</p>
+</header>
+{% endif %}
+
+<section class="card materials-app{% if popup %} materials-app-popup{% endif %}">
+  {% if popup %}
+  <div class="materials-popup-title">
+    <strong>자재 관리 프로그램</strong>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="window.close()">닫기</button>
+  </div>
+  {% endif %}
+
+  {% if message %}
+  <div class="alert alert-ok">{{ message }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <div class="materials-toolbar">
+    <button type="button" class="btn btn-sm btn-primary" data-open-dialog="mat-in-dialog">자재 입고</button>
+    <button type="button" class="btn btn-sm btn-primary" data-open-dialog="mat-out-dialog">자재 출고</button>
+    <button type="button" class="btn btn-sm btn-danger" data-open-dialog="mat-del-dialog">자재 삭제</button>
+    <a class="btn btn-sm btn-secondary" href="/admin/materials/export">Excel로 저장</a>
+    <button type="button" class="btn btn-sm btn-secondary" data-open-dialog="mat-import-dialog">Excel 데이터 불러오기</button>
+    <a class="btn btn-sm btn-secondary" href="/admin/materials{% if popup %}?popup=1{% endif %}">자재 전체 현황보기</a>
+    <button type="button" class="btn btn-sm btn-secondary" data-open-dialog="mat-logs-dialog">로그 기록 보기</button>
+    <button type="button" class="btn btn-sm btn-danger" data-open-dialog="mat-reset-dialog">전체 데이터 초기화</button>
+
+    <form method="get" action="/admin/materials" class="materials-search">
+      {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+      <input type="search" name="q" value="{{ q }}" placeholder="자재명·사양·비고 검색" />
+      <button type="submit" class="btn btn-sm btn-primary">검색</button>
+    </form>
+  </div>
+
+  <div class="materials-form-grid">
+    <form method="post" action="/admin/materials/add" class="materials-add-form" id="mat-add-form">
+      {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+      <h3>새 자재 추가</h3>
+      <label>그룹 선택</label>
+      <select name="group_name" required>
+        <option value="">선택</option>
+        {% for g in groups %}
+        <option value="{{ g }}">{{ g }}</option>
+        {% endfor %}
+      </select>
+      <label>자재명</label>
+      <input type="text" name="name" list="mat-name-list" required placeholder="새 자재명 입력" />
+      <label>수량</label>
+      <input type="number" name="quantity" min="0" value="0" required />
+      <label>사양</label>
+      <input type="text" name="spec" />
+      <label>비고</label>
+      <input type="text" name="remarks" />
+      <button type="submit" class="btn btn-primary">새 자재 추가</button>
+    </form>
+
+    <div class="materials-quick">
+      <h3>빠른 선택</h3>
+      <p class="text-muted">등록된 자재를 선택해 입고/출고/삭제 팝업에서 사용합니다.</p>
+      <label>자재 선택</label>
+      <select id="mat-quick-name">
+        <option value="">선택</option>
+        {% for n in item_names %}
+        <option value="{{ n }}">{{ n }}</option>
+        {% endfor %}
+      </select>
+      <datalist id="mat-name-list">
+        {% for n in item_names %}
+        <option value="{{ n }}"></option>
+        {% endfor %}
+      </datalist>
+    </div>
+  </div>
+
+  <h2>자재 전체 현황 <small class="text-muted">({{ items|length }}건)</small></h2>
+  <div class="table-scroll">
+    <table class="data-table materials-table">
+      <thead>
+        <tr>
+          <th>그룹</th>
+          <th>자재명</th>
+          <th>수량</th>
+          <th>사양</th>
+          <th>비고</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr data-name="{{ it.name }}">
+          <td>{{ it.group_name }}</td>
+          <td><strong>{{ it.name }}</strong></td>
+          <td class="mat-qty">{{ it.quantity }}</td>
+          <td>{{ it.spec or '-' }}</td>
+          <td>{{ it.remarks or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">등록된 자재가 없습니다. 새 자재를 추가하거나 Excel을 불러오세요.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{# ── 입고 ── #}
+<dialog id="mat-in-dialog" class="eq-dialog materials-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <strong>자재 입고</strong>
+    <button type="submit" class="btn btn-sm btn-secondary" value="cancel">닫기</button>
+  </form>
+  <form method="post" action="/admin/materials/stock-in" class="form-stack eq-popup-body">
+    {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+    <label>자재 선택</label>
+    <select name="name" class="mat-name-field" required>
+      <option value="">선택</option>
+      {% for n in item_names %}
+      <option value="{{ n }}">{{ n }}</option>
+      {% endfor %}
+    </select>
+    <label>입고 수량</label>
+    <input type="number" name="quantity" min="1" value="1" required />
+    <button type="submit" class="btn btn-primary">입고</button>
+  </form>
+</dialog>
+
+{# ── 출고 ── #}
+<dialog id="mat-out-dialog" class="eq-dialog materials-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <strong>자재 출고</strong>
+    <button type="submit" class="btn btn-sm btn-secondary" value="cancel">닫기</button>
+  </form>
+  <form method="post" action="/admin/materials/stock-out" class="form-stack eq-popup-body">
+    {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+    <label>자재 선택</label>
+    <select name="name" class="mat-name-field" required>
+      <option value="">선택</option>
+      {% for n in item_names %}
+      <option value="{{ n }}">{{ n }}</option>
+      {% endfor %}
+    </select>
+    <label>출고 수량</label>
+    <input type="number" name="quantity" min="1" value="1" required />
+    <label>사유 (선택)</label>
+    <input type="text" name="reason" placeholder="출고 사유" />
+    <button type="submit" class="btn btn-primary">출고</button>
+  </form>
+</dialog>
+
+{# ── 삭제 ── #}
+<dialog id="mat-del-dialog" class="eq-dialog materials-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <strong>자재 삭제</strong>
+    <button type="submit" class="btn btn-sm btn-secondary" value="cancel">닫기</button>
+  </form>
+  <form method="post" action="/admin/materials/delete" class="form-stack eq-popup-body"
+        onsubmit="return confirm('선택한 자재를 삭제할까요?');">
+    {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+    <label>자재 선택</label>
+    <select name="name" class="mat-name-field" required>
+      <option value="">선택</option>
+      {% for n in item_names %}
+      <option value="{{ n }}">{{ n }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-danger">삭제</button>
+  </form>
+</dialog>
+
+{# ── Excel 불러오기 ── #}
+<dialog id="mat-import-dialog" class="eq-dialog materials-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <strong>Excel 데이터 불러오기</strong>
+    <button type="submit" class="btn btn-sm btn-secondary" value="cancel">닫기</button>
+  </form>
+  <form method="post" action="/admin/materials/import" enctype="multipart/form-data" class="form-stack eq-popup-body">
+    {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+    <p class="text-muted">컬럼: 그룹, 자재명, 수량, 사양, 비고 (첫 행 헤더 권장)</p>
+    <label>Excel 파일 (.xlsx)</label>
+    <input type="file" name="file" accept=".xlsx,.xlsm,.xls" required />
+    <button type="submit" class="btn btn-primary">가져오기</button>
+  </form>
+</dialog>
+
+{# ── 로그 ── #}
+<dialog id="mat-logs-dialog" class="eq-dialog materials-dialog materials-logs-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <strong>로그 기록 보기</strong>
+    <button type="submit" class="btn btn-sm btn-secondary" value="cancel">닫기</button>
+  </form>
+  <div class="eq-popup-body">
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>일시</th>
+            <th>구분</th>
+            <th>자재명</th>
+            <th>수량</th>
+            <th>사유</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lg in logs %}
+          <tr>
+            <td>{{ fmt_kst(lg.created_at) }}</td>
+            <td>{{ lg.action }}</td>
+            <td>{{ lg.name }}</td>
+            <td>{{ lg.quantity }}</td>
+            <td>{{ lg.reason or '-' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="empty">로그가 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</dialog>
+
+{# ── 초기화 ── #}
+<dialog id="mat-reset-dialog" class="eq-dialog materials-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <strong>전체 데이터 초기화</strong>
+    <button type="submit" class="btn btn-sm btn-secondary" value="cancel">닫기</button>
+  </form>
+  <form method="post" action="/admin/materials/reset" class="form-stack eq-popup-body"
+        onsubmit="return confirm('모든 자재와 로그를 삭제합니다. 계속할까요?');">
+    {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+    <p class="alert alert-error">복구할 수 없습니다. 필요하면 먼저 Excel로 저장하세요.</p>
+    <button type="submit" class="btn btn-danger">전체 초기화 실행</button>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  function openDialog(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (typeof el.showModal === 'function') el.showModal();
+    else el.setAttribute('open', 'open');
+  }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-open-dialog]');
+    if (!btn) return;
+    e.preventDefault();
+    var id = btn.getAttribute('data-open-dialog');
+    var quick = document.getElementById('mat-quick-name');
+    var name = quick ? quick.value : '';
+    openDialog(id);
+    if (name) {
+      var dlg = document.getElementById(id);
+      if (dlg) {
+        dlg.querySelectorAll('.mat-name-field').forEach(function (sel) {
+          sel.value = name;
+        });
+      }
+    }
+  });
+  document.querySelectorAll('.materials-table tbody tr[data-name]').forEach(function (tr) {
+    tr.addEventListener('click', function () {
+      var n = tr.getAttribute('data-name');
+      var quick = document.getElementById('mat-quick-name');
+      if (quick) quick.value = n;
+      tr.parentElement.querySelectorAll('tr').forEach(function (r) { r.classList.remove('is-selected'); });
+      tr.classList.add('is-selected');
+    });
+  });
+  {% if open_logs %}
+  openDialog('mat-logs-dialog');
+  {% endif %}
+})();
+</script>
+{% endblock %}

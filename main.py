@@ -39,6 +39,8 @@ from models import (
     Floor,
     InventoryItem,
     MaintenanceRecord,
+    MaterialItem,
+    MaterialLog,
     Partner,
     PMSchedule,
     Site,
@@ -2528,6 +2530,428 @@ async def inventory_list(
     ).scalars().all()
     return templates.TemplateResponse(
         request, "inventory.html", {"user": user, "items": items}
+    )
+
+
+MATERIAL_GROUPS = ("비품", "소모품", "수공구", "안전용품")
+
+
+async def _material_record_log(
+    db: AsyncSession, action: str, name: str, quantity: int = 0, reason: str = ""
+) -> None:
+    db.add(
+        MaterialLog(
+            action=action,
+            name=name,
+            quantity=quantity,
+            reason=reason or None,
+        )
+    )
+
+
+@app.get("/admin/materials")
+async def materials_page(
+    request: Request,
+    q: str = "",
+    popup: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    q_val = (q or "").strip()
+    stmt = select(MaterialItem).order_by(MaterialItem.group_name, MaterialItem.name)
+    if q_val:
+        like = f"%{q_val}%"
+        stmt = stmt.where(
+            or_(
+                MaterialItem.name.ilike(like),
+                MaterialItem.spec.ilike(like),
+                MaterialItem.remarks.ilike(like),
+                MaterialItem.group_name.ilike(like),
+            )
+        )
+    items = (await db.execute(stmt)).scalars().all()
+    names = (
+        await db.execute(select(MaterialItem.name).order_by(MaterialItem.name))
+    ).scalars().all()
+    logs = (
+        await db.execute(
+            select(MaterialLog).order_by(MaterialLog.created_at.desc()).limit(200)
+        )
+    ).scalars().all()
+    return templates.TemplateResponse(
+        request,
+        "materials.html",
+        {
+            "user": user,
+            "items": items,
+            "item_names": list(names),
+            "logs": logs,
+            "groups": MATERIAL_GROUPS,
+            "q": q_val,
+            "popup": bool(popup),
+            "message": request.query_params.get("message") or "",
+            "error": request.query_params.get("error") or "",
+            "open_logs": request.query_params.get("open") == "logs",
+        },
+    )
+
+
+@app.post("/admin/materials/add")
+async def materials_add(
+    name: str = Form(...),
+    quantity: str = Form(...),
+    group_name: str = Form(...),
+    spec: str = Form(""),
+    remarks: str = Form(""),
+    popup: int = Form(0),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    suffix = "&popup=1" if popup else ""
+    nm = name.strip()
+    grp = group_name.strip()
+    if not nm or not grp:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('자재 이름과 그룹을 입력하세요.')}{suffix}",
+            status_code=303,
+        )
+    if grp not in MATERIAL_GROUPS:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('그룹을 올바르게 선택하세요.')}{suffix}",
+            status_code=303,
+        )
+    try:
+        qty = int(quantity.strip())
+    except ValueError:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('수량은 숫자로 입력하세요.')}{suffix}",
+            status_code=303,
+        )
+    existing = (
+        await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
+    ).scalar_one_or_none()
+    if existing:
+        return RedirectResponse(
+            f"/admin/materials?error={quote(f'이미 등록된 자재입니다: {nm}')}{suffix}",
+            status_code=303,
+        )
+    db.add(
+        MaterialItem(
+            name=nm,
+            quantity=qty,
+            spec=spec.strip() or None,
+            remarks=remarks.strip() or None,
+            group_name=grp,
+        )
+    )
+    await _material_record_log(db, "등록", nm, qty)
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/materials?message={quote(f'{nm} 자재가 추가되었습니다. 수량: {qty}')}{suffix}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/materials/stock-in")
+async def materials_stock_in(
+    name: str = Form(...),
+    quantity: str = Form(...),
+    popup: int = Form(0),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    suffix = "&popup=1" if popup else ""
+    nm = name.strip()
+    try:
+        qty = int(quantity.strip())
+    except ValueError:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('수량은 정수로 입력하세요.')}{suffix}",
+            status_code=303,
+        )
+    if qty <= 0:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('입고 수량은 1 이상이어야 합니다.')}{suffix}",
+            status_code=303,
+        )
+    item = (
+        await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
+    ).scalar_one_or_none()
+    if not item:
+        return RedirectResponse(
+            f"/admin/materials?error={quote(f'{nm}이(가) 자재 목록에 없습니다.')}{suffix}",
+            status_code=303,
+        )
+    item.quantity = int(item.quantity or 0) + qty
+    await _material_record_log(db, "입고", nm, qty)
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/materials?message={quote(f'{nm} 입고 완료. 총 수량: {item.quantity}')}{suffix}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/materials/stock-out")
+async def materials_stock_out(
+    name: str = Form(...),
+    quantity: str = Form(...),
+    reason: str = Form(""),
+    popup: int = Form(0),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    suffix = "&popup=1" if popup else ""
+    nm = name.strip()
+    try:
+        qty = int(quantity.strip())
+    except ValueError:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('수량은 정수로 입력하세요.')}{suffix}",
+            status_code=303,
+        )
+    if qty <= 0:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('출고 수량은 1 이상이어야 합니다.')}{suffix}",
+            status_code=303,
+        )
+    item = (
+        await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
+    ).scalar_one_or_none()
+    if not item:
+        return RedirectResponse(
+            f"/admin/materials?error={quote(f'{nm}이(가) 자재 목록에 없습니다.')}{suffix}",
+            status_code=303,
+        )
+    current = int(item.quantity or 0)
+    if qty > current:
+        return RedirectResponse(
+            f"/admin/materials?error={quote(f'재고 부족: 현재 {current}개')}{suffix}",
+            status_code=303,
+        )
+    item.quantity = current - qty
+    await _material_record_log(db, "출고", nm, qty, reason.strip())
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/materials?message={quote(f'{nm} 출고 완료. 잔여: {item.quantity}')}{suffix}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/materials/delete")
+async def materials_delete(
+    name: str = Form(...),
+    popup: int = Form(0),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    suffix = "&popup=1" if popup else ""
+    nm = name.strip()
+    item = (
+        await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
+    ).scalar_one_or_none()
+    if not item:
+        return RedirectResponse(
+            f"/admin/materials?error={quote(f'{nm}이(가) 자재 목록에 없습니다.')}{suffix}",
+            status_code=303,
+        )
+    qty = int(item.quantity or 0)
+    await db.delete(item)
+    await _material_record_log(db, "삭제", nm, qty)
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/materials?message={quote(f'{nm} 자재가 삭제되었습니다.')}{suffix}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/materials/reset")
+async def materials_reset(
+    popup: int = Form(0),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    from sqlalchemy import delete
+
+    suffix = "&popup=1" if popup else ""
+    await db.execute(delete(MaterialItem))
+    await db.execute(delete(MaterialLog))
+    await _material_record_log(db, "초기화", "(전체)", 0, "전체 데이터 초기화")
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/materials?message={quote('전체 자재·로그가 초기화되었습니다.')}{suffix}",
+        status_code=303,
+    )
+
+
+@app.get("/admin/materials/export")
+async def materials_export(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from io import BytesIO
+    from urllib.parse import quote
+
+    from openpyxl import Workbook
+
+    items = (
+        await db.execute(
+            select(MaterialItem).order_by(MaterialItem.group_name, MaterialItem.name)
+        )
+    ).scalars().all()
+    logs = (
+        await db.execute(select(MaterialLog).order_by(MaterialLog.created_at.desc()))
+    ).scalars().all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "자재현황"
+    ws.append(["그룹", "자재명", "수량", "사양", "비고"])
+    for it in items:
+        ws.append([it.group_name, it.name, it.quantity, it.spec or "", it.remarks or ""])
+
+    ws2 = wb.create_sheet("로그")
+    ws2.append(["일시", "구분", "자재명", "수량", "사유"])
+    for lg in logs:
+        ws2.append(
+            [
+                _fmt_kst(lg.created_at),
+                lg.action,
+                lg.name,
+                lg.quantity,
+                lg.reason or "",
+            ]
+        )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
+    filename = quote(f"자재현황_{stamp}.xlsx")
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
+@app.post("/admin/materials/import")
+async def materials_import(
+    file: UploadFile = File(...),
+    popup: int = Form(0),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from openpyxl import load_workbook
+
+    suffix = "&popup=1" if popup else ""
+    if not file.filename:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('파일을 선택하세요.')}{suffix}",
+            status_code=303,
+        )
+    raw = await file.read()
+    try:
+        from io import BytesIO
+
+        wb = load_workbook(BytesIO(raw), data_only=True)
+        ws = wb.active
+    except Exception as e:
+        return RedirectResponse(
+            f"/admin/materials?error={quote(f'Excel 읽기 실패: {e}')}{suffix}",
+            status_code=303,
+        )
+
+    created = 0
+    updated = 0
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return RedirectResponse(
+            f"/admin/materials?error={quote('빈 파일입니다.')}{suffix}",
+            status_code=303,
+        )
+
+    header = [str(c or "").strip() for c in rows[0]]
+    # 헤더 유무 판별
+    start = 1
+    colmap = {"group": 0, "name": 1, "qty": 2, "spec": 3, "remarks": 4}
+    joined = "|".join(header).lower()
+    if any(k in joined for k in ("자재", "name", "그룹", "수량")):
+        for i, h in enumerate(header):
+            hl = h.lower()
+            if "그룹" in h or "group" in hl:
+                colmap["group"] = i
+            elif "자재" in h or "name" in hl or "품명" in h:
+                colmap["name"] = i
+            elif "수량" in h or "qty" in hl or "quantity" in hl:
+                colmap["qty"] = i
+            elif "사양" in h or "spec" in hl:
+                colmap["spec"] = i
+            elif "비고" in h or "remark" in hl:
+                colmap["remarks"] = i
+    else:
+        start = 0
+
+    def cell(row, idx):
+        if idx is None or idx >= len(row):
+            return ""
+        v = row[idx]
+        return "" if v is None else str(v).strip()
+
+    for row in rows[start:]:
+        if not row or all(c is None or str(c).strip() == "" for c in row):
+            continue
+        nm = cell(row, colmap["name"])
+        if not nm:
+            continue
+        grp = cell(row, colmap["group"]) or "소모품"
+        if grp not in MATERIAL_GROUPS:
+            grp = "소모품"
+        try:
+            qty = int(float(cell(row, colmap["qty"]) or 0))
+        except ValueError:
+            qty = 0
+        spec = cell(row, colmap["spec"]) or None
+        remarks = cell(row, colmap["remarks"]) or None
+
+        existing = (
+            await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
+        ).scalar_one_or_none()
+        if existing:
+            existing.quantity = qty
+            existing.spec = spec
+            existing.remarks = remarks
+            existing.group_name = grp
+            updated += 1
+        else:
+            db.add(
+                MaterialItem(
+                    name=nm,
+                    quantity=qty,
+                    spec=spec,
+                    remarks=remarks,
+                    group_name=grp,
+                )
+            )
+            created += 1
+
+    await _material_record_log(
+        db, "등록", "(Excel가져오기)", created + updated, f"신규 {created} / 갱신 {updated}"
+    )
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/materials?message={quote(f'Excel 반영: 신규 {created}건, 갱신 {updated}건')}{suffix}",
+        status_code=303,
     )
 
 

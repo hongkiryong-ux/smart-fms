@@ -9,10 +9,11 @@
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
+  {% set is_popup = request.query_params.get('popup') == '1' %}
   {% if user %}
   {% set eq_path = '/equipment' in request.url.path %}
   {% set nav_bid = request.query_params.get('building_id') %}
-  <nav class="sidebar">
+  <nav class="sidebar{% if is_popup %} is-hidden-popup{% endif %}">
     <div class="sidebar-brand">
       <strong>Smart FMS</strong>
       <small>POSCO WIDE</small>
@@ -49,7 +50,12 @@
       <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
       <li><a href="/admin/d1" class="{% if request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path %}active{% endif %}">D-1 작업</a></li>
       <li><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
-      <li><a href="/admin/inventory" class="{% if '/inventory' in request.url.path %}active{% endif %}">재고</a></li>
+      <li><a href="/admin/inventory" class="{% if request.url.path == '/admin/inventory' %}active{% endif %}">재고</a></li>
+      <li>
+        <a href="/admin/materials?popup=1"
+           class="{% if '/materials' in request.url.path %}active{% endif %}"
+           onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;">자재관리</a>
+      </li>
       <li><a href="/admin/partners" class="{% if '/partners' in request.url.path %}active{% endif %}">협력사</a></li>
     </ul>
     <div class="sidebar-footer">
@@ -99,7 +105,7 @@
   </script>
   {% endif %}
 
-  <div class="{% if user %}main-with-sidebar{% else %}main-full{% endif %}">
+  <div class="{% if user and not is_popup %}main-with-sidebar{% else %}main-full{% endif %}{% if is_popup %} materials-popup-main{% endif %}">
     {% block content %}{% endblock %}
   </div>
 </body>
