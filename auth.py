@@ -59,10 +59,15 @@ async def get_current_user(
                 rows = (
                     await db.execute(select(Building).where(Building.is_active == True))
                 ).scalars().all()
-                request.state.nav_buildings = sorted(
+                # dict로 보관 — 이후 commit/expire 시 템플릿 greenlet 오류 방지
+                sorted_rows = sorted(
                     list(rows),
                     key=lambda b: nav_building_sort_key(getattr(b, "name", None)),
                 )
+                request.state.nav_buildings = [
+                    {"id": b.id, "name": b.name or "", "code": getattr(b, "code", "") or ""}
+                    for b in sorted_rows
+                ]
             except Exception:
                 request.state.nav_buildings = []
     return user

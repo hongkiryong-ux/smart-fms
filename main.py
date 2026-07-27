@@ -2659,6 +2659,8 @@ async def materials_page(
                 )
             ).scalars().all()
         ]
+        # 그룹 신규 반영. expire_on_commit=False — nav_buildings 등 세션 객체 만료로 인한 greenlet 오류 방지
+        db.expire_on_commit = False
         await db.commit()
     except Exception as e:
         print(f"[materials] page failed: {e}", flush=True)
