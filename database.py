@@ -190,6 +190,9 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "UPDATE work_orders SET is_active = TRUE WHERE is_active IS NULL"
         )
+        await _exec(
+            "ALTER TABLE material_items ADD COLUMN IF NOT EXISTS location VARCHAR(200)"
+        )
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
@@ -197,6 +200,7 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE equipment ADD COLUMN extra_data TEXT",
             "ALTER TABLE work_orders ADD COLUMN scheduled_date DATE",
             "ALTER TABLE work_orders ADD COLUMN is_active BOOLEAN DEFAULT 1",
+            "ALTER TABLE material_items ADD COLUMN location TEXT",
             """
             CREATE TABLE IF NOT EXISTS maintenance_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

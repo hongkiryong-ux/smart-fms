@@ -364,9 +364,19 @@ class MaterialItem(Base):
     quantity = Column(Integer, default=0)
     spec = Column(String(300), nullable=True)
     remarks = Column(Text, nullable=True)
-    group_name = Column(String(50), nullable=False, default="소모품")
+    group_name = Column(String(100), nullable=False, default="소모품")
+    location = Column(String(200), nullable=True)  # 저장 위치
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MaterialGroup(Base):
+    """자재 그룹 (동적 추가/삭제/이름변경)."""
+
+    __tablename__ = "material_groups"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
 
 
 class MaterialLog(Base):
