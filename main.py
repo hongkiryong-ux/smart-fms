@@ -729,10 +729,14 @@ async def equipment_list(
         if selected_building:
             from excel_import import ensure_building_default_categories
 
-            # 기존 건물 진입 시에도 기본 대분류·코드 보장
-            added = await ensure_building_default_categories(db, selected_building)
-            if added:
-                await db.commit()
+            # 기존 건물 진입 시에도 기본 대분류·코드 보장 (중복 층/구역이 있어도 실패하지 않음)
+            try:
+                added = await ensure_building_default_categories(db, selected_building)
+                if added:
+                    await db.commit()
+            except Exception as e:
+                print(f"[equipment_list] default categories skip: {e}", flush=True)
+                await db.rollback()
 
             category_counts = await _building_category_counts(db, building_id)
             categories = sorted(category_counts.keys(), key=_building_sort_key)

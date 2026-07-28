@@ -200,12 +200,24 @@ DEFAULT_BUILDING_CATEGORIES = ("위생기기", "조명기기", "기타 설비")
 async def ensure_building_floor_zone(
     session: AsyncSession, building: Building
 ) -> Zone:
-    """건물에 기본 1층/전체 구역이 없으면 생성."""
+    """건물에 기본 1층/전체 구역이 없으면 생성. 중복 행이 있어도 첫 행을 사용."""
     floor = (
         await session.execute(
-            select(Floor).where(Floor.building_id == building.id, Floor.name == "1층")
+            select(Floor)
+            .where(Floor.building_id == building.id, Floor.name == "1층")
+            .order_by(Floor.id)
+            .limit(1)
         )
-    ).scalar_one_or_none()
+    ).scalars().first()
+    if not floor:
+        floor = (
+            await session.execute(
+                select(Floor)
+                .where(Floor.building_id == building.id)
+                .order_by(Floor.id)
+                .limit(1)
+            )
+        ).scalars().first()
     if not floor:
         floor = Floor(building_id=building.id, name="1층", level=1)
         session.add(floor)
@@ -213,9 +225,18 @@ async def ensure_building_floor_zone(
 
     zone = (
         await session.execute(
-            select(Zone).where(Zone.floor_id == floor.id, Zone.name == "전체")
+            select(Zone)
+            .where(Zone.floor_id == floor.id, Zone.name == "전체")
+            .order_by(Zone.id)
+            .limit(1)
         )
-    ).scalar_one_or_none()
+    ).scalars().first()
+    if not zone:
+        zone = (
+            await session.execute(
+                select(Zone).where(Zone.floor_id == floor.id).order_by(Zone.id).limit(1)
+            )
+        ).scalars().first()
     if not zone:
         zone = Zone(floor_id=floor.id, name="전체", code="ALL")
         session.add(zone)
@@ -253,9 +274,12 @@ async def ensure_building_default_categories(
             candidate = _equipment_code(building.code, cat, idx, cat)
             clash = (
                 await session.execute(
-                    select(Equipment).where(Equipment.code == candidate)
+                    select(Equipment)
+                    .where(Equipment.code == candidate)
+                    .order_by(Equipment.id)
+                    .limit(1)
                 )
-            ).scalar_one_or_none()
+            ).scalars().first()
             if clash is None:
                 code_val = candidate
                 break
@@ -405,7 +429,11 @@ async def backfill_all_building_default_categories(session: AsyncSession) -> int
     ).scalars().all()
     total = 0
     for b in buildings:
-        total += await ensure_building_default_categories(session, b)
+        try:
+            total += await ensure_building_default_categories(session, b)
+        except Exception as e:
+            print(f"[seed] default categories skip building={b.id} {b.name}: {e}", flush=True)
+            await session.rollback()
     await session.commit()
     print(
         f"[seed] default categories backfill: buildings={len(buildings)} created={total}",
