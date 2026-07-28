@@ -193,6 +193,101 @@ def _equipment_code(building_code: str, sheet: str, idx: int, name: str) -> str:
     return f"{building_code}-{base}-{idx:03d}"[:64]
 
 
+# 건물 등록 시 기본으로 만드는 대분류(설비 탭) — 각 1코드
+DEFAULT_BUILDING_CATEGORIES = ("위생기기", "조명기기", "기타 설비")
+
+
+async def ensure_building_floor_zone(
+    session: AsyncSession, building: Building
+) -> Zone:
+    """건물에 기본 1층/전체 구역이 없으면 생성."""
+    floor = (
+        await session.execute(
+            select(Floor).where(Floor.building_id == building.id, Floor.name == "1층")
+        )
+    ).scalar_one_or_none()
+    if not floor:
+        floor = Floor(building_id=building.id, name="1층", level=1)
+        session.add(floor)
+        await session.flush()
+
+    zone = (
+        await session.execute(
+            select(Zone).where(Zone.floor_id == floor.id, Zone.name == "전체")
+        )
+    ).scalar_one_or_none()
+    if not zone:
+        zone = Zone(floor_id=floor.id, name="전체", code="ALL")
+        session.add(zone)
+        await session.flush()
+    return zone
+
+
+async def ensure_building_default_categories(
+    session: AsyncSession, building: Building
+) -> int:
+    """건물마다 위생기기·조명기기·기타 설비 대분류와 코드 1개씩 보장. 신규 생성 건수 반환."""
+    if not building or not building.id:
+        return 0
+    zone = await ensure_building_floor_zone(session, building)
+    created = 0
+    for cat in DEFAULT_BUILDING_CATEGORIES:
+        exists = (
+            await session.execute(
+                select(Equipment.id)
+                .join(Zone)
+                .join(Floor)
+                .where(
+                    Floor.building_id == building.id,
+                    Equipment.category == cat,
+                    Equipment.is_active == True,
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if exists:
+            continue
+
+        code_val = None
+        for idx in range(1, 100):
+            candidate = _equipment_code(building.code, cat, idx, cat)
+            clash = (
+                await session.execute(
+                    select(Equipment).where(Equipment.code == candidate)
+                )
+            ).scalar_one_or_none()
+            if clash is None:
+                code_val = candidate
+                break
+            if not clash.is_active:
+                clash.is_active = True
+                clash.zone_id = zone.id
+                clash.name = cat
+                clash.category = cat
+                clash.status = "normal"
+                created += 1
+                code_val = None
+                break
+        if code_val is None:
+            continue
+
+        session.add(
+            Equipment(
+                zone_id=zone.id,
+                code=code_val,
+                name=cat,
+                category=cat,
+                status="normal",
+                extra_data={},
+            )
+        )
+        created += 1
+
+    if created:
+        await session.flush()
+    return created
+
+
 async def ensure_site_and_building(
     session: AsyncSession, building_name: str
 ) -> tuple[Site, Building, Zone]:
@@ -215,26 +310,8 @@ async def ensure_site_and_building(
         session.add(building)
         await session.flush()
 
-    floor = (
-        await session.execute(
-            select(Floor).where(Floor.building_id == building.id, Floor.name == "1층")
-        )
-    ).scalar_one_or_none()
-    if not floor:
-        floor = Floor(building_id=building.id, name="1층", level=1)
-        session.add(floor)
-        await session.flush()
-
-    zone = (
-        await session.execute(
-            select(Zone).where(Zone.floor_id == floor.id, Zone.name == "전체")
-        )
-    ).scalar_one_or_none()
-    if not zone:
-        zone = Zone(floor_id=floor.id, name="전체", code="ALL")
-        session.add(zone)
-        await session.flush()
-
+    zone = await ensure_building_floor_zone(session, building)
+    await ensure_building_default_categories(session, building)
     return site, building, zone
 
 
@@ -310,11 +387,17 @@ async def import_excel_to_building(
 
 
 async def ensure_all_buildings(session: AsyncSession) -> int:
-    """건물 목록만 등록 (엑셀 없이)."""
+    """건물 목록만 등록 (엑셀 없이) + 기본 대분류/코드 보장."""
     count = 0
     for name in BUILDING_NAMES:
         await ensure_site_and_building(session, name)
         count += 1
+    # 이미 DB에 있는 활성 건물에도 기본 대분류 보강
+    buildings = (
+        await session.execute(select(Building).where(Building.is_active == True))
+    ).scalars().all()
+    for b in buildings:
+        await ensure_building_default_categories(session, b)
     await session.commit()
     return count
 

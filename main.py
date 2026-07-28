@@ -562,7 +562,13 @@ async def building_create(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    db.add(Building(site_id=site_id, name=name.strip(), code=code.strip()))
+    from excel_import import ensure_building_default_categories
+
+    building = Building(site_id=site_id, name=name.strip(), code=code.strip())
+    db.add(building)
+    await db.flush()
+    # 기본 대분류(위생기기·조명기기·기타 설비) + 코드 1개씩
+    await ensure_building_default_categories(db, building)
     await db.commit()
     return RedirectResponse("/admin/sites", status_code=303)
 
