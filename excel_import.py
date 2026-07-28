@@ -382,6 +382,8 @@ async def import_excel_to_building(
                 )
                 stats["created"] += 1
 
+    # replace 시 기본 대분류가 비활성화됐을 수 있으므로 재보장
+    await ensure_building_default_categories(session, building)
     await session.commit()
     return stats
 
@@ -392,14 +394,24 @@ async def ensure_all_buildings(session: AsyncSession) -> int:
     for name in BUILDING_NAMES:
         await ensure_site_and_building(session, name)
         count += 1
-    # 이미 DB에 있는 활성 건물에도 기본 대분류 보강
+    await backfill_all_building_default_categories(session)
+    return count
+
+
+async def backfill_all_building_default_categories(session: AsyncSession) -> int:
+    """기존 활성 건물 전체에 기본 대분류(위생기기·조명기기·기타 설비)와 코드 1개씩 보강."""
     buildings = (
         await session.execute(select(Building).where(Building.is_active == True))
     ).scalars().all()
+    total = 0
     for b in buildings:
-        await ensure_building_default_categories(session, b)
+        total += await ensure_building_default_categories(session, b)
     await session.commit()
-    return count
+    print(
+        f"[seed] default categories backfill: buildings={len(buildings)} created={total}",
+        flush=True,
+    )
+    return total
 
 
 async def import_from_directory(

@@ -167,6 +167,10 @@ async def lifespan(app: FastAPI):
             await ensure_schema_updates()
             async with AsyncSessionLocal() as session:
                 await seed_if_empty(session)
+                from excel_import import backfill_all_building_default_categories
+
+                # 기존 등록 건물에도 기본 대분류·코드 보강 (멱등)
+                await backfill_all_building_default_categories(session)
             print(f"[startup] DB ready (attempt {attempt})", flush=True)
             last_err = None
             break
@@ -723,6 +727,13 @@ async def equipment_list(
         if selected_building and not selected_building.is_active:
             selected_building = None
         if selected_building:
+            from excel_import import ensure_building_default_categories
+
+            # 기존 건물 진입 시에도 기본 대분류·코드 보장
+            added = await ensure_building_default_categories(db, selected_building)
+            if added:
+                await db.commit()
+
             category_counts = await _building_category_counts(db, building_id)
             categories = sorted(category_counts.keys(), key=_building_sort_key)
 

@@ -321,9 +321,10 @@ async def ensure_category_demo(session: AsyncSession) -> None:
             await session.commit()
             print("[seed] demo site GY deactivated", flush=True)
 
-        from excel_import import ensure_all_buildings
+        from excel_import import ensure_all_buildings, backfill_all_building_default_categories
 
         await ensure_all_buildings(session)
-        print("[seed] gwangyang buildings ensured", flush=True)
+        await backfill_all_building_default_categories(session)
+        print("[seed] gwangyang buildings + default categories ensured", flush=True)
     except Exception as e:
         print(f"[seed] buildings ensure skipped: {e}", flush=True)
