@@ -14,10 +14,10 @@
   {% set eq_path = '/equipment' in request.url.path %}
   {% set nav_bid = request.query_params.get('building_id') %}
   <nav class="sidebar">
-    <div class="sidebar-brand">
+    <a href="/admin/dashboard" class="sidebar-brand">
       <strong>Smart FMS</strong>
       <small>POSCO WIDE</small>
-    </div>
+    </a>
     <ul class="nav-menu">
       <li><a href="/admin/dashboard" class="{% if request.url.path == '/admin/dashboard' %}active{% endif %}">Dashboard</a></li>
       <li><a href="/admin/sites" class="{% if '/sites' in request.url.path or '/buildings' in request.url.path %}active{% endif %}">사업장/건물</a></li>
