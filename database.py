@@ -235,6 +235,26 @@ async def ensure_schema_updates() -> None:
             )
             """
         )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS pm_inspections (
+                id SERIAL PRIMARY KEY,
+                schedule_id INTEGER NOT NULL REFERENCES pm_schedules(id),
+                equipment_id INTEGER NOT NULL REFERENCES equipment(id),
+                result VARCHAR(20) NOT NULL DEFAULT 'normal',
+                note TEXT,
+                inspector_name VARCHAR(100),
+                inspected_at TIMESTAMP WITHOUT TIME ZONE,
+                work_order_id INTEGER REFERENCES work_orders(id)
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_pm_inspections_schedule_id ON pm_inspections (schedule_id)"
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_pm_inspections_equipment_id ON pm_inspections (equipment_id)"
+        )
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
@@ -266,6 +286,20 @@ async def ensure_schema_updates() -> None:
         ):
             await _exec(stmt)
         await _exec("UPDATE work_orders SET is_active = 1 WHERE is_active IS NULL")
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS pm_inspections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                schedule_id INTEGER NOT NULL,
+                equipment_id INTEGER NOT NULL,
+                result VARCHAR(20) NOT NULL DEFAULT 'normal',
+                note TEXT,
+                inspector_name VARCHAR(100),
+                inspected_at DATETIME,
+                work_order_id INTEGER
+            )
+            """
+        )
 
 
 async def get_db():

@@ -42,6 +42,9 @@ from models import (
     MaterialGroup,
     MaterialLog,
     Partner,
+    PMFrequency,
+    PMInspection,
+    PMResult,
     PMSchedule,
     Site,
     User,
@@ -99,6 +102,65 @@ def _status_label(status: WorkOrderStatus | str) -> str:
     }
     key = status.value if isinstance(status, WorkOrderStatus) else str(status)
     return labels.get(key, key)
+
+
+def _pm_freq_label(freq: PMFrequency | str | None) -> str:
+    labels = {
+        "daily": "매일",
+        "weekly": "매주",
+        "monthly": "매월",
+        "quarterly": "분기",
+        "semi_annual": "반기",
+        "annual": "연간",
+        "custom": "사용자지정",
+    }
+    if freq is None:
+        return "-"
+    key = freq.value if isinstance(freq, PMFrequency) else str(freq)
+    return labels.get(key, key)
+
+
+def _pm_result_label(result: PMResult | str | None) -> str:
+    labels = {"normal": "정상", "caution": "주의", "fault": "고장"}
+    if result is None:
+        return "-"
+    key = result.value if isinstance(result, PMResult) else str(result)
+    return labels.get(key, key)
+
+
+def _pm_cycle_days(freq: PMFrequency | str | None, custom_days: int | None) -> int:
+    key = freq.value if isinstance(freq, PMFrequency) else str(freq or "monthly")
+    if key == "custom":
+        return max(1, int(custom_days or 30))
+    mapping = {
+        "daily": 1,
+        "weekly": 7,
+        "monthly": 30,
+        "quarterly": 90,
+        "semi_annual": 180,
+        "annual": 365,
+    }
+    return mapping.get(key, 30)
+
+
+def _pm_advance_schedule(schedule: PMSchedule, done: date | None = None) -> None:
+    done = done or _today_kst()
+    days = _pm_cycle_days(schedule.frequency, schedule.custom_days)
+    schedule.last_done = done
+    schedule.next_due = done + timedelta(days=days)
+
+
+def _parse_pm_frequency(raw: str) -> PMFrequency:
+    try:
+        return PMFrequency(raw)
+    except ValueError:
+        return PMFrequency.monthly
+
+
+def _equipment_building(eq: Equipment | None) -> Building | None:
+    if not eq or not eq.zone or not eq.zone.floor:
+        return None
+    return eq.zone.floor.building
 
 
 def _wo_process_step(status: WorkOrderStatus | str) -> int:
@@ -322,6 +384,8 @@ templates.env.globals.update(
     wo_status_label=_status_label,
     wo_process_step=_wo_process_step,
     d1_status_label=_d1_status_label,
+    pm_freq_label=_pm_freq_label,
+    pm_result_label=_pm_result_label,
 )
 
 
@@ -2910,24 +2974,463 @@ async def d1_advance(
 # ── PM & Partners ─────────────────────────────────────────────────────
 
 
-@app.get("/admin/pm")
-async def pm_list(
-    request: Request,
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
+def _pm_eq_options():
+    return (
+        selectinload(PMSchedule.equipment)
+        .selectinload(Equipment.zone)
+        .selectinload(Zone.floor)
+        .selectinload(Floor.building)
+    )
+
+
+def _pm_match_filters(
+    schedule: PMSchedule,
+    *,
+    q: str = "",
+    building_id: int | None = None,
+    equipment_id: int | None = None,
+    due_only: bool = False,
+    today: date | None = None,
+) -> bool:
+    eq = schedule.equipment
+    if equipment_id and (not eq or eq.id != equipment_id):
+        return False
+    bld = _equipment_building(eq)
+    if building_id and (not bld or bld.id != building_id):
+        return False
+    if due_only:
+        today = today or _today_kst()
+        if not schedule.next_due or schedule.next_due > today:
+            return False
+    if q:
+        needle = q.strip().lower()
+        hay = " ".join(
+            [
+                schedule.title or "",
+                schedule.assignee_name or "",
+                eq.code if eq else "",
+                eq.name if eq else "",
+                eq.category if eq else "",
+                bld.name if bld else "",
+            ]
+        ).lower()
+        if needle not in hay:
+            return False
+    return True
+
+
+async def _pm_filtered_schedules(
+    db: AsyncSession,
+    *,
+    q: str = "",
+    building_id: int | None = None,
+    equipment_id: int | None = None,
+    due_only: bool = False,
+) -> list[PMSchedule]:
+    today = _today_kst()
     schedules = (
         await db.execute(
             select(PMSchedule)
-            .options(selectinload(PMSchedule.equipment))
+            .where(PMSchedule.is_active == True)  # noqa: E712
+            .options(_pm_eq_options(), selectinload(PMSchedule.inspections))
             .order_by(PMSchedule.next_due.asc().nullslast())
         )
-    ).scalars().all()
+    ).scalars().unique().all()
+    return [
+        s
+        for s in schedules
+        if _pm_match_filters(
+            s,
+            q=q,
+            building_id=building_id,
+            equipment_id=equipment_id,
+            due_only=due_only,
+            today=today,
+        )
+    ]
+
+
+def _pm_excel_response(schedules: list[PMSchedule]):
+    from urllib.parse import quote
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "예방점검"
+    ws.append(
+        [
+            "건물",
+            "설비코드",
+            "설비명",
+            "분류",
+            "점검명",
+            "주기",
+            "주기일수",
+            "담당",
+            "다음점검",
+            "마지막점검",
+            "최근결과",
+        ]
+    )
+    for pm in schedules:
+        eq = pm.equipment
+        bld = _equipment_building(eq)
+        latest = None
+        if pm.inspections:
+            latest = max(pm.inspections, key=lambda x: x.inspected_at or datetime.min)
+        ws.append(
+            [
+                bld.name if bld else "",
+                eq.code if eq else "",
+                eq.name if eq else "",
+                eq.category if eq else "",
+                pm.title,
+                _pm_freq_label(pm.frequency),
+                _pm_cycle_days(pm.frequency, pm.custom_days),
+                pm.assignee_name or "",
+                pm.next_due.isoformat() if pm.next_due else "",
+                pm.last_done.isoformat() if pm.last_done else "",
+                _pm_result_label(latest.result) if latest else "",
+            ]
+        )
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
+    filename = quote(f"예방점검_{stamp}.xlsx")
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
+async def _create_pm_work_order(
+    db: AsyncSession,
+    *,
+    eq: Equipment,
+    result: PMResult,
+    note: str,
+    inspector_name: str,
+) -> WorkOrder:
+    site_id = None
+    bld = _equipment_building(eq)
+    if bld:
+        site_id = bld.site_id
+    result_label = _pm_result_label(result)
+    wo = WorkOrder(
+        title=f"[PM점검-{result_label}] {eq.code} {eq.name}",
+        description=(
+            note.strip()
+            or f"예방점검 결과: {result_label}"
+        ),
+        priority="high" if result == PMResult.fault else "normal",
+        assignee_name=inspector_name.strip() or None,
+        equipment_id=eq.id,
+        site_id=site_id,
+        status=WorkOrderStatus.received,
+        work_type="정비",
+    )
+    db.add(wo)
+    await db.flush()
+    return wo
+
+
+async def _record_pm_inspection(
+    db: AsyncSession,
+    schedule: PMSchedule,
+    *,
+    result_raw: str,
+    note: str = "",
+    inspector_name: str = "",
+    create_work_order: bool = True,
+) -> tuple[PMInspection, WorkOrder | None]:
+    try:
+        result = PMResult(result_raw)
+    except ValueError:
+        result = PMResult.normal
+    eq = schedule.equipment
+    if not eq:
+        raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+
+    wo = None
+    if create_work_order and result in (PMResult.caution, PMResult.fault):
+        wo = await _create_pm_work_order(
+            db,
+            eq=eq,
+            result=result,
+            note=note,
+            inspector_name=inspector_name,
+        )
+
+    insp = PMInspection(
+        schedule_id=schedule.id,
+        equipment_id=eq.id,
+        result=result,
+        note=note.strip() or None,
+        inspector_name=inspector_name.strip() or None,
+        inspected_at=datetime.utcnow(),
+        work_order_id=wo.id if wo else None,
+    )
+    db.add(insp)
+    _pm_advance_schedule(schedule, _today_kst())
+    return insp, wo
+
+
+@app.get("/admin/pm")
+async def pm_list(
+    request: Request,
+    q: str = Query(""),
+    building_id: int | None = Query(None),
+    equipment_id: int | None = Query(None),
+    due: str = Query(""),
+    tab: str = Query("list"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    today = _today_kst()
+    due_only = due in ("1", "due", "overdue")
+    schedules = await _pm_filtered_schedules(
+        db,
+        q=q,
+        building_id=building_id,
+        equipment_id=equipment_id,
+        due_only=due_only,
+    )
+
+    buildings = _sort_buildings(
+        (
+            await db.execute(
+                select(Building).where(Building.is_active == True).order_by(Building.name)  # noqa: E712
+            )
+        ).scalars().all()
+    )
+
+    eq_q = (
+        select(Equipment)
+        .where(Equipment.is_active == True)  # noqa: E712
+        .options(
+            selectinload(Equipment.zone)
+            .selectinload(Zone.floor)
+            .selectinload(Floor.building),
+            selectinload(Equipment.pm_schedules),
+        )
+        .order_by(Equipment.code)
+    )
+    if building_id:
+        eq_q = (
+            eq_q.join(Zone, Equipment.zone_id == Zone.id)
+            .join(Floor, Zone.floor_id == Floor.id)
+            .where(Floor.building_id == building_id)
+        )
+    equipment_list = (await db.execute(eq_q)).scalars().unique().all()
+
+    # 건물별·설비별 그룹 (목록 탭)
+    grouped: dict[str, dict] = {}
+    for pm in schedules:
+        eq = pm.equipment
+        bld = _equipment_building(eq)
+        bname = bld.name if bld else "미지정 건물"
+        bid = bld.id if bld else 0
+        bucket = grouped.setdefault(
+            str(bid),
+            {"building_id": bid, "building_name": bname, "equipment": {}},
+        )
+        ek = str(eq.id) if eq else "0"
+        e_bucket = bucket["equipment"].setdefault(
+            ek,
+            {
+                "equipment": eq,
+                "schedules": [],
+            },
+        )
+        e_bucket["schedules"].append(pm)
+
+    grouped_list = sorted(
+        grouped.values(),
+        key=lambda g: _building_sort_key(g["building_name"]),
+    )
+    for g in grouped_list:
+        g["equipment_list"] = sorted(
+            g["equipment"].values(),
+            key=lambda e: (e["equipment"].code if e["equipment"] else ""),
+        )
+
     return templates.TemplateResponse(
         request,
         "pm.html",
-        {"user": user, "schedules": schedules, "today": date.today()},
+        {
+            "user": user,
+            "schedules": schedules,
+            "grouped_list": grouped_list,
+            "buildings": buildings,
+            "equipment_list": equipment_list,
+            "today": today,
+            "tab": tab if tab in ("list", "settings") else "list",
+            "filters": {
+                "q": q,
+                "building_id": building_id,
+                "equipment_id": equipment_id,
+                "due": due_only,
+            },
+            "freq_choices": [
+                (PMFrequency.daily, "매일"),
+                (PMFrequency.weekly, "매주"),
+                (PMFrequency.monthly, "매월"),
+                (PMFrequency.quarterly, "분기"),
+                (PMFrequency.semi_annual, "반기"),
+                (PMFrequency.annual, "연간"),
+                (PMFrequency.custom, "사용자지정(일)"),
+            ],
+            "message": request.query_params.get("msg", ""),
+            "error": request.query_params.get("error", ""),
+        },
     )
+
+
+@app.get("/admin/pm/export")
+async def pm_export(
+    q: str = Query(""),
+    building_id: int | None = Query(None),
+    equipment_id: int | None = Query(None),
+    due: str = Query(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    due_only = due in ("1", "due", "overdue")
+    schedules = await _pm_filtered_schedules(
+        db,
+        q=q,
+        building_id=building_id,
+        equipment_id=equipment_id,
+        due_only=due_only,
+    )
+    return _pm_excel_response(schedules)
+
+
+@app.post("/admin/pm/schedules")
+async def pm_schedule_upsert(
+    equipment_id: int = Form(...),
+    title: str = Form(""),
+    frequency: str = Form("monthly"),
+    custom_days: str = Form(""),
+    assignee_name: str = Form(""),
+    next_due: str = Form(""),
+    building_id: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    eq = (
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.id == equipment_id, Equipment.is_active == True)  # noqa: E712
+            .options(selectinload(Equipment.pm_schedules))
+        )
+    ).scalar_one_or_none()
+    if not eq:
+        return RedirectResponse("/admin/pm?tab=settings&error=설비를+찾을+수+없습니다", status_code=303)
+
+    freq = _parse_pm_frequency(frequency)
+    days_val = None
+    if freq == PMFrequency.custom:
+        try:
+            days_val = max(1, int(custom_days.strip() or "30"))
+        except ValueError:
+            days_val = 30
+    else:
+        days_val = _pm_cycle_days(freq, None)
+
+    due_date = None
+    if next_due.strip():
+        try:
+            due_date = date.fromisoformat(next_due.strip())
+        except ValueError:
+            due_date = None
+    if due_date is None:
+        due_date = _today_kst() + timedelta(days=days_val)
+
+    existing = next((s for s in (eq.pm_schedules or []) if s.is_active), None)
+    pm_title = title.strip() or f"{eq.code} 예방점검"
+    if existing:
+        existing.title = pm_title
+        existing.frequency = freq
+        existing.custom_days = days_val if freq == PMFrequency.custom else None
+        existing.assignee_name = assignee_name.strip() or None
+        existing.next_due = due_date
+        existing.is_active = True
+    else:
+        db.add(
+            PMSchedule(
+                equipment_id=eq.id,
+                title=pm_title,
+                frequency=freq,
+                custom_days=days_val if freq == PMFrequency.custom else None,
+                assignee_name=assignee_name.strip() or None,
+                next_due=due_date,
+                is_active=True,
+            )
+        )
+    await db.commit()
+
+    qs = ["tab=settings", "msg=점검주기가+저장되었습니다"]
+    if building_id.strip():
+        qs.append(f"building_id={building_id.strip()}")
+    return RedirectResponse(f"/admin/pm?{'&'.join(qs)}", status_code=303)
+
+
+@app.post("/admin/pm/schedules/{schedule_id}/deactivate")
+async def pm_schedule_deactivate(
+    schedule_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    schedule = await db.get(PMSchedule, schedule_id)
+    if not schedule:
+        raise HTTPException(404)
+    schedule.is_active = False
+    await db.commit()
+    return RedirectResponse("/admin/pm?tab=settings&msg=주기가+해제되었습니다", status_code=303)
+
+
+@app.post("/admin/pm/schedules/{schedule_id}/inspect")
+async def pm_inspect(
+    schedule_id: int,
+    result: str = Form(...),
+    note: str = Form(""),
+    inspector_name: str = Form(""),
+    redirect_to: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    schedule = (
+        await db.execute(
+            select(PMSchedule)
+            .where(PMSchedule.id == schedule_id, PMSchedule.is_active == True)  # noqa: E712
+            .options(
+                selectinload(PMSchedule.equipment)
+                .selectinload(Equipment.zone)
+                .selectinload(Zone.floor)
+                .selectinload(Floor.building)
+            )
+        )
+    ).scalar_one_or_none()
+    if not schedule:
+        raise HTTPException(404)
+
+    insp, wo = await _record_pm_inspection(
+        db,
+        schedule,
+        result_raw=result,
+        note=note,
+        inspector_name=inspector_name or user.name,
+    )
+    await db.commit()
+
+    if wo:
+        return RedirectResponse(f"/admin/work-orders/{wo.id}", status_code=303)
+    target = redirect_to.strip() or "/admin/pm?msg=점검결과가+저장되었습니다"
+    return RedirectResponse(target, status_code=303)
 
 
 MATERIAL_DEFAULT_GROUPS = ("소모품", "수공구", "비품", "안전용품", "풍수해 자재")
@@ -3889,7 +4392,7 @@ async def equipment_mobile(
         .options(
             selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
             selectinload(Equipment.consumables),
-            selectinload(Equipment.pm_schedules),
+            selectinload(Equipment.pm_schedules).selectinload(PMSchedule.inspections),
             selectinload(Equipment.work_orders),
             selectinload(Equipment.equipment_type),
         )
@@ -3897,8 +4400,75 @@ async def equipment_mobile(
     eq = result.scalar_one_or_none()
     if not eq:
         raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+    active_pms = [s for s in (eq.pm_schedules or []) if s.is_active]
+    msg = request.query_params.get("msg", "")
+    error = request.query_params.get("error", "")
     return templates.TemplateResponse(
-        request, "mobile_equipment.html", {"eq": eq}
+        request,
+        "mobile_equipment.html",
+        {
+            "eq": eq,
+            "active_pms": active_pms,
+            "today": _today_kst(),
+            "message": msg,
+            "error": error,
+        },
+    )
+
+
+@app.post("/eq/{code}/pm-inspect")
+async def equipment_mobile_pm_inspect(
+    code: str,
+    schedule_id: int = Form(...),
+    result: str = Form(...),
+    note: str = Form(""),
+    inspector_name: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    eq = (
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.code == code, Equipment.is_active == True)  # noqa: E712
+            .options(
+                selectinload(Equipment.zone)
+                .selectinload(Zone.floor)
+                .selectinload(Floor.building),
+                selectinload(Equipment.pm_schedules),
+            )
+        )
+    ).scalar_one_or_none()
+    if not eq:
+        raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+
+    schedule = next(
+        (s for s in (eq.pm_schedules or []) if s.id == schedule_id and s.is_active),
+        None,
+    )
+    if not schedule:
+        return RedirectResponse(
+            f"/eq/{code}?error=점검일정을+찾을+수+없습니다",
+            status_code=303,
+        )
+    # ensure relationship for building lookup
+    schedule.equipment = eq
+
+    insp, wo = await _record_pm_inspection(
+        db,
+        schedule,
+        result_raw=result,
+        note=note,
+        inspector_name=inspector_name,
+    )
+    await db.commit()
+
+    if wo:
+        return RedirectResponse(
+            f"/eq/{code}?msg=점검+저장+및+정비의뢰+생성(#{wo.id})",
+            status_code=303,
+        )
+    return RedirectResponse(
+        f"/eq/{code}?msg=점검결과가+저장되었습니다",
+        status_code=303,
     )
 
 

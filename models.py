@@ -52,6 +52,12 @@ class PMFrequency(str, enum.Enum):
     custom = "custom"
 
 
+class PMResult(str, enum.Enum):
+    normal = "normal"  # 정상
+    caution = "caution"  # 주의
+    fault = "fault"  # 고장
+
+
 class D1Status(str, enum.Enum):
     draft = "draft"
     review = "review"
@@ -211,6 +217,7 @@ class Equipment(Base):
     equipment_type = relationship("EquipmentType")
     template = relationship("EquipmentTemplate")
     pm_schedules = relationship("PMSchedule", back_populates="equipment")
+    pm_inspections = relationship("PMInspection", back_populates="equipment")
     consumables = relationship("Consumable", back_populates="equipment")
     work_orders = relationship("WorkOrder", back_populates="equipment")
     maintenance_records = relationship("MaintenanceRecord", back_populates="equipment")
@@ -244,7 +251,7 @@ class PMSchedule(Base):
     __tablename__ = "pm_schedules"
 
     id = Column(Integer, primary_key=True)
-    equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False)
+    equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False, index=True)
     title = Column(String(200), nullable=False)
     frequency = Column(Enum(PMFrequency), default=PMFrequency.monthly)
     custom_days = Column(Integer, nullable=True)
@@ -255,6 +262,26 @@ class PMSchedule(Base):
     is_active = Column(Boolean, default=True)
 
     equipment = relationship("Equipment", back_populates="pm_schedules")
+    inspections = relationship("PMInspection", back_populates="schedule")
+
+
+class PMInspection(Base):
+    """예방점검 결과 기록."""
+
+    __tablename__ = "pm_inspections"
+
+    id = Column(Integer, primary_key=True)
+    schedule_id = Column(Integer, ForeignKey("pm_schedules.id"), nullable=False, index=True)
+    equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False, index=True)
+    result = Column(Enum(PMResult), nullable=False, default=PMResult.normal)
+    note = Column(Text, nullable=True)
+    inspector_name = Column(String(100), nullable=True)
+    inspected_at = Column(DateTime, default=datetime.utcnow)
+    work_order_id = Column(Integer, ForeignKey("work_orders.id"), nullable=True)
+
+    schedule = relationship("PMSchedule", back_populates="inspections")
+    equipment = relationship("Equipment", back_populates="pm_inspections")
+    work_order = relationship("WorkOrder")
 
 
 class Consumable(Base):

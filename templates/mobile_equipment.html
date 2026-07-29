@@ -14,15 +14,20 @@
   </header>
 
   <main class="mobile-main">
+    {% if message %}
+    <div class="alert alert-success">{{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
     <section class="mobile-card">
       <h2>설비정보</h2>
       <dl class="info-dl">
-        <dt>종류</dt><dd>{{ eq.equipment_type.name if eq.equipment_type else '-' }}</dd>
+        <dt>종류</dt><dd>{{ eq.equipment_type.name if eq.equipment_type else (eq.category or '-') }}</dd>
         <dt>제조사</dt><dd>{{ eq.manufacturer or '-' }}</dd>
         <dt>모델</dt><dd>{{ eq.model or '-' }}</dd>
         <dt>담당자</dt><dd>{{ eq.manager_name or '-' }}</dd>
-        <dt>PLC</dt><dd>{{ eq.plc_tag or '-' }}</dd>
-        <dt>운전시간</dt><dd>{{ eq.running_hours }} h</dd>
         <dt>상태</dt><dd><span class="status-dot status-{{ eq.status }}">{{ eq.status }}</span></dd>
       </dl>
     </section>
@@ -39,10 +44,42 @@
     {% endif %}
 
     <section class="mobile-card">
-      <h2>점검이력</h2>
-      {% for pm in eq.pm_schedules %}
-      <div class="list-item">{{ pm.title }} · {{ pm.last_done or '미실시' }}</div>
-      {% else %}<p class="empty">없음</p>{% endfor %}
+      <h2>예방점검 (PM)</h2>
+      {% if active_pms %}
+      {% for pm in active_pms %}
+      <div class="mobile-pm-block">
+        <div class="list-item">
+          <strong>{{ pm.title }}</strong>
+          <div class="text-muted" style="font-size:0.85rem;margin-top:0.2rem">
+            주기 {{ pm_freq_label(pm.frequency) }}
+            {% if pm.frequency.value == 'custom' %} ({{ pm.custom_days }}일){% endif %}
+            · 다음
+            {% if pm.next_due and pm.next_due <= today %}
+            <span class="badge badge-urgent">{{ pm.next_due }}</span>
+            {% else %}{{ pm.next_due or '-' }}{% endif %}
+            · 최근 {{ pm.last_done or '미실시' }}
+          </div>
+        </div>
+        <form method="post" action="/eq/{{ eq.code }}/pm-inspect" class="mobile-pm-form">
+          <input type="hidden" name="schedule_id" value="{{ pm.id }}" />
+          <label>점검자</label>
+          <input type="text" name="inspector_name" placeholder="이름" />
+          <label>점검 내용</label>
+          <textarea name="note" rows="2" placeholder="이상 내용 등"></textarea>
+          <div class="pm-result-actions">
+            <button type="submit" name="result" value="normal" class="btn btn-sm pm-btn-normal">정상</button>
+            <button type="submit" name="result" value="caution" class="btn btn-sm pm-btn-caution">주의</button>
+            <button type="submit" name="result" value="fault" class="btn btn-sm pm-btn-fault">고장</button>
+          </div>
+          <p class="text-muted" style="font-size:0.8rem;margin:0.35rem 0 0">
+            주의/고장 선택 시 정비의뢰가 자동 생성됩니다.
+          </p>
+        </form>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="empty">등록된 점검주기가 없습니다.</p>
+      {% endif %}
     </section>
 
     <section class="mobile-card">
