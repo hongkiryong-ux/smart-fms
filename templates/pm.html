@@ -137,7 +137,7 @@
   </form>
 
   <div class="pm-filter-panels">
-    <details class="pm-filter-details" {% if filters.building_id %}open{% endif %}>
+    <details class="pm-filter-details" open>
       <summary>건물별 필터</summary>
       <div class="pm-filter-chips">
         <a class="pm-chip{% if not filters.building_id %} active{% endif %}"
