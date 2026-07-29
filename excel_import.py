@@ -484,7 +484,7 @@ def export_building_excel(
     building_name: str,
     equipment_by_sheet: dict[str, list[Equipment]],
 ) -> bytes:
-    """건물 설비를 엑셀 파일(bytes)로 출력 (시트별 설비 + 정비이력)."""
+    """건물 설비를 엑셀 파일(bytes)로 출력 (시트별 설비 + 정비이력 + 점검이력)."""
     wb = Workbook()
     wb.remove(wb.active)
 
@@ -576,6 +576,58 @@ def export_building_excel(
     if not history_rows:
         hist_ws.append(["정비이력 없음"])
 
+    # 점검이력 시트
+    pm_ws = wb.create_sheet(title="점검이력")
+    pm_headers = [
+        "설비코드",
+        "설비명",
+        "시트",
+        "점검일시",
+        "점검명",
+        "결과",
+        "점검자",
+        "점검내용",
+        "정비의뢰번호",
+    ]
+    pm_ws.append(pm_headers)
+    for cell in pm_ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+
+    pm_result_labels = {"normal": "정상", "caution": "주의", "fault": "고장"}
+    pm_rows: list[tuple] = []
+    for eq in all_equipment:
+        for insp in eq.pm_inspections or []:
+            pm_rows.append((eq, insp))
+    pm_rows.sort(
+        key=lambda x: (x[1].inspected_at or x[1].id or 0),
+        reverse=True,
+    )
+
+    for eq, insp in pm_rows:
+        result_key = (
+            insp.result.value
+            if hasattr(insp.result, "value")
+            else str(insp.result or "")
+        )
+        schedule = getattr(insp, "schedule", None)
+        inspected = insp.inspected_at.strftime("%Y-%m-%d %H:%M") if insp.inspected_at else ""
+        pm_ws.append(
+            [
+                eq.code or "",
+                eq.name or "",
+                eq.category or "",
+                inspected,
+                (schedule.title if schedule else "예방점검"),
+                pm_result_labels.get(result_key, result_key),
+                insp.inspector_name or "",
+                insp.note or "",
+                insp.work_order_id or "",
+            ]
+        )
+    if not pm_rows:
+        pm_ws.append(["점검이력 없음"])
+
     # 총괄 시트
     summary = wb.create_sheet(title="총괄", index=0)
     summary.append([f"{building_name} 설비현황"])
@@ -583,6 +635,7 @@ def export_building_excel(
     for sheet_name, items in equipment_by_sheet.items():
         summary.append([sheet_name, len(items)])
     summary.append(["정비이력", len(history_rows)])
+    summary.append(["점검이력", len(pm_rows)])
 
     buf = io.BytesIO()
     wb.save(buf)

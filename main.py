@@ -1248,7 +1248,10 @@ async def equipment_export(
         .join(Zone)
         .join(Floor)
         .where(Floor.building_id == building_id, Equipment.is_active == True)
-        .options(selectinload(Equipment.maintenance_records))
+        .options(
+            selectinload(Equipment.maintenance_records),
+            selectinload(Equipment.pm_inspections).selectinload(PMInspection.schedule),
+        )
         .order_by(Equipment.category, Equipment.code)
     )
     items = result.scalars().unique().all()
