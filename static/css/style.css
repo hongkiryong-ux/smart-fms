@@ -612,7 +612,16 @@ body {
 }
 .eq-building-title {
   margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
   font-size: 1.25rem;
+}
+.eq-building-qr-dl {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .eq-building-actions {
   display: flex;

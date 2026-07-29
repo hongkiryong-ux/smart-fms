@@ -51,6 +51,8 @@
 <div class="eq-building-title-row">
   <h2 class="eq-building-title">
     {{ selected_building.name }}{% if category %} · {{ category }}{% else %} · 전체 설비{% endif %}
+    <a class="btn btn-sm btn-secondary eq-building-qr-dl"
+       href="/admin/equipment/building/{{ selected_building.id }}/qr-zip">QR code 다운로드</a>
   </h2>
   <div class="eq-building-actions">
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/export/{{ selected_building.id }}">엑셀 출력</a>
@@ -83,8 +85,6 @@
   <section class="card card-wide">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem">
       <h2 style="margin:0">설비 목록 <small class="text-muted">({{ equipment|length }}건)</small></h2>
-      <a class="btn btn-sm btn-secondary"
-         href="/admin/equipment/building/{{ selected_building.id }}/qr-zip">건물 전체 QR code 다운로드</a>
     </div>
     {% if equipment %}
     <div class="table-scroll">
