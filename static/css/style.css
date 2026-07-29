@@ -1187,9 +1187,13 @@ button.link-action:hover { text-decoration: underline; }
   font-size: 0.82rem;
 }
 .wo-list-compact th:nth-child(1),
-.wo-list-compact td:nth-child(1) { width: 8%; }
+.wo-list-compact td:nth-child(1) {
+  width: auto;
+  min-width: 9rem;
+  max-width: none;
+}
 .wo-list-compact th:nth-child(2),
-.wo-list-compact td:nth-child(2) { width: 16%; }
+.wo-list-compact td:nth-child(2) { width: 14%; }
 .wo-list-compact th:nth-child(3),
 .wo-list-compact td:nth-child(3) { width: 8%; }
 .wo-list-compact th:nth-child(4),
@@ -1210,20 +1214,35 @@ button.link-action:hover { text-decoration: underline; }
 .wo-list-compact td:nth-child(11) { width: 4%; }
 .wo-eq-cell {
   max-width: none;
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: top;
+}
+.wo-eq-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
 }
 .wo-eq-cell code {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: middle;
+  display: block;
+  max-width: none;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-all;
+  vertical-align: baseline;
   margin-right: 0;
 }
 .wo-eq-name {
-  color: var(--muted);
-  font-size: 0.82rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: block;
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
 }
 .wo-req-cell {
   max-width: none;

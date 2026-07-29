@@ -22,9 +22,12 @@
     <tbody>
       {% for wo in orders %}
       <tr>
-        <td class="wo-eq-cell" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
+        <td class="wo-eq-cell">
           {% if wo.equipment %}
-          <code>{{ wo.equipment.code }}</code>
+          <div class="wo-eq-info">
+            <code>{{ wo.equipment.code }}</code>
+            <span class="wo-eq-name">{{ wo.equipment.name }}</span>
+          </div>
           {% else %}-{% endif %}
         </td>
         <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
