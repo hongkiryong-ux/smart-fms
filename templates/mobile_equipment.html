@@ -82,21 +82,49 @@
           {% endif %}
         </div>
 
-        <form method="post" action="/eq/{{ eq.code }}/pm-inspect" class="mobile-pm-form">
+        <form method="post"
+              action="/eq/{{ eq.code }}/pm-inspect"
+              class="mobile-pm-form pm-inspect-form"
+              data-pm-id="{{ pm.id }}">
           <input type="hidden" name="schedule_id" value="{{ pm.id }}" />
+          <input type="hidden" name="result" value="" />
+          <input type="hidden" name="request_work_order" value="0" />
           <label>점검자</label>
           <input type="text" name="inspector_name" placeholder="이름" />
           <label>점검 내용</label>
           <textarea name="note" rows="2" placeholder="이상 내용 등"></textarea>
           <div class="pm-result-actions">
-            <button type="submit" name="result" value="normal" class="btn btn-sm pm-btn-normal">정상</button>
-            <button type="submit" name="result" value="caution" class="btn btn-sm pm-btn-caution">주의</button>
-            <button type="submit" name="result" value="fault" class="btn btn-sm pm-btn-fault">고장</button>
+            <button type="button" data-pm-result="normal" class="btn btn-sm pm-btn-normal">정상</button>
+            <button type="button" data-pm-result="caution" class="btn btn-sm pm-btn-caution">주의</button>
+            <button type="button" data-pm-result="fault" class="btn btn-sm pm-btn-fault">고장</button>
           </div>
           <p class="text-muted" style="font-size:0.8rem;margin:0.35rem 0 0">
-            주의/고장 선택 시 정비의뢰가 자동 생성됩니다.
+            주의/고장 선택 시 정비의뢰 접수 여부를 확인합니다.
           </p>
         </form>
+
+        <dialog id="pm-wo-confirm-{{ pm.id }}" class="eq-dialog pm-wo-confirm-dialog">
+          <form method="dialog" class="eq-dialog-top">
+            <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+          </form>
+          <div class="eq-popup-body">
+            <h2>정비의뢰 접수 확인</h2>
+            <p class="text-muted">아래 내용으로 점검 결과를 등록합니다.</p>
+            <dl class="info-dl pm-wo-preview">
+              <dt>결과</dt>
+              <dd><span class="pm-wo-preview-result"></span></dd>
+              <dt>점검자</dt>
+              <dd class="pm-wo-preview-inspector"></dd>
+              <dt>점검 내용</dt>
+              <dd class="pm-wo-preview-note"></dd>
+            </dl>
+            <p><strong>정비의뢰를 접수하시겠습니까?</strong></p>
+            <div class="pm-result-actions">
+              <button type="button" class="btn btn-secondary pm-wo-save-only">점검만 저장</button>
+              <button type="button" class="btn btn-primary pm-wo-confirm">정비의뢰 접수</button>
+            </div>
+          </div>
+        </dialog>
       </div>
       {% endfor %}
       {% else %}
@@ -122,5 +150,67 @@
   <footer class="mobile-footer">
     <small>POSCO WIDE Smart FMS · QR Scan</small>
   </footer>
+  <script>
+  (function () {
+    var resultLabels = { normal: '정상', caution: '주의', fault: '고장' };
+    var resultClass = { caution: 'pm-result-caution', fault: 'pm-result-fault' };
+
+    function openDialog(id) {
+      var dlg = document.getElementById(id);
+      if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+      else if (dlg) dlg.setAttribute('open', 'open');
+    }
+
+    function submitPmForm(form, result, withWorkOrder) {
+      form.querySelector('[name=result]').value = result;
+      form.querySelector('[name=request_work_order]').value = withWorkOrder ? '1' : '0';
+      form.submit();
+    }
+
+    document.addEventListener('click', function (e) {
+      var resultBtn = e.target.closest('[data-pm-result]');
+      if (resultBtn) {
+        var form = resultBtn.closest('.pm-inspect-form');
+        if (!form) return;
+        var result = resultBtn.getAttribute('data-pm-result');
+        if (result === 'normal') {
+          submitPmForm(form, result, false);
+          return;
+        }
+        var pmId = form.getAttribute('data-pm-id');
+        var confirmDlg = document.getElementById('pm-wo-confirm-' + pmId);
+        if (!confirmDlg) return;
+        var inspector = form.querySelector('[name=inspector_name]').value.trim() || '(미기재)';
+        var note = form.querySelector('[name=note]').value.trim() || '(내용 없음)';
+        confirmDlg.querySelector('.pm-wo-preview-result').textContent = resultLabels[result] || result;
+        confirmDlg.querySelector('.pm-wo-preview-result').className =
+          'pm-result pm-wo-preview-result ' + (resultClass[result] || '');
+        confirmDlg.querySelector('.pm-wo-preview-inspector').textContent = inspector;
+        confirmDlg.querySelector('.pm-wo-preview-note').textContent = note;
+        confirmDlg._pmForm = form;
+        confirmDlg._pmResult = result;
+        openDialog('pm-wo-confirm-' + pmId);
+        return;
+      }
+
+      var saveOnly = e.target.closest('.pm-wo-save-only');
+      if (saveOnly) {
+        var dlg = saveOnly.closest('dialog');
+        if (dlg && dlg._pmForm && dlg._pmResult) {
+          submitPmForm(dlg._pmForm, dlg._pmResult, false);
+        }
+        return;
+      }
+
+      var confirmWo = e.target.closest('.pm-wo-confirm');
+      if (confirmWo) {
+        var dlg2 = confirmWo.closest('dialog');
+        if (dlg2 && dlg2._pmForm && dlg2._pmResult) {
+          submitPmForm(dlg2._pmForm, dlg2._pmResult, true);
+        }
+      }
+    });
+  })();
+  </script>
 </body>
 </html>

@@ -2068,6 +2068,15 @@ button.link-action:hover { text-decoration: underline; }
 .pm-result-caution { background: #ffedd5; color: #9a3412; }
 .pm-result-fault { background: #fee2e2; color: #991b1b; }
 .pm-inspect-dialog { width: min(520px, calc(100vw - 1.5rem)); }
+.pm-wo-confirm-dialog { width: min(440px, calc(100vw - 1.5rem)); }
+.pm-wo-preview dt { font-size: 0.78rem; color: #64748b; }
+.pm-wo-preview dd {
+  margin: 0 0 0.45rem;
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.pm-wo-preview-note { color: #1e293b; }
 .pm-note-cell {
   max-width: 220px;
 }

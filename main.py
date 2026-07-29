@@ -3150,7 +3150,7 @@ async def _record_pm_inspection(
     result_raw: str,
     note: str = "",
     inspector_name: str = "",
-    create_work_order: bool = True,
+    create_work_order: bool = False,
 ) -> tuple[PMInspection, WorkOrder | None]:
     try:
         result = PMResult(result_raw)
@@ -3405,6 +3405,7 @@ async def pm_inspect(
     result: str = Form(...),
     note: str = Form(""),
     inspector_name: str = Form(""),
+    request_work_order: str = Form("0"),
     redirect_to: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
@@ -3430,6 +3431,7 @@ async def pm_inspect(
         result_raw=result,
         note=note,
         inspector_name=inspector_name or user.name,
+        create_work_order=request_work_order.strip().lower() in ("1", "true", "yes"),
     )
     await db.commit()
 
@@ -4429,6 +4431,7 @@ async def equipment_mobile_pm_inspect(
     result: str = Form(...),
     note: str = Form(""),
     inspector_name: str = Form(""),
+    request_work_order: str = Form("0"),
     db: AsyncSession = Depends(get_db),
 ):
     eq = (
@@ -4464,6 +4467,7 @@ async def equipment_mobile_pm_inspect(
         result_raw=result,
         note=note,
         inspector_name=inspector_name,
+        create_work_order=request_work_order.strip().lower() in ("1", "true", "yes"),
     )
     await db.commit()
 
