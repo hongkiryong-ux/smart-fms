@@ -197,12 +197,14 @@
               <th>다음점검</th>
               <th>마지막</th>
               <th>최근결과</th>
+              <th>등록내용</th>
               <th>점검기록</th>
             </tr>
           </thead>
           <tbody>
             {% for pm in e.schedules %}
-            {% set latest = (pm.inspections|sort(attribute='inspected_at', reverse=true)|first) if pm.inspections else none %}
+            {% set hist = (pm.inspections|sort(attribute='inspected_at', reverse=true)) if pm.inspections else [] %}
+            {% set latest = hist|first if hist else none %}
             <tr>
               <td>{{ pm.title }}</td>
               <td>
@@ -221,6 +223,13 @@
                 <span class="pm-result pm-result-{{ latest.result.value }}">{{ pm_result_label(latest.result) }}</span>
                 {% else %}-{% endif %}
               </td>
+              <td class="pm-note-cell">
+                {% if latest and latest.note %}
+                <span class="pm-note-preview" title="{{ latest.note }}">{{ latest.note }}</span>
+                {% elif latest %}
+                <span class="text-muted">내용 없음</span>
+                {% else %}-{% endif %}
+              </td>
               <td>
                 <button type="button" class="btn btn-sm btn-primary"
                         data-open-dialog="pm-inspect-{{ pm.id }}">점검하기</button>
@@ -234,6 +243,30 @@
                       {{ e.equipment.code if e.equipment else '' }}
                       {{ e.equipment.name if e.equipment else '' }} · {{ pm.title }}
                     </p>
+
+                    <div class="pm-history-box">
+                      <h3>등록된 점검 내용</h3>
+                      {% if hist %}
+                      <ul class="pm-history-list">
+                        {% for h in hist[:10] %}
+                        <li>
+                          <div class="pm-history-meta">
+                            <span class="pm-result pm-result-{{ h.result.value }}">{{ pm_result_label(h.result) }}</span>
+                            <time>{{ fmt_kst(h.inspected_at) if h.inspected_at else '-' }}</time>
+                            <span>{{ h.inspector_name or '점검자 미기재' }}</span>
+                            {% if h.work_order_id %}
+                            <a href="/admin/work-orders/{{ h.work_order_id }}">정비의뢰 #{{ h.work_order_id }}</a>
+                            {% endif %}
+                          </div>
+                          <p class="pm-history-note">{{ h.note or '내용 없음' }}</p>
+                        </li>
+                        {% endfor %}
+                      </ul>
+                      {% else %}
+                      <p class="empty">아직 등록된 점검 내용이 없습니다.</p>
+                      {% endif %}
+                    </div>
+
                     <form method="post" action="/admin/pm/schedules/{{ pm.id }}/inspect" class="form-stack">
                       <input type="hidden" name="redirect_to" value="/admin/pm?msg=점검결과가+저장되었습니다" />
                       <label>점검자</label>

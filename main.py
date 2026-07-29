@@ -3071,6 +3071,9 @@ def _pm_excel_response(schedules: list[PMSchedule]):
             "다음점검",
             "마지막점검",
             "최근결과",
+            "등록내용",
+            "점검자",
+            "점검일시",
         ]
     )
     for pm in schedules:
@@ -3092,6 +3095,9 @@ def _pm_excel_response(schedules: list[PMSchedule]):
                 pm.next_due.isoformat() if pm.next_due else "",
                 pm.last_done.isoformat() if pm.last_done else "",
                 _pm_result_label(latest.result) if latest else "",
+                (latest.note or "") if latest else "",
+                (latest.inspector_name or "") if latest else "",
+                _fmt_kst(latest.inspected_at) if latest and latest.inspected_at else "",
             ]
         )
     buf = BytesIO()

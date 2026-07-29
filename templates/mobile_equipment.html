@@ -60,6 +60,28 @@
             · 최근 {{ pm.last_done or '미실시' }}
           </div>
         </div>
+
+        {% set hist = (pm.inspections|sort(attribute='inspected_at', reverse=true)) if pm.inspections else [] %}
+        <div class="pm-history-box mobile-pm-history">
+          <h3>등록된 점검 내용</h3>
+          {% if hist %}
+          <ul class="pm-history-list">
+            {% for h in hist[:5] %}
+            <li>
+              <div class="pm-history-meta">
+                <span class="pm-result pm-result-{{ h.result.value }}">{{ pm_result_label(h.result) }}</span>
+                <time>{{ fmt_kst(h.inspected_at) if h.inspected_at else '-' }}</time>
+                <span>{{ h.inspector_name or '점검자 미기재' }}</span>
+              </div>
+              <p class="pm-history-note">{{ h.note or '내용 없음' }}</p>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="empty">아직 등록된 점검 내용이 없습니다.</p>
+          {% endif %}
+        </div>
+
         <form method="post" action="/eq/{{ eq.code }}/pm-inspect" class="mobile-pm-form">
           <input type="hidden" name="schedule_id" value="{{ pm.id }}" />
           <label>점검자</label>
