@@ -20,17 +20,12 @@
   {% if buildings %}
   <div class="eq-building-grid">
     {% for b in buildings %}
-    <div class="eq-building-card-wrap eq-building-palette-{{ (loop.index0 % 12) + 1 }}">
-      <a class="eq-building-card"
-         href="/admin/equipment?building_id={{ b.id }}">
-        <strong>{{ b.name }}</strong>
-        <span class="eq-building-meta">{{ b.site.name if b.site else '' }}</span>
-        <span class="eq-building-code">{{ b.code }}</span>
-      </a>
-      <a class="btn btn-sm btn-secondary eq-building-qr"
-         href="/admin/equipment/building/{{ b.id }}/qr-zip"
-         title="{{ b.name }} 전체 QR ZIP">QR ZIP</a>
-    </div>
+    <a class="eq-building-card eq-building-palette-{{ (loop.index0 % 12) + 1 }}"
+       href="/admin/equipment?building_id={{ b.id }}">
+      <strong>{{ b.name }}</strong>
+      <span class="eq-building-meta">{{ b.site.name if b.site else '' }}</span>
+      <span class="eq-building-code">{{ b.code }}</span>
+    </a>
     {% endfor %}
   </div>
   {% else %}
@@ -53,11 +48,13 @@
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem">
-  <h2 style="margin:0">{{ selected_building.name }}{% if category %} · {{ category }}{% else %} · 전체 설비{% endif %}</h2>
-  <div>
-    <a class="btn btn-secondary btn-sm"
-       href="/admin/equipment/building/{{ selected_building.id }}/qr-zip">전체 QR ZIP</a>
+<div class="eq-building-title-row">
+  <h2 class="eq-building-title">
+    {{ selected_building.name }}{% if category %} · {{ category }}{% else %} · 전체 설비{% endif %}
+    <a class="btn btn-sm btn-secondary eq-building-qr-dl"
+       href="/admin/equipment/building/{{ selected_building.id }}/qr-zip">건물 전체 QR code 다운로드</a>
+  </h2>
+  <div class="eq-building-actions">
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/export/{{ selected_building.id }}">엑셀 출력</a>
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/import?building_id={{ selected_building.id }}">엑셀 업데이트</a>
   </div>

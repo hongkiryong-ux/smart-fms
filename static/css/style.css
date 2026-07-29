@@ -629,6 +629,32 @@ body {
 .site-building-palette-12 { --bld-accent: #2563eb; }
 
 /* 설비관리 건물 선택 그리드 */
+.eq-building-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.eq-building-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  font-size: 1.25rem;
+}
+.eq-building-qr-dl {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.eq-building-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
 .eq-building-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));

@@ -35,13 +35,10 @@
         </div>
         <ul class="nav-sub" id="nav-equipment-sub">
           {% for b in request.state.nav_buildings or [] %}
-          <li class="nav-sub-row">
+          <li>
             <a href="/admin/equipment?building_id={{ b.id }}"
                class="{% if nav_bid == b.id|string %}active{% endif %}"
                title="{{ b.name }}">{{ b.name }}</a>
-            <a class="nav-qr-zip"
-               href="/admin/equipment/building/{{ b.id }}/qr-zip"
-               title="{{ b.name }} 전체 QR ZIP 다운로드">QR</a>
           </li>
           {% else %}
           <li class="nav-sub-empty">등록된 건물 없음</li>
