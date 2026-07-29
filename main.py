@@ -1395,6 +1395,41 @@ async def equipment_export(
     )
 
 
+@app.get("/admin/equipment/{eq_id}/export")
+async def equipment_one_export(
+    eq_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """단일 설비에 등록된 사양·이력·점검·작업 전체를 엑셀로 다운로드."""
+    from urllib.parse import quote
+    from excel_import import export_equipment_excel
+
+    result = await db.execute(
+        select(Equipment)
+        .where(Equipment.id == eq_id, Equipment.is_active == True)
+        .options(
+            selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
+            selectinload(Equipment.maintenance_records),
+            selectinload(Equipment.pm_inspections).selectinload(PMInspection.schedule),
+            selectinload(Equipment.pm_schedules),
+            selectinload(Equipment.work_orders),
+        )
+    )
+    eq = result.scalar_one_or_none()
+    if not eq:
+        raise HTTPException(404)
+
+    data = export_equipment_excel(eq)
+    safe_code = (eq.code or f"eq{eq.id}").replace("/", "-").replace("\\", "-")
+    fname = quote(f"{safe_code}_설비상세.xlsx")
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
 @app.post("/admin/equipment/bulk-import")
 async def equipment_bulk_import(
     user: User = Depends(require_login),

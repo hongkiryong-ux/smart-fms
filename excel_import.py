@@ -515,6 +515,191 @@ async def import_from_directory(
     return results
 
 
+def export_equipment_excel(eq: Equipment) -> bytes:
+    """단일 설비에 등록된 사양·정비이력·점검이력·점검주기·작업 전체를 엑셀로 출력."""
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    header_fill = PatternFill(start_color="003876", end_color="003876", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+
+    def _style_header(ws) -> None:
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+
+    # ── 사양 시트 ──
+    info_ws = wb.create_sheet(title="사양", index=0)
+    info_ws.append(["항목", "내용"])
+    _style_header(info_ws)
+
+    zone = getattr(eq, "zone", None)
+    floor = getattr(zone, "floor", None) if zone else None
+    building = getattr(floor, "building", None) if floor else None
+    location = ""
+    if zone:
+        parts = []
+        if building:
+            parts.append(building.name or "")
+        if floor:
+            parts.append(floor.name or "")
+        parts.append(zone.name or "")
+        location = " / ".join(p for p in parts if p)
+
+    info_rows = [
+        ("코드", eq.code or ""),
+        ("명칭", eq.name or ""),
+        ("분류", eq.category or ""),
+        ("상태", eq.status or ""),
+        ("위치", location),
+        ("제조사", eq.manufacturer or ""),
+        ("모델", eq.model or ""),
+        ("Serial", eq.serial_no or ""),
+    ]
+    for label, value in info_rows:
+        info_ws.append([label, value])
+
+    extra = eq.extra_data or {}
+    for k, v in extra.items():
+        if str(k).startswith("_"):
+            continue
+        info_ws.append([str(k), "" if v is None else str(v)])
+
+    info_ws.column_dimensions["A"].width = 22
+    info_ws.column_dimensions["B"].width = 48
+
+    # ── 정비이력 시트 ──
+    hist_ws = wb.create_sheet(title="정비이력")
+    hist_ws.append(
+        ["작업일", "제목", "작업자", "원인", "작업내용(조치)", "사용부품", "비고", "구분", "작업번호"]
+    )
+    _style_header(hist_ws)
+    history = sorted(
+        eq.maintenance_records or [],
+        key=lambda h: (str(h.work_date or ""), h.id or 0),
+        reverse=True,
+    )
+    for h in history:
+        hist_ws.append(
+            [
+                str(h.work_date) if h.work_date else "",
+                h.title or "",
+                h.worker_name or "",
+                h.cause or "",
+                h.action or "",
+                h.parts_used or "",
+                h.note or "",
+                "수동" if h.is_manual else "자동",
+                h.work_order_id or "",
+            ]
+        )
+    if not history:
+        hist_ws.append(["정비이력 없음"])
+
+    # ── 점검이력 시트 ──
+    pm_ws = wb.create_sheet(title="점검이력")
+    pm_ws.append(["점검일시", "점검명", "결과", "점검자", "점검내용", "정비의뢰번호"])
+    _style_header(pm_ws)
+    pm_result_labels = {"normal": "정상", "caution": "주의", "fault": "고장"}
+    inspections = sorted(
+        eq.pm_inspections or [],
+        key=lambda i: (i.inspected_at or i.id or 0),
+        reverse=True,
+    )
+    for insp in inspections:
+        result_key = (
+            insp.result.value
+            if hasattr(insp.result, "value")
+            else str(insp.result or "")
+        )
+        schedule = getattr(insp, "schedule", None)
+        inspected = insp.inspected_at.strftime("%Y-%m-%d %H:%M") if insp.inspected_at else ""
+        pm_ws.append(
+            [
+                inspected,
+                (schedule.title if schedule else "예방점검"),
+                pm_result_labels.get(result_key, result_key),
+                insp.inspector_name or "",
+                insp.note or "",
+                insp.work_order_id or "",
+            ]
+        )
+    if not inspections:
+        pm_ws.append(["점검이력 없음"])
+
+    # ── 점검주기 시트 ──
+    sched_ws = wb.create_sheet(title="점검주기")
+    sched_ws.append(["점검명", "주기", "담당자", "다음예정일", "최근완료일", "활성"])
+    _style_header(sched_ws)
+    freq_labels = {
+        "daily": "매일",
+        "weekly": "매주",
+        "monthly": "매월",
+        "quarterly": "분기",
+        "semi_annual": "반기",
+        "annual": "연간",
+        "custom": "사용자정의",
+    }
+    schedules = list(eq.pm_schedules or [])
+    for pm in schedules:
+        freq = pm.frequency.value if hasattr(pm.frequency, "value") else str(pm.frequency or "")
+        if freq == "custom" and pm.custom_days:
+            freq_label = f"{pm.custom_days}일"
+        else:
+            freq_label = freq_labels.get(freq, freq)
+        sched_ws.append(
+            [
+                pm.title or "",
+                freq_label,
+                pm.assignee_name or "",
+                str(pm.next_due) if pm.next_due else "",
+                str(pm.last_done) if pm.last_done else "",
+                "Y" if pm.is_active else "N",
+            ]
+        )
+    if not schedules:
+        sched_ws.append(["점검주기 없음"])
+
+    # ── 정비의뢰 시트 ──
+    wo_ws = wb.create_sheet(title="정비의뢰")
+    wo_ws.append(["번호", "제목", "상태", "우선순위", "담당자", "접수일", "설명"])
+    _style_header(wo_ws)
+    status_labels = {
+        "received": "접수",
+        "assigned": "배정",
+        "in_progress": "진행",
+        "completed": "완료",
+        "verified": "확인",
+        "closed": "종료",
+        "cancelled": "취소",
+    }
+    orders = sorted(
+        [wo for wo in (eq.work_orders or []) if getattr(wo, "is_active", True)],
+        key=lambda w: (w.created_at or w.id or 0),
+        reverse=True,
+    )
+    for wo in orders:
+        st = wo.status.value if hasattr(wo.status, "value") else str(wo.status or "")
+        created = wo.created_at.strftime("%Y-%m-%d %H:%M") if wo.created_at else ""
+        wo_ws.append(
+            [
+                wo.id,
+                wo.title or "",
+                status_labels.get(st, st),
+                wo.priority or "",
+                wo.assignee_name or "",
+                created,
+                wo.description or "",
+            ]
+        )
+    if not orders:
+        wo_ws.append(["정비의뢰 없음"])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def export_building_excel(
     building_name: str,
     equipment_by_sheet: dict[str, list[Equipment]],

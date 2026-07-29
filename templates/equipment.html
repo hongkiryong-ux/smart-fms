@@ -153,6 +153,7 @@
             <input type="hidden" name="title" value="[정비의뢰] {{ eq.code }} {{ eq.name }}" />
             <button type="submit" class="btn btn-primary">정비의뢰</button>
           </form>
+          <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/export">Excel 내보내기</a>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}">전체 상세·이력</a>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
           <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
