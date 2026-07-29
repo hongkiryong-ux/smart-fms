@@ -6,6 +6,10 @@
   <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
 </header>
 
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
 <div class="grid-2 sites-layout">
   <section class="card card-wide">
     <h2>사업장 목록</h2>

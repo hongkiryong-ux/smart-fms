@@ -643,6 +643,7 @@ async def dashboard(
 @app.get("/admin/sites")
 async def sites_list(
     request: Request,
+    error: str | None = None,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -654,7 +655,7 @@ async def sites_list(
     )
     sites = result.scalars().all()
     return templates.TemplateResponse(
-        request, "sites.html", {"user": user, "sites": sites}
+        request, "sites.html", {"user": user, "sites": sites, "error": error or ""}
     )
 
 
@@ -757,12 +758,43 @@ async def building_create(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    from urllib.parse import quote
     from excel_import import ensure_building_default_categories
 
-    building = Building(site_id=site_id, name=name.strip(), code=code.strip())
+    name = name.strip()
+    code = code.strip()
+
+    # 같은 사업장 내 동일 건물명 중복 방지
+    dup = (
+        await db.execute(
+            select(Building)
+            .where(Building.site_id == site_id, Building.name == name, Building.is_active == True)
+            .limit(1)
+        )
+    ).scalars().first()
+    if dup:
+        return RedirectResponse(
+            f"/admin/sites?error={quote(f'이미 같은 이름의 건물이 있습니다: {name}')}",
+            status_code=303,
+        )
+
+    # 코드 중복 방지 (같은 사업장)
+    dup_code = (
+        await db.execute(
+            select(Building)
+            .where(Building.site_id == site_id, Building.code == code, Building.is_active == True)
+            .limit(1)
+        )
+    ).scalars().first()
+    if dup_code:
+        return RedirectResponse(
+            f"/admin/sites?error={quote(f'이미 같은 코드의 건물이 있습니다: {code}')}",
+            status_code=303,
+        )
+
+    building = Building(site_id=site_id, name=name, code=code)
     db.add(building)
     await db.flush()
-    # 기본 대분류(위생기기·조명기기·기타 설비) + 코드 1개씩
     await ensure_building_default_categories(db, building)
     await db.commit()
     return RedirectResponse("/admin/sites", status_code=303)
