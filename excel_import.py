@@ -10,7 +10,7 @@ from typing import Any
 import xlrd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Building, Equipment, Floor, Site, Zone
@@ -197,6 +197,34 @@ def _equipment_code(building_code: str, sheet: str, idx: int, name: str) -> str:
 DEFAULT_BUILDING_CATEGORIES = ("위생기기", "조명기기", "기타 설비")
 
 
+async def _lookup_building(
+    session: AsyncSession, site_id: int, building_name: str, bcode: str
+) -> Building | None:
+    """동일 코드/이름 건물이 여러 개(삭제 후 재등록)여도 활성·최신 1건만 반환."""
+    return (
+        await session.execute(
+            select(Building)
+            .where(
+                Building.site_id == site_id,
+                or_(Building.code == bcode, Building.name == building_name),
+            )
+            .order_by(Building.is_active.desc(), Building.id.desc())
+            .limit(1)
+        )
+    ).scalars().first()
+
+
+async def _lookup_equipment_by_code(session: AsyncSession, code: str) -> Equipment | None:
+    return (
+        await session.execute(
+            select(Equipment)
+            .where(Equipment.code == code)
+            .order_by(Equipment.is_active.desc(), Equipment.id.desc())
+            .limit(1)
+        )
+    ).scalars().first()
+
+
 async def ensure_building_floor_zone(
     session: AsyncSession, building: Building
 ) -> Zone:
@@ -265,7 +293,7 @@ async def ensure_building_default_categories(
                 )
                 .limit(1)
             )
-        ).scalar_one_or_none()
+        ).scalars().first()
         if exists:
             continue
 
@@ -324,12 +352,13 @@ async def ensure_site_and_building(
         await session.flush()
 
     bcode = _building_code(building_name)
-    building = (
-        await session.execute(
-            select(Building).where(Building.site_id == site.id, Building.code == bcode)
-        )
-    ).scalar_one_or_none()
-    if not building:
+    building = await _lookup_building(session, site.id, building_name, bcode)
+    if building:
+        if not building.is_active:
+            building.is_active = True
+        if building.name != building_name:
+            building.name = building_name
+    else:
         building = Building(site_id=site.id, name=building_name, code=bcode)
         session.add(building)
         await session.flush()
@@ -344,9 +373,19 @@ async def import_excel_to_building(
     building_name: str,
     file_path: str | Path,
     replace: bool = False,
+    building_id: int | None = None,
 ) -> dict[str, int]:
     """엑셀 파일을 건물에 import. replace=True면 기존 설비 비활성화 후 재등록."""
-    _, building, zone = await ensure_site_and_building(session, building_name)
+    if building_id is not None:
+        building = await session.get(Building, building_id)
+        if not building:
+            raise ValueError("건물을 찾을 수 없습니다.")
+        if not building.is_active:
+            raise ValueError("비활성화된 건물입니다.")
+        zone = await ensure_building_floor_zone(session, building)
+        await ensure_building_default_categories(session, building)
+    else:
+        _, building, zone = await ensure_site_and_building(session, building_name)
     parsed = parse_excel_file(file_path)
 
     if replace:
@@ -370,11 +409,7 @@ async def import_excel_to_building(
             name = row.pop("_name", f"항목{idx}")
             code = _equipment_code(bcode, sheet_name, idx, name)
 
-            existing = (
-                await session.execute(
-                    select(Equipment).where(Equipment.code == code)
-                )
-            ).scalar_one_or_none()
+            existing = await _lookup_equipment_by_code(session, code)
 
             manufacturer = row.get("제조사") or row.get("제조사/년") or ""
             model = row.get("TYPE") or row.get("Type or Model명") or row.get("MODEL NO.") or row.get("형식") or ""

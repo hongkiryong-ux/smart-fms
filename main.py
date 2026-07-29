@@ -1092,8 +1092,13 @@ async def equipment_create(
     extra = merge_extra_for_save(extra, name_val, manufacturer, model, serial_no)
 
     existing = (
-        await db.execute(select(Equipment).where(Equipment.code == code_val))
-    ).scalar_one_or_none()
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.code == code_val)
+            .order_by(Equipment.is_active.desc(), Equipment.id.desc())
+            .limit(1)
+        )
+    ).scalars().first()
 
     try:
         if existing and existing.is_active:
@@ -1214,6 +1219,7 @@ async def equipment_import_upload(
             building.name,
             tmp_path,
             replace=replace == "1",
+            building_id=building_id,
         )
         msg = f"시트 {stats['sheets']}개 · 신규 {stats['created']}건 · 갱신 {stats['updated']}건"
         return RedirectResponse(
