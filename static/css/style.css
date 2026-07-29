@@ -1296,6 +1296,13 @@ button.link-action:hover { text-decoration: underline; }
   border-color: #93c5fd;
   color: #1d4ed8;
 }
+.d1-partner-btn-sep {
+  color: var(--border);
+  margin: 0 0.15rem;
+  font-weight: 400;
+  user-select: none;
+}
+.d1-partner-btn small { opacity: 0.85; font-weight: 600; }
 .d1-partner-panel {
   margin: 0.35rem 0 0.75rem;
   border: 1px solid var(--border);

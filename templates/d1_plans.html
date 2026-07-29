@@ -127,7 +127,21 @@
                {% if filters.view_partner %}checked{% endif %} />
         업체별 보기
       </label>
+      {% if filters.view_partner %}
+      <span class="d1-partner-btn-sep" aria-hidden="true">|</span>
+      <a class="d1-status-btn d1-partner-btn{% if not filters.partner_id %} is-on{% endif %}"
+         href="/admin/d1?view=partner{% for s in filters.statuses %}&status={{ s }}{% endfor %}">전체 업체</a>
+      {% for pb in partner_btns %}
+      <a class="d1-status-btn d1-partner-btn{% if filters.partner_id == pb.id %} is-on{% endif %}"
+         href="/admin/d1?view=partner&partner_id={{ pb.id }}{% for s in filters.statuses %}&status={{ s }}{% endfor %}">
+        {{ pb.name }} <small>({{ pb.count }})</small>
+      </a>
+      {% endfor %}
+      {% endif %}
     </div>
+    {% if filters.view_partner and filters.partner_id %}
+    <input type="hidden" name="partner_id" value="{{ filters.partner_id }}" />
+    {% endif %}
   </form>
 </section>
 

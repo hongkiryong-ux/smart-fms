@@ -2608,6 +2608,7 @@ async def d1_list(
     request: Request,
     status: list[str] = Query(default=[]),
     view: str = "",
+    partner_id: int = 0,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2615,6 +2616,13 @@ async def d1_list(
     tomorrow = today + timedelta(days=1)
     status_vals = _parse_wo_status_filters(status)
     view_partner = (view or "").strip().lower() == "partner"
+    try:
+        partner_sel = int(partner_id or 0)
+    except (TypeError, ValueError):
+        partner_sel = 0
+    # 업체별 보기가 아니면 업체 필터 무시
+    if not view_partner:
+        partner_sel = 0
 
     open_statuses = [
         WorkOrderStatus.received,
@@ -2665,19 +2673,37 @@ async def d1_list(
         )
     ).scalars().unique().all()
 
-    def _apply_filters(items: list) -> list:
+    def _apply_status(items: list) -> list:
         return [w for w in items if _wo_matches_status_filter(w, status_vals)]
 
-    today_works = _apply_filters([w for w in open_works if w.scheduled_date == today])
-    tomorrow_works = _apply_filters(
-        [w for w in open_works if w.scheduled_date == tomorrow]
-    )
-    scheduled_works = _apply_filters(
-        [w for w in open_works if w.scheduled_date not in (today, tomorrow)]
-    )
-    completed_works = _apply_filters(list(completed_raw))
+    def _apply_partner(items: list) -> list:
+        if not partner_sel:
+            return items
+        if partner_sel == -1:
+            return [w for w in items if not w.partner_id]
+        return [w for w in items if int(w.partner_id or 0) == partner_sel]
 
+    today_works = _apply_partner(
+        _apply_status([w for w in open_works if w.scheduled_date == today])
+    )
+    tomorrow_works = _apply_partner(
+        _apply_status([w for w in open_works if w.scheduled_date == tomorrow])
+    )
+    scheduled_works = _apply_partner(
+        _apply_status(
+            [w for w in open_works if w.scheduled_date not in (today, tomorrow)]
+        )
+    )
+    completed_works = _apply_partner(_apply_status(list(completed_raw)))
+
+    status_pool = _apply_status(list(open_works) + list(completed_raw))
     filtered_all = today_works + tomorrow_works + scheduled_works + completed_works
+
+    partner_counts: dict[int, int] = {}
+    for w in status_pool:
+        pid = int(w.partner_id or 0)
+        partner_counts[pid] = partner_counts.get(pid, 0) + 1
+
     partner_groups: list[dict] = []
     if view_partner:
         by_partner: dict[str, list] = {}
@@ -2693,6 +2719,17 @@ async def d1_list(
         )
     ).scalars().all()
 
+    # 업체 버튼: 건수 있는 협력사 + 미지정
+    partner_btns: list[dict] = []
+    if view_partner:
+        for p in partners:
+            cnt = partner_counts.get(p.id, 0)
+            if cnt > 0 or partner_sel == p.id:
+                partner_btns.append({"id": p.id, "name": p.name, "count": cnt})
+        none_cnt = partner_counts.get(0, 0)
+        if none_cnt > 0 or partner_sel == -1:
+            partner_btns.append({"id": -1, "name": "미지정", "count": none_cnt})
+
     return templates.TemplateResponse(
         request,
         "d1_plans.html",
@@ -2706,9 +2743,11 @@ async def d1_list(
             "completed_works": completed_works,
             "filtered_count": len(filtered_all),
             "partner_groups": partner_groups,
+            "partner_btns": partner_btns,
             "filters": {
                 "statuses": status_vals,
                 "view_partner": view_partner,
+                "partner_id": partner_sel,
             },
             "partners": partners,
         },
@@ -2719,6 +2758,7 @@ async def d1_list(
 async def d1_export(
     status: list[str] = Query(default=[]),
     view: str = "",
+    partner_id: int = 0,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2726,6 +2766,11 @@ async def d1_export(
     today = _today_kst()
     tomorrow = today + timedelta(days=1)
     status_vals = _parse_wo_status_filters(status)
+    view_partner = (view or "").strip().lower() == "partner"
+    try:
+        partner_sel = int(partner_id or 0) if view_partner else 0
+    except (TypeError, ValueError):
+        partner_sel = 0
     open_statuses = [
         WorkOrderStatus.received,
         WorkOrderStatus.assigned,
@@ -2775,7 +2820,14 @@ async def d1_export(
     ).scalars().unique().all()
 
     def _ok(w: WorkOrder) -> bool:
-        return _wo_matches_status_filter(w, status_vals)
+        if not _wo_matches_status_filter(w, status_vals):
+            return False
+        pid = int(w.partner_id or 0)
+        if partner_sel == -1 and pid != 0:
+            return False
+        if partner_sel > 0 and pid != partner_sel:
+            return False
+        return True
 
     orders = (
         [w for w in open_works if w.scheduled_date == today and _ok(w)]
