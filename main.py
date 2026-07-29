@@ -111,6 +111,108 @@ def _wo_process_step(status: WorkOrderStatus | str) -> int:
     return 1
 
 
+def _parse_wo_status_filters(status: list[str] | None) -> list[str]:
+    allowed = {"received", "in_progress", "completed"}
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in status or []:
+        for part in str(raw).split(","):
+            key = part.strip()
+            if key in allowed and key not in seen:
+                seen.add(key)
+                out.append(key)
+    return out
+
+
+def _wo_status_sql_filter(status_vals: list[str]):
+    if not status_vals:
+        return None
+    status_conds = []
+    if "received" in status_vals:
+        status_conds.append(
+            WorkOrder.status.in_([WorkOrderStatus.received, WorkOrderStatus.assigned])
+        )
+    if "in_progress" in status_vals:
+        status_conds.append(WorkOrder.status == WorkOrderStatus.in_progress)
+    if "completed" in status_vals:
+        status_conds.append(
+            WorkOrder.status.in_(
+                [
+                    WorkOrderStatus.completed,
+                    WorkOrderStatus.verified,
+                    WorkOrderStatus.closed,
+                ]
+            )
+        )
+    if not status_conds:
+        return None
+    return or_(*status_conds)
+
+
+def _wo_matches_status_filter(wo: WorkOrder, status_vals: list[str]) -> bool:
+    if not status_vals:
+        return True
+    key = wo.status.value if isinstance(wo.status, WorkOrderStatus) else str(wo.status)
+    if "received" in status_vals and key in ("received", "assigned"):
+        return True
+    if "in_progress" in status_vals and key == "in_progress":
+        return True
+    if "completed" in status_vals and key in ("completed", "verified", "closed"):
+        return True
+    return False
+
+
+def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목록"):
+    from io import BytesIO
+    from urllib.parse import quote
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "정비목록"
+    ws.append(
+        [
+            "설비코드",
+            "설비명",
+            "정비의뢰내용",
+            "등록일",
+            "예정일",
+            "우선순위",
+            "협력사",
+            "진행",
+            "조치내용",
+            "담당자",
+        ]
+    )
+    for wo in orders:
+        eq = wo.equipment
+        ws.append(
+            [
+                eq.code if eq else "",
+                eq.name if eq else "",
+                (wo.description or wo.title or "").strip(),
+                _fmt_kst_date(wo.created_at),
+                wo.scheduled_date.isoformat() if wo.scheduled_date else "",
+                "긴급" if wo.priority == "high" else "일반",
+                wo.partner.name if wo.partner else "미지정",
+                _status_label(wo.status),
+                wo.action or "",
+                wo.assignee_name or "",
+            ]
+        )
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
+    filename = quote(f"{filename_prefix}_{stamp}.xlsx")
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
 async def _ensure_maintenance_history(db: AsyncSession, wo: WorkOrder) -> None:
     """정비완료 시 설비 정비이력 자동 등록 (중복 방지)."""
     if not wo.equipment_id:
@@ -1514,16 +1616,7 @@ async def work_orders_list(
     db: AsyncSession = Depends(get_db),
 ):
     q_val = (q or "").strip()
-    # 확인란 다중선택 + 콤마 구분(리다이렉트 호환)
-    allowed_status = {"received", "in_progress", "completed"}
-    status_vals: list[str] = []
-    seen_status: set[str] = set()
-    for raw in status or []:
-        for part in str(raw).split(","):
-            key = part.strip()
-            if key in allowed_status and key not in seen_status:
-                seen_status.add(key)
-                status_vals.append(key)
+    status_vals = _parse_wo_status_filters(status)
     priority_val = (priority or "").strip()
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
@@ -1549,28 +1642,9 @@ async def work_orders_list(
             )
         )
 
-    if status_vals:
-        status_conds = []
-        if "received" in status_vals:
-            status_conds.append(
-                WorkOrder.status.in_(
-                    [WorkOrderStatus.received, WorkOrderStatus.assigned]
-                )
-            )
-        if "in_progress" in status_vals:
-            status_conds.append(WorkOrder.status == WorkOrderStatus.in_progress)
-        if "completed" in status_vals:
-            status_conds.append(
-                WorkOrder.status.in_(
-                    [
-                        WorkOrderStatus.completed,
-                        WorkOrderStatus.verified,
-                        WorkOrderStatus.closed,
-                    ]
-                )
-            )
-        if status_conds:
-            filters.append(or_(*status_conds))
+    status_f = _wo_status_sql_filter(status_vals)
+    if status_f is not None:
+        filters.append(status_f)
 
     if priority_val in ("normal", "high"):
         filters.append(WorkOrder.priority == priority_val)
@@ -1660,6 +1734,73 @@ async def work_orders_list(
             "result_count": len(orders),
         },
     )
+
+
+@app.get("/admin/work-orders/export")
+async def work_orders_export(
+    q: str = "",
+    status: list[str] = Query(default=[]),
+    priority: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """정비관리 목록(현재 필터) Excel 내보내기."""
+    q_val = (q or "").strip()
+    status_vals = _parse_wo_status_filters(status)
+    priority_val = (priority or "").strip()
+    date_from_val = (date_from or "").strip()
+    date_to_val = (date_to or "").strip()
+
+    stmt = (
+        select(WorkOrder)
+        .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
+        .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
+        .where(WorkOrder.is_active == True)
+    )
+    filters = []
+    if q_val:
+        like = f"%{q_val}%"
+        filters.append(
+            or_(
+                WorkOrder.title.ilike(like),
+                WorkOrder.description.ilike(like),
+                WorkOrder.action.ilike(like),
+                WorkOrder.assignee_name.ilike(like),
+                Equipment.code.ilike(like),
+                Equipment.name.ilike(like),
+            )
+        )
+    status_f = _wo_status_sql_filter(status_vals)
+    if status_f is not None:
+        filters.append(status_f)
+    if priority_val in ("normal", "high"):
+        filters.append(WorkOrder.priority == priority_val)
+    if date_from_val:
+        try:
+            filters.append(
+                WorkOrder.created_at
+                >= datetime.fromisoformat(date_from_val).replace(tzinfo=None)
+            )
+        except ValueError:
+            pass
+    if date_to_val:
+        try:
+            end = datetime.fromisoformat(date_to_val).replace(tzinfo=None)
+            filters.append(
+                WorkOrder.created_at
+                < end.replace(hour=23, minute=59, second=59, microsecond=999999)
+            )
+        except ValueError:
+            pass
+    if filters:
+        stmt = stmt.where(and_(*filters))
+
+    orders = (
+        await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
+    ).scalars().unique().all()
+    return _work_orders_excel_response(orders, "정비관리")
 
 
 @app.post("/admin/work-orders")
@@ -2465,11 +2606,20 @@ async def risk_assessment_command(
 @app.get("/admin/d1")
 async def d1_list(
     request: Request,
+    status: list[str] = Query(default=[]),
+    partner_id: int = 0,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     today = _today_kst()
     tomorrow = today + timedelta(days=1)
+    status_vals = _parse_wo_status_filters(status)
+    # 0=전체, -1=미지정, >0=특정 협력사
+    try:
+        partner_sel = int(partner_id or 0)
+    except (TypeError, ValueError):
+        partner_sel = 0
+
     open_statuses = [
         WorkOrderStatus.received,
         WorkOrderStatus.assigned,
@@ -2516,16 +2666,7 @@ async def d1_list(
         )
     ).scalars().unique().all()
 
-    today_works = [w for w in open_works if w.scheduled_date == today]
-    tomorrow_works = [w for w in open_works if w.scheduled_date == tomorrow]
-    # 오늘·내일 외 미완료(예정일 없음·과거·모레 이후)
-    scheduled_works = [
-        w
-        for w in open_works
-        if w.scheduled_date not in (today, tomorrow)
-    ]
-
-    completed_works = (
+    completed_raw = (
         await db.execute(
             select(WorkOrder)
             .where(
@@ -2540,9 +2681,41 @@ async def d1_list(
                 WorkOrder.completed_at.desc().nullslast(),
                 WorkOrder.id.desc(),
             )
-            .limit(100)
+            .limit(300)
         )
     ).scalars().unique().all()
+
+    def _apply_filters(items: list) -> list:
+        out = []
+        for w in items:
+            if not _wo_matches_status_filter(w, status_vals):
+                continue
+            pid = int(w.partner_id or 0)
+            if partner_sel == -1 and pid != 0:
+                continue
+            if partner_sel > 0 and pid != partner_sel:
+                continue
+            out.append(w)
+        return out
+
+    today_works = _apply_filters([w for w in open_works if w.scheduled_date == today])
+    tomorrow_works = _apply_filters(
+        [w for w in open_works if w.scheduled_date == tomorrow]
+    )
+    scheduled_works = _apply_filters(
+        [w for w in open_works if w.scheduled_date not in (today, tomorrow)]
+    )
+    completed_works = _apply_filters(list(completed_raw))
+
+    # 필터된 전체(엑셀·건수) + 협력사별 펼침 그룹
+    filtered_all = today_works + tomorrow_works + scheduled_works + completed_works
+    partner_groups: list[dict] = []
+    by_partner: dict[str, list] = {}
+    for w in filtered_all:
+        name = w.partner.name if w.partner else "미지정"
+        by_partner.setdefault(name, []).append(w)
+    for name in sorted(by_partner.keys(), key=lambda n: (n == "미지정", n)):
+        partner_groups.append({"name": name, "orders": by_partner[name]})
 
     sites = (
         await db.execute(select(Site).where(Site.is_active == True).order_by(Site.name))
@@ -2562,6 +2735,16 @@ async def d1_list(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
         )
     ).scalars().all()
+
+    # 상태 필터만 적용한 풀 → 협력사 칩 건수
+    status_pool = [
+        w for w in open_works if _wo_matches_status_filter(w, status_vals)
+    ] + [w for w in completed_raw if _wo_matches_status_filter(w, status_vals)]
+    partner_counts: dict[int, int] = {}
+    for w in status_pool:
+        pid = int(w.partner_id or 0)
+        partner_counts[pid] = partner_counts.get(pid, 0) + 1
+
     return templates.TemplateResponse(
         request,
         "d1_plans.html",
@@ -2576,12 +2759,105 @@ async def d1_list(
             "tomorrow_works": tomorrow_works,
             "scheduled_works": scheduled_works,
             "completed_works": completed_works,
+            "filtered_count": len(filtered_all),
+            "partner_groups": partner_groups,
+            "partner_counts": partner_counts,
+            "filters": {
+                "statuses": status_vals,
+                "partner_id": partner_sel,
+            },
             "sites": sites,
             "buildings": buildings,
             "equipment": equipment,
             "partners": partners,
         },
     )
+
+
+@app.get("/admin/d1/export")
+async def d1_export(
+    status: list[str] = Query(default=[]),
+    partner_id: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """D-1 화면의 현재 필터(진행상태·협력사) 결과를 Excel로 내보내기."""
+    today = _today_kst()
+    tomorrow = today + timedelta(days=1)
+    status_vals = _parse_wo_status_filters(status)
+    try:
+        partner_sel = int(partner_id or 0)
+    except (TypeError, ValueError):
+        partner_sel = 0
+    open_statuses = [
+        WorkOrderStatus.received,
+        WorkOrderStatus.assigned,
+        WorkOrderStatus.in_progress,
+    ]
+    done_statuses = [
+        WorkOrderStatus.completed,
+        WorkOrderStatus.verified,
+        WorkOrderStatus.closed,
+    ]
+
+    open_works = (
+        await db.execute(
+            select(WorkOrder)
+            .where(
+                WorkOrder.is_active == True,
+                WorkOrder.status.in_(open_statuses),
+            )
+            .options(
+                selectinload(WorkOrder.equipment),
+                selectinload(WorkOrder.partner),
+            )
+            .order_by(
+                WorkOrder.scheduled_date.asc().nullslast(),
+                WorkOrder.priority.desc(),
+                WorkOrder.id.asc(),
+            )
+        )
+    ).scalars().unique().all()
+    completed = (
+        await db.execute(
+            select(WorkOrder)
+            .where(
+                WorkOrder.is_active == True,
+                WorkOrder.status.in_(done_statuses),
+            )
+            .options(
+                selectinload(WorkOrder.equipment),
+                selectinload(WorkOrder.partner),
+            )
+            .order_by(
+                WorkOrder.completed_at.desc().nullslast(),
+                WorkOrder.id.desc(),
+            )
+            .limit(300)
+        )
+    ).scalars().unique().all()
+
+    def _ok(w: WorkOrder) -> bool:
+        if not _wo_matches_status_filter(w, status_vals):
+            return False
+        pid = int(w.partner_id or 0)
+        if partner_sel == -1 and pid != 0:
+            return False
+        if partner_sel > 0 and pid != partner_sel:
+            return False
+        return True
+
+    orders = (
+        [w for w in open_works if w.scheduled_date == today and _ok(w)]
+        + [w for w in open_works if w.scheduled_date == tomorrow and _ok(w)]
+        + [
+            w
+            for w in open_works
+            if w.scheduled_date not in (today, tomorrow) and _ok(w)
+        ]
+        + [w for w in completed if _ok(w)]
+    )
+    return _work_orders_excel_response(orders, "D1작업")
 
 
 @app.post("/admin/d1")

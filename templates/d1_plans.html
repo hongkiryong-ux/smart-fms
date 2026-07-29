@@ -97,6 +97,68 @@
   <p>오늘 {{ today }} · 정비 예정일 기준 당일·익일 · 예정·완료 목록</p>
 </header>
 
+<section class="card d1-filter-card">
+  <div class="wo-list-head">
+    <h2>필터 <small class="text-muted">({{ filtered_count }}건)</small></h2>
+    <a class="btn btn-sm btn-secondary" id="d1-excel-btn" href="/admin/d1/export">Excel 내보내기</a>
+  </div>
+
+  <form method="get" action="/admin/d1" class="d1-filter-bar" id="d1-filter-form">
+    <div class="d1-status-btns" role="group" aria-label="진행상태 필터">
+      <a class="d1-status-btn{% if not filters.statuses %} is-on{% endif %}"
+         href="/admin/d1{% if filters.partner_id %}?partner_id={{ filters.partner_id }}{% endif %}">전체</a>
+      <label class="d1-status-btn{% if 'received' in filters.statuses %} is-on{% endif %}">
+        <input type="checkbox" name="status" value="received"
+               {% if 'received' in filters.statuses %}checked{% endif %} />
+        정비의뢰
+      </label>
+      <label class="d1-status-btn{% if 'in_progress' in filters.statuses %} is-on{% endif %}">
+        <input type="checkbox" name="status" value="in_progress"
+               {% if 'in_progress' in filters.statuses %}checked{% endif %} />
+        정비진행
+      </label>
+      <label class="d1-status-btn{% if 'completed' in filters.statuses %} is-on{% endif %}">
+        <input type="checkbox" name="status" value="completed"
+               {% if 'completed' in filters.statuses %}checked{% endif %} />
+        정비완료
+      </label>
+    </div>
+    {% if filters.partner_id %}
+    <input type="hidden" name="partner_id" value="{{ filters.partner_id }}" />
+    {% endif %}
+  </form>
+
+  <details class="d1-partner-panel" {% if filters.partner_id %}open{% endif %}>
+    <summary>협력사별 필터 {% if filters.partner_id %}<span class="text-muted">(선택됨)</span>{% endif %}</summary>
+    <div class="d1-partner-chips">
+      <a class="d1-partner-chip{% if not filters.partner_id %} is-on{% endif %}"
+         href="/admin/d1{% if filters.statuses %}?{% for s in filters.statuses %}status={{ s }}{% if not loop.last %}&{% endif %}{% endfor %}{% endif %}">전체 협력사</a>
+      {% for p in partners %}
+      <a class="d1-partner-chip{% if filters.partner_id == p.id %} is-on{% endif %}"
+         href="/admin/d1?partner_id={{ p.id }}{% for s in filters.statuses %}&status={{ s }}{% endfor %}">
+        {{ p.name }} <small>({{ partner_counts.get(p.id, 0) }})</small>
+      </a>
+      {% endfor %}
+      <a class="d1-partner-chip{% if filters.partner_id == -1 %} is-on{% endif %}"
+         href="/admin/d1?partner_id=-1{% for s in filters.statuses %}&status={{ s }}{% endfor %}">
+        미지정 <small>({{ partner_counts.get(0, 0) }})</small>
+      </a>
+    </div>
+  </details>
+
+  {% if partner_groups %}
+  <div class="d1-partner-groups">
+    <h3 class="d1-subhead">협력사별 펼침 보기</h3>
+    {% for g in partner_groups %}
+    <details class="d1-partner-group" open>
+      <summary>{{ g.name }} <small class="text-muted">({{ g.orders|length }}건)</small></summary>
+      {{ wo_board_table(g.orders, partners, "항목 없음") }}
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
 <div class="d1-board">
   <section class="card">
     <div class="wo-list-head">
@@ -211,4 +273,22 @@
     </form>
   </section>
 </div>
+<script>
+(function () {
+  var form = document.getElementById('d1-filter-form');
+  var excel = document.getElementById('d1-excel-btn');
+  function syncExcel() {
+    if (!form || !excel) return;
+    var fd = new FormData(form);
+    var qs = new URLSearchParams(fd).toString();
+    excel.href = '/admin/d1/export' + (qs ? ('?' + qs) : '');
+  }
+  if (form) {
+    form.querySelectorAll('input[name="status"]').forEach(function (cb) {
+      cb.addEventListener('change', function () { form.submit(); });
+    });
+    syncExcel();
+  }
+})();
+</script>
 {% endblock %}

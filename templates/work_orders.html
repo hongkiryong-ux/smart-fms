@@ -12,13 +12,18 @@
       정비 목록
       <small class="text-muted">({{ result_count }}건)</small>
     </h2>
-    <button type="button"
-            class="wo-add-icon"
-            data-open-dialog="wo-create-dialog"
-            title="정비의뢰 접수">
-      <span class="wo-add-plus" aria-hidden="true">＋</span>
-      <span class="wo-add-label">정비의뢰</span>
-    </button>
+    <div class="row-actions">
+      <a class="btn btn-sm btn-secondary"
+         id="wo-excel-btn"
+         href="/admin/work-orders/export">Excel 내보내기</a>
+      <button type="button"
+              class="wo-add-icon"
+              data-open-dialog="wo-create-dialog"
+              title="정비의뢰 접수">
+        <span class="wo-add-plus" aria-hidden="true">＋</span>
+        <span class="wo-add-label">정비의뢰</span>
+      </button>
+    </div>
   </div>
 
   <form method="get" action="/admin/work-orders" class="wo-filter-bar" id="wo-filter-form">
@@ -234,6 +239,12 @@
   {% endif %}
 
   var filterForm = document.getElementById('wo-filter-form');
+  var excelBtn = document.getElementById('wo-excel-btn');
+  function syncExcelHref() {
+    if (!filterForm || !excelBtn) return;
+    var qs = new URLSearchParams(new FormData(filterForm)).toString();
+    excelBtn.href = '/admin/work-orders/export' + (qs ? ('?' + qs) : '');
+  }
   if (filterForm) {
     filterForm.querySelectorAll('input[name="status"]').forEach(function (cb) {
       cb.addEventListener('change', function () { filterForm.submit(); });
@@ -241,6 +252,7 @@
     filterForm.querySelectorAll('input[name="date_from"], input[name="date_to"]').forEach(function (el) {
       el.addEventListener('change', function () { filterForm.submit(); });
     });
+    syncExcelHref();
   }
 
   var dataEl = document.getElementById('wo-equipment-data');
