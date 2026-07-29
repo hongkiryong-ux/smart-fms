@@ -1454,6 +1454,34 @@ button.link-action:hover { text-decoration: underline; }
   color: #1d4ed8;
 }
 .risk-mode-opt input { margin: 0; }
+.risk-mode-opt.is-warn { opacity: 0.85; }
+.risk-mode-opt small { font-weight: 500; opacity: 0.8; }
+.risk-tools-card { margin-top: 0.75rem; }
+.risk-tools-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+@media (max-width: 900px) {
+  .risk-tools-grid { grid-template-columns: 1fr; }
+}
+.risk-tool-block h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+.risk-ai-key-form,
+.risk-learn-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.75rem;
+  align-items: flex-end;
+}
+.risk-ai-key-form .risk-field,
+.risk-learn-form .risk-field { min-width: 180px; flex: 1; }
+.risk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  align-self: center;
+}
 .btn-block { width: 100%; }
 .risk-intro { display: none; }
 .risk-result-card { margin-top: 0.25rem; }

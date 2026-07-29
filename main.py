@@ -1903,20 +1903,27 @@ async def work_order_advance(
 
 
 def _risk_page_context(user, **extra):
-    import os
-
-    from risk_assessment import list_majors, list_presets
+    from risk_assessment import ai_key_masked, ai_ready, list_majors, list_presets
 
     majors = list_majors()
     presets = list_presets()
     major_id_map = {m["name"]: m["id"] for m in majors if m.get("name")}
+    ready = ai_ready()
+    try:
+        from risk_assessment.web_bridge import resolve_openai_credentials
+
+        _key, _model = resolve_openai_credentials()
+    except Exception:
+        _model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
     ctx = {
         "user": user,
         "majors": majors,
         "presets": presets,
         "presets_json": json.dumps(presets, ensure_ascii=False),
         "major_id_map_json": json.dumps(major_id_map, ensure_ascii=False),
-        "ai_ready": bool(os.environ.get("OPENAI_API_KEY", "").strip()),
+        "ai_ready": ready,
+        "ai_key_masked": ai_key_masked(),
+        "ai_model": _model or "gpt-4o-mini",
         "use_ai": False,
         "five_m": {},
         "meta": {},
@@ -1925,12 +1932,16 @@ def _risk_page_context(user, **extra):
         "preset_name_json": '""',
         "work_name": "",
         "error_msg": "",
+        "info_msg": "",
         "command_result": "",
         "rows_json": "[]",
+        "register_msg": "",
     }
     ctx.update(extra)
     if "preset_name" in extra or "preset_name_json" not in extra:
         ctx["preset_name_json"] = json.dumps(ctx.get("preset_name") or "", ensure_ascii=False)
+    if "ai_ready" not in extra:
+        ctx["ai_ready"] = ready
     return ctx
 
 
@@ -2050,6 +2061,126 @@ async def risk_assessment_run(
             report_text=result["report_text"],
             mode_label=result["mode_label"],
             error_msg=result.get("error") or "",
+            register_msg=result.get("register_msg") or "",
+            info_msg=result.get("register_msg") or "",
+        ),
+    )
+
+
+@app.post("/admin/risk-assessment/ai-settings")
+async def risk_assessment_ai_settings(
+    request: Request,
+    openai_api_key: str = Form(""),
+    openai_model: str = Form("gpt-4o-mini"),
+    user: User = Depends(require_login),
+):
+    from risk_assessment import save_openai_settings
+
+    try:
+        saved = save_openai_settings(openai_api_key, openai_model)
+        msg = (
+            f"AI 키 저장됨 ({saved.get('masked_key')}, 모델: {saved.get('model')})"
+            if saved.get("ok")
+            else "API 키를 입력하세요."
+        )
+        return templates.TemplateResponse(
+            request,
+            "risk_assessment.html",
+            _risk_page_context(
+                user,
+                info_msg=msg if saved.get("ok") else "",
+                error_msg="" if saved.get("ok") else msg,
+                use_ai=bool(saved.get("ok")),
+            ),
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            request,
+            "risk_assessment.html",
+            _risk_page_context(user, error_msg=f"AI 키 저장 실패: {e}"),
+            status_code=500,
+        )
+
+
+@app.post("/admin/risk-assessment/learn")
+async def risk_assessment_learn(
+    request: Request,
+    major_name: str = Form(...),
+    allow_update: str = Form("0"),
+    files: list[UploadFile] = File(default=[]),
+    user: User = Depends(require_login),
+):
+    """위험성평가 문서 업로드 → 소분류 학습 등록."""
+    import tempfile
+    from pathlib import Path
+
+    from risk_assessment import learn_documents
+
+    raw_files = files
+    if raw_files is None:
+        raw_files = []
+    elif not isinstance(raw_files, list):
+        raw_files = [raw_files]
+    uploads = [f for f in raw_files if f and getattr(f, "filename", None)]
+    if not uploads:
+        return templates.TemplateResponse(
+            request,
+            "risk_assessment.html",
+            _risk_page_context(
+                user,
+                selected_major=major_name.strip(),
+                error_msg="학습할 문서 파일을 선택하세요. (xlsx/docx/pptx/pdf)",
+            ),
+        )
+
+    tmp_paths: list[Path] = []
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            for f in uploads:
+                safe = Path(f.filename or "doc").name
+                dest = td_path / safe
+                data = await f.read()
+                dest.write_bytes(data)
+                tmp_paths.append(dest)
+
+            result = learn_documents(
+                tmp_paths,
+                major_name.strip(),
+                allow_update=(allow_update == "1"),
+            )
+    except Exception as e:
+        print(f"[risk] learn failed: {e}", flush=True)
+        return templates.TemplateResponse(
+            request,
+            "risk_assessment.html",
+            _risk_page_context(
+                user,
+                selected_major=major_name.strip(),
+                error_msg=f"문서 학습 실패: {e}",
+            ),
+            status_code=500,
+        )
+
+    ok_n = len(result.get("registered") or [])
+    err_n = len(result.get("errors") or [])
+    parts = [f"문서 학습: 파싱 {result.get('parsed', 0)}건 → 등록 {ok_n}건"]
+    if result.get("registered"):
+        names = ", ".join(r["name"] for r in result["registered"][:8])
+        parts.append(f"등록: {names}")
+    info = " · ".join(parts)
+    err = ""
+    if result.get("errors"):
+        err = "일부 실패: " + " / ".join(result["errors"][:5])
+
+    return templates.TemplateResponse(
+        request,
+        "risk_assessment.html",
+        _risk_page_context(
+            user,
+            selected_major=major_name.strip(),
+            info_msg=info,
+            error_msg=err,
         ),
     )
 

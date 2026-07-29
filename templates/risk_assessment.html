@@ -12,6 +12,9 @@
 {% if error_msg %}
 <div class="alert alert-error">{{ error_msg }}</div>
 {% endif %}
+{% if info_msg %}
+<div class="alert alert-ok">{{ info_msg }}</div>
+{% endif %}
 
 <section class="card risk-input-card">
   <form method="post" action="/admin/risk-assessment/assess" id="risk-form">
@@ -23,9 +26,9 @@
             <input type="radio" name="use_ai" value="0" {% if not use_ai %}checked{% endif %} />
             로컬
           </label>
-          <label class="risk-mode-opt{% if use_ai %} is-on{% endif %}">
-            <input type="radio" name="use_ai" value="1" {% if use_ai %}checked{% endif %} {% if not ai_ready %}disabled{% endif %} />
-            AI{% if not ai_ready %} <small>키없음</small>{% endif %}
+          <label class="risk-mode-opt{% if use_ai %} is-on{% endif %}{% if not ai_ready %} is-warn{% endif %}">
+            <input type="radio" name="use_ai" value="1" {% if use_ai %}checked{% endif %} />
+            AI{% if not ai_ready %} <small>키 필요</small>{% else %} <small>준비됨</small>{% endif %}
           </label>
         </div>
       </div>
@@ -106,12 +109,60 @@
   </form>
 </section>
 
+<section class="card risk-tools-card">
+  <div class="risk-tools-grid">
+    <div class="risk-tool-block">
+      <h3>AI 키 설정</h3>
+      <p class="d1-hint">OpenAI API 키를 저장하면 AI 모드로 위험성평가를 작성합니다. 작성 결과는 로컬 소분류에 자동 등록됩니다.</p>
+      <form method="post" action="/admin/risk-assessment/ai-settings" class="risk-ai-key-form">
+        <div class="risk-field">
+          <label>OpenAI API Key{% if ai_key_masked %} <small>(현재: {{ ai_key_masked }})</small>{% endif %}</label>
+          <input type="password" name="openai_api_key" placeholder="sk-..." autocomplete="off" />
+        </div>
+        <div class="risk-field">
+          <label>모델</label>
+          <input type="text" name="openai_model" value="{{ ai_model or 'gpt-4o-mini' }}" />
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">키 저장</button>
+      </form>
+    </div>
+    <div class="risk-tool-block">
+      <h3>문서 업로드 학습</h3>
+      <p class="d1-hint">기존 위험성평가 자료(xlsx, docx, pptx, pdf)를 올려 소분류로 학습시킵니다.</p>
+      <form method="post" action="/admin/risk-assessment/learn" enctype="multipart/form-data" class="risk-learn-form">
+        <div class="risk-field">
+          <label>대분류</label>
+          <select name="major_name" required>
+            <option value="">선택</option>
+            {% for m in majors %}
+            <option value="{{ m.name }}" {% if selected_major == m.name %}selected{% endif %}>{{ m.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="risk-field">
+          <label>문서 파일</label>
+          <input type="file" name="files" multiple
+                 accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.pdf" />
+        </div>
+        <label class="risk-check">
+          <input type="checkbox" name="allow_update" value="1" />
+          기존 작업 업데이트 허용
+        </label>
+        <button type="submit" class="btn btn-sm btn-primary">문서에서 학습</button>
+      </form>
+    </div>
+  </div>
+</section>
+
 {% if form_rows is defined %}
 <section class="card risk-result-card" id="risk-result">
   <div class="wo-list-head">
     <h2>평가 결과 — {{ work_name }}
       <small class="text-muted">({{ mode_label }} · {{ form_rows|length }}건)</small>
     </h2>
+    {% if register_msg %}
+    <p class="alert alert-ok" style="margin:0.5rem 0">{{ register_msg }}</p>
+    {% endif %}
     <div class="row-actions">
       <button type="button" class="btn btn-sm btn-secondary" id="risk-print-btn">인쇄/PDF</button>
       <button type="button" class="btn btn-sm btn-primary" id="risk-html-btn">HTML 저장</button>
