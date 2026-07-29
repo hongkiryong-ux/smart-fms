@@ -2248,6 +2248,12 @@ body.wo-col-resizing {
   margin: 0 0 0.45rem;
   font-size: 0.82rem;
 }
+.eq-pm-schedule-summary {
+  margin-bottom: 0.25rem;
+}
+.eq-pm-schedule-summary .list-item {
+  font-size: 0.9rem;
+}
 .eq-pm-table-wrap {
   max-height: 220px;
 }

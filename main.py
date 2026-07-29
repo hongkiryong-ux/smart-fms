@@ -1323,6 +1323,7 @@ async def equipment_detail(
             selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
             selectinload(Equipment.consumables),
             selectinload(Equipment.pm_schedules),
+            selectinload(Equipment.pm_inspections).selectinload(PMInspection.schedule),
             selectinload(Equipment.work_orders),
             selectinload(Equipment.maintenance_records),
             selectinload(Equipment.equipment_type),
@@ -1346,6 +1347,7 @@ async def equipment_detail(
         and wo.status
         not in (WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed)
     ]
+    pm_inspections_by_eq = _equipment_pm_inspections_map([eq])
     return templates.TemplateResponse(
         request,
         "equipment_detail.html",
@@ -1356,6 +1358,7 @@ async def equipment_detail(
             "sheet_fields": sheet_fields,
             "history": history,
             "open_orders": open_orders,
+            "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
         },
     )
 
