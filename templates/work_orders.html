@@ -73,7 +73,7 @@
   <table class="data-table wo-list-table wo-list-compact">
     <thead>
       <tr>
-        <th>설비</th>
+        <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
         <th>등록일</th>
         <th>예정일</th>
@@ -91,7 +91,7 @@
       <tr>
         <td class="wo-eq-cell">
           {% if wo.equipment %}
-          <div class="wo-eq-info">
+          <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
             <code>{{ wo.equipment.code }}</code>
             <span class="wo-eq-name">{{ wo.equipment.name }}</span>
           </div>
@@ -297,4 +297,5 @@
   });
 })();
 </script>
+<script src="/static/js/wo-col-resize.js"></script>
 {% endblock %}

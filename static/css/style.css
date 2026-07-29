@@ -1186,11 +1186,48 @@ button.link-action:hover { text-decoration: underline; }
   padding: 0.4rem;
   font-size: 0.82rem;
 }
-.wo-list-compact th:nth-child(1),
+.wo-list-table {
+  table-layout: fixed;
+}
+.wo-list-compact th.wo-eq-col-head,
 .wo-list-compact td:nth-child(1) {
-  width: auto;
-  min-width: 9rem;
-  max-width: none;
+  width: var(--wo-eq-col-width, 140px);
+  min-width: var(--wo-eq-col-width, 140px);
+  max-width: var(--wo-eq-col-width, 140px);
+  box-sizing: border-box;
+}
+.wo-eq-col-head {
+  position: relative;
+  padding-right: 0.65rem !important;
+}
+.wo-col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  z-index: 2;
+}
+.wo-col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(100, 116, 139, 0.45);
+}
+.wo-col-resizer:hover::after,
+body.wo-col-resizing .wo-col-resizer::after {
+  background: rgba(0, 56, 118, 0.75);
+}
+body.wo-col-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 .wo-list-compact th:nth-child(2),
 .wo-list-compact td:nth-child(2) { width: 14%; }
@@ -1214,35 +1251,39 @@ button.link-action:hover { text-decoration: underline; }
 .wo-list-compact td:nth-child(11) { width: 4%; }
 .wo-eq-cell {
   max-width: none;
-  white-space: normal;
-  word-break: break-word;
-  vertical-align: top;
+  white-space: nowrap;
+  overflow: hidden;
+  vertical-align: middle;
 }
 .wo-eq-info {
   display: flex;
-  flex-direction: column;
-  gap: 0.12rem;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .wo-eq-cell code {
-  display: block;
+  display: inline;
+  flex-shrink: 0;
   max-width: none;
   overflow: visible;
   text-overflow: unset;
-  white-space: normal;
-  word-break: break-all;
+  white-space: nowrap;
   vertical-align: baseline;
   margin-right: 0;
 }
 .wo-eq-name {
-  display: block;
-  color: var(--text);
-  font-size: 0.84rem;
-  font-weight: 600;
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal;
-  word-break: break-word;
-  line-height: 1.35;
+  display: inline-block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .wo-req-cell {
   max-width: none;
