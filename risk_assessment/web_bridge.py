@@ -321,7 +321,7 @@ def assess(
     model = (openai_model or "").strip() or "gpt-4o-mini"
     if use_ai:
         if not key:
-            error = "AI 키가 없습니다. 아래 ‘AI 키 설정’에 본인 OpenAI API 키를 저장하세요."
+            error = "OpenAI 키가 없습니다. 아래 ‘OpenAI 키 설정’에 본인 API 키를 저장하세요."
         else:
             try:
                 rows = _assess_ai(job, five_m, major_name, api_key=key, model=model)

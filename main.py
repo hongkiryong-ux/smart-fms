@@ -2084,7 +2084,7 @@ async def risk_assessment_ai_settings(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    """로그인한 사용자 계정에만 AI 키를 저장 (다른 계정과 공유하지 않음)."""
+    """로그인한 사용자 계정에만 OpenAI 키를 저장 (다른 계정과 공유하지 않음)."""
     from risk_assessment import mask_api_key
 
     db_user = await db.get(User, user.id)
@@ -2104,7 +2104,7 @@ async def risk_assessment_ai_settings(
             "risk_assessment.html",
             _risk_page_context(
                 db_user,
-                info_msg="내 계정의 AI 키를 삭제했습니다.",
+                info_msg="내 계정의 OpenAI 키를 삭제했습니다.",
                 use_ai=False,
             ),
         )
@@ -2121,9 +2121,9 @@ async def risk_assessment_ai_settings(
 
     has_key = bool((db_user.openai_api_key or "").strip())
     msg = (
-        f"내 계정에 AI 키 저장됨 ({mask_api_key(db_user.openai_api_key)}, 모델: {db_user.openai_model})"
+        f"내 계정에 OpenAI 키 저장됨 ({mask_api_key(db_user.openai_api_key)}, 모델: {db_user.openai_model})"
         if has_key
-        else "API 키를 입력하세요. (계정별로만 저장·사용됩니다)"
+        else "OpenAI API 키를 입력하세요. (계정별로만 저장·사용됩니다)"
     )
     return templates.TemplateResponse(
         request,
