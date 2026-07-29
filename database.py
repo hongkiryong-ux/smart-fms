@@ -195,6 +195,12 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE material_items ADD COLUMN IF NOT EXISTS location VARCHAR(200)"
         )
         await _exec(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_api_key VARCHAR(200)"
+        )
+        await _exec(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_model VARCHAR(80)"
+        )
+        await _exec(
             """
             CREATE TABLE IF NOT EXISTS material_groups (
                 id SERIAL PRIMARY KEY,
@@ -237,6 +243,8 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN scheduled_date DATE",
             "ALTER TABLE work_orders ADD COLUMN is_active BOOLEAN DEFAULT 1",
             "ALTER TABLE material_items ADD COLUMN location TEXT",
+            "ALTER TABLE users ADD COLUMN openai_api_key VARCHAR(200)",
+            "ALTER TABLE users ADD COLUMN openai_model VARCHAR(80)",
             """
             CREATE TABLE IF NOT EXISTS maintenance_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

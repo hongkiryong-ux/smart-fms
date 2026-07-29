@@ -76,6 +76,9 @@ class User(Base):
     partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # 위험성평가 AI — 계정별 개인 키 (다른 사용자와 공유하지 않음)
+    openai_api_key = Column(String(200), nullable=True)
+    openai_model = Column(String(80), nullable=True)
 
 
 class Site(Base):

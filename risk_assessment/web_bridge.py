@@ -203,62 +203,22 @@ def export_excel_bytes(
         return path.read_bytes()
 
 
-def resolve_openai_credentials() -> tuple[str, str]:
-    """OpenAI API 키·모델 (환경변수 → ai_settings.json)."""
-    key = (os.environ.get("OPENAI_API_KEY") or "").strip()
-    model = (os.environ.get("OPENAI_MODEL") or "").strip()
-    try:
-        from app.ai_settings import AISettings
-        from app.runtime_paths import ensure_runtime_dirs
-
-        ensure_runtime_dirs()
-        s = AISettings.load()
-        if not key:
-            key = (s.openai_api_key or "").strip()
-        if not model:
-            model = (s.openai_model or "").strip()
-    except Exception:
-        pass
-    return key, (model or "gpt-4o-mini")
-
-
-def ai_ready() -> bool:
-    return bool(resolve_openai_credentials()[0])
-
-
-def save_openai_settings(api_key: str, model: str = "") -> dict[str, Any]:
-    """웹에서 입력한 OpenAI 키를 로컬 ai_settings.json(+프로세스 env)에 저장."""
-    from app.ai_settings import AISettings
-    from app.runtime_paths import ensure_runtime_dirs
-
-    ensure_runtime_dirs()
-    s = AISettings.load()
+def mask_api_key(api_key: str | None) -> str:
     key = (api_key or "").strip()
-    if key:
-        # 마스킹된 값이 다시 저장되지 않게
-        if set(key) <= {"•", "*"} or key.endswith("…"):
-            key = s.openai_api_key or os.environ.get("OPENAI_API_KEY", "")
-        else:
-            s.openai_api_key = key
-            os.environ["OPENAI_API_KEY"] = key
-    mdl = (model or "").strip()
-    if mdl:
-        s.openai_model = mdl
-        os.environ["OPENAI_MODEL"] = mdl
-    s.provider = "chatgpt_api"
-    s.save()
-    masked = ""
-    k = (s.openai_api_key or "").strip()
-    if k:
-        masked = (k[:4] + "…" + k[-4:]) if len(k) > 8 else "****"
-    return {"ok": bool(k), "masked_key": masked, "model": s.openai_model}
-
-
-def ai_key_masked() -> str:
-    key, _ = resolve_openai_credentials()
     if not key:
         return ""
     return (key[:4] + "…" + key[-4:]) if len(key) > 8 else "****"
+
+
+def user_openai_credentials(user) -> tuple[str, str]:
+    """로그인 사용자 계정의 OpenAI 키·모델만 사용 (공유/환경변수 미사용)."""
+    key = (getattr(user, "openai_api_key", None) or "").strip()
+    model = (getattr(user, "openai_model", None) or "").strip() or "gpt-4o-mini"
+    return key, model
+
+
+def ai_ready_for_user(user) -> bool:
+    return bool(user_openai_credentials(user)[0])
 
 
 def learn_documents(
@@ -342,8 +302,13 @@ def assess(
     use_ai: bool = False,
     major_name: str = "",
     meta: dict | None = None,
+    api_key: str = "",
+    openai_model: str = "",
 ) -> dict[str, Any]:
-    """원본 LocalAssessmentEngine(+선택 AI)으로 평가 후 웹용 dict 반환."""
+    """원본 LocalAssessmentEngine(+선택 AI)으로 평가 후 웹용 dict 반환.
+
+    api_key/openai_model은 로그인 사용자 계정 값만 전달 (공유 env 사용 안 함).
+    """
     from app.risk_form import convert_to_form_rows
 
     job = (work_name or "").strip() or "일반 작업"
@@ -352,15 +317,14 @@ def assess(
     error = ""
     register_msg = ""
 
-    api_key, _model = resolve_openai_credentials()
+    key = (api_key or "").strip()
+    model = (openai_model or "").strip() or "gpt-4o-mini"
     if use_ai:
-        if not api_key:
-            error = "AI 키가 없습니다. 아래 ‘AI 키 설정’에 OpenAI API 키를 저장하세요."
+        if not key:
+            error = "AI 키가 없습니다. 아래 ‘AI 키 설정’에 본인 OpenAI API 키를 저장하세요."
         else:
-            # 프로세스에 반영 (_assess_ai가 env를 읽음)
-            os.environ["OPENAI_API_KEY"] = api_key
             try:
-                rows = _assess_ai(job, five_m, major_name)
+                rows = _assess_ai(job, five_m, major_name, api_key=key, model=model)
                 if rows:
                     mode = "ai"
             except Exception as e:
@@ -393,17 +357,24 @@ def assess(
     }
 
 
-def _assess_ai(job: str, five_m: dict[str, str], major_name: str):
-    """OpenAI API 키만 사용하는 경량 AI 경로 (웹 로그인/Playwright 제외)."""
+def _assess_ai(
+    job: str,
+    five_m: dict[str, str],
+    major_name: str,
+    *,
+    api_key: str,
+    model: str = "gpt-4o-mini",
+):
+    """사용자 계정 API 키로 OpenAI 호출 (프로세스 전역 env에 쓰지 않음)."""
     import json
     import urllib.request
 
     from app.ai_assessment import finalize_ai_rows, load_ai_structured_prompt, parse_ai_rows
     from app.prompts import build_assessment_user_message
 
-    api_key, model = resolve_openai_credentials()
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY가 없습니다.")
+    key = (api_key or "").strip()
+    if not key:
+        raise RuntimeError("계정에 저장된 OpenAI API 키가 없습니다.")
     system = load_ai_structured_prompt()
     try:
         user_msg = build_assessment_user_message(job, five_m, compact=False)
@@ -412,7 +383,7 @@ def _assess_ai(job: str, five_m: dict[str, str], major_name: str):
 
     body = json.dumps(
         {
-            "model": model or "gpt-4o-mini",
+            "model": (model or "gpt-4o-mini").strip() or "gpt-4o-mini",
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user_msg},
@@ -425,7 +396,7 @@ def _assess_ai(job: str, five_m: dict[str, str], major_name: str):
         "https://api.openai.com/v1/chat/completions",
         data=body,
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
         },
         method="POST",

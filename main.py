@@ -1903,18 +1903,19 @@ async def work_order_advance(
 
 
 def _risk_page_context(user, **extra):
-    from risk_assessment import ai_key_masked, ai_ready, list_majors, list_presets
+    from risk_assessment import (
+        ai_ready_for_user,
+        list_majors,
+        list_presets,
+        mask_api_key,
+        user_openai_credentials,
+    )
 
     majors = list_majors()
     presets = list_presets()
     major_id_map = {m["name"]: m["id"] for m in majors if m.get("name")}
-    ready = ai_ready()
-    try:
-        from risk_assessment.web_bridge import resolve_openai_credentials
-
-        _key, _model = resolve_openai_credentials()
-    except Exception:
-        _model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    _key, _model = user_openai_credentials(user)
+    ready = ai_ready_for_user(user)
     ctx = {
         "user": user,
         "majors": majors,
@@ -1922,7 +1923,7 @@ def _risk_page_context(user, **extra):
         "presets_json": json.dumps(presets, ensure_ascii=False),
         "major_id_map_json": json.dumps(major_id_map, ensure_ascii=False),
         "ai_ready": ready,
-        "ai_key_masked": ai_key_masked(),
+        "ai_key_masked": mask_api_key(_key),
         "ai_model": _model or "gpt-4o-mini",
         "use_ai": False,
         "five_m": {},
@@ -1942,6 +1943,8 @@ def _risk_page_context(user, **extra):
         ctx["preset_name_json"] = json.dumps(ctx.get("preset_name") or "", ensure_ascii=False)
     if "ai_ready" not in extra:
         ctx["ai_ready"] = ready
+        ctx["ai_key_masked"] = mask_api_key(_key)
+        ctx["ai_model"] = _model or "gpt-4o-mini"
     return ctx
 
 
@@ -2011,12 +2014,17 @@ async def risk_assessment_run(
         "apply_type": apply_type.strip() or "정기평가",
     }
     try:
+        from risk_assessment import user_openai_credentials
+
+        api_key, openai_model = user_openai_credentials(user)
         result = assess(
             work_name=work_name.strip(),
             five_m=five_m,
             use_ai=(use_ai == "1"),
             major_name=major_name.strip(),
             meta=meta,
+            api_key=api_key,
+            openai_model=openai_model,
         )
     except Exception as e:
         print(f"[risk] assess failed: {e}", flush=True)
@@ -2072,34 +2080,61 @@ async def risk_assessment_ai_settings(
     request: Request,
     openai_api_key: str = Form(""),
     openai_model: str = Form("gpt-4o-mini"),
+    clear_key: str = Form("0"),
     user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
 ):
-    from risk_assessment import save_openai_settings
+    """로그인한 사용자 계정에만 AI 키를 저장 (다른 계정과 공유하지 않음)."""
+    from risk_assessment import mask_api_key
 
-    try:
-        saved = save_openai_settings(openai_api_key, openai_model)
-        msg = (
-            f"AI 키 저장됨 ({saved.get('masked_key')}, 모델: {saved.get('model')})"
-            if saved.get("ok")
-            else "API 키를 입력하세요."
-        )
+    db_user = await db.get(User, user.id)
+    if not db_user or not db_user.is_active:
+        raise HTTPException(401, detail="login_required")
+
+    key_in = (openai_api_key or "").strip()
+    model_in = (openai_model or "").strip() or "gpt-4o-mini"
+
+    if clear_key == "1":
+        db_user.openai_api_key = None
+        db_user.openai_model = model_in
+        await db.commit()
+        await db.refresh(db_user)
         return templates.TemplateResponse(
             request,
             "risk_assessment.html",
             _risk_page_context(
-                user,
-                info_msg=msg if saved.get("ok") else "",
-                error_msg="" if saved.get("ok") else msg,
-                use_ai=bool(saved.get("ok")),
+                db_user,
+                info_msg="내 계정의 AI 키를 삭제했습니다.",
+                use_ai=False,
             ),
         )
-    except Exception as e:
-        return templates.TemplateResponse(
-            request,
-            "risk_assessment.html",
-            _risk_page_context(user, error_msg=f"AI 키 저장 실패: {e}"),
-            status_code=500,
-        )
+
+    if key_in:
+        # 마스킹 표시값이 다시 저장되지 않게
+        if set(key_in) <= {"•", "*"} or key_in.endswith("…"):
+            pass
+        else:
+            db_user.openai_api_key = key_in
+    db_user.openai_model = model_in
+    await db.commit()
+    await db.refresh(db_user)
+
+    has_key = bool((db_user.openai_api_key or "").strip())
+    msg = (
+        f"내 계정에 AI 키 저장됨 ({mask_api_key(db_user.openai_api_key)}, 모델: {db_user.openai_model})"
+        if has_key
+        else "API 키를 입력하세요. (계정별로만 저장·사용됩니다)"
+    )
+    return templates.TemplateResponse(
+        request,
+        "risk_assessment.html",
+        _risk_page_context(
+            db_user,
+            info_msg=msg if has_key else "",
+            error_msg="" if has_key else msg,
+            use_ai=has_key,
+        ),
+    )
 
 
 @app.post("/admin/risk-assessment/learn")
