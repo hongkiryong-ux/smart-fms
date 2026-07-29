@@ -45,7 +45,6 @@
           {% endfor %}
         </ul>
       </li>
-      <li><a href="/admin/templates" class="{% if '/templates' in request.url.path %}active{% endif %}">설비템플릿</a></li>
       <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
       <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
       <li><a href="/admin/d1" class="{% if request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path %}active{% endif %}">D-1 작업</a></li>
