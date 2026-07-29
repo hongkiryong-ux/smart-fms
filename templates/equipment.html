@@ -232,6 +232,33 @@
           <p class="empty">등록된 정비이력이 없습니다.</p>
           {% endif %}
         </div>
+
+        <div class="eq-popup-section eq-pm-section" data-eq-id="{{ eq.id }}">
+          <h3>최근 점검내용</h3>
+          <div class="eq-pm-period-bar" role="group" aria-label="점검 기간 필터">
+            <button type="button" class="eq-pm-period active" data-period="recent">최근 5건</button>
+            <button type="button" class="eq-pm-period" data-period="month">월간</button>
+            <button type="button" class="eq-pm-period" data-period="year">년간</button>
+            <button type="button" class="eq-pm-period" data-period="all">전체</button>
+          </div>
+          <p class="eq-pm-count text-muted"></p>
+          <div class="table-scroll eq-pm-table-wrap">
+            <table class="data-table hist-table eq-pm-table">
+              <thead>
+                <tr>
+                  <th>일시</th>
+                  <th>점검명</th>
+                  <th>결과</th>
+                  <th>점검자</th>
+                  <th>점검내용</th>
+                  <th>정비의뢰</th>
+                </tr>
+              </thead>
+              <tbody class="eq-pm-tbody"></tbody>
+            </table>
+          </div>
+          <p class="empty eq-pm-empty" hidden>해당 기간의 점검 내용이 없습니다.</p>
+        </div>
       </div>
     </dialog>
     {% endfor %}
@@ -270,8 +297,15 @@
   {% endif %}
 </div>
 
+<script type="application/json" id="eq-pm-inspections-data">{{ pm_inspections_json | safe }}</script>
 <script>
 (function () {
+  var pmData = {};
+  try {
+    var el = document.getElementById('eq-pm-inspections-data');
+    if (el) pmData = JSON.parse(el.textContent || '{}');
+  } catch (e) { pmData = {}; }
+
   function openDialog(id) {
     var dlg = document.getElementById(id);
     if (dlg && typeof dlg.showModal === 'function') {
@@ -279,12 +313,92 @@
     } else if (dlg) {
       dlg.setAttribute('open', 'open');
     }
+    var section = dlg && dlg.querySelector('.eq-pm-section');
+    if (section) renderPmSection(section, section.getAttribute('data-period') || 'recent');
   }
+
+  function parseIso(s) {
+    if (!s) return null;
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function filterPmRows(rows, period) {
+    if (!rows || !rows.length) return [];
+    if (period === 'recent') return rows.slice(0, 5);
+    if (period === 'all') return rows;
+    var now = new Date();
+    var days = period === 'month' ? 30 : 365;
+    var cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    return rows.filter(function (r) {
+      var d = parseIso(r.at_iso);
+      return d && d >= cutoff;
+    });
+  }
+
+  function esc(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderPmSection(section, period) {
+    if (!section) return;
+    section.setAttribute('data-period', period);
+    var eqId = section.getAttribute('data-eq-id');
+    var rows = filterPmRows(pmData[eqId] || pmData[String(eqId)] || [], period);
+    var tbody = section.querySelector('.eq-pm-tbody');
+    var empty = section.querySelector('.eq-pm-empty');
+    var countEl = section.querySelector('.eq-pm-count');
+    var tableWrap = section.querySelector('.eq-pm-table-wrap');
+    if (!tbody) return;
+
+    section.querySelectorAll('.eq-pm-period').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-period') === period);
+    });
+
+    var labels = { recent: '최근 5건', month: '최근 30일(월간)', year: '최근 1년(년간)', all: '전체' };
+    if (countEl) countEl.textContent = (labels[period] || period) + ' · ' + rows.length + '건';
+
+    if (!rows.length) {
+      tbody.innerHTML = '';
+      if (empty) empty.hidden = false;
+      if (tableWrap) tableWrap.hidden = true;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    if (tableWrap) tableWrap.hidden = false;
+
+    tbody.innerHTML = rows.map(function (r) {
+      var wo = r.work_order_id
+        ? '<a class="link-action" href="/admin/work-orders/' + r.work_order_id + '">#' + r.work_order_id + '</a>'
+        : '-';
+      return '<tr>'
+        + '<td class="wo-date">' + esc(r.at || '-') + '</td>'
+        + '<td>' + esc(r.title || '예방점검') + '</td>'
+        + '<td><span class="pm-result pm-result-' + esc(r.result) + '">' + esc(r.result_label) + '</span></td>'
+        + '<td>' + esc(r.inspector || '-') + '</td>'
+        + '<td class="hist-text">' + esc(r.note || '-') + '</td>'
+        + '<td>' + wo + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('[data-open-dialog]');
-    if (!btn) return;
-    e.preventDefault();
-    openDialog(btn.getAttribute('data-open-dialog'));
+    if (btn) {
+      e.preventDefault();
+      openDialog(btn.getAttribute('data-open-dialog'));
+      return;
+    }
+
+    var periodBtn = e.target.closest('.eq-pm-period');
+    if (periodBtn) {
+      var sec = periodBtn.closest('.eq-pm-section');
+      if (sec) renderPmSection(sec, periodBtn.getAttribute('data-period') || 'recent');
+    }
   });
 })();
 </script>

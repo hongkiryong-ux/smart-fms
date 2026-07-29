@@ -163,6 +163,32 @@ def _equipment_building(eq: Equipment | None) -> Building | None:
     return eq.zone.floor.building
 
 
+def _equipment_pm_inspections_map(equipment_list: list) -> dict[int, list[dict]]:
+    """설비별 점검 이력(팝업·기간 필터용)."""
+    out: dict[int, list[dict]] = {}
+    for eq in equipment_list:
+        insps = sorted(
+            eq.pm_inspections or [],
+            key=lambda x: x.inspected_at or datetime.min,
+            reverse=True,
+        )
+        out[eq.id] = [
+            {
+                "id": i.id,
+                "at": _fmt_kst(i.inspected_at) if i.inspected_at else "",
+                "at_iso": i.inspected_at.isoformat() if i.inspected_at else "",
+                "result": i.result.value if i.result else "normal",
+                "result_label": _pm_result_label(i.result),
+                "note": i.note or "",
+                "inspector": i.inspector_name or "",
+                "title": (i.schedule.title if i.schedule else "예방점검"),
+                "work_order_id": i.work_order_id,
+            }
+            for i in insps
+        ]
+    return out
+
+
 def _wo_process_step(status: WorkOrderStatus | str) -> int:
     """1=정비의뢰, 2=정비중, 3=정비완료."""
     key = status.value if isinstance(status, WorkOrderStatus) else str(status)
@@ -934,6 +960,9 @@ async def equipment_list(
                         selectinload(Equipment.equipment_type),
                         selectinload(Equipment.work_orders),
                         selectinload(Equipment.maintenance_records),
+                        selectinload(Equipment.pm_inspections).selectinload(
+                            PMInspection.schedule
+                        ),
                     )
                     .order_by(Equipment.category, Equipment.code)
                 )
@@ -956,6 +985,9 @@ async def equipment_list(
                         .selectinload(Zone.floor)
                         .selectinload(Floor.building),
                         selectinload(Equipment.work_orders),
+                        selectinload(Equipment.pm_inspections).selectinload(
+                            PMInspection.schedule
+                        ),
                     )
                     .order_by(Equipment.category, Equipment.code)
                 )
@@ -970,6 +1002,8 @@ async def equipment_list(
                 list_columns = ["명칭", "제조사", "모델"]
 
             category = active_category
+
+    pm_inspections_by_eq = _equipment_pm_inspections_map(equipment) if equipment else {}
 
     return templates.TemplateResponse(
         request,
@@ -988,6 +1022,8 @@ async def equipment_list(
             "sheet_fields": sheet_fields,
             "list_columns": list_columns,
             "error": error,
+            "pm_inspections_by_eq": pm_inspections_by_eq,
+            "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
         },
     )
 

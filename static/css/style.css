@@ -2222,5 +2222,41 @@ body.wo-col-resizing {
   border-radius: 6px;
 }
 
+/* 설비 팝업 — 점검내용 */
+.eq-pm-period-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0.55rem;
+}
+.eq-pm-period {
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.eq-pm-period.active {
+  background: #e8f0fa;
+  border-color: #8fb4d0;
+  color: #003876;
+}
+.eq-pm-count {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+}
+.eq-pm-table-wrap {
+  max-height: 220px;
+}
+.eq-pm-table .hist-text {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 
 
