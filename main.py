@@ -1229,7 +1229,7 @@ async def equipment_detail(
     eq = result.scalar_one_or_none()
     if not eq:
         raise HTTPException(404)
-    base_url = os.environ.get("PUBLIC_BASE_URL", str(request.base_url).rstrip("/"))
+    base_url = _public_base_url(request)
     sheet_fields = get_category_fields(eq.category, [eq])
     history = sorted(
         eq.maintenance_records or [],
@@ -3763,6 +3763,118 @@ async def partner_delete(
 
 
 # ── QR / Mobile Equipment View ────────────────────────────────────────
+
+
+def _public_base_url(request: Request | None = None) -> str:
+    env = (os.environ.get("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if env:
+        return env
+    if request is not None:
+        return str(request.base_url).rstrip("/")
+    return "http://127.0.0.1:8000"
+
+
+def _equipment_mobile_url(code: str, request: Request | None = None) -> str:
+    return f"{_public_base_url(request)}/eq/{code}"
+
+
+def _safe_qr_filename(code: str) -> str:
+    import re
+
+    safe = re.sub(r"[^\w가-힣.\-]+", "_", (code or "").strip()) or "equipment"
+    return f"{safe}.png"
+
+
+def _qr_png_bytes(url: str) -> bytes:
+    from io import BytesIO
+
+    import qrcode
+
+    img = qrcode.make(url)
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+@app.get("/admin/equipment/building/{building_id}/qr-zip")
+async def equipment_building_qr_zip(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """해당 건물 설비 QR을 코드명.png로 ZIP 압축 다운로드."""
+    from io import BytesIO
+    from urllib.parse import quote
+    import zipfile
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        raise HTTPException(404, detail="건물을 찾을 수 없습니다.")
+
+    equipment = (
+        await db.execute(
+            select(Equipment)
+            .join(Zone)
+            .join(Floor)
+            .where(
+                Floor.building_id == building_id,
+                Equipment.is_active == True,
+            )
+            .order_by(Equipment.code)
+        )
+    ).scalars().unique().all()
+    if not equipment:
+        raise HTTPException(404, detail="해당 건물에 등록된 설비가 없습니다.")
+
+    buf = BytesIO()
+    used_names: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for eq in equipment:
+            fname = _safe_qr_filename(eq.code)
+            base, ext = fname.rsplit(".", 1) if "." in fname else (fname, "png")
+            candidate = fname
+            n = 2
+            while candidate.lower() in used_names:
+                candidate = f"{base}_{n}.{ext}"
+                n += 1
+            used_names.add(candidate.lower())
+            zf.writestr(candidate, _qr_png_bytes(_equipment_mobile_url(eq.code, request)))
+
+    buf.seek(0)
+    stamp = datetime.now(KST).strftime("%Y%m%d")
+    zip_name = quote(f"{building.name or building.code or 'building'}_QR_{stamp}.zip")
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{zip_name}"},
+    )
+
+
+@app.get("/admin/equipment/{eq_id}/qr.png")
+async def equipment_qr_png(
+    eq_id: int,
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """설비 QR PNG (화면 표시 또는 파일 다운로드)."""
+    from urllib.parse import quote
+
+    eq = await db.get(Equipment, eq_id)
+    if not eq or not eq.is_active:
+        raise HTTPException(404)
+    data = _qr_png_bytes(_equipment_mobile_url(eq.code, request))
+    filename = _safe_qr_filename(eq.code)
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename*=UTF-8''{quote(filename)}"
+            if download
+            else f"inline; filename*=UTF-8''{quote(filename)}"
+        )
+    }
+    return StreamingResponse(iter([data]), media_type="image/png", headers=headers)
 
 
 @app.get("/eq/{code}")

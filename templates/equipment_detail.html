@@ -53,7 +53,16 @@
   <section class="card">
     <h2>QR / 모바일</h2>
     <p>현장 QR 스캔 URL:</p>
-    <p><a href="{{ qr_url }}" target="_blank">{{ qr_url }}</a></p>
+    <p><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a></p>
+    <div class="eq-qr-box">
+      <img class="eq-qr-img"
+           src="/admin/equipment/{{ eq.id }}/qr.png"
+           alt="{{ eq.code }} QR 코드"
+           width="220"
+           height="220" />
+      <a class="btn btn-sm btn-primary"
+         href="/admin/equipment/{{ eq.id }}/qr.png?download=1">QR 사진 다운로드</a>
+    </div>
   </section>
 </div>
 
