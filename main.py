@@ -2607,18 +2607,14 @@ async def risk_assessment_command(
 async def d1_list(
     request: Request,
     status: list[str] = Query(default=[]),
-    partner_id: int = 0,
+    view: str = "",
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     today = _today_kst()
     tomorrow = today + timedelta(days=1)
     status_vals = _parse_wo_status_filters(status)
-    # 0=전체, -1=미지정, >0=특정 협력사
-    try:
-        partner_sel = int(partner_id or 0)
-    except (TypeError, ValueError):
-        partner_sel = 0
+    view_partner = (view or "").strip().lower() == "partner"
 
     open_statuses = [
         WorkOrderStatus.received,
@@ -2630,22 +2626,6 @@ async def d1_list(
         WorkOrderStatus.verified,
         WorkOrderStatus.closed,
     ]
-
-    plans = (
-        await db.execute(
-            select(D1Plan)
-            .options(
-                selectinload(D1Plan.site),
-                selectinload(D1Plan.building),
-                selectinload(D1Plan.equipment),
-                selectinload(D1Plan.partner),
-            )
-            .order_by(D1Plan.work_date.desc())
-        )
-    ).scalars().all()
-
-    today_plans = [p for p in plans if p.work_date == today]
-    tomorrow_plans = [p for p in plans if p.work_date == tomorrow]
 
     open_works = (
         await db.execute(
@@ -2686,17 +2666,7 @@ async def d1_list(
     ).scalars().unique().all()
 
     def _apply_filters(items: list) -> list:
-        out = []
-        for w in items:
-            if not _wo_matches_status_filter(w, status_vals):
-                continue
-            pid = int(w.partner_id or 0)
-            if partner_sel == -1 and pid != 0:
-                continue
-            if partner_sel > 0 and pid != partner_sel:
-                continue
-            out.append(w)
-        return out
+        return [w for w in items if _wo_matches_status_filter(w, status_vals)]
 
     today_works = _apply_filters([w for w in open_works if w.scheduled_date == today])
     tomorrow_works = _apply_filters(
@@ -2707,68 +2677,39 @@ async def d1_list(
     )
     completed_works = _apply_filters(list(completed_raw))
 
-    # 필터된 전체(엑셀·건수) + 협력사별 펼침 그룹
     filtered_all = today_works + tomorrow_works + scheduled_works + completed_works
     partner_groups: list[dict] = []
-    by_partner: dict[str, list] = {}
-    for w in filtered_all:
-        name = w.partner.name if w.partner else "미지정"
-        by_partner.setdefault(name, []).append(w)
-    for name in sorted(by_partner.keys(), key=lambda n: (n == "미지정", n)):
-        partner_groups.append({"name": name, "orders": by_partner[name]})
+    if view_partner:
+        by_partner: dict[str, list] = {}
+        for w in filtered_all:
+            name = w.partner.name if w.partner else "미지정"
+            by_partner.setdefault(name, []).append(w)
+        for name in sorted(by_partner.keys(), key=lambda n: (n == "미지정", n)):
+            partner_groups.append({"name": name, "orders": by_partner[name]})
 
-    sites = (
-        await db.execute(select(Site).where(Site.is_active == True).order_by(Site.name))
-    ).scalars().all()
-    buildings = (
-        await db.execute(
-            select(Building).where(Building.is_active == True).order_by(Building.name)
-        )
-    ).scalars().all()
-    equipment = (
-        await db.execute(
-            select(Equipment).where(Equipment.is_active == True).order_by(Equipment.code)
-        )
-    ).scalars().all()
     partners = (
         await db.execute(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
         )
     ).scalars().all()
 
-    # 상태 필터만 적용한 풀 → 협력사 칩 건수
-    status_pool = [
-        w for w in open_works if _wo_matches_status_filter(w, status_vals)
-    ] + [w for w in completed_raw if _wo_matches_status_filter(w, status_vals)]
-    partner_counts: dict[int, int] = {}
-    for w in status_pool:
-        pid = int(w.partner_id or 0)
-        partner_counts[pid] = partner_counts.get(pid, 0) + 1
-
     return templates.TemplateResponse(
         request,
         "d1_plans.html",
         {
             "user": user,
-            "plans": plans,
             "today": today,
             "tomorrow": tomorrow,
-            "today_plans": today_plans,
-            "tomorrow_plans": tomorrow_plans,
             "today_works": today_works,
             "tomorrow_works": tomorrow_works,
             "scheduled_works": scheduled_works,
             "completed_works": completed_works,
             "filtered_count": len(filtered_all),
             "partner_groups": partner_groups,
-            "partner_counts": partner_counts,
             "filters": {
                 "statuses": status_vals,
-                "partner_id": partner_sel,
+                "view_partner": view_partner,
             },
-            "sites": sites,
-            "buildings": buildings,
-            "equipment": equipment,
             "partners": partners,
         },
     )
@@ -2777,18 +2718,14 @@ async def d1_list(
 @app.get("/admin/d1/export")
 async def d1_export(
     status: list[str] = Query(default=[]),
-    partner_id: int = 0,
+    view: str = "",
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    """D-1 화면의 현재 필터(진행상태·협력사) 결과를 Excel로 내보내기."""
+    """D-1 화면의 현재 필터 결과를 Excel로 내보내기."""
     today = _today_kst()
     tomorrow = today + timedelta(days=1)
     status_vals = _parse_wo_status_filters(status)
-    try:
-        partner_sel = int(partner_id or 0)
-    except (TypeError, ValueError):
-        partner_sel = 0
     open_statuses = [
         WorkOrderStatus.received,
         WorkOrderStatus.assigned,
@@ -2838,14 +2775,7 @@ async def d1_export(
     ).scalars().unique().all()
 
     def _ok(w: WorkOrder) -> bool:
-        if not _wo_matches_status_filter(w, status_vals):
-            return False
-        pid = int(w.partner_id or 0)
-        if partner_sel == -1 and pid != 0:
-            return False
-        if partner_sel > 0 and pid != partner_sel:
-            return False
-        return True
+        return _wo_matches_status_filter(w, status_vals)
 
     orders = (
         [w for w in open_works if w.scheduled_date == today and _ok(w)]
@@ -2861,42 +2791,8 @@ async def d1_export(
 
 
 @app.post("/admin/d1")
-async def d1_create(
-    work_date: date = Form(...),
-    title: str = Form(...),
-    site_id: int = Form(0),
-    building_id: int = Form(0),
-    equipment_id: int = Form(0),
-    work_content: str = Form(""),
-    work_time: str = Form(""),
-    partner_id: int = Form(0),
-    worker_count: int = Form(1),
-    is_urgent: bool = Form(False),
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    plan = D1Plan(
-        work_date=work_date,
-        title=title.strip(),
-        site_id=site_id if site_id > 0 else None,
-        building_id=building_id if building_id > 0 else None,
-        equipment_id=equipment_id if equipment_id > 0 else None,
-        work_content=work_content,
-        work_time=work_time,
-        partner_id=partner_id if partner_id > 0 else None,
-        worker_count=worker_count,
-        is_urgent=is_urgent,
-        created_by=user.name,
-        status=D1Status.draft,
-        jsa_data={
-            "hazards": ["감전", "추락", "협착", "화재", "고소작업"],
-            "controls": [],
-        },
-        tbm_data={"ppe": ["안전모", "안전화"], "tools_checked": False},
-        permit_data={"type": "일반작업", "approved": False},
-    )
-    db.add(plan)
-    await db.commit()
+async def d1_create(user: User = Depends(require_login)):
+    """D-1 JSA/TBM 등록 UI 제거 — 목록으로 리다이렉트."""
     return RedirectResponse("/admin/d1", status_code=303)
 
 
