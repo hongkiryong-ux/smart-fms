@@ -340,20 +340,6 @@ class D1Plan(Base):
     partner = relationship("Partner")
 
 
-class InventoryItem(Base):
-    __tablename__ = "inventory_items"
-
-    id = Column(Integer, primary_key=True)
-    code = Column(String(50), unique=True, nullable=False)
-    name = Column(String(200), nullable=False)
-    category = Column(String(100), nullable=True)
-    qty = Column(Integer, default=0)
-    safety_stock = Column(Integer, default=5)
-    unit = Column(String(20), default="EA")
-    location = Column(String(200), nullable=True)
-    unit_price = Column(Float, nullable=True)
-
-
 class MaterialItem(Base):
     """자재관리(원본 inventory 앱) — 품명 단위 재고."""
 

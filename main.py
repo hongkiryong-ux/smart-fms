@@ -37,7 +37,6 @@ from models import (
     EquipmentTemplate,
     EquipmentType,
     Floor,
-    InventoryItem,
     MaintenanceRecord,
     MaterialItem,
     MaterialGroup,
@@ -2518,7 +2517,7 @@ async def d1_advance(
     return RedirectResponse(f"/admin/d1/{plan_id}", status_code=303)
 
 
-# ── PM & Inventory & Partners ─────────────────────────────────────────
+# ── PM & Partners ─────────────────────────────────────────────────────
 
 
 @app.get("/admin/pm")
@@ -2538,20 +2537,6 @@ async def pm_list(
         request,
         "pm.html",
         {"user": user, "schedules": schedules, "today": date.today()},
-    )
-
-
-@app.get("/admin/inventory")
-async def inventory_list(
-    request: Request,
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    items = (
-        await db.execute(select(InventoryItem).order_by(InventoryItem.code))
-    ).scalars().all()
-    return templates.TemplateResponse(
-        request, "inventory.html", {"user": user, "items": items}
     )
 
 

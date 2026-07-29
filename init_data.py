@@ -17,7 +17,6 @@ from models import (
     EquipmentTemplate,
     EquipmentType,
     Floor,
-    InventoryItem,
     Partner,
     PMFrequency,
     PMSchedule,
@@ -285,14 +284,6 @@ async def seed_if_empty(session: AsyncSession) -> None:
             },
             permit_data={"type": "일반작업", "approved": False},
         )
-    )
-
-    session.add_all(
-        [
-            InventoryItem(code="FLT-AHU", name="AHU 필터", category="소모품", qty=10, safety_stock=5),
-            InventoryItem(code="BELT-V", name="V벨트 B형", category="소모품", qty=4, safety_stock=2),
-            InventoryItem(code="BRG-6205", name="베어링 6205", category="부품", qty=8, safety_stock=3),
-        ]
     )
 
     await session.commit()

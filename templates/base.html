@@ -50,7 +50,6 @@
       <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
       <li><a href="/admin/d1" class="{% if request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path %}active{% endif %}">D-1 작업</a></li>
       <li><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
-      <li><a href="/admin/inventory" class="{% if request.url.path == '/admin/inventory' %}active{% endif %}">재고</a></li>
       <li>
         <a href="/admin/materials?popup=1"
            class="{% if '/materials' in request.url.path %}active{% endif %}"
