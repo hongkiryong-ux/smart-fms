@@ -637,6 +637,94 @@ async def dashboard(
     )
 
 
+@app.get("/admin/dashboard/kpi")
+async def dashboard_kpi(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """대시보드 KPI 숫자를 JSON으로 반환 (자동 갱신용)."""
+    from fastapi.responses import JSONResponse
+
+    site_count = (
+        await db.execute(select(func.count(Site.id)).where(Site.is_active == True))
+    ).scalar() or 0
+    building_count = (
+        await db.execute(
+            select(func.count(Building.id))
+            .join(Site, Building.site_id == Site.id)
+            .where(Building.is_active == True, Site.is_active == True)
+        )
+    ).scalar() or 0
+    equipment_count = (
+        await db.execute(
+            select(func.count(Equipment.id))
+            .join(Zone, Equipment.zone_id == Zone.id)
+            .join(Floor, Zone.floor_id == Floor.id)
+            .join(Building, Floor.building_id == Building.id)
+            .join(Site, Building.site_id == Site.id)
+            .where(
+                Equipment.is_active == True,
+                Building.is_active == True,
+                Site.is_active == True,
+            )
+        )
+    ).scalar() or 0
+    wo_progress = (
+        await db.execute(
+            select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,
+                WorkOrder.status.in_(
+                    [WorkOrderStatus.received, WorkOrderStatus.assigned, WorkOrderStatus.in_progress]
+                ),
+            )
+        )
+    ).scalar() or 0
+    wo_done = (
+        await db.execute(
+            select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,
+                WorkOrder.status.in_(
+                    [WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed]
+                ),
+            )
+        )
+    ).scalar() or 0
+    wo_urgent = (
+        await db.execute(
+            select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,
+                WorkOrder.priority == "high",
+                WorkOrder.status.in_(
+                    [WorkOrderStatus.received, WorkOrderStatus.assigned, WorkOrderStatus.in_progress]
+                ),
+            )
+        )
+    ).scalar() or 0
+    pm_due = (
+        await db.execute(
+            select(func.count(PMSchedule.id)).where(
+                PMSchedule.next_due <= date.today(), PMSchedule.is_active == True
+            )
+        )
+    ).scalar() or 0
+    d1_today = (
+        await db.execute(
+            select(func.count(D1Plan.id)).where(D1Plan.work_date == date.today())
+        )
+    ).scalar() or 0
+
+    return JSONResponse({
+        "sites": site_count,
+        "buildings": building_count,
+        "equipment": equipment_count,
+        "wo_progress": wo_progress,
+        "wo_done": wo_done,
+        "wo_urgent": wo_urgent,
+        "pm_due": pm_due,
+        "d1_today": d1_today,
+    })
+
+
 # ── Sites & Hierarchy ─────────────────────────────────────────────────
 
 

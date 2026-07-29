@@ -9,43 +9,39 @@
 <section class="kpi-grid">
   <div class="kpi-card">
     <span class="kpi-label">사업장</span>
-    <span class="kpi-value">{{ kpi.sites }}</span>
+    <span class="kpi-value" id="kpi-sites">{{ kpi.sites }}</span>
   </div>
   <div class="kpi-card">
     <span class="kpi-label">건물</span>
-    <span class="kpi-value">{{ kpi.buildings }}</span>
+    <span class="kpi-value" id="kpi-buildings">{{ kpi.buildings }}</span>
   </div>
   <div class="kpi-card">
     <span class="kpi-label">설비</span>
-    <span class="kpi-value">{{ kpi.equipment }}</span>
+    <span class="kpi-value" id="kpi-equipment">{{ kpi.equipment }}</span>
   </div>
   <div class="kpi-card highlight">
     <span class="kpi-label">작업 진행</span>
-    <span class="kpi-value">{{ kpi.wo_progress }}</span>
+    <span class="kpi-value" id="kpi-wo-progress">{{ kpi.wo_progress }}</span>
   </div>
   <div class="kpi-card">
     <span class="kpi-label">작업 완료</span>
-    <span class="kpi-value">{{ kpi.wo_done }}</span>
+    <span class="kpi-value" id="kpi-wo-done">{{ kpi.wo_done }}</span>
   </div>
   <div class="kpi-card warn">
     <span class="kpi-label">긴급 작업</span>
-    <span class="kpi-value">{{ kpi.wo_urgent }}</span>
+    <span class="kpi-value" id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span>
   </div>
   <div class="kpi-card warn">
     <span class="kpi-label">점검 지연</span>
-    <span class="kpi-value">{{ kpi.pm_due }}</span>
-  </div>
-  <div class="kpi-card warn">
-    <span class="kpi-label">소모품 교체</span>
-    <span class="kpi-value">{{ kpi.consumable_due }}</span>
+    <span class="kpi-value" id="kpi-pm-due">{{ kpi.pm_due }}</span>
   </div>
   <div class="kpi-card">
     <span class="kpi-label">오늘 D-1</span>
-    <span class="kpi-value">{{ kpi.d1_today }}</span>
+    <span class="kpi-value" id="kpi-d1-today">{{ kpi.d1_today }}</span>
   </div>
 </section>
 
-<div class="grid-2">
+<div class="dash-grid-2">
   <section class="card">
     <h2>최근 작업</h2>
     {% for wo in recent_wo %}
@@ -70,4 +66,33 @@
     {% endfor %}
   </section>
 </div>
+
+<script>
+(function () {
+  var INTERVAL = 30000;
+  function refreshKpi() {
+    fetch('/admin/dashboard/kpi')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        var map = {
+          'kpi-sites':       data.sites,
+          'kpi-buildings':   data.buildings,
+          'kpi-equipment':   data.equipment,
+          'kpi-wo-progress': data.wo_progress,
+          'kpi-wo-done':     data.wo_done,
+          'kpi-wo-urgent':   data.wo_urgent,
+          'kpi-pm-due':      data.pm_due,
+          'kpi-d1-today':    data.d1_today,
+        };
+        Object.keys(map).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el && map[id] !== undefined) el.textContent = map[id];
+        });
+      })
+      .catch(function () {});
+  }
+  setInterval(refreshKpi, INTERVAL);
+})();
+</script>
 {% endblock %}

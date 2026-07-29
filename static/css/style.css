@@ -234,6 +234,14 @@ body {
   color: var(--primary);
 }
 
+/* Dashboard 최근작업/점검예정 균등 배열 */
+.dash-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
+}
+
 /* Cards & Grid */
 .card {
   background: var(--card);
@@ -267,6 +275,7 @@ body {
   .sidebar { display: none; }
   .main-with-sidebar { margin-left: 0; padding: 1rem; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .dash-grid-2 { grid-template-columns: 1fr; }
 }
 
 /* Forms */
