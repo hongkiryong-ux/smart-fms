@@ -47,89 +47,88 @@
       <h2>예방점검 (PM)</h2>
       {% if active_pms %}
       {% for pm in active_pms %}
-      <div class="mobile-pm-block">
-        <div class="list-item">
-          <strong>{{ pm.title }}</strong>
-          <div class="text-muted" style="font-size:0.85rem;margin-top:0.2rem">
-            주기 {{ pm_freq_label(pm.frequency) }}
-            {% if pm.frequency.value == 'custom' %} ({{ pm.custom_days }}일){% endif %}
-            · 다음
-            {% if pm.next_due and pm.next_due <= today %}
-            <span class="badge badge-urgent">{{ pm.next_due }}</span>
-            {% else %}{{ pm.next_due or '-' }}{% endif %}
-            · 최근 {{ pm.last_done or '미실시' }}
-          </div>
+      <div class="list-item" style="margin-bottom:0.5rem">
+        <strong>{{ pm.title }}</strong>
+        <div class="text-muted" style="font-size:0.85rem;margin-top:0.2rem">
+          주기 {{ pm_freq_label(pm.frequency) }}
+          {% if pm.frequency.value == 'custom' %} ({{ pm.custom_days }}일){% endif %}
+          · 다음
+          {% if pm.next_due and pm.next_due <= today %}
+          <span class="badge badge-urgent">{{ pm.next_due }}</span>
+          {% else %}{{ pm.next_due or '-' }}{% endif %}
+          · 최근 {{ pm.last_done or '미실시' }}
         </div>
-
-        {% set hist = (pm.inspections|sort(attribute='inspected_at', reverse=true)) if pm.inspections else [] %}
-        <div class="pm-history-box mobile-pm-history">
-          <h3>등록된 점검 내용</h3>
-          {% if hist %}
-          <ul class="pm-history-list">
-            {% for h in hist[:5] %}
-            <li>
-              <div class="pm-history-meta">
-                <span class="pm-result pm-result-{{ h.result.value }}">{{ pm_result_label(h.result) }}</span>
-                <time>{{ fmt_kst(h.inspected_at) if h.inspected_at else '-' }}</time>
-                <span>{{ h.inspector_name or '점검자 미기재' }}</span>
-              </div>
-              <p class="pm-history-note">{{ h.note or '내용 없음' }}</p>
-            </li>
-            {% endfor %}
-          </ul>
-          {% else %}
-          <p class="empty">아직 등록된 점검 내용이 없습니다.</p>
-          {% endif %}
-        </div>
-
-        <form method="post"
-              action="/eq/{{ eq.code }}/pm-inspect"
-              class="mobile-pm-form pm-inspect-form"
-              data-pm-id="{{ pm.id }}">
-          <input type="hidden" name="schedule_id" value="{{ pm.id }}" />
-          <input type="hidden" name="result" value="" />
-          <input type="hidden" name="request_work_order" value="0" />
-          <label>점검자</label>
-          <input type="text" name="inspector_name" placeholder="이름" />
-          <label>점검 내용</label>
-          <textarea name="note" rows="2" placeholder="이상 내용 등"></textarea>
-          <div class="pm-result-actions">
-            <button type="button" data-pm-result="normal" class="btn btn-sm pm-btn-normal">정상</button>
-            <button type="button" data-pm-result="caution" class="btn btn-sm pm-btn-caution">주의</button>
-            <button type="button" data-pm-result="fault" class="btn btn-sm pm-btn-fault">고장</button>
-          </div>
-          <p class="text-muted" style="font-size:0.8rem;margin:0.35rem 0 0">
-            주의/고장 선택 시 정비의뢰 접수 여부를 확인합니다.
-          </p>
-        </form>
-
-        <dialog id="pm-wo-confirm-{{ pm.id }}" class="eq-dialog pm-wo-confirm-dialog">
-          <form method="dialog" class="eq-dialog-top">
-            <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
-          </form>
-          <div class="eq-popup-body">
-            <h2>정비의뢰 접수 확인</h2>
-            <p class="text-muted">아래 내용으로 점검 결과를 등록합니다.</p>
-            <dl class="info-dl pm-wo-preview">
-              <dt>결과</dt>
-              <dd><span class="pm-wo-preview-result"></span></dd>
-              <dt>점검자</dt>
-              <dd class="pm-wo-preview-inspector"></dd>
-              <dt>점검 내용</dt>
-              <dd class="pm-wo-preview-note"></dd>
-            </dl>
-            <p><strong>정비의뢰를 접수하시겠습니까?</strong></p>
-            <div class="pm-result-actions">
-              <button type="button" class="btn btn-secondary pm-wo-save-only">점검만 저장</button>
-              <button type="button" class="btn btn-primary pm-wo-confirm">정비의뢰 접수</button>
-            </div>
-          </div>
-        </dialog>
       </div>
       {% endfor %}
       {% else %}
-      <p class="empty">등록된 점검주기가 없습니다.</p>
+      <p class="text-muted" style="font-size:0.88rem;margin-bottom:0.65rem">
+        점검주기가 설정되지 않았습니다. 아래에서 점검 결과만 등록할 수 있습니다.
+      </p>
       {% endif %}
+
+      <div class="pm-history-box mobile-pm-history">
+        <h3>등록된 점검 내용</h3>
+        {% if all_inspections %}
+        <ul class="pm-history-list">
+          {% for h in all_inspections[:10] %}
+          <li>
+            <div class="pm-history-meta">
+              <span class="pm-result pm-result-{{ h.result.value }}">{{ pm_result_label(h.result) }}</span>
+              <time>{{ fmt_kst(h.inspected_at) if h.inspected_at else '-' }}</time>
+              <span>{{ h.inspector_name or '점검자 미기재' }}</span>
+            </div>
+            <p class="pm-history-note">{{ h.note or '내용 없음' }}</p>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">아직 등록된 점검 내용이 없습니다.</p>
+        {% endif %}
+      </div>
+
+      <form method="post"
+            action="/eq/{{ eq.code }}/pm-inspect"
+            class="mobile-pm-form pm-inspect-form"
+            data-pm-id="mobile">
+        <input type="hidden" name="schedule_id" value="{{ active_pms[0].id if active_pms else 0 }}" />
+        <input type="hidden" name="result" value="" />
+        <input type="hidden" name="request_work_order" value="0" />
+        <label>점검자</label>
+        <input type="text" name="inspector_name" placeholder="이름" />
+        <label>점검 내용</label>
+        <textarea name="note" rows="2" placeholder="이상 내용 등"></textarea>
+        <div class="pm-result-actions">
+          <button type="button" data-pm-result="normal" class="btn btn-sm pm-btn-normal">정상</button>
+          <button type="button" data-pm-result="caution" class="btn btn-sm pm-btn-caution">주의</button>
+          <button type="button" data-pm-result="fault" class="btn btn-sm pm-btn-fault">고장</button>
+        </div>
+        <p class="text-muted" style="font-size:0.8rem;margin:0.35rem 0 0">
+          주의/고장 선택 시 정비의뢰 접수 여부를 확인합니다.
+        </p>
+      </form>
+
+      <dialog id="pm-wo-confirm-mobile" class="eq-dialog pm-wo-confirm-dialog">
+        <form method="dialog" class="eq-dialog-top">
+          <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+        </form>
+        <div class="eq-popup-body">
+          <h2>정비의뢰 접수 확인</h2>
+          <p class="text-muted">아래 내용으로 점검 결과를 등록합니다.</p>
+          <dl class="info-dl pm-wo-preview">
+            <dt>결과</dt>
+            <dd><span class="pm-wo-preview-result"></span></dd>
+            <dt>점검자</dt>
+            <dd class="pm-wo-preview-inspector"></dd>
+            <dt>점검 내용</dt>
+            <dd class="pm-wo-preview-note"></dd>
+          </dl>
+          <p><strong>정비의뢰를 접수하시겠습니까?</strong></p>
+          <div class="pm-result-actions">
+            <button type="button" class="btn btn-secondary pm-wo-save-only">점검만 저장</button>
+            <button type="button" class="btn btn-primary pm-wo-confirm">정비의뢰 접수</button>
+          </div>
+        </div>
+      </dialog>
     </section>
 
     <section class="mobile-card">

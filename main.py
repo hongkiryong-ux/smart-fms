@@ -3223,6 +3223,26 @@ async def _create_pm_work_order(
     return wo
 
 
+async def _get_or_create_pm_schedule(db: AsyncSession, eq: Equipment) -> PMSchedule:
+    """활성 점검주기가 없으면 QR 등 임시 점검용 일정을 생성."""
+    active = next((s for s in (eq.pm_schedules or []) if s.is_active), None)
+    if active:
+        return active
+    schedule = PMSchedule(
+        equipment_id=eq.id,
+        title=f"{eq.code} 예방점검",
+        frequency=PMFrequency.monthly,
+        is_active=True,
+    )
+    db.add(schedule)
+    await db.flush()
+    if eq.pm_schedules is None:
+        eq.pm_schedules = []
+    eq.pm_schedules.append(schedule)
+    schedule.equipment = eq
+    return schedule
+
+
 async def _record_pm_inspection(
     db: AsyncSession,
     schedule: PMSchedule,
@@ -4481,6 +4501,7 @@ async def equipment_mobile(
             selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
             selectinload(Equipment.consumables),
             selectinload(Equipment.pm_schedules).selectinload(PMSchedule.inspections),
+            selectinload(Equipment.pm_inspections).selectinload(PMInspection.schedule),
             selectinload(Equipment.work_orders),
             selectinload(Equipment.equipment_type),
         )
@@ -4489,6 +4510,11 @@ async def equipment_mobile(
     if not eq:
         raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
     active_pms = [s for s in (eq.pm_schedules or []) if s.is_active]
+    all_inspections = sorted(
+        eq.pm_inspections or [],
+        key=lambda x: x.inspected_at or datetime.min,
+        reverse=True,
+    )
     msg = request.query_params.get("msg", "")
     error = request.query_params.get("error", "")
     return templates.TemplateResponse(
@@ -4497,6 +4523,7 @@ async def equipment_mobile(
         {
             "eq": eq,
             "active_pms": active_pms,
+            "all_inspections": all_inspections,
             "today": _today_kst(),
             "message": msg,
             "error": error,
@@ -4534,11 +4561,7 @@ async def equipment_mobile_pm_inspect(
         None,
     )
     if not schedule:
-        return RedirectResponse(
-            f"/eq/{code}?error=점검일정을+찾을+수+없습니다",
-            status_code=303,
-        )
-    # ensure relationship for building lookup
+        schedule = await _get_or_create_pm_schedule(db, eq)
     schedule.equipment = eq
 
     insp, wo = await _record_pm_inspection(
