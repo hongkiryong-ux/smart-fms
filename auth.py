@@ -179,3 +179,21 @@ ROLE_LABELS = {
     UserRole.external: "외부업체",
     UserRole.viewer: "조회전용",
 }
+
+# 가입신청 시 선택 가능 역할 (시스템관리자 제외)
+SIGNUP_ROLES: tuple[UserRole, ...] = (
+    UserRole.facility_manager,
+    UserRole.site_admin,
+    UserRole.group_leader,
+    UserRole.part_leader,
+    UserRole.viewer,
+    UserRole.partner,
+    UserRole.external,
+)
+
+
+def can_access_equipment_pm(user: User | None) -> bool:
+    """협력사·외부업체는 설비관리·점검(PM) 메뉴 비표시."""
+    if user is None:
+        return False
+    return user.role not in (UserRole.partner, UserRole.external)

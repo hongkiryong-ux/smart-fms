@@ -21,7 +21,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from auth import (
     ROLE_LABELS,
+    SIGNUP_ROLES,
     apply_role_permissions,
+    can_access_equipment_pm,
     can_create,
     can_delete,
     can_edit,
@@ -542,6 +544,7 @@ templates.env.globals["name_fields"] = set(NAME_KEYS)
 templates.env.globals["user_can_create"] = can_create
 templates.env.globals["user_can_edit"] = can_edit
 templates.env.globals["user_can_delete"] = can_delete
+templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
 templates.env.globals.update(
     fmt_kst=_fmt_kst,
     fmt_kst_date=_fmt_kst_date,
@@ -650,7 +653,10 @@ async def admin_signup_page(request: Request, user: User | None = Depends(get_cu
     return templates.TemplateResponse(
         request,
         "signup.html",
-        {"error": request.query_params.get("error")},
+        {
+            "error": request.query_params.get("error"),
+            "signup_roles": SIGNUP_ROLES,
+        },
     )
 
 
@@ -661,6 +667,7 @@ async def admin_signup(
     password: str = Form(...),
     password2: str = Form(...),
     name: str = Form(...),
+    role: str = Form("facility_manager"),
     phone: str = Form(""),
     email: str = Form(""),
     db: AsyncSession = Depends(get_db),
@@ -684,13 +691,19 @@ async def admin_signup(
     if exists:
         return RedirectResponse("/admin/signup?error=exists", status_code=303)
 
+    allowed = {r.value for r in SIGNUP_ROLES}
+    try:
+        role_val = UserRole(role) if role in allowed else UserRole.facility_manager
+    except ValueError:
+        role_val = UserRole.facility_manager
+
     new_user = User(
         username=uname,
         password_hash=hash_password(pw),
         name=nm,
         phone=phone.strip() or None,
         email=email.strip() or None,
-        role=UserRole.viewer,
+        role=role_val,
         is_active=True,
         is_approved=False,
     )

@@ -25,6 +25,7 @@
     <ul class="nav-menu">
       <li><a href="/admin/dashboard" class="{% if request.url.path == '/admin/dashboard' %}active{% endif %}">Dashboard</a></li>
       <li><a href="/admin/sites" class="{% if '/sites' in request.url.path or '/buildings' in request.url.path %}active{% endif %}">사업장/건물</a></li>
+      {% if user_can_access_equipment_pm(user) %}
       <li class="nav-expandable{% if eq_path %} is-open{% endif %}" id="nav-equipment">
         <div class="nav-parent-row">
           <a href="/admin/equipment"
@@ -50,6 +51,7 @@
         </ul>
       </li>
       <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
+      {% endif %}
       <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
       <li><a href="/admin/d1" class="{% if request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path %}active{% endif %}">D-1 작업</a></li>
       <li><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>

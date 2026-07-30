@@ -49,7 +49,7 @@
         <td>
           <select name="role" form="approve-{{ u.id }}" class="users-cell-input">
             {% for r in roles if r.value != 'system_admin' %}
-            <option value="{{ r.value }}" {% if r.value == 'facility_manager' %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
+            <option value="{{ r.value }}" {% if u.role == r %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
             {% endfor %}
           </select>
         </td>
