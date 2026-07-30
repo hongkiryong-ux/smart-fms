@@ -54,8 +54,8 @@ body {
   display: block;
   width: auto;
   height: auto;
-  max-width: 128px;
-  max-height: 42px;
+  max-width: 64px;
+  max-height: 21px;
   object-fit: contain;
   opacity: 0.95;
 }
