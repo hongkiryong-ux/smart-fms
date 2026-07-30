@@ -95,6 +95,23 @@ def require_roles(*roles: UserRole) -> Callable:
     return _checker
 
 
+# 조회전용(viewer) 계정은 삭제 불가 — guest1 등
+_NO_DELETE_ROLES = frozenset({UserRole.viewer})
+
+
+def can_delete(user: User | None) -> bool:
+    """엔티티 삭제(사업장/설비/정비의뢰 등) 가능 여부."""
+    if user is None:
+        return False
+    return user.role not in _NO_DELETE_ROLES
+
+
+def require_can_delete(user: User = Depends(require_login)) -> User:
+    if not can_delete(user):
+        raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
+    return user
+
+
 ROLE_LABELS = {
     UserRole.system_admin: "시스템관리자",
     UserRole.site_admin: "사업장관리자",

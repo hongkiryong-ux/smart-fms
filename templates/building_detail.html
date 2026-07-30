@@ -9,10 +9,12 @@
     </div>
     <div class="row-actions">
       <a class="btn btn-sm btn-secondary" href="/admin/buildings/{{ building.id }}/edit">수정</a>
+      {% if user_can_delete(user) %}
       <form method="post" action="/admin/buildings/{{ building.id }}/delete" class="inline-form"
             onsubmit="return confirm('건물 「{{ building.name }}」을(를) 삭제할까요?');">
         <button type="submit" class="btn btn-sm btn-danger">삭제</button>
       </form>
+      {% endif %}
     </div>
   </div>
 </header>
@@ -119,10 +121,12 @@
         </span>
         <div class="drawing-actions">
           <a class="btn btn-sm btn-secondary" href="{{ d.url }}" download="{{ d.original_name or d.stored_name }}">다운로드</a>
+          {% if user_can_delete(user) %}
           <form method="post" action="/admin/buildings/{{ building.id }}/drawings/{{ d.id }}/delete" class="inline-form"
                 onsubmit="return confirm('도면 «{{ d.title }}»을(를) 삭제할까요?');">
             <button type="submit" class="btn btn-sm btn-danger">삭제</button>
           </form>
+          {% endif %}
         </div>
       </div>
     </article>

@@ -16,7 +16,7 @@
         <th>조치내용</th>
         <th>저장</th>
         <th>상세</th>
-        <th>삭제</th>
+        {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -83,6 +83,7 @@
         <td>
           <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
         </td>
+        {% if user_can_delete(user) %}
         <td>
           <form method="post" action="/admin/work-orders/{{ wo.id }}/delete" class="inline-form"
                 onsubmit="return confirm('이 정비의뢰를 삭제할까요?');">
@@ -95,9 +96,10 @@
             <button type="submit" class="link-action link-danger">삭제</button>
           </form>
         </td>
+        {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="11" class="empty">{{ empty_msg }}</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}11{% else %}10{% endif %}" class="empty">{{ empty_msg }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

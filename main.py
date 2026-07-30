@@ -21,8 +21,10 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from auth import (
     ROLE_LABELS,
+    can_delete,
     get_current_user,
     hash_password,
+    require_can_delete,
     require_login,
     verify_password,
 )
@@ -530,6 +532,7 @@ from equipment_schema import field_value, get_category_fields, list_display_fiel
 
 templates.env.globals["field_value"] = field_value
 templates.env.globals["name_fields"] = set(NAME_KEYS)
+templates.env.globals["user_can_delete"] = can_delete
 templates.env.globals.update(
     fmt_kst=_fmt_kst,
     fmt_kst_date=_fmt_kst_date,
@@ -928,7 +931,7 @@ async def site_edit(
 @app.post("/admin/sites/{site_id}/delete")
 async def site_delete(
     site_id: int,
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     site = await db.get(Site, site_id)
@@ -1088,7 +1091,7 @@ async def building_drawing_upload(
 async def building_drawing_delete(
     building_id: int,
     drawing_id: int,
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1252,7 +1255,7 @@ async def building_edit(
 @app.post("/admin/buildings/{building_id}/delete")
 async def building_delete(
     building_id: int,
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     building = await db.get(Building, building_id)
@@ -1314,7 +1317,7 @@ async def floor_edit(
 async def floor_delete(
     floor_id: int,
     building_id: int = Form(...),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1428,7 +1431,7 @@ async def zone_edit(
 async def zone_delete(
     zone_id: int,
     building_id: int = Form(...),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -2371,7 +2374,7 @@ async def equipment_delete(
     eq_id: int,
     redirect_building_id: int = Form(0),
     redirect_category: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -2900,7 +2903,7 @@ async def work_order_delete(
     date_to: str = Form(""),
     page: str = Form(""),
     d1_board: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import urlencode
@@ -4739,7 +4742,7 @@ async def materials_delete(
     name: str = Form(...),
     popup: int = Form(0),
     filter_group: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     nm = name.strip()
@@ -4764,7 +4767,7 @@ async def materials_delete(
 @app.post("/admin/materials/reset")
 async def materials_reset(
     popup: int = Form(0),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import delete
@@ -4812,7 +4815,7 @@ async def materials_group_add(
 async def materials_group_delete(
     group_name: str = Form(...),
     popup: int = Form(0),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import delete, update
@@ -5234,7 +5237,7 @@ async def partner_edit(
 @app.post("/admin/partners/{partner_id}/delete")
 async def partner_delete(
     partner_id: int,
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
     partner = await db.get(Partner, partner_id)

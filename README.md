@@ -25,7 +25,8 @@ run-dev.bat        # 서버 시작
 | http://127.0.0.1:8000/admin/dashboard | Dashboard |
 | http://127.0.0.1:8000/eq/AHU-001 | QR 설비 조회 |
 
-**기본 계정:** `admin` / `password123`
+**기본 계정:** `admin` / `password123`  
+**조회전용:** `guest1` / `password123` (삭제 기능 없음)
 
 ## Render 배포
 

@@ -32,6 +32,7 @@ from models import (
 async def seed_if_empty(session: AsyncSession) -> None:
     existing = await session.execute(select(Site).limit(1))
     if existing.scalar_one_or_none():
+        await ensure_guest1_user(session)
         await ensure_category_demo(session)
         return
 
@@ -49,7 +50,13 @@ async def seed_if_empty(session: AsyncSession) -> None:
         role=UserRole.facility_manager,
         phone="010-1234-5678",
     )
-    session.add_all([admin, facility])
+    guest1 = User(
+        username="guest1",
+        password_hash=hash_password("password123"),
+        name="게스트",
+        role=UserRole.viewer,
+    )
+    session.add_all([admin, facility, guest1])
 
     partner = Partner(
         name="(주)광양설비",
@@ -288,6 +295,33 @@ async def seed_if_empty(session: AsyncSession) -> None:
 
     await session.commit()
     print("[seed] demo data created", flush=True)
+
+
+async def ensure_guest1_user(session: AsyncSession) -> None:
+    """조회전용 guest1 계정 보장 (삭제 권한 없음)."""
+    try:
+        existing = (
+            await session.execute(select(User).where(User.username == "guest1"))
+        ).scalar_one_or_none()
+        if existing:
+            # 역할이 바뀌었으면 viewer로 유지
+            if existing.role != UserRole.viewer:
+                existing.role = UserRole.viewer
+                await session.commit()
+                print("[seed] guest1 role set to viewer", flush=True)
+            return
+        session.add(
+            User(
+                username="guest1",
+                password_hash=hash_password("password123"),
+                name="게스트",
+                role=UserRole.viewer,
+            )
+        )
+        await session.commit()
+        print("[seed] guest1 viewer account created", flush=True)
+    except Exception as e:
+        print(f"[seed] guest1 ensure skipped: {e}", flush=True)
 
 
 async def ensure_category_demo(session: AsyncSession) -> None:

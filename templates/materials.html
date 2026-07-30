@@ -22,6 +22,7 @@
 
   {# ── 상단 도구모음 (스크린샷과 동일 순서) ── #}
   <div class="mat-toolbar">
+    {% if user_can_delete(user) %}
     <form method="post" action="/admin/materials/delete" class="inline-form" id="mat-del-top"
           onsubmit="return matConfirmDelete();">
       {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
@@ -29,14 +30,19 @@
       <input type="hidden" name="name" id="mat-del-name" value="" />
       <button type="submit" class="btn btn-sm btn-secondary">자재 삭제</button>
     </form>
+    {% endif %}
     <a class="btn btn-sm btn-secondary" href="/admin/materials/export">Excel로 저장</a>
     <button type="button" class="btn btn-sm btn-secondary" data-open-dialog="mat-import-dialog">Excel 데이터 불러오기</button>
     <a class="btn btn-sm btn-secondary" href="/admin/materials?{{ popup_q }}">자재 전체 현황보기</a>
     <button type="button" class="btn btn-sm btn-secondary" data-open-dialog="mat-logs-dialog">로그 기록 보기</button>
     <a class="btn btn-sm btn-secondary" href="/admin/materials/export-logs">로그 기록 Excel 저장</a>
+    {% if user_can_delete(user) %}
     <button type="button" class="btn btn-sm btn-secondary" data-open-dialog="mat-reset-dialog">전체 데이터 초기화</button>
+    {% endif %}
     <button type="button" class="btn btn-sm btn-secondary" data-open-dialog="mat-group-add-dialog">그룹 추가</button>
+    {% if user_can_delete(user) %}
     <button type="button" class="btn btn-sm btn-secondary" data-open-dialog="mat-group-del-dialog">그룹 삭제</button>
+    {% endif %}
     <button type="button" class="btn btn-sm btn-secondary" data-open-dialog="mat-group-rename-dialog">그룹 이름 변경</button>
 
     <form method="get" action="/admin/materials" class="mat-search">
@@ -215,6 +221,7 @@
   </div>
 </dialog>
 
+{% if user_can_delete(user) %}
 <dialog id="mat-reset-dialog" class="eq-dialog materials-dialog">
   <form method="dialog" class="eq-dialog-top">
     <strong>전체 데이터 초기화</strong>
@@ -227,6 +234,7 @@
     <button type="submit" class="btn btn-danger">전체 초기화 실행</button>
   </form>
 </dialog>
+{% endif %}
 
 <dialog id="mat-group-add-dialog" class="eq-dialog materials-dialog">
   <form method="dialog" class="eq-dialog-top">
@@ -241,6 +249,7 @@
   </form>
 </dialog>
 
+{% if user_can_delete(user) %}
 <dialog id="mat-group-del-dialog" class="eq-dialog materials-dialog">
   <form method="dialog" class="eq-dialog-top">
     <strong>그룹 삭제</strong>
@@ -258,6 +267,7 @@
     <button type="submit" class="btn btn-danger">삭제</button>
   </form>
 </dialog>
+{% endif %}
 
 <dialog id="mat-group-rename-dialog" class="eq-dialog materials-dialog">
   <form method="dialog" class="eq-dialog-top">

@@ -8,11 +8,13 @@
       <p>#{{ wo.id }} · <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span></p>
     </div>
     <div class="row-actions">
+      {% if user_can_delete(user) %}
       <form method="post" action="/admin/work-orders/{{ wo.id }}/delete" class="inline-form"
             onsubmit="return confirm('이 정비의뢰를 삭제할까요?');">
         <input type="hidden" name="redirect" value="list" />
         <button type="submit" class="btn btn-sm btn-danger">삭제</button>
       </form>
+      {% endif %}
     </div>
   </div>
 </header>

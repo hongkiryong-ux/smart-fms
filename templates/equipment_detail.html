@@ -23,10 +23,12 @@
         </label>
       </form>
       <a class="btn btn-sm btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
+      {% if user_can_delete(user) %}
       <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
             onsubmit="return confirm('「{{ eq.name }}」을(를) 삭제할까요?');">
         <button type="submit" class="btn btn-sm btn-danger">삭제</button>
       </form>
+      {% endif %}
     </div>
   </div>
 </header>

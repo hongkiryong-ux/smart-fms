@@ -38,12 +38,14 @@
           <td>{{ p.contract_end or '-' }}</td>
           <td class="row-actions">
             <a class="link-action" href="/admin/partners/{{ p.id }}/edit">수정</a>
+            {% if user_can_delete(user) %}
             <form method="post"
                   action="/admin/partners/{{ p.id }}/delete"
                   class="inline-form"
                   onsubmit="return confirm('「{{ p.name }}」 협력사를 삭제할까요?');">
               <button type="submit" class="link-action link-danger">삭제</button>
             </form>
+            {% endif %}
           </td>
         </tr>
         {% else %}

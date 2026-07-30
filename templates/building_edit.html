@@ -52,11 +52,13 @@
       <input type="number" name="level" value="{{ floor.level }}" class="hier-level" />
       <button type="submit" class="btn btn-sm btn-secondary">층 저장</button>
     </form>
+    {% if user_can_delete(user) %}
     <form method="post" action="/admin/floors/{{ floor.id }}/delete" class="inline-form"
           onsubmit="return confirm('층 «{{ floor.name }}»과(와) 하위 구역·설비를 삭제(비활성)할까요?');">
       <input type="hidden" name="building_id" value="{{ building.id }}" />
       <button type="submit" class="btn btn-sm btn-danger">층 삭제</button>
     </form>
+    {% endif %}
 
     <div class="hier-zones">
       {% set active_zones = floor.zones|selectattr('is_active')|list if floor.zones else [] %}
@@ -77,11 +79,13 @@
           <span class="hier-eq-count text-muted">설비 {{ zone_eq_counts.get(zone.id, 0) }}대</span>
           <button type="submit" class="btn btn-sm btn-secondary">구역 저장</button>
         </form>
+        {% if user_can_delete(user) %}
         <form method="post" action="/admin/zones/{{ zone.id }}/delete" class="inline-form"
               onsubmit="return confirm('구역 «{{ zone.name }}»을(를) 삭제할까요? (하위 설비 {{ zone_eq_counts.get(zone.id, 0) }}대 비활성화)');">
           <input type="hidden" name="building_id" value="{{ building.id }}" />
           <button type="submit" class="btn btn-sm btn-danger">구역 삭제</button>
         </form>
+        {% endif %}
         {% if zone_eq_counts.get(zone.id, 0) > 0 %}
         <a class="link-action" href="/admin/equipment?building_id={{ building.id }}">설비 목록</a>
         {% endif %}

@@ -122,12 +122,14 @@
             <div class="row-actions">
               <button type="button" class="link-action" data-open-dialog="eq-dialog-{{ eq.id }}">상세/정비의뢰</button>
               <a class="link-action" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
+              {% if user_can_delete(user) %}
               <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
                     onsubmit="return confirm('「{{ eq.code }} {{ eq.name }}」을(를) 삭제할까요?');">
                 <input type="hidden" name="redirect_building_id" value="{{ selected_building.id }}" />
                 <input type="hidden" name="redirect_category" value="{{ category or '' }}" />
                 <button type="submit" class="link-action link-danger">삭제</button>
               </form>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -170,12 +172,14 @@
           </form>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}">전체 상세·이력</a>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
+          {% if user_can_delete(user) %}
           <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
                 onsubmit="return confirm('「{{ eq.code }} {{ eq.name }}」을(를) 삭제할까요?');">
             <input type="hidden" name="redirect_building_id" value="{{ selected_building.id }}" />
             <input type="hidden" name="redirect_category" value="{{ category or '' }}" />
             <button type="submit" class="btn btn-danger">삭제</button>
           </form>
+          {% endif %}
         </div>
 
         {% set ns = namespace(has_open=false) %}
