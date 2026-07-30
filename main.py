@@ -894,11 +894,16 @@ async def building_edit_page(
     request: Request,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
+    message: str = "",
+    error: str = "",
 ):
     result = await db.execute(
         select(Building)
         .where(Building.id == building_id)
-        .options(selectinload(Building.site))
+        .options(
+            selectinload(Building.site),
+            selectinload(Building.floors).selectinload(Floor.zones),
+        )
     )
     building = result.scalar_one_or_none()
     if not building or not building.is_active:
@@ -906,10 +911,41 @@ async def building_edit_page(
     sites = (
         await db.execute(select(Site).where(Site.is_active == True).order_by(Site.name))
     ).scalars().all()
+
+    floors = sorted(
+        [f for f in (building.floors or []) if getattr(f, "is_active", True)],
+        key=lambda f: (f.level or 0, f.name or "", f.id),
+    )
+    zone_eq_counts: dict[int, int] = {}
+    if floors:
+        count_rows = (
+            await db.execute(
+                select(Equipment.zone_id, func.count(Equipment.id))
+                .join(Zone, Equipment.zone_id == Zone.id)
+                .join(Floor, Zone.floor_id == Floor.id)
+                .where(
+                    Floor.building_id == building_id,
+                    Equipment.is_active == True,
+                    Zone.is_active == True,
+                    Floor.is_active == True,
+                )
+                .group_by(Equipment.zone_id)
+            )
+        ).all()
+        zone_eq_counts = {int(zid): int(cnt) for zid, cnt in count_rows if zid is not None}
+
     return templates.TemplateResponse(
         request,
         "building_edit.html",
-        {"user": user, "building": building, "sites": sites},
+        {
+            "user": user,
+            "building": building,
+            "sites": sites,
+            "floors": floors,
+            "zone_eq_counts": zone_eq_counts,
+            "message": message,
+            "error": error,
+        },
     )
 
 
@@ -923,6 +959,8 @@ async def building_edit(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    from urllib.parse import quote
+
     building = await db.get(Building, building_id)
     if not building or not building.is_active:
         raise HTTPException(404)
@@ -931,7 +969,10 @@ async def building_edit(
     building.code = code.strip()
     building.manager_name = manager_name
     await db.commit()
-    return RedirectResponse(f"/admin/buildings/{building_id}", status_code=303)
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}/edit?message={quote('건물 정보가 저장되었습니다.')}",
+        status_code=303,
+    )
 
 
 @app.post("/admin/buildings/{building_id}/delete")
@@ -953,12 +994,84 @@ async def floor_create(
     building_id: int = Form(...),
     name: str = Form(...),
     level: int = Form(1),
+    return_to: str = Form("detail"),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    db.add(Floor(building_id=building_id, name=name.strip(), level=level))
+    from urllib.parse import quote
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        raise HTTPException(404)
+    db.add(Floor(building_id=building_id, name=name.strip(), level=level, is_active=True))
     await db.commit()
+    if return_to == "edit":
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}/edit?message={quote('층이 추가되었습니다.')}",
+            status_code=303,
+        )
     return RedirectResponse(f"/admin/buildings/{building_id}", status_code=303)
+
+
+@app.post("/admin/floors/{floor_id}/edit")
+async def floor_edit(
+    floor_id: int,
+    name: str = Form(...),
+    level: int = Form(1),
+    building_id: int = Form(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    floor = await db.get(Floor, floor_id)
+    if not floor or floor.building_id != building_id or not getattr(floor, "is_active", True):
+        raise HTTPException(404)
+    floor.name = name.strip()
+    floor.level = level
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}/edit?message={quote('층 정보가 수정되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/floors/{floor_id}/delete")
+async def floor_delete(
+    floor_id: int,
+    building_id: int = Form(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    result = await db.execute(
+        select(Floor)
+        .where(Floor.id == floor_id, Floor.building_id == building_id)
+        .options(selectinload(Floor.zones).selectinload(Zone.equipment))
+    )
+    floor = result.scalar_one_or_none()
+    if not floor or not getattr(floor, "is_active", True):
+        raise HTTPException(404)
+
+    eq_count = 0
+    for zone in floor.zones or []:
+        if not getattr(zone, "is_active", True):
+            continue
+        for eq in zone.equipment or []:
+            if getattr(eq, "is_active", True):
+                eq.is_active = False
+                eq_count += 1
+        zone.is_active = False
+    floor.is_active = False
+    await db.commit()
+    msg = f"층 «{floor.name}»이(가) 삭제되었습니다."
+    if eq_count:
+        msg += f" (하위 설비 {eq_count}대 비활성화)"
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}/edit?message={quote(msg)}",
+        status_code=303,
+    )
 
 
 @app.post("/admin/zones")
@@ -967,12 +1080,110 @@ async def zone_create(
     building_id: int = Form(...),
     name: str = Form(...),
     code: str = Form(""),
+    return_to: str = Form("detail"),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    db.add(Zone(floor_id=floor_id, name=name.strip(), code=code))
+    from urllib.parse import quote
+
+    floor = await db.get(Floor, floor_id)
+    if not floor or floor.building_id != building_id or not getattr(floor, "is_active", True):
+        raise HTTPException(404)
+    db.add(
+        Zone(
+            floor_id=floor_id,
+            name=name.strip(),
+            code=(code or "").strip() or None,
+            is_active=True,
+        )
+    )
     await db.commit()
+    if return_to == "edit":
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}/edit?message={quote('구역이 추가되었습니다.')}",
+            status_code=303,
+        )
     return RedirectResponse(f"/admin/buildings/{building_id}", status_code=303)
+
+
+@app.post("/admin/zones/{zone_id}/edit")
+async def zone_edit(
+    zone_id: int,
+    building_id: int = Form(...),
+    floor_id: int = Form(...),
+    name: str = Form(...),
+    code: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    result = await db.execute(
+        select(Zone)
+        .where(Zone.id == zone_id)
+        .options(selectinload(Zone.floor))
+    )
+    zone = result.scalar_one_or_none()
+    if not zone or not getattr(zone, "is_active", True):
+        raise HTTPException(404)
+    if not zone.floor or zone.floor.building_id != building_id:
+        raise HTTPException(404)
+
+    new_floor = await db.get(Floor, floor_id)
+    if (
+        not new_floor
+        or new_floor.building_id != building_id
+        or not getattr(new_floor, "is_active", True)
+    ):
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}/edit?error={quote('선택한 층이 없습니다.')}",
+            status_code=303,
+        )
+
+    zone.floor_id = floor_id
+    zone.name = name.strip()
+    zone.code = (code or "").strip() or None
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}/edit?message={quote('구역 정보가 수정되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/zones/{zone_id}/delete")
+async def zone_delete(
+    zone_id: int,
+    building_id: int = Form(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    result = await db.execute(
+        select(Zone)
+        .where(Zone.id == zone_id)
+        .options(selectinload(Zone.floor), selectinload(Zone.equipment))
+    )
+    zone = result.scalar_one_or_none()
+    if not zone or not getattr(zone, "is_active", True):
+        raise HTTPException(404)
+    if not zone.floor or zone.floor.building_id != building_id:
+        raise HTTPException(404)
+
+    eq_count = 0
+    for eq in zone.equipment or []:
+        if getattr(eq, "is_active", True):
+            eq.is_active = False
+            eq_count += 1
+    zone.is_active = False
+    await db.commit()
+    msg = f"구역 «{zone.name}»이(가) 삭제되었습니다."
+    if eq_count:
+        msg += f" (하위 설비 {eq_count}대 비활성화)"
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}/edit?message={quote(msg)}",
+        status_code=303,
+    )
 
 
 # ── Equipment ─────────────────────────────────────────────────────────
@@ -1056,7 +1267,11 @@ async def equipment_list(
                 await db.execute(
                     select(Zone)
                     .join(Floor)
-                    .where(Floor.building_id == building_id)
+                    .where(
+                        Floor.building_id == building_id,
+                        Floor.is_active == True,
+                        Zone.is_active == True,
+                    )
                     .order_by(Zone.name)
                 )
             ).scalars().all()
@@ -1675,7 +1890,11 @@ async def equipment_edit_page(
             await db.execute(
                 select(Zone)
                 .join(Floor)
-                .where(Floor.building_id == building_id)
+                .where(
+                    Floor.building_id == building_id,
+                    Floor.is_active == True,
+                    Zone.is_active == True,
+                )
                 .order_by(Zone.name)
             )
         ).scalars().all()

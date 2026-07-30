@@ -2,11 +2,23 @@
 {% block title %}건물 수정{% endblock %}
 {% block content %}
 <header class="page-header">
-  <h1>건물 수정</h1>
-  <p>{{ building.name }}</p>
+  <div class="item-head">
+    <div>
+      <h1>건물 수정</h1>
+      <p>{{ building.name }} · {{ building.code }}</p>
+    </div>
+    <div class="row-actions">
+      <a class="btn btn-sm btn-secondary" href="/admin/buildings/{{ building.id }}">건물 상세</a>
+      <a class="btn btn-sm btn-secondary" href="/admin/sites">사업장 목록</a>
+    </div>
+  </div>
 </header>
 
-<section class="card" style="max-width:480px">
+{% if message %}<p class="flash ok">{{ message }}</p>{% endif %}
+{% if error %}<p class="flash err">{{ error }}</p>{% endif %}
+
+<section class="card" style="max-width:560px">
+  <h2>건물 정보</h2>
   <form method="post" action="/admin/buildings/{{ building.id }}/edit" class="form-stack">
     <label>사업장</label>
     <select name="site_id" required>
@@ -21,9 +33,102 @@
     <label>담당자</label>
     <input type="text" name="manager_name" value="{{ building.manager_name or '' }}" />
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary">저장</button>
-      <a class="btn btn-secondary" href="/admin/buildings/{{ building.id }}">취소</a>
+      <button type="submit" class="btn btn-primary">건물 저장</button>
     </div>
   </form>
 </section>
+
+<section class="card">
+  <h2>층 / 구역 / 설비 계층</h2>
+  <p class="text-muted" style="margin-top:-0.4rem">층·구역 이름 변경 및 삭제. 삭제 시 하위 활성 설비는 비활성화됩니다.</p>
+
+  {% for floor in floors %}
+  <div class="hierarchy-block hier-edit-block">
+    <form method="post" action="/admin/floors/{{ floor.id }}/edit" class="hier-edit-row">
+      <input type="hidden" name="building_id" value="{{ building.id }}" />
+      <label class="sr-only">층 이름</label>
+      <input type="text" name="name" value="{{ floor.name }}" required class="hier-name" />
+      <label class="hier-level-label">레벨</label>
+      <input type="number" name="level" value="{{ floor.level }}" class="hier-level" />
+      <button type="submit" class="btn btn-sm btn-secondary">층 저장</button>
+    </form>
+    <form method="post" action="/admin/floors/{{ floor.id }}/delete" class="inline-form"
+          onsubmit="return confirm('층 «{{ floor.name }}»과(와) 하위 구역·설비를 삭제(비활성)할까요?');">
+      <input type="hidden" name="building_id" value="{{ building.id }}" />
+      <button type="submit" class="btn btn-sm btn-danger">층 삭제</button>
+    </form>
+
+    <div class="hier-zones">
+      {% set active_zones = floor.zones|selectattr('is_active')|list if floor.zones else [] %}
+      {% for zone in active_zones %}
+      <div class="zone-block hier-zone-edit">
+        <form method="post" action="/admin/zones/{{ zone.id }}/edit" class="hier-edit-row">
+          <input type="hidden" name="building_id" value="{{ building.id }}" />
+          <label class="sr-only">구역명</label>
+          <input type="text" name="name" value="{{ zone.name }}" required class="hier-name" />
+          <label class="sr-only">코드</label>
+          <input type="text" name="code" value="{{ zone.code or '' }}" placeholder="코드" class="hier-code" />
+          <label class="hier-level-label">층</label>
+          <select name="floor_id" class="hier-floor-select">
+            {% for f in floors %}
+            <option value="{{ f.id }}" {% if f.id == floor.id %}selected{% endif %}>{{ f.name }}</option>
+            {% endfor %}
+          </select>
+          <span class="hier-eq-count text-muted">설비 {{ zone_eq_counts.get(zone.id, 0) }}대</span>
+          <button type="submit" class="btn btn-sm btn-secondary">구역 저장</button>
+        </form>
+        <form method="post" action="/admin/zones/{{ zone.id }}/delete" class="inline-form"
+              onsubmit="return confirm('구역 «{{ zone.name }}»을(를) 삭제할까요? (하위 설비 {{ zone_eq_counts.get(zone.id, 0) }}대 비활성화)');">
+          <input type="hidden" name="building_id" value="{{ building.id }}" />
+          <button type="submit" class="btn btn-sm btn-danger">구역 삭제</button>
+        </form>
+        {% if zone_eq_counts.get(zone.id, 0) > 0 %}
+        <a class="link-action" href="/admin/equipment?building_id={{ building.id }}">설비 목록</a>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="empty">구역 없음</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <p class="empty">등록된 층이 없습니다. 아래에서 층을 추가하세요.</p>
+  {% endfor %}
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>층 추가</h2>
+    <form method="post" action="/admin/floors" class="form-stack">
+      <input type="hidden" name="building_id" value="{{ building.id }}" />
+      <input type="hidden" name="return_to" value="edit" />
+      <label>층 이름</label>
+      <input type="text" name="name" required placeholder="1층" />
+      <label>레벨</label>
+      <input type="number" name="level" value="1" />
+      <button type="submit" class="btn btn-primary">층 등록</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>구역 추가</h2>
+    <form method="post" action="/admin/zones" class="form-stack">
+      <input type="hidden" name="building_id" value="{{ building.id }}" />
+      <input type="hidden" name="return_to" value="edit" />
+      <label>층</label>
+      <select name="floor_id" required {% if not floors %}disabled{% endif %}>
+        {% for floor in floors %}
+        <option value="{{ floor.id }}">{{ floor.name }}</option>
+        {% else %}
+        <option value="">층을 먼저 추가하세요</option>
+        {% endfor %}
+      </select>
+      <label>구역명</label>
+      <input type="text" name="name" required placeholder="기계실" {% if not floors %}disabled{% endif %} />
+      <label>코드</label>
+      <input type="text" name="code" {% if not floors %}disabled{% endif %} />
+      <button type="submit" class="btn btn-primary" {% if not floors %}disabled{% endif %}>구역 등록</button>
+    </form>
+  </section>
+</div>
 {% endblock %}

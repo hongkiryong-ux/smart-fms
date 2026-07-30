@@ -232,7 +232,11 @@ async def ensure_building_floor_zone(
     floor = (
         await session.execute(
             select(Floor)
-            .where(Floor.building_id == building.id, Floor.name == "1층")
+            .where(
+                Floor.building_id == building.id,
+                Floor.name == "1층",
+                Floor.is_active == True,
+            )
             .order_by(Floor.id)
             .limit(1)
         )
@@ -241,20 +245,24 @@ async def ensure_building_floor_zone(
         floor = (
             await session.execute(
                 select(Floor)
-                .where(Floor.building_id == building.id)
+                .where(Floor.building_id == building.id, Floor.is_active == True)
                 .order_by(Floor.id)
                 .limit(1)
             )
         ).scalars().first()
     if not floor:
-        floor = Floor(building_id=building.id, name="1층", level=1)
+        floor = Floor(building_id=building.id, name="1층", level=1, is_active=True)
         session.add(floor)
         await session.flush()
 
     zone = (
         await session.execute(
             select(Zone)
-            .where(Zone.floor_id == floor.id, Zone.name == "전체")
+            .where(
+                Zone.floor_id == floor.id,
+                Zone.name == "전체",
+                Zone.is_active == True,
+            )
             .order_by(Zone.id)
             .limit(1)
         )
@@ -262,11 +270,14 @@ async def ensure_building_floor_zone(
     if not zone:
         zone = (
             await session.execute(
-                select(Zone).where(Zone.floor_id == floor.id).order_by(Zone.id).limit(1)
+                select(Zone)
+                .where(Zone.floor_id == floor.id, Zone.is_active == True)
+                .order_by(Zone.id)
+                .limit(1)
             )
         ).scalars().first()
     if not zone:
-        zone = Zone(floor_id=floor.id, name="전체", code="ALL")
+        zone = Zone(floor_id=floor.id, name="전체", code="ALL", is_active=True)
         session.add(zone)
         await session.flush()
     return zone

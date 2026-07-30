@@ -132,6 +132,7 @@ class Floor(Base):
     level = Column(Integer, default=1)
     floor_plan_url = Column(String(500), nullable=True)
     description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
 
     building = relationship("Building", back_populates="floors")
     zones = relationship("Zone", back_populates="floor", cascade="all, delete-orphan")
@@ -145,6 +146,7 @@ class Zone(Base):
     name = Column(String(100), nullable=False)
     code = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
 
     floor = relationship("Floor", back_populates="zones")
     equipment = relationship("Equipment", back_populates="zone", cascade="all, delete-orphan")

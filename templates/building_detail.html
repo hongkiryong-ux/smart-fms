@@ -20,10 +20,10 @@
 <div class="grid-2">
   <section class="card">
     <h2>층 / 구역 / 설비 계층</h2>
-    {% for floor in building.floors %}
+    {% for floor in building.floors if floor.is_active %}
     <div class="hierarchy-block">
       <h3>{{ floor.name }} ({{ floor.level }}층)</h3>
-      {% for zone in floor.zones %}
+      {% for zone in floor.zones if zone.is_active %}
       <div class="zone-block">
         <strong>{{ zone.name }}</strong> {% if zone.code %}<small>({{ zone.code }})</small>{% endif %}
       </div>
@@ -52,7 +52,7 @@
       <input type="hidden" name="building_id" value="{{ building.id }}" />
       <label>층</label>
       <select name="floor_id" required>
-        {% for floor in building.floors %}
+        {% for floor in building.floors if floor.is_active %}
         <option value="{{ floor.id }}">{{ floor.name }}</option>
         {% endfor %}
       </select>

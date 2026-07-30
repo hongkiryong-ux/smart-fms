@@ -496,6 +496,93 @@ body {
   font-size: 1rem;
 }
 
+.hier-edit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 0;
+}
+
+.hier-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.hier-name {
+  min-width: 120px;
+  flex: 1 1 140px;
+  max-width: 220px;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.hier-code {
+  width: 100px;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.hier-level,
+.hier-floor-select {
+  width: 88px;
+  padding: 0.3rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.hier-level-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.hier-eq-count {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.hier-zones {
+  margin-left: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.hier-zone-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.flash {
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+.flash.ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.flash.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
 /* 사업장 / 건물 카드 */
 .sites-layout .card-wide { min-width: 0; }
 

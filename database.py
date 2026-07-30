@@ -255,6 +255,14 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "CREATE INDEX IF NOT EXISTS ix_pm_inspections_equipment_id ON pm_inspections (equipment_id)"
         )
+        await _exec(
+            "ALTER TABLE floors ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"
+        )
+        await _exec("UPDATE floors SET is_active = TRUE WHERE is_active IS NULL")
+        await _exec(
+            "ALTER TABLE zones ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"
+        )
+        await _exec("UPDATE zones SET is_active = TRUE WHERE is_active IS NULL")
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
@@ -265,6 +273,8 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE material_items ADD COLUMN location TEXT",
             "ALTER TABLE users ADD COLUMN openai_api_key VARCHAR(200)",
             "ALTER TABLE users ADD COLUMN openai_model VARCHAR(80)",
+            "ALTER TABLE floors ADD COLUMN is_active BOOLEAN DEFAULT 1",
+            "ALTER TABLE zones ADD COLUMN is_active BOOLEAN DEFAULT 1",
             """
             CREATE TABLE IF NOT EXISTS maintenance_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -286,6 +296,8 @@ async def ensure_schema_updates() -> None:
         ):
             await _exec(stmt)
         await _exec("UPDATE work_orders SET is_active = 1 WHERE is_active IS NULL")
+        await _exec("UPDATE floors SET is_active = 1 WHERE is_active IS NULL")
+        await _exec("UPDATE zones SET is_active = 1 WHERE is_active IS NULL")
         await _exec(
             """
             CREATE TABLE IF NOT EXISTS pm_inspections (
