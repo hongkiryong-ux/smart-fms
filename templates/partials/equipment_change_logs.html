@@ -1,0 +1,84 @@
+{# change_logs: EquipmentChangeLog 목록 / 상세 다이얼로그
+   - clog_mode: "list" | "dialogs" | "all"(기본)
+#}
+{% set _mode = clog_mode if clog_mode is defined else "all" %}
+
+{% if _mode != "dialogs" %}
+<div class="eq-popup-section eq-change-logs">
+  <h3>{% if section_title %}{{ section_title }}{% else %}사양 변경 로그{% endif %}</h3>
+  {% if change_logs %}
+  <div class="table-scroll">
+  <table class="data-table hist-table eq-clog-table">
+    <thead>
+      <tr>
+        <th>일시</th>
+        <th>변경자</th>
+        <th>요약</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in change_logs %}
+      <tr class="eq-clog-row"
+          tabindex="0"
+          role="button"
+          data-open-dialog="eq-clog-{{ log.id }}"
+          title="클릭하여 변경 내용 보기">
+        <td class="wo-date">{{ fmt_kst(log.changed_at) }}</td>
+        <td>{{ log.changed_by or '-' }}</td>
+        <td>
+          <button type="button"
+                  class="link-action eq-clog-summary"
+                  data-open-dialog="eq-clog-{{ log.id }}">
+            {{ log.summary }}
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">사양 변경 기록이 없습니다.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if _mode != "list" and change_logs %}
+{% for log in change_logs %}
+<dialog id="eq-clog-{{ log.id }}" class="eq-clog-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+  </form>
+  <div class="eq-clog-body">
+    <h3>변경 상세</h3>
+    <p class="text-muted">
+      {{ fmt_kst(log.changed_at) }}
+      · {{ log.changed_by or '알 수 없음' }}
+      · {{ log.summary }}
+    </p>
+    <div class="table-scroll">
+    <table class="data-table hist-table">
+      <thead>
+        <tr>
+          <th>항목</th>
+          <th>변경 전</th>
+          <th>변경 후</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in (log.changes or []) %}
+        <tr>
+          <td>{{ c.field }}</td>
+          <td class="hist-text eq-clog-old">{{ c.old }}</td>
+          <td class="hist-text eq-clog-new">{{ c.new }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="empty">변경 항목 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</dialog>
+{% endfor %}
+{% endif %}

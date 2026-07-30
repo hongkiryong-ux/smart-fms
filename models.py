@@ -256,6 +256,26 @@ class Equipment(Base):
     consumables = relationship("Consumable", back_populates="equipment")
     work_orders = relationship("WorkOrder", back_populates="equipment")
     maintenance_records = relationship("MaintenanceRecord", back_populates="equipment")
+    change_logs = relationship(
+        "EquipmentChangeLog",
+        back_populates="equipment",
+        order_by="EquipmentChangeLog.changed_at.desc()",
+    )
+
+
+class EquipmentChangeLog(Base):
+    """설비 사양(엑셀양식) 수정 로그."""
+
+    __tablename__ = "equipment_change_logs"
+
+    id = Column(Integer, primary_key=True)
+    equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False, index=True)
+    changed_by = Column(String(100), nullable=True)
+    changed_at = Column(DateTime, default=datetime.utcnow, index=True)
+    summary = Column(String(300), nullable=False, default="")
+    changes = Column(JSON, default=list)  # [{field, old, new}, ...]
+
+    equipment = relationship("Equipment", back_populates="change_logs")
 
 
 class MaintenanceRecord(Base):

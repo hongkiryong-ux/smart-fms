@@ -35,6 +35,7 @@ from models import (
     D1Plan,
     D1Status,
     Equipment,
+    EquipmentChangeLog,
     EquipmentTemplate,
     EquipmentType,
     Floor,
@@ -90,6 +91,59 @@ def _fmt_kst_date(dt: datetime | date | None) -> str:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(KST).strftime("%Y-%m-%d")
     return dt.strftime("%Y-%m-%d")
+
+
+async def _load_change_logs_by_eq(
+    db: AsyncSession, eq_ids: list[int], per_eq: int = 20
+) -> dict[int, list]:
+    """설비별 최근 변경 로그."""
+    if not eq_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(EquipmentChangeLog)
+            .where(EquipmentChangeLog.equipment_id.in_(eq_ids))
+            .order_by(EquipmentChangeLog.changed_at.desc())
+        )
+    ).scalars().all()
+    by_eq: dict[int, list] = {}
+    for row in rows:
+        bucket = by_eq.setdefault(row.equipment_id, [])
+        if len(bucket) < per_eq:
+            bucket.append(row)
+    return by_eq
+
+
+async def _record_equipment_change(
+    db: AsyncSession,
+    eq: Equipment,
+    before: dict[str, str],
+    user: User | None = None,
+    source: str = "수정",
+) -> EquipmentChangeLog | None:
+    """사양 스냅샷 비교 후 변경이 있으면 로그 저장."""
+    from equipment_schema import (
+        diff_equipment_snapshots,
+        equipment_snapshot,
+        summarize_equipment_changes,
+    )
+
+    after = equipment_snapshot(eq)
+    changes = diff_equipment_snapshots(before, after)
+    if not changes:
+        return None
+    summary = f"[{source}] {summarize_equipment_changes(changes)}"
+    changer = None
+    if user is not None:
+        changer = (getattr(user, "name", None) or getattr(user, "username", None) or "").strip() or None
+    log = EquipmentChangeLog(
+        equipment_id=eq.id,
+        changed_by=changer,
+        summary=summary[:300],
+        changes=changes,
+    )
+    db.add(log)
+    return log
 
 
 def _status_label(status: WorkOrderStatus | str) -> str:
@@ -1441,6 +1495,7 @@ async def equipment_list(
     category: str | None = None,
     error: str | None = None,
     message: str | None = None,
+    open_eq: int | None = None,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1560,6 +1615,9 @@ async def equipment_list(
             category = active_category
 
     pm_inspections_by_eq = _equipment_pm_inspections_map(equipment) if equipment else {}
+    change_logs_by_eq = await _load_change_logs_by_eq(
+        db, [e.id for e in equipment]
+    ) if equipment else {}
 
     return templates.TemplateResponse(
         request,
@@ -1579,6 +1637,8 @@ async def equipment_list(
             "list_columns": list_columns,
             "error": error,
             "message": message,
+            "open_eq": open_eq,
+            "change_logs_by_eq": change_logs_by_eq,
             "pm_inspections_by_eq": pm_inspections_by_eq,
             "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
         },
@@ -1923,7 +1983,11 @@ async def equipment_one_import(
         return _back(err="빈 파일입니다.")
 
     try:
+        from equipment_schema import equipment_snapshot
+
+        before = equipment_snapshot(eq)
         stats = await import_equipment_excel(db, eq, content)
+        await _record_equipment_change(db, eq, before, user=user, source="Excel")
         await db.commit()
     except Exception as e:
         await db.rollback()
@@ -1936,6 +2000,15 @@ async def equipment_one_import(
     )
     if stats.get("warnings"):
         msg += " · " + " / ".join(stats["warnings"][:2])
+    if building_id:
+        from urllib.parse import quote as _q
+
+        qs = [f"building_id={building_id}"]
+        if redirect_category:
+            qs.append(f"category={_q(redirect_category)}")
+        qs.append(f"message={_q(msg)}")
+        qs.append(f"open_eq={eq_id}")
+        return RedirectResponse("/admin/equipment?" + "&".join(qs), status_code=303)
     return _back(msg=msg)
 
 
@@ -1998,6 +2071,7 @@ async def equipment_detail(
             selectinload(Equipment.maintenance_records),
             selectinload(Equipment.equipment_type),
             selectinload(Equipment.template),
+            selectinload(Equipment.change_logs),
         )
     )
     eq = result.scalar_one_or_none()
@@ -2018,6 +2092,7 @@ async def equipment_detail(
         not in (WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed)
     ]
     pm_inspections_by_eq = _equipment_pm_inspections_map([eq])
+    change_logs = list(eq.change_logs or [])[:30]
     return templates.TemplateResponse(
         request,
         "equipment_detail.html",
@@ -2028,6 +2103,7 @@ async def equipment_detail(
             "sheet_fields": sheet_fields,
             "history": history,
             "open_orders": open_orders,
+            "change_logs": change_logs,
             "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
         },
     )
@@ -2047,6 +2123,7 @@ async def equipment_popup(
             selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
             selectinload(Equipment.work_orders),
             selectinload(Equipment.maintenance_records),
+            selectinload(Equipment.change_logs),
         )
     )
     eq = result.scalar_one_or_none()
@@ -2065,6 +2142,7 @@ async def equipment_popup(
         and wo.status
         not in (WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed)
     ]
+    change_logs = list(eq.change_logs or [])[:15]
     return templates.TemplateResponse(
         request,
         "partials/equipment_popup.html",
@@ -2074,6 +2152,7 @@ async def equipment_popup(
             "sheet_fields": sheet_fields,
             "history": history,
             "open_orders": open_orders,
+            "change_logs": change_logs,
         },
     )
 
@@ -2224,11 +2303,23 @@ async def equipment_edit(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    from equipment_schema import merge_extra_for_save, parse_extra_form, resolve_core_fields
+    from equipment_schema import (
+        equipment_snapshot,
+        merge_extra_for_save,
+        parse_extra_form,
+        resolve_core_fields,
+    )
 
-    eq = await db.get(Equipment, eq_id)
-    if not eq or not eq.is_active:
+    result = await db.execute(
+        select(Equipment)
+        .where(Equipment.id == eq_id, Equipment.is_active == True)
+        .options(selectinload(Equipment.zone).selectinload(Zone.floor))
+    )
+    eq = result.scalar_one_or_none()
+    if not eq:
         raise HTTPException(404)
+
+    before = equipment_snapshot(eq)
 
     form = await request.form()
     extra = parse_extra_form(form)
@@ -2249,17 +2340,27 @@ async def equipment_edit(
     eq.serial_no = serial_no or None
     eq.extra_data = extra
     eq.status = status
+
+    # after 스냅샷용 위치 라벨 갱신
+    new_zone = (
+        await db.execute(
+            select(Zone)
+            .where(Zone.id == zone_id)
+            .options(selectinload(Zone.floor))
+        )
+    ).scalar_one_or_none()
+    if new_zone is not None:
+        eq.zone = new_zone
+
+    await _record_equipment_change(db, eq, before, user=user, source="수정")
     await db.commit()
 
     building_id = 0
-    zone = await db.get(Zone, zone_id)
-    if zone:
-        floor = await db.get(Floor, zone.floor_id)
-        if floor:
-            building_id = floor.building_id
+    if new_zone and new_zone.floor:
+        building_id = new_zone.floor.building_id
     if building_id:
         return RedirectResponse(
-            f"/admin/equipment?building_id={building_id}&category={cat}",
+            f"/admin/equipment?building_id={building_id}&category={cat}&open_eq={eq_id}",
             status_code=303,
         )
     return RedirectResponse(f"/admin/equipment/{eq_id}", status_code=303)

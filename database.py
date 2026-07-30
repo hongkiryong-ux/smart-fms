@@ -283,6 +283,24 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "CREATE INDEX IF NOT EXISTS ix_building_drawings_floor_id ON building_drawings (floor_id)"
         )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS equipment_change_logs (
+                id SERIAL PRIMARY KEY,
+                equipment_id INTEGER NOT NULL REFERENCES equipment(id),
+                changed_by VARCHAR(100),
+                changed_at TIMESTAMP WITHOUT TIME ZONE,
+                summary VARCHAR(300) NOT NULL DEFAULT '',
+                changes JSONB DEFAULT '[]'::jsonb
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_equipment_change_logs_equipment_id ON equipment_change_logs (equipment_id)"
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_equipment_change_logs_changed_at ON equipment_change_logs (changed_at)"
+        )
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
@@ -331,6 +349,24 @@ async def ensure_schema_updates() -> None:
                 created_at DATETIME
             )
             """
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS equipment_change_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                equipment_id INTEGER NOT NULL,
+                changed_by VARCHAR(100),
+                changed_at DATETIME,
+                summary VARCHAR(300) NOT NULL DEFAULT '',
+                changes TEXT
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_equipment_change_logs_equipment_id ON equipment_change_logs (equipment_id)"
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_equipment_change_logs_changed_at ON equipment_change_logs (changed_at)"
         )
         await _exec(
             """

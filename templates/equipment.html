@@ -213,6 +213,10 @@
           </dl>
         </div>
 
+        {% set change_logs = (change_logs_by_eq or {}).get(eq.id, []) %}
+        {% set clog_mode = "list" %}
+        {% include "partials/equipment_change_logs.html" %}
+
         <div class="eq-popup-section">
           <h3>최근 정비이력</h3>
           {% set history = (eq.maintenance_records or [])|sort(attribute='work_date', reverse=true) %}
@@ -276,6 +280,9 @@
         </div>
       </div>
     </dialog>
+    {% set change_logs = (change_logs_by_eq or {}).get(eq.id, []) %}
+    {% set clog_mode = "dialogs" %}
+    {% include "partials/equipment_change_logs.html" %}
     {% endfor %}
 
     {% else %}
@@ -423,6 +430,18 @@
       if (form) form.submit();
     });
   });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var row = e.target.closest('.eq-clog-row[data-open-dialog]');
+    if (!row) return;
+    e.preventDefault();
+    openDialog(row.getAttribute('data-open-dialog'));
+  });
+
+  {% if open_eq %}
+  openDialog('eq-dialog-{{ open_eq }}');
+  {% endif %}
 })();
 </script>
 {% endif %}

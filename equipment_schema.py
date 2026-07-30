@@ -155,3 +155,67 @@ def merge_extra_for_save(
     if serial_no:
         merged.setdefault("Serial No", serial_no)
     return merged
+
+
+def _zone_label(eq: Equipment) -> str:
+    zone = getattr(eq, "zone", None)
+    if not zone:
+        return ""
+    floor = getattr(zone, "floor", None)
+    floor_name = getattr(floor, "name", "") if floor else ""
+    zone_name = getattr(zone, "name", "") or ""
+    if floor_name and zone_name:
+        return f"{floor_name} / {zone_name}"
+    return zone_name or floor_name
+
+
+def equipment_snapshot(eq: Equipment, sheet_fields: list[str] | None = None) -> dict[str, str]:
+    """사양 비교용 스냅샷 (표시 라벨 → 값)."""
+    fields = sheet_fields if sheet_fields is not None else get_category_fields(eq.category, [eq])
+    snap: dict[str, str] = {
+        "코드": (eq.code or "").strip(),
+        "명칭": (eq.name or "").strip(),
+        "카테고리": (eq.category or "").strip(),
+        "상태": (eq.status or "").strip(),
+        "위치": _zone_label(eq),
+        "제조사": (eq.manufacturer or "").strip(),
+        "모델": (eq.model or "").strip(),
+        "Serial No": (eq.serial_no or "").strip(),
+    }
+    for field in fields:
+        if field in snap:
+            continue
+        snap[field] = field_value(eq, field)
+    # extra에만 있는 키도 포함
+    for key, val in (eq.extra_data or {}).items():
+        if is_noise_key(str(key)) or key in snap:
+            continue
+        text = str(val).strip() if val is not None else ""
+        if text:
+            snap[str(key)] = text
+    return snap
+
+
+def diff_equipment_snapshots(
+    before: dict[str, str], after: dict[str, str]
+) -> list[dict[str, str]]:
+    """변경된 필드 목록 [{field, old, new}, ...]."""
+    keys = list(dict.fromkeys([*before.keys(), *after.keys()]))
+    changes: list[dict[str, str]] = []
+    for key in keys:
+        old = (before.get(key) or "").strip()
+        new = (after.get(key) or "").strip()
+        if old != new:
+            changes.append({"field": key, "old": old or "-", "new": new or "-"})
+    return changes
+
+
+def summarize_equipment_changes(changes: list[dict[str, str]], limit: int = 3) -> str:
+    if not changes:
+        return "변경 없음"
+    names = [c["field"] for c in changes[:limit]]
+    more = len(changes) - len(names)
+    text = ", ".join(names)
+    if more > 0:
+        text += f" 외 {more}건"
+    return f"{len(changes)}개 항목 변경 ({text})"

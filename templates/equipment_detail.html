@@ -76,6 +76,11 @@
   </section>
 </div>
 
+<section class="card card-wide">
+  {% set section_title = "사양 변경 로그" %}
+  {% include "partials/equipment_change_logs.html" %}
+</section>
+
 <div class="grid-2">
   <section class="card card-wide">
     <h2>정비이력</h2>
@@ -297,7 +302,25 @@
     if (periodBtn) {
       var sec = periodBtn.closest('.eq-pm-section');
       if (sec) renderPmSection(sec, periodBtn.getAttribute('data-period') || 'recent');
+      return;
     }
+    var openBtn = e.target.closest('[data-open-dialog]');
+    if (openBtn) {
+      e.preventDefault();
+      var dlg = document.getElementById(openBtn.getAttribute('data-open-dialog'));
+      if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+      else if (dlg) dlg.setAttribute('open', 'open');
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var row = e.target.closest('.eq-clog-row[data-open-dialog]');
+    if (!row) return;
+    e.preventDefault();
+    var dlg = document.getElementById(row.getAttribute('data-open-dialog'));
+    if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+    else if (dlg) dlg.setAttribute('open', 'open');
   });
 
   document.querySelectorAll('.eq-excel-import-form input[type="file"]').forEach(function (input) {
