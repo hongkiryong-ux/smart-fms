@@ -732,6 +732,32 @@ async def account_page(
     )
 
 
+@app.post("/admin/account/profile")
+async def account_update_profile(
+    name: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    db_user = await db.get(User, user.id)
+    if not db_user:
+        raise HTTPException(404)
+    nm = name.strip()
+    if not nm:
+        return RedirectResponse("/admin/account?error=required", status_code=303)
+    db_user.name = nm
+    db_user.phone = phone.strip() or None
+    db_user.email = email.strip() or None
+    await db.commit()
+    return RedirectResponse(
+        "/admin/account?message=" + quote("개인정보가 저장되었습니다."),
+        status_code=303,
+    )
+
+
 @app.post("/admin/account/password")
 async def account_change_password(
     request: Request,
