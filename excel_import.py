@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,18 @@ from openpyxl.styles import Font, PatternFill
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Building, Equipment, Floor, Site, Zone
+from models import (
+    Building,
+    Equipment,
+    Floor,
+    MaintenanceRecord,
+    PMFrequency,
+    PMInspection,
+    PMResult,
+    PMSchedule,
+    Site,
+    Zone,
+)
 
 SKIP_SHEETS = {"총괄", "총괄표", "Sheet1", "TOTAL", "개요", "표지"}
 SITE_NAME = "광양운영그룹"
@@ -709,6 +721,294 @@ def export_equipment_excel(eq: Equipment) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def _cell_str(v: Any) -> str:
+    if v is None:
+        return ""
+    return str(v).strip()
+
+
+def _parse_excel_date(v: Any) -> date | None:
+    if v is None or v == "":
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    s = _cell_str(v)
+    if not s or s in ("정비이력 없음", "점검이력 없음", "점검주기 없음", "정비의뢰 없음"):
+        return None
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s[:19], fmt).date()
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(s.replace("/", "-")[:10]).date()
+    except ValueError:
+        return None
+
+
+def _parse_excel_datetime(v: Any) -> datetime | None:
+    if v is None or v == "":
+        return None
+    if isinstance(v, datetime):
+        return v
+    if isinstance(v, date) and not isinstance(v, datetime):
+        return datetime.combine(v, datetime.min.time())
+    s = _cell_str(v)
+    if not s or s in ("정비이력 없음", "점검이력 없음"):
+        return None
+    for fmt in (
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y/%m/%d %H:%M",
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+    ):
+        try:
+            return datetime.strptime(s[:19], fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(s.replace("/", "-"))
+    except ValueError:
+        return None
+
+
+def _pm_result_from_label(raw: str) -> PMResult:
+    key = (raw or "").strip().lower()
+    mapping = {
+        "정상": PMResult.normal,
+        "normal": PMResult.normal,
+        "주의": PMResult.caution,
+        "caution": PMResult.caution,
+        "고장": PMResult.fault,
+        "fault": PMResult.fault,
+    }
+    # 한글 라벨은 lower()가 그대로이므로 원문도 조회
+    return mapping.get(key) or mapping.get((raw or "").strip()) or PMResult.normal
+
+
+async def import_equipment_excel(
+    session: AsyncSession,
+    eq: Equipment,
+    file_bytes: bytes,
+) -> dict[str, Any]:
+    """단일 설비 Excel(사양·정비이력·점검이력)을 읽어 반영."""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(filename=io.BytesIO(file_bytes), data_only=True)
+    stats = {
+        "spec_updated": 0,
+        "history_added": 0,
+        "pm_added": 0,
+        "skipped": 0,
+        "warnings": [],
+    }
+
+    # ── 사양 ──
+    if "사양" in wb.sheetnames:
+        ws = wb["사양"]
+        rows = list(ws.iter_rows(min_row=2, values_only=True))
+        field_map = {
+            "명칭": "name",
+            "분류": "category",
+            "상태": "status",
+            "제조사": "manufacturer",
+            "모델": "model",
+            "Serial": "serial_no",
+            "시리얼": "serial_no",
+            "시리얼번호": "serial_no",
+        }
+        extra = dict(eq.extra_data or {})
+        for row in rows:
+            if not row or len(row) < 1:
+                continue
+            label = _cell_str(row[0])
+            value = _cell_str(row[1]) if len(row) > 1 else ""
+            if not label:
+                continue
+            if label == "코드":
+                if value and value != (eq.code or ""):
+                    stats["warnings"].append(
+                        f"엑셀 코드({value})가 현재 설비({eq.code})와 달라 코드는 변경하지 않았습니다."
+                    )
+                continue
+            if label == "위치":
+                continue
+            attr = field_map.get(label)
+            if attr:
+                current = getattr(eq, attr, None)
+                if attr == "name" and not value:
+                    continue
+                new_val = value or None
+                if attr == "name":
+                    new_val = value
+                if (current or "") != (new_val or ""):
+                    setattr(eq, attr, new_val)
+                    stats["spec_updated"] += 1
+            else:
+                if extra.get(label) != value:
+                    extra[label] = value
+                    stats["spec_updated"] += 1
+        eq.extra_data = extra
+
+    # ── 정비이력 ──
+    if "정비이력" in wb.sheetnames:
+        ws = wb["정비이력"]
+        existing = {
+            (
+                str(h.work_date or ""),
+                (h.title or "").strip(),
+                (h.worker_name or "").strip(),
+                (h.action or "").strip(),
+            )
+            for h in (eq.maintenance_records or [])
+        }
+        header_cells = list(next(ws.iter_rows(min_row=1, max_row=1)))
+        headers = [_cell_str(c.value) for c in header_cells]
+        col = {name: idx for idx, name in enumerate(headers) if name}
+
+        def hist_val(row, *names):
+            for n in names:
+                if n in col and col[n] < len(row):
+                    return row[col[n]]
+            return None
+
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not row:
+                continue
+            first = _cell_str(row[0])
+            if first in ("정비이력 없음", ""):
+                continue
+            work_date = _parse_excel_date(hist_val(row, "작업일") if col else row[0])
+            title = _cell_str(hist_val(row, "제목") if col else (row[1] if len(row) > 1 else ""))
+            if not work_date or not title:
+                stats["skipped"] += 1
+                continue
+            worker = _cell_str(hist_val(row, "작업자") if col else (row[2] if len(row) > 2 else ""))
+            cause = _cell_str(hist_val(row, "원인") if col else (row[3] if len(row) > 3 else ""))
+            action = _cell_str(
+                hist_val(row, "작업내용(조치)", "작업내용") if col else (row[4] if len(row) > 4 else "")
+            )
+            parts = _cell_str(hist_val(row, "사용부품") if col else (row[5] if len(row) > 5 else ""))
+            note = _cell_str(hist_val(row, "비고") if col else (row[6] if len(row) > 6 else ""))
+            kind = _cell_str(hist_val(row, "구분") if col else (row[7] if len(row) > 7 else ""))
+            key = (str(work_date), title, worker, action)
+            if key in existing:
+                stats["skipped"] += 1
+                continue
+            existing.add(key)
+            session.add(
+                MaintenanceRecord(
+                    equipment_id=eq.id,
+                    title=title[:300],
+                    work_date=work_date,
+                    worker_name=worker or None,
+                    cause=cause or None,
+                    action=action or None,
+                    parts_used=parts or None,
+                    note=note or None,
+                    is_manual=(kind != "자동"),
+                )
+            )
+            stats["history_added"] += 1
+
+    # ── 점검이력 ──
+    if "점검이력" in wb.sheetnames:
+        ws = wb["점검이력"]
+        schedules_by_title: dict[str, PMSchedule] = {}
+        for s in eq.pm_schedules or []:
+            schedules_by_title[(s.title or "").strip()] = s
+
+        existing_insp = {
+            (
+                (i.inspected_at.strftime("%Y-%m-%d %H:%M") if i.inspected_at else ""),
+                (i.result.value if hasattr(i.result, "value") else str(i.result or "")),
+                (i.inspector_name or "").strip(),
+                (i.note or "").strip(),
+            )
+            for i in (eq.pm_inspections or [])
+        }
+        header_cells = list(next(ws.iter_rows(min_row=1, max_row=1)))
+        headers = [_cell_str(c.value) for c in header_cells]
+        col = {name: idx for idx, name in enumerate(headers) if name}
+
+        def pm_val(row, *names):
+            for n in names:
+                if n in col and col[n] < len(row):
+                    return row[col[n]]
+            return None
+
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not row:
+                continue
+            first = _cell_str(row[0])
+            if first in ("점검이력 없음", ""):
+                continue
+            inspected_at = _parse_excel_datetime(pm_val(row, "점검일시") if col else row[0])
+            title = _cell_str(
+                pm_val(row, "점검명") if col else (row[1] if len(row) > 1 else "")
+            ) or "예방점검"
+            result_label = _cell_str(
+                pm_val(row, "결과") if col else (row[2] if len(row) > 2 else "")
+            )
+            inspector = _cell_str(
+                pm_val(row, "점검자") if col else (row[3] if len(row) > 3 else "")
+            )
+            note = _cell_str(
+                pm_val(row, "점검내용") if col else (row[4] if len(row) > 4 else "")
+            )
+            if not inspected_at:
+                stats["skipped"] += 1
+                continue
+            result = _pm_result_from_label(result_label)
+            key = (
+                inspected_at.strftime("%Y-%m-%d %H:%M"),
+                result.value,
+                inspector,
+                note,
+            )
+            if key in existing_insp:
+                stats["skipped"] += 1
+                continue
+            existing_insp.add(key)
+
+            schedule = schedules_by_title.get(title)
+            if not schedule:
+                schedule = next((s for s in (eq.pm_schedules or []) if s.is_active), None)
+            if not schedule:
+                schedule = PMSchedule(
+                    equipment_id=eq.id,
+                    title=title[:200],
+                    frequency=PMFrequency.monthly,
+                    is_active=True,
+                )
+                session.add(schedule)
+                await session.flush()
+                if eq.pm_schedules is None:
+                    eq.pm_schedules = []
+                eq.pm_schedules.append(schedule)
+                schedules_by_title[title] = schedule
+            elif title not in schedules_by_title:
+                schedules_by_title[title] = schedule
+
+            session.add(
+                PMInspection(
+                    schedule_id=schedule.id,
+                    equipment_id=eq.id,
+                    result=result,
+                    note=note or None,
+                    inspector_name=inspector or None,
+                    inspected_at=inspected_at,
+                )
+            )
+            stats["pm_added"] += 1
+
+    await session.flush()
+    return stats
 
 
 def export_building_excel(

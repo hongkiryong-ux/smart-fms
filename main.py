@@ -1368,6 +1368,7 @@ async def equipment_list(
     building_id: int | None = None,
     category: str | None = None,
     error: str | None = None,
+    message: str | None = None,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1505,6 +1506,7 @@ async def equipment_list(
             "sheet_fields": sheet_fields,
             "list_columns": list_columns,
             "error": error,
+            "message": message,
             "pm_inspections_by_eq": pm_inspections_by_eq,
             "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
         },
@@ -1791,6 +1793,78 @@ async def equipment_one_export(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
+
+
+@app.post("/admin/equipment/{eq_id}/import")
+async def equipment_one_import(
+    eq_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    redirect_building_id: int = Form(0),
+    redirect_category: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """단일 설비 Excel(사양·정비이력·점검이력) 가져오기."""
+    from urllib.parse import quote
+    from excel_import import import_equipment_excel
+
+    result = await db.execute(
+        select(Equipment)
+        .where(Equipment.id == eq_id, Equipment.is_active == True)
+        .options(
+            selectinload(Equipment.zone).selectinload(Zone.floor),
+            selectinload(Equipment.maintenance_records),
+            selectinload(Equipment.pm_inspections),
+            selectinload(Equipment.pm_schedules),
+        )
+    )
+    eq = result.scalar_one_or_none()
+    if not eq:
+        raise HTTPException(404)
+
+    building_id = redirect_building_id or (
+        eq.zone.floor.building_id if eq.zone and eq.zone.floor else 0
+    )
+
+    def _back(msg: str = "", err: str = ""):
+        qs = []
+        if building_id:
+            qs.append(f"building_id={building_id}")
+        if redirect_category:
+            qs.append(f"category={quote(redirect_category)}")
+        if msg:
+            qs.append(f"message={quote(msg)}")
+        if err:
+            qs.append(f"error={quote(err)}")
+        return RedirectResponse(
+            "/admin/equipment" + (("?" + "&".join(qs)) if qs else ""),
+            status_code=303,
+        )
+
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in (".xlsx", ".xlsm"):
+        return _back(err="xlsx 파일만 가져올 수 있습니다. (내보내기 Excel과 동일 형식)")
+
+    content = await file.read()
+    if not content:
+        return _back(err="빈 파일입니다.")
+
+    try:
+        stats = await import_equipment_excel(db, eq, content)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        return _back(err=f"가져오기 실패: {e}")
+
+    msg = (
+        f"{eq.code} 가져오기 완료 "
+        f"(사양 {stats['spec_updated']} · 정비이력 +{stats['history_added']} · "
+        f"점검이력 +{stats['pm_added']})"
+    )
+    if stats.get("warnings"):
+        msg += " · " + " / ".join(stats["warnings"][:2])
+    return _back(msg=msg)
 
 
 @app.post("/admin/equipment/bulk-import")

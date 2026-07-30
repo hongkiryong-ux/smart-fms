@@ -47,6 +47,9 @@
 {% if error %}
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
+{% if message %}
+<div class="alert alert-ok">{{ message }}</div>
+{% endif %}
 
 <div class="eq-building-title-row">
   <h2 class="eq-building-title">
@@ -154,6 +157,17 @@
             <button type="submit" class="btn btn-primary">정비의뢰</button>
           </form>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/export">Excel 내보내기</a>
+          <form method="post"
+                action="/admin/equipment/{{ eq.id }}/import"
+                enctype="multipart/form-data"
+                class="inline-form eq-excel-import-form">
+            <input type="hidden" name="redirect_building_id" value="{{ selected_building.id }}" />
+            <input type="hidden" name="redirect_category" value="{{ category or '' }}" />
+            <label class="btn btn-secondary eq-excel-import-btn">
+              Excel 가져오기
+              <input type="file" name="file" accept=".xlsx,.xlsm" hidden required />
+            </label>
+          </form>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}">전체 상세·이력</a>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
           <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
@@ -400,6 +414,14 @@
       var sec = periodBtn.closest('.eq-pm-section');
       if (sec) renderPmSection(sec, periodBtn.getAttribute('data-period') || 'recent');
     }
+  });
+
+  document.querySelectorAll('.eq-excel-import-form input[type="file"]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      if (!input.files || !input.files.length) return;
+      var form = input.closest('form');
+      if (form) form.submit();
+    });
   });
 })();
 </script>

@@ -1182,6 +1182,14 @@ button.link-action:hover { text-decoration: underline; }
   gap: 0.5rem;
   padding: 1rem 1.35rem;
 }
+.eq-excel-import-btn {
+  cursor: pointer;
+  margin: 0;
+}
+.eq-excel-import-form {
+  display: inline-flex;
+  align-items: center;
+}
 .eq-popup-section {
   padding: 0 1.35rem 1.25rem;
 }
