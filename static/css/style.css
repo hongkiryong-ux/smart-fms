@@ -1300,6 +1300,56 @@ button.link-action:hover { text-decoration: underline; }
   font-weight: 600;
 }
 
+.users-perm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.65rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.users-perms { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0; }
+.users-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0;
+}
+.users-edit-form { margin: 0; }
+.users-edit-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+.users-edit-grid input[type="text"],
+.users-edit-grid input[type="email"],
+.users-edit-grid select {
+  min-width: 7rem;
+  max-width: 12rem;
+}
+.users-pw-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed var(--border);
+}
+.users-pw-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin: 0;
+}
+.users-pw-form input {
+  min-width: 8rem;
+}
+.users-table td { vertical-align: top; }
+
 /* Process steps */
 .process-card { margin-bottom: 1.25rem; }
 .process-steps {

@@ -43,6 +43,24 @@ def nav_building_sort_key(name: str | None) -> tuple:
     return (group, n.casefold())
 
 
+def default_permissions(role: UserRole) -> tuple[bool, bool, bool]:
+    """역할별 기본 권한 (추가, 수정, 삭제)."""
+    if role == UserRole.system_admin:
+        return True, True, True
+    if role == UserRole.viewer:
+        return False, False, False
+    if role in (UserRole.partner, UserRole.external):
+        return False, True, False
+    return True, True, True
+
+
+def apply_role_permissions(user: User) -> None:
+    create, edit, delete = default_permissions(user.role)
+    user.can_create = create
+    user.can_edit = edit
+    user.can_delete = delete
+
+
 async def get_current_user(
     request: Request, db: AsyncSession = Depends(get_db)
 ) -> User | None:
@@ -50,7 +68,13 @@ async def get_current_user(
     if not user_id:
         request.state.nav_buildings = []
         return None
-    result = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
+    result = await db.execute(
+        select(User).where(
+            User.id == user_id,
+            User.is_active == True,
+            User.is_approved == True,
+        )
+    )
     user = result.scalar_one_or_none()
     if not hasattr(request.state, "nav_buildings"):
         request.state.nav_buildings = []
@@ -95,15 +119,48 @@ def require_roles(*roles: UserRole) -> Callable:
     return _checker
 
 
-# 조회전용(viewer) 계정은 삭제 불가 — guest1 등
-_NO_DELETE_ROLES = frozenset({UserRole.viewer})
+def require_user_manager(user: User = Depends(require_login)) -> User:
+    """계정관리(승인·권한·삭제) — 시스템관리자만."""
+    if user.role != UserRole.system_admin:
+        raise HTTPException(status_code=403, detail="계정 관리 권한이 없습니다.")
+    return user
+
+
+def can_create(user: User | None) -> bool:
+    if user is None:
+        return False
+    if user.role == UserRole.system_admin:
+        return True
+    return bool(getattr(user, "can_create", True))
+
+
+def can_edit(user: User | None) -> bool:
+    if user is None:
+        return False
+    if user.role == UserRole.system_admin:
+        return True
+    return bool(getattr(user, "can_edit", True))
 
 
 def can_delete(user: User | None) -> bool:
     """엔티티 삭제(사업장/설비/정비의뢰 등) 가능 여부."""
     if user is None:
         return False
-    return user.role not in _NO_DELETE_ROLES
+    if user.role == UserRole.system_admin:
+        return True
+    return bool(getattr(user, "can_delete", False))
+
+
+def require_can_create(user: User = Depends(require_login)) -> User:
+    if not can_create(user):
+        raise HTTPException(status_code=403, detail="추가 권한이 없습니다.")
+    return user
+
+
+def require_can_edit(user: User = Depends(require_login)) -> User:
+    if not can_edit(user):
+        raise HTTPException(status_code=403, detail="수정 권한이 없습니다.")
+    return user
 
 
 def require_can_delete(user: User = Depends(require_login)) -> User:

@@ -81,6 +81,12 @@ class User(Base):
     email = Column(String(120), nullable=True)
     partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
     is_active = Column(Boolean, default=True)
+    # 직원 가입 후 관리자 승인 전 False
+    is_approved = Column(Boolean, default=True)
+    # 계정별 권한 (시스템관리자는 검사 시 항상 허용)
+    can_create = Column(Boolean, default=True)
+    can_edit = Column(Boolean, default=True)
+    can_delete = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     # 위험성평가 AI — 계정별 개인 키 (다른 사용자와 공유하지 않음)
     openai_api_key = Column(String(200), nullable=True)

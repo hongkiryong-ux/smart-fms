@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import hash_password
+from auth import apply_role_permissions, hash_password
 from models import (
     Building,
     Consumable,
@@ -42,6 +42,10 @@ async def seed_if_empty(session: AsyncSession) -> None:
         name="시스템관리자",
         role=UserRole.system_admin,
         email="admin@poscowide.com",
+        is_approved=True,
+        can_create=True,
+        can_edit=True,
+        can_delete=True,
     )
     facility = User(
         username="facility",
@@ -49,12 +53,20 @@ async def seed_if_empty(session: AsyncSession) -> None:
         name="김시설",
         role=UserRole.facility_manager,
         phone="010-1234-5678",
+        is_approved=True,
+        can_create=True,
+        can_edit=True,
+        can_delete=True,
     )
     guest1 = User(
         username="guest1",
         password_hash=hash_password("password123"),
         name="게스트",
         role=UserRole.viewer,
+        is_approved=True,
+        can_create=False,
+        can_edit=False,
+        can_delete=False,
     )
     session.add_all([admin, facility, guest1])
 
@@ -304,20 +316,20 @@ async def ensure_guest1_user(session: AsyncSession) -> None:
             await session.execute(select(User).where(User.username == "guest1"))
         ).scalar_one_or_none()
         if existing:
-            # 역할이 바뀌었으면 viewer로 유지
-            if existing.role != UserRole.viewer:
-                existing.role = UserRole.viewer
-                await session.commit()
-                print("[seed] guest1 role set to viewer", flush=True)
+            existing.role = UserRole.viewer
+            existing.is_approved = True
+            apply_role_permissions(existing)
+            await session.commit()
             return
-        session.add(
-            User(
-                username="guest1",
-                password_hash=hash_password("password123"),
-                name="게스트",
-                role=UserRole.viewer,
-            )
+        guest = User(
+            username="guest1",
+            password_hash=hash_password("password123"),
+            name="게스트",
+            role=UserRole.viewer,
+            is_approved=True,
         )
+        apply_role_permissions(guest)
+        session.add(guest)
         await session.commit()
         print("[seed] guest1 viewer account created", flush=True)
     except Exception as e:

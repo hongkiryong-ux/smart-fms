@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}계정관리{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>계정관리</h1>
+  <p>가입 승인 · 권한 설정 · 비밀번호 변경 · 계정 추가/비활성</p>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error == 'required' %}
+<div class="alert alert-error">필수 항목을 입력하세요.</div>
+{% elif error == 'short' %}
+<div class="alert alert-error">비밀번호는 6자 이상이어야 합니다.</div>
+{% elif error == 'mismatch' %}
+<div class="alert alert-error">비밀번호 확인이 일치하지 않습니다.</div>
+{% elif error == 'exists' %}
+<div class="alert alert-error">이미 사용 중인 아이디입니다.</div>
+{% elif error == 'self' %}
+<div class="alert alert-error">자기 자신 계정은 삭제/거절할 수 없습니다.</div>
+{% elif error == 'self_role' %}
+<div class="alert alert-error">자신의 시스템관리자 역할은 변경할 수 없습니다.</div>
+{% endif %}
+
+{% if pending_users %}
+<section class="card card-wide">
+  <h2>가입 승인 대기 <small class="text-muted">({{ pending_users|length }}건)</small></h2>
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>아이디</th>
+        <th>이름</th>
+        <th>연락처</th>
+        <th>신청일</th>
+        <th>역할·권한</th>
+        <th>처리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in pending_users %}
+      <tr>
+        <td><code>{{ u.username }}</code></td>
+        <td>{{ u.name }}</td>
+        <td>{{ u.phone or '-' }}{% if u.email %}<br><small>{{ u.email }}</small>{% endif %}</td>
+        <td class="wo-date">{{ fmt_kst(u.created_at) }}</td>
+        <td>
+          <form method="post" action="/admin/users/{{ u.id }}/approve" class="users-inline-form" id="approve-{{ u.id }}">
+            <select name="role">
+              {% for r in roles if r.value != 'system_admin' %}
+              <option value="{{ r.value }}" {% if r.value == 'facility_manager' %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
+              {% endfor %}
+            </select>
+            <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" checked /> 추가</label>
+            <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" checked /> 수정</label>
+            <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" /> 삭제</label>
+          </form>
+        </td>
+        <td class="row-actions">
+          <button type="submit" form="approve-{{ u.id }}" class="btn btn-sm btn-primary">승인</button>
+          <form method="post" action="/admin/users/{{ u.id }}/reject" class="inline-form"
+                onsubmit="return confirm('「{{ u.username }}」 가입을 거절할까요?');">
+            <button type="submit" class="btn btn-sm btn-danger">거절</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="card card-wide">
+  <h2>활성 계정</h2>
+  <div class="table-scroll">
+  <table class="data-table users-table">
+    <thead>
+      <tr>
+        <th>아이디</th>
+        <th>이름</th>
+        <th>역할</th>
+        <th>권한</th>
+        <th>연락처</th>
+        <th>비밀번호</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in active_users %}
+      <tr>
+        <td><code>{{ u.username }}</code></td>
+        <td colspan="6">
+          <form method="post" action="/admin/users/{{ u.id }}/update" class="users-edit-form">
+            <div class="users-edit-grid">
+              <input type="text" name="name" value="{{ u.name }}" required title="이름" />
+              <select name="role" {% if u.id == user.id %}disabled{% endif %}>
+                {% for r in roles %}
+                <option value="{{ r.value }}" {% if u.role == r %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
+                {% endfor %}
+              </select>
+              {% if u.id == user.id %}
+              <input type="hidden" name="role" value="{{ u.role.value }}" />
+              {% endif %}
+              <span class="users-perms">
+                {% if u.role.value == 'system_admin' %}
+                <span class="text-muted">전체 권한</span>
+                <input type="hidden" name="can_create_flag" value="1" />
+                <input type="hidden" name="can_edit_flag" value="1" />
+                <input type="hidden" name="can_delete_flag" value="1" />
+                {% else %}
+                <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" {% if u.can_create %}checked{% endif %} /> 추가</label>
+                <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" {% if u.can_edit %}checked{% endif %} /> 수정</label>
+                <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" {% if u.can_delete %}checked{% endif %} /> 삭제</label>
+                {% endif %}
+              </span>
+              <input type="text" name="phone" value="{{ u.phone or '' }}" placeholder="연락처" />
+              <input type="email" name="email" value="{{ u.email or '' }}" placeholder="이메일" />
+              {% if u.id != user.id %}
+              <label class="users-perm"><input type="checkbox" name="is_active_flag" value="1" checked /> 활성</label>
+              {% else %}
+              <input type="hidden" name="is_active_flag" value="1" />
+              {% endif %}
+              <button type="submit" class="btn btn-sm btn-secondary">저장</button>
+            </div>
+          </form>
+          <div class="users-pw-row">
+            <form method="post" action="/admin/users/{{ u.id }}/password" class="users-pw-form">
+              <input type="password" name="new_password" placeholder="새 비밀번호" required minlength="6" />
+              <input type="password" name="new_password2" placeholder="확인" required minlength="6" />
+              <button type="submit" class="btn btn-sm btn-secondary">비밀번호 변경</button>
+            </form>
+            {% if u.id != user.id %}
+            <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('「{{ u.username }}」 계정을 비활성화할까요?');">
+              <button type="submit" class="btn btn-sm btn-danger">비활성</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">활성 계정이 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>계정 추가</h2>
+  <form method="post" action="/admin/users/create" class="form-stack">
+    <label>아이디</label>
+    <input type="text" name="username" required />
+    <label>이름</label>
+    <input type="text" name="name" required />
+    <label>비밀번호</label>
+    <input type="password" name="password" required minlength="6" />
+    <label>역할</label>
+    <select name="role">
+      {% for r in roles %}
+      <option value="{{ r.value }}" {% if r.value == 'facility_manager' %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
+      {% endfor %}
+    </select>
+    <label>연락처</label>
+    <input type="text" name="phone" />
+    <label>이메일</label>
+    <input type="email" name="email" />
+    <div class="users-perms">
+      <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" checked /> 추가</label>
+      <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" checked /> 수정</label>
+      <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" /> 삭제</label>
+    </div>
+    <button type="submit" class="btn btn-primary">계정 추가</button>
+  </form>
+</section>
+
+{% if inactive_users %}
+<section class="card card-wide">
+  <h2>비활성 계정</h2>
+  <ul class="eq-popup-list">
+    {% for u in inactive_users %}
+    <li>
+      <span><code>{{ u.username }}</code> {{ u.name }} · {{ role_labels.get(u.role, u.role.value) }}</span>
+      <form method="post" action="/admin/users/{{ u.id }}/update" class="inline-form">
+        <input type="hidden" name="name" value="{{ u.name }}" />
+        <input type="hidden" name="role" value="{{ u.role.value }}" />
+        <input type="hidden" name="phone" value="{{ u.phone or '' }}" />
+        <input type="hidden" name="email" value="{{ u.email or '' }}" />
+        <input type="hidden" name="can_create_flag" value="{% if u.can_create %}1{% endif %}" />
+        <input type="hidden" name="can_edit_flag" value="{% if u.can_edit %}1{% endif %}" />
+        <input type="hidden" name="can_delete_flag" value="{% if u.can_delete %}1{% endif %}" />
+        <input type="hidden" name="is_active_flag" value="1" />
+        <button type="submit" class="btn btn-sm btn-secondary">재활성화</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

@@ -59,6 +59,10 @@
            onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;">자재관리</a>
       </li>
       <li><a href="/admin/partners" class="{% if '/partners' in request.url.path %}active{% endif %}">협력사</a></li>
+      {% if user.role.value == 'system_admin' %}
+      <li><a href="/admin/users" class="{% if '/admin/users' in request.url.path %}active{% endif %}">계정관리</a></li>
+      {% endif %}
+      <li><a href="/admin/account" class="{% if request.url.path == '/admin/account' %}active{% endif %}">내 계정</a></li>
     </ul>
     <div class="sidebar-footer">
       <span>{{ user.name }} ({{ role_labels.get(user.role, user.role.value) }})</span>

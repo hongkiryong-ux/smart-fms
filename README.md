@@ -25,8 +25,10 @@ run-dev.bat        # 서버 시작
 | http://127.0.0.1:8000/admin/dashboard | Dashboard |
 | http://127.0.0.1:8000/eq/AHU-001 | QR 설비 조회 |
 
-**기본 계정:** `admin` / `password123`  
-**조회전용:** `guest1` / `password123` (삭제 기능 없음)
+**기본 계정:** 로그인 화면에 표시하지 않습니다. 최초 배포 시 `admin` 계정은 서버 시드로 생성됩니다.  
+**조회전용:** `guest1` (삭제·추가·수정 권한 없음)  
+**직원 가입:** `/admin/signup` → 시스템관리자 **계정관리**에서 승인  
+**내 계정:** 비밀번호 변경 `/admin/account`
 
 ## Render 배포
 

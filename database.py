@@ -201,6 +201,30 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_model VARCHAR(80)"
         )
         await _exec(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT TRUE"
+        )
+        await _exec(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_create BOOLEAN DEFAULT TRUE"
+        )
+        await _exec(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_edit BOOLEAN DEFAULT TRUE"
+        )
+        await _exec(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_delete BOOLEAN DEFAULT TRUE"
+        )
+        await _exec("UPDATE users SET is_approved = TRUE WHERE is_approved IS NULL")
+        await _exec("UPDATE users SET can_create = TRUE WHERE can_create IS NULL")
+        await _exec("UPDATE users SET can_edit = TRUE WHERE can_edit IS NULL")
+        await _exec("UPDATE users SET can_delete = TRUE WHERE can_delete IS NULL")
+        await _exec(
+            "UPDATE users SET can_create = FALSE, can_edit = FALSE, can_delete = FALSE "
+            "WHERE role = 'viewer'"
+        )
+        await _exec(
+            "UPDATE users SET can_create = TRUE, can_edit = TRUE, can_delete = TRUE "
+            "WHERE role = 'system_admin'"
+        )
+        await _exec(
             """
             CREATE TABLE IF NOT EXISTS material_groups (
                 id SERIAL PRIMARY KEY,
@@ -311,6 +335,10 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE material_items ADD COLUMN location TEXT",
             "ALTER TABLE users ADD COLUMN openai_api_key VARCHAR(200)",
             "ALTER TABLE users ADD COLUMN openai_model VARCHAR(80)",
+            "ALTER TABLE users ADD COLUMN is_approved BOOLEAN DEFAULT 1",
+            "ALTER TABLE users ADD COLUMN can_create BOOLEAN DEFAULT 1",
+            "ALTER TABLE users ADD COLUMN can_edit BOOLEAN DEFAULT 1",
+            "ALTER TABLE users ADD COLUMN can_delete BOOLEAN DEFAULT 1",
             "ALTER TABLE floors ADD COLUMN is_active BOOLEAN DEFAULT 1",
             "ALTER TABLE zones ADD COLUMN is_active BOOLEAN DEFAULT 1",
             """
@@ -333,6 +361,18 @@ async def ensure_schema_updates() -> None:
             """,
         ):
             await _exec(stmt)
+        await _exec("UPDATE users SET is_approved = 1 WHERE is_approved IS NULL")
+        await _exec("UPDATE users SET can_create = 1 WHERE can_create IS NULL")
+        await _exec("UPDATE users SET can_edit = 1 WHERE can_edit IS NULL")
+        await _exec("UPDATE users SET can_delete = 1 WHERE can_delete IS NULL")
+        await _exec(
+            "UPDATE users SET can_create = 0, can_edit = 0, can_delete = 0 "
+            "WHERE role = 'viewer'"
+        )
+        await _exec(
+            "UPDATE users SET can_create = 1, can_edit = 1, can_delete = 1 "
+            "WHERE role = 'system_admin'"
+        )
         await _exec("UPDATE work_orders SET is_active = 1 WHERE is_active IS NULL")
         await _exec("UPDATE floors SET is_active = 1 WHERE is_active IS NULL")
         await _exec("UPDATE zones SET is_active = 1 WHERE is_active IS NULL")

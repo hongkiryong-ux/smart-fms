@@ -21,11 +21,18 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from auth import (
     ROLE_LABELS,
+    apply_role_permissions,
+    can_create,
     can_delete,
+    can_edit,
+    default_permissions,
     get_current_user,
     hash_password,
+    require_can_create,
     require_can_delete,
+    require_can_edit,
     require_login,
+    require_user_manager,
     verify_password,
 )
 from database import AsyncSessionLocal, Base, engine, get_db, ensure_schema_updates
@@ -532,6 +539,8 @@ from equipment_schema import field_value, get_category_fields, list_display_fiel
 
 templates.env.globals["field_value"] = field_value
 templates.env.globals["name_fields"] = set(NAME_KEYS)
+templates.env.globals["user_can_create"] = can_create
+templates.env.globals["user_can_edit"] = can_edit
 templates.env.globals["user_can_delete"] = can_delete
 templates.env.globals.update(
     fmt_kst=_fmt_kst,
@@ -602,7 +611,12 @@ async def admin_login_page(request: Request, user: User | None = Depends(get_cur
     if user:
         return RedirectResponse("/admin/dashboard", status_code=303)
     return templates.TemplateResponse(
-        request, "login.html", {"error": request.query_params.get("error")}
+        request,
+        "login.html",
+        {
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
     )
 
 
@@ -613,12 +627,12 @@ async def admin_login(
     password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(User).where(User.username == username.strip(), User.is_active == True)
-    )
+    result = await db.execute(select(User).where(User.username == username.strip()))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(password, user.password_hash):
+    if not user or not user.is_active or not verify_password(password, user.password_hash):
         return RedirectResponse("/admin/login?error=1", status_code=303)
+    if not getattr(user, "is_approved", True):
+        return RedirectResponse("/admin/login?error=pending", status_code=303)
     request.session["user_id"] = user.id
     return RedirectResponse("/admin/dashboard", status_code=303)
 
@@ -627,6 +641,337 @@ async def admin_login(
 async def admin_logout(request: Request):
     request.session.clear()
     return RedirectResponse("/admin/login", status_code=303)
+
+
+@app.get("/admin/signup")
+async def admin_signup_page(request: Request, user: User | None = Depends(get_current_user)):
+    if user:
+        return RedirectResponse("/admin/dashboard", status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "signup.html",
+        {"error": request.query_params.get("error")},
+    )
+
+
+@app.post("/admin/signup")
+async def admin_signup(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    password2: str = Form(...),
+    name: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    uname = username.strip()
+    nm = name.strip()
+    pw = password.strip()
+    if not uname or not nm or not pw:
+        return RedirectResponse("/admin/signup?error=required", status_code=303)
+    if len(pw) < 6:
+        return RedirectResponse("/admin/signup?error=short", status_code=303)
+    if pw != password2.strip():
+        return RedirectResponse("/admin/signup?error=mismatch", status_code=303)
+    if not all(c.isalnum() or c in "._-" for c in uname):
+        return RedirectResponse("/admin/signup?error=username", status_code=303)
+    exists = (
+        await db.execute(select(User).where(User.username == uname))
+    ).scalar_one_or_none()
+    if exists:
+        return RedirectResponse("/admin/signup?error=exists", status_code=303)
+
+    new_user = User(
+        username=uname,
+        password_hash=hash_password(pw),
+        name=nm,
+        phone=phone.strip() or None,
+        email=email.strip() or None,
+        role=UserRole.viewer,
+        is_active=True,
+        is_approved=False,
+    )
+    apply_role_permissions(new_user)
+    db.add(new_user)
+    await db.commit()
+    return RedirectResponse(
+        "/admin/login?message=" + quote("가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다."),
+        status_code=303,
+    )
+
+
+@app.get("/admin/account")
+async def account_page(
+    request: Request,
+    user: User = Depends(require_login),
+):
+    return templates.TemplateResponse(
+        request,
+        "account.html",
+        {
+            "user": user,
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/account/password")
+async def account_change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    new_password2: str = Form(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    db_user = await db.get(User, user.id)
+    if not db_user:
+        raise HTTPException(404)
+    if not verify_password(current_password, db_user.password_hash):
+        return RedirectResponse("/admin/account?error=current", status_code=303)
+    if len(new_password.strip()) < 6:
+        return RedirectResponse("/admin/account?error=short", status_code=303)
+    if new_password.strip() != new_password2.strip():
+        return RedirectResponse("/admin/account?error=mismatch", status_code=303)
+    db_user.password_hash = hash_password(new_password.strip())
+    await db.commit()
+    return RedirectResponse(
+        "/admin/account?message=" + quote("비밀번호가 변경되었습니다."),
+        status_code=303,
+    )
+
+
+@app.get("/admin/users")
+async def users_manage_page(
+    request: Request,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(select(User).order_by(User.is_approved.asc(), User.created_at.desc()))
+    ).scalars().all()
+    pending = [u for u in rows if not u.is_approved and u.is_active]
+    active = [u for u in rows if u.is_approved and u.is_active]
+    inactive = [u for u in rows if not u.is_active]
+    return templates.TemplateResponse(
+        request,
+        "users.html",
+        {
+            "user": user,
+            "pending_users": pending,
+            "active_users": active,
+            "inactive_users": inactive,
+            "roles": list(UserRole),
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/users/create")
+async def users_create(
+    username: str = Form(...),
+    password: str = Form(...),
+    name: str = Form(...),
+    role: str = Form("viewer"),
+    phone: str = Form(""),
+    email: str = Form(""),
+    can_create_flag: str = Form(""),
+    can_edit_flag: str = Form(""),
+    can_delete_flag: str = Form(""),
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    uname = username.strip()
+    nm = name.strip()
+    pw = password.strip()
+    if not uname or not nm or not pw:
+        return RedirectResponse("/admin/users?error=required", status_code=303)
+    if len(pw) < 6:
+        return RedirectResponse("/admin/users?error=short", status_code=303)
+    if (await db.execute(select(User).where(User.username == uname))).scalar_one_or_none():
+        return RedirectResponse("/admin/users?error=exists", status_code=303)
+    try:
+        role_val = UserRole(role)
+    except ValueError:
+        role_val = UserRole.viewer
+    new_user = User(
+        username=uname,
+        password_hash=hash_password(pw),
+        name=nm,
+        role=role_val,
+        phone=phone.strip() or None,
+        email=email.strip() or None,
+        is_active=True,
+        is_approved=True,
+        can_create=can_create_flag == "1",
+        can_edit=can_edit_flag == "1",
+        can_delete=can_delete_flag == "1",
+    )
+    if role_val == UserRole.system_admin:
+        new_user.can_create = new_user.can_edit = new_user.can_delete = True
+    db.add(new_user)
+    await db.commit()
+    return RedirectResponse(
+        "/admin/users?message=" + quote(f"계정 {uname} 이(가) 추가되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/users/{uid}/approve")
+async def users_approve(
+    uid: int,
+    role: str = Form("facility_manager"),
+    can_create_flag: str = Form(""),
+    can_edit_flag: str = Form(""),
+    can_delete_flag: str = Form(""),
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    target = await db.get(User, uid)
+    if not target:
+        raise HTTPException(404)
+    try:
+        role_val = UserRole(role)
+    except ValueError:
+        role_val = UserRole.facility_manager
+    target.role = role_val
+    target.is_approved = True
+    target.is_active = True
+    target.can_create = can_create_flag == "1"
+    target.can_edit = can_edit_flag == "1"
+    target.can_delete = can_delete_flag == "1"
+    if role_val == UserRole.system_admin:
+        target.can_create = target.can_edit = target.can_delete = True
+    await db.commit()
+    return RedirectResponse(
+        "/admin/users?message=" + quote(f"{target.username} 승인이 완료되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/users/{uid}/reject")
+async def users_reject(
+    uid: int,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    target = await db.get(User, uid)
+    if not target:
+        raise HTTPException(404)
+    if target.id == user.id:
+        return RedirectResponse("/admin/users?error=self", status_code=303)
+    target.is_active = False
+    target.is_approved = False
+    await db.commit()
+    return RedirectResponse(
+        "/admin/users?message=" + quote(f"{target.username} 가입이 거절되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/users/{uid}/update")
+async def users_update(
+    uid: int,
+    name: str = Form(...),
+    role: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    can_create_flag: str = Form(""),
+    can_edit_flag: str = Form(""),
+    can_delete_flag: str = Form(""),
+    is_active_flag: str = Form(""),
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    target = await db.get(User, uid)
+    if not target:
+        raise HTTPException(404)
+    try:
+        role_val = UserRole(role)
+    except ValueError:
+        role_val = target.role
+    # 자기 자신의 시스템관리자 역할/활성은 유지
+    if target.id == user.id and role_val != UserRole.system_admin:
+        return RedirectResponse("/admin/users?error=self_role", status_code=303)
+    target.name = name.strip() or target.name
+    target.role = role_val
+    target.phone = phone.strip() or None
+    target.email = email.strip() or None
+    target.can_create = can_create_flag == "1"
+    target.can_edit = can_edit_flag == "1"
+    target.can_delete = can_delete_flag == "1"
+    if role_val == UserRole.system_admin:
+        target.can_create = target.can_edit = target.can_delete = True
+    if target.id != user.id:
+        target.is_active = is_active_flag == "1"
+        if target.is_active:
+            target.is_approved = True
+    await db.commit()
+    return RedirectResponse(
+        "/admin/users?message=" + quote(f"{target.username} 정보가 저장되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/users/{uid}/password")
+async def users_reset_password(
+    uid: int,
+    new_password: str = Form(...),
+    new_password2: str = Form(...),
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    target = await db.get(User, uid)
+    if not target:
+        raise HTTPException(404)
+    if len(new_password.strip()) < 6:
+        return RedirectResponse("/admin/users?error=short", status_code=303)
+    if new_password.strip() != new_password2.strip():
+        return RedirectResponse("/admin/users?error=mismatch", status_code=303)
+    target.password_hash = hash_password(new_password.strip())
+    await db.commit()
+    return RedirectResponse(
+        "/admin/users?message=" + quote(f"{target.username} 비밀번호가 변경되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/users/{uid}/delete")
+async def users_delete(
+    uid: int,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    target = await db.get(User, uid)
+    if not target:
+        raise HTTPException(404)
+    if target.id == user.id:
+        return RedirectResponse("/admin/users?error=self", status_code=303)
+    target.is_active = False
+    await db.commit()
+    return RedirectResponse(
+        "/admin/users?message=" + quote(f"{target.username} 계정이 비활성화되었습니다."),
+        status_code=303,
+    )
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────
@@ -883,7 +1228,7 @@ async def site_create(
     code: str = Form(...),
     address: str = Form(""),
     manager_name: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     site = Site(name=name.strip(), code=code.strip(), address=address, manager_name=manager_name)
@@ -914,7 +1259,7 @@ async def site_edit(
     code: str = Form(...),
     address: str = Form(""),
     manager_name: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     site = await db.get(Site, site_id)
@@ -1014,7 +1359,7 @@ async def building_drawing_upload(
     title: str = Form(""),
     floor_id: str = Form(""),
     files: list[UploadFile] = File(default=[]),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1120,7 +1465,7 @@ async def building_create(
     site_id: int = Form(...),
     name: str = Form(...),
     code: str = Form(...),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1233,7 +1578,7 @@ async def building_edit(
     name: str = Form(...),
     code: str = Form(...),
     manager_name: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1272,7 +1617,7 @@ async def floor_create(
     name: str = Form(...),
     level: int = Form(1),
     return_to: str = Form("detail"),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1296,7 +1641,7 @@ async def floor_edit(
     name: str = Form(...),
     level: int = Form(1),
     building_id: int = Form(...),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1358,7 +1703,7 @@ async def zone_create(
     name: str = Form(...),
     code: str = Form(""),
     return_to: str = Form("detail"),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1390,7 +1735,7 @@ async def zone_edit(
     floor_id: int = Form(...),
     name: str = Form(...),
     code: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1655,7 +2000,7 @@ async def equipment_create(
     code: str = Form(""),
     category: str = Form(""),
     building_id: int = Form(0),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1806,7 +2151,7 @@ async def equipment_import_upload(
     file: UploadFile = File(...),
     building_id: int = Form(...),
     replace: str = Form("0"),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -1937,7 +2282,7 @@ async def equipment_one_import(
     file: UploadFile = File(...),
     redirect_building_id: int = Form(0),
     redirect_category: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     """단일 설비 Excel(사양·정비이력·점검이력) 가져오기."""
@@ -2017,7 +2362,7 @@ async def equipment_one_import(
 
 @app.post("/admin/equipment/bulk-import")
 async def equipment_bulk_import(
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     """네트워크 공유 또는 data 폴더에서 일괄 import."""
@@ -2167,7 +2512,7 @@ async def equipment_maintenance_request(
     description: str = Form(""),
     priority: str = Form("normal"),
     assignee_name: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     eq = (
@@ -2213,7 +2558,7 @@ async def equipment_history_create(
     action: str = Form(""),
     parts_used: str = Form(""),
     note: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     eq = await db.get(Equipment, eq_id)
@@ -2303,7 +2648,7 @@ async def equipment_edit(
     code: str = Form(...),
     category: str = Form(""),
     status: str = Form("normal"),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     from equipment_schema import (
@@ -2441,7 +2786,7 @@ async def template_create(
     pm_items: str = Form(""),
     consumables: str = Form(""),
     pm_cycle_days: int = Form(30),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     pm_list = [x.strip() for x in pm_items.split("\n") if x.strip()]
@@ -2476,7 +2821,7 @@ async def template_create(
 async def equipment_type_create(
     name: str = Form(...),
     category: str = Form("설비"),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     cat = category.strip() if category else "기타"
@@ -2705,7 +3050,7 @@ async def work_order_create(
     assignee_name: str = Form(""),
     scheduled_date: str = Form(""),
     partner_id: int = Form(0),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     if equipment_id <= 0:
@@ -2814,7 +3159,7 @@ async def work_order_status(
     date_to: str = Form(""),
     page: str = Form(""),
     d1_board: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import urlencode
@@ -2946,7 +3291,7 @@ async def work_order_delete(
 @app.post("/admin/work-orders/{wo_id}/advance")
 async def work_order_advance(
     wo_id: int,
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     """다음 단계로 진행: 정비의뢰 → 정비중 → 정비완료."""
@@ -3054,7 +3399,7 @@ async def risk_assessment_run(
     evaluator: str = Form(""),
     assessment_no: str = Form(""),
     apply_type: str = Form("정기평가"),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
 ):
     from risk_assessment import assess, get_preset
 
@@ -3208,7 +3553,7 @@ async def risk_assessment_learn(
     major_name: str = Form(...),
     allow_update: str = Form("0"),
     files: list[UploadFile] = File(default=[]),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
 ):
     """위험성평가 문서 업로드 → 소분류 학습 등록."""
     import tempfile
@@ -3458,7 +3803,7 @@ async def risk_assessment_command(
     Environment: str = Form(""),
     report_text: str = Form(""),
     user_question: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
 ):
     from risk_assessment.web_bridge import run_additional
 
@@ -3844,7 +4189,7 @@ async def d1_export(
 
 
 @app.post("/admin/d1")
-async def d1_create(user: User = Depends(require_login)):
+async def d1_create(user: User = Depends(require_can_create)):
     """D-1 JSA/TBM 등록 UI 제거 — 목록으로 리다이렉트."""
     return RedirectResponse("/admin/d1", status_code=303)
 
@@ -3878,7 +4223,7 @@ async def d1_detail(
 @app.post("/admin/d1/{plan_id}/advance")
 async def d1_advance(
     plan_id: int,
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     plan = await db.get(D1Plan, plan_id)
@@ -4293,7 +4638,7 @@ async def pm_schedule_upsert(
     assignee_name: str = Form(""),
     next_due: str = Form(""),
     building_id: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     eq = (
@@ -4357,7 +4702,7 @@ async def pm_schedule_upsert(
 @app.post("/admin/pm/schedules/{schedule_id}/deactivate")
 async def pm_schedule_deactivate(
     schedule_id: int,
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     schedule = await db.get(PMSchedule, schedule_id)
@@ -4376,7 +4721,7 @@ async def pm_inspect(
     inspector_name: str = Form(""),
     request_work_order: str = Form("0"),
     redirect_to: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     schedule = (
@@ -4587,7 +4932,7 @@ async def materials_add(
     location: str = Form(""),
     popup: int = Form(0),
     filter_group: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     nm = name.strip()
@@ -4644,7 +4989,7 @@ async def materials_stock_in(
     group_name: str = Form(""),
     popup: int = Form(0),
     filter_group: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     nm = name.strip()
@@ -4692,7 +5037,7 @@ async def materials_stock_out(
     reason: str = Form(""),
     popup: int = Form(0),
     filter_group: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     nm = name.strip()
@@ -4786,7 +5131,7 @@ async def materials_reset(
 async def materials_group_add(
     group_name: str = Form(...),
     popup: int = Form(0),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     name = group_name.strip()
@@ -4859,7 +5204,7 @@ async def materials_group_rename(
     old_name: str = Form(...),
     new_name: str = Form(...),
     popup: int = Form(0),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import update
@@ -4981,7 +5326,7 @@ async def materials_export_logs(
 async def materials_import(
     file: UploadFile = File(...),
     popup: int = Form(0),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     from io import BytesIO
@@ -5123,7 +5468,7 @@ async def partner_create(
     phone: str = Form(""),
     email: str = Form(""),
     contract_end: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
     code_val = code.strip()
@@ -5193,7 +5538,7 @@ async def partner_edit(
     phone: str = Form(""),
     email: str = Form(""),
     contract_end: str = Form(""),
-    user: User = Depends(require_login),
+    user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     partner = await db.get(Partner, partner_id)

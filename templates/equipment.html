@@ -121,7 +121,9 @@
           <td>
             <div class="row-actions">
               <button type="button" class="link-action" data-open-dialog="eq-dialog-{{ eq.id }}">상세/정비의뢰</button>
+              {% if user_can_edit(user) %}
               <a class="link-action" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
+              {% endif %}
               {% if user_can_delete(user) %}
               <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
                     onsubmit="return confirm('「{{ eq.code }} {{ eq.name }}」을(를) 삭제할까요?');">
@@ -171,7 +173,9 @@
             </label>
           </form>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}">전체 상세·이력</a>
+          {% if user_can_edit(user) %}
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
+          {% endif %}
           {% if user_can_delete(user) %}
           <form method="post" action="/admin/equipment/{{ eq.id }}/delete" class="inline-form"
                 onsubmit="return confirm('「{{ eq.code }} {{ eq.name }}」을(를) 삭제할까요?');">
@@ -295,7 +299,7 @@
     {% endif %}
   </section>
 
-  {% if category %}
+  {% if category and user_can_create(user) %}
   <section class="card equipment-form-card">
     <h2>{{ category }} 수동 등록</h2>
     <form method="post" action="/admin/equipment" class="form-stack">

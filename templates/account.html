@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}내 계정{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>내 계정</h1>
+  <p>{{ user.name }} ({{ user.username }}) · {{ role_labels.get(user.role, user.role.value) }}</p>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error == 'current' %}
+<div class="alert alert-error">현재 비밀번호가 올바르지 않습니다.</div>
+{% elif error == 'short' %}
+<div class="alert alert-error">새 비밀번호는 6자 이상이어야 합니다.</div>
+{% elif error == 'mismatch' %}
+<div class="alert alert-error">새 비밀번호 확인이 일치하지 않습니다.</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>계정 정보</h2>
+    <dl class="info-dl">
+      <dt>아이디</dt><dd><code>{{ user.username }}</code></dd>
+      <dt>이름</dt><dd>{{ user.name }}</dd>
+      <dt>역할</dt><dd>{{ role_labels.get(user.role, user.role.value) }}</dd>
+      <dt>추가</dt><dd>{% if user_can_create(user) %}허용{% else %}불가{% endif %}</dd>
+      <dt>수정</dt><dd>{% if user_can_edit(user) %}허용{% else %}불가{% endif %}</dd>
+      <dt>삭제</dt><dd>{% if user_can_delete(user) %}허용{% else %}불가{% endif %}</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>비밀번호 변경</h2>
+    <form method="post" action="/admin/account/password" class="form-stack">
+      <label>현재 비밀번호</label>
+      <input type="password" name="current_password" required autocomplete="current-password" />
+      <label>새 비밀번호</label>
+      <input type="password" name="new_password" required minlength="6" autocomplete="new-password" />
+      <label>새 비밀번호 확인</label>
+      <input type="password" name="new_password2" required minlength="6" autocomplete="new-password" />
+      <button type="submit" class="btn btn-primary">변경</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
