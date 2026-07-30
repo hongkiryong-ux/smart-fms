@@ -583,6 +583,54 @@ body {
 .flash.ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .flash.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 1.1rem 0 0.25rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+.pager-btn,
+.pager-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+.pager-num.is-current {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+.pager-btn:hover,
+.pager-num:hover {
+  border-color: var(--primary-light);
+  color: var(--primary);
+}
+.pager-num.is-current:hover {
+  color: #fff;
+}
+.pager-btn.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.pager-ellipsis {
+  color: var(--muted);
+  padding: 0 0.15rem;
+}
+
 .building-drawings-card {
   margin-top: 0.25rem;
 }

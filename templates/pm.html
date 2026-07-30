@@ -113,7 +113,7 @@
     <h2>
       예방점검 목록
       {% if filters.building_id %}
-      <small class="text-muted">({{ schedules|length }}건)</small>
+      <small class="text-muted">({{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small>
       {% endif %}
     </h2>
     <div class="row-actions">
@@ -330,6 +330,12 @@
     </details>
     {% endfor %}
   </div>
+  {% set ns = namespace(base='/admin/pm?building_id=' ~ filters.building_id) %}
+  {% if filters.equipment_id %}{% set ns.base = ns.base ~ '&equipment_id=' ~ filters.equipment_id %}{% endif %}
+  {% if filters.q %}{% set ns.base = ns.base ~ '&q=' ~ (filters.q|urlencode) %}{% endif %}
+  {% if filters.due %}{% set ns.base = ns.base ~ '&due=1' %}{% endif %}
+  {% set base_url = ns.base %}
+  {% include "partials/pager.html" %}
   {% else %}
   <p class="empty">
     표시할 점검 일정이 없습니다.

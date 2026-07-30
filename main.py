@@ -213,6 +213,35 @@ def _parse_wo_status_filters(status: list[str] | None) -> list[str]:
     return out
 
 
+LIST_PAGE_SIZE = 20
+
+
+def _paginate(items: list, page: int | str | None, per_page: int = LIST_PAGE_SIZE) -> dict:
+    """목록 페이지네이션 정보 생성."""
+    total = len(items)
+    total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
+    try:
+        page_n = int(page or 1)
+    except (TypeError, ValueError):
+        page_n = 1
+    page_n = max(1, min(page_n, total_pages))
+    start = (page_n - 1) * per_page
+    window = 5
+    start_p = max(1, page_n - window // 2)
+    end_p = min(total_pages, start_p + window - 1)
+    start_p = max(1, end_p - window + 1)
+    return {
+        "items": items[start : start + per_page],
+        "page": page_n,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages,
+        "page_numbers": list(range(start_p, end_p + 1)),
+        "has_prev": page_n > 1,
+        "has_next": page_n < total_pages,
+    }
+
+
 def _wo_status_sql_filter(status_vals: list[str]):
     if not status_vals:
         return None
@@ -2320,6 +2349,7 @@ async def work_orders_list(
     priority: str = "",
     date_from: str = "",
     date_to: str = "",
+    page: int = Query(1),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2379,9 +2409,11 @@ async def work_orders_list(
     if filters:
         stmt = stmt.where(and_(*filters))
 
-    orders = (
+    all_orders = (
         await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
     ).scalars().unique().all()
+    pager = _paginate(list(all_orders), page)
+    orders = pager["items"]
 
     partners = (
         await db.execute(
@@ -2430,6 +2462,7 @@ async def work_orders_list(
         {
             "user": user,
             "orders": orders,
+            "pager": pager,
             "partners": partners,
             "buildings": buildings,
             "equipment_opts": equipment_opts,
@@ -2441,8 +2474,9 @@ async def work_orders_list(
                 "priority": priority_val,
                 "date_from": date_from_val,
                 "date_to": date_to_val,
+                "page": pager["page"],
             },
-            "result_count": len(orders),
+            "result_count": pager["total"],
         },
     )
 
@@ -2631,6 +2665,7 @@ async def work_order_status(
     filter_priority: str = Form(""),
     date_from: str = Form(""),
     date_to: str = Form(""),
+    page: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2688,6 +2723,7 @@ async def work_order_status(
                 "priority": filter_priority.strip(),
                 "date_from": date_from.strip(),
                 "date_to": date_to.strip(),
+                "page": page.strip() if str(page).strip() not in ("", "1") else "",
             }.items()
             if v
         }
@@ -2705,6 +2741,7 @@ async def work_order_delete(
     filter_priority: str = Form(""),
     date_from: str = Form(""),
     date_to: str = Form(""),
+    page: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2725,6 +2762,7 @@ async def work_order_delete(
             "priority": filter_priority.strip(),
             "date_from": date_from.strip(),
             "date_to": date_to.strip(),
+            "page": page.strip() if str(page).strip() not in ("", "1") else "",
         }.items()
         if v
     }
@@ -3861,6 +3899,7 @@ async def pm_list(
     equipment_id: int | None = Query(None),
     due: str = Query(""),
     tab: str = Query("list"),
+    page: int = Query(1),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -3870,15 +3909,18 @@ async def pm_list(
 
     # 점검목록: 건물 선택 전에는 목록을 조회·표시하지 않음
     if active_tab == "list" and not building_id:
-        schedules = []
+        all_schedules: list = []
     else:
-        schedules = await _pm_filtered_schedules(
+        all_schedules = await _pm_filtered_schedules(
             db,
             q=q,
             building_id=building_id,
             equipment_id=equipment_id,
             due_only=due_only,
         )
+
+    pager = _paginate(list(all_schedules), page)
+    schedules = pager["items"]
 
     buildings = _sort_buildings(
         (
@@ -3907,7 +3949,7 @@ async def pm_list(
         )
     equipment_list = (await db.execute(eq_q)).scalars().unique().all()
 
-    # 건물별·설비별 그룹 (목록 탭)
+    # 건물별·설비별 그룹 (목록 탭) — 현재 페이지 일정만
     grouped: dict[str, dict] = {}
     for pm in schedules:
         eq = pm.equipment
@@ -3949,11 +3991,13 @@ async def pm_list(
             "equipment_list": equipment_list,
             "today": today,
             "tab": active_tab,
+            "pager": pager,
             "filters": {
                 "q": q,
                 "building_id": building_id,
                 "equipment_id": equipment_id,
                 "due": due_only,
+                "page": pager["page"],
             },
             "freq_choices": [
                 (PMFrequency.daily, "매일"),

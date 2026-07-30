@@ -10,7 +10,7 @@
   <div class="wo-list-head">
     <h2>
       정비 목록
-      <small class="text-muted">({{ result_count }}건)</small>
+      <small class="text-muted">({{ result_count }}건{% if pager and pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small>
     </h2>
     <div class="row-actions">
       <a class="btn btn-sm btn-secondary"
@@ -128,6 +128,7 @@
             <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
             <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
             <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+            <input type="hidden" name="page" value="{{ filters.page }}" />
             <select name="status" class="wo-status-select" form="wo-form-{{ wo.id }}">
               <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
               <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
@@ -159,6 +160,7 @@
             <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
             <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
             <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+            <input type="hidden" name="page" value="{{ filters.page }}" />
             <button type="submit" class="link-action link-danger">삭제</button>
           </form>
         </td>
@@ -169,6 +171,14 @@
     </tbody>
   </table>
   </div>
+  {% set qs = [] %}
+  {% for s in filters.statuses %}{% set _ = qs.append('status=' ~ s) %}{% endfor %}
+  {% if filters.q %}{% set _ = qs.append('q=' ~ (filters.q|urlencode)) %}{% endif %}
+  {% if filters.priority %}{% set _ = qs.append('priority=' ~ filters.priority) %}{% endif %}
+  {% if filters.date_from %}{% set _ = qs.append('date_from=' ~ filters.date_from) %}{% endif %}
+  {% if filters.date_to %}{% set _ = qs.append('date_to=' ~ filters.date_to) %}{% endif %}
+  {% set base_url = '/admin/work-orders' ~ (('?' ~ qs|join('&')) if qs else '') %}
+  {% include "partials/pager.html" %}
 </section>
 
 <dialog id="wo-create-dialog" class="eq-dialog wo-create-dialog">

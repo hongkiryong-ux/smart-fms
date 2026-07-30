@@ -1,0 +1,34 @@
+{# 공통 페이지 넘김 — pager, base_url(쿼리 문자열, page 제외) 필요 #}
+{% if pager and pager.total_pages > 1 %}
+<nav class="pager" aria-label="페이지 탐색">
+  {% if pager.has_prev %}
+  <a class="pager-btn" href="{{ base_url }}{% if base_url and '?' in base_url %}&{% else %}?{% endif %}page={{ pager.page - 1 }}">이전</a>
+  {% else %}
+  <span class="pager-btn is-disabled">이전</span>
+  {% endif %}
+
+  {% if pager.page_numbers and pager.page_numbers[0] > 1 %}
+  <a class="pager-num" href="{{ base_url }}{% if base_url and '?' in base_url %}&{% else %}?{% endif %}page=1">1</a>
+  {% if pager.page_numbers[0] > 2 %}<span class="pager-ellipsis">…</span>{% endif %}
+  {% endif %}
+
+  {% for p in pager.page_numbers %}
+  {% if p == pager.page %}
+  <span class="pager-num is-current" aria-current="page">{{ p }}</span>
+  {% else %}
+  <a class="pager-num" href="{{ base_url }}{% if base_url and '?' in base_url %}&{% else %}?{% endif %}page={{ p }}">{{ p }}</a>
+  {% endif %}
+  {% endfor %}
+
+  {% if pager.page_numbers and pager.page_numbers[-1] < pager.total_pages %}
+  {% if pager.page_numbers[-1] < pager.total_pages - 1 %}<span class="pager-ellipsis">…</span>{% endif %}
+  <a class="pager-num" href="{{ base_url }}{% if base_url and '?' in base_url %}&{% else %}?{% endif %}page={{ pager.total_pages }}">{{ pager.total_pages }}</a>
+  {% endif %}
+
+  {% if pager.has_next %}
+  <a class="pager-btn" href="{{ base_url }}{% if base_url and '?' in base_url %}&{% else %}?{% endif %}page={{ pager.page + 1 }}">다음</a>
+  {% else %}
+  <span class="pager-btn is-disabled">다음</span>
+  {% endif %}
+</nav>
+{% endif %}
