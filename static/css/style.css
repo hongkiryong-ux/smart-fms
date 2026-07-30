@@ -44,8 +44,21 @@ body {
   opacity: 0.92;
 }
 
-.sidebar-brand strong { display: block; font-size: 1.1rem; }
-.sidebar-brand small { opacity: 0.7; font-size: 0.75rem; }
+.sidebar-brand strong {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 0.45rem;
+}
+
+.sidebar-brand-logo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 128px;
+  max-height: 42px;
+  object-fit: contain;
+  opacity: 0.95;
+}
 
 .nav-menu {
   list-style: none;
