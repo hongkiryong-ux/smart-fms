@@ -76,6 +76,10 @@
         <button type="submit" form="mat-stock-in-form" class="btn btn-sm btn-secondary">자재 입고</button>
         <button type="submit" form="mat-stock-out-form" class="btn btn-sm btn-secondary">자재 출고</button>
       </div>
+      <div class="mat-field-row">
+        <label>출고 사유:<span class="mat-required" title="출고 시 필수">*</span></label>
+        <input type="text" id="mat-reason" placeholder="출고 시 필수 입력" autocomplete="off" />
+      </div>
 
       <div class="mat-field-row">
         <label>사양:</label>
@@ -116,7 +120,7 @@
         <input type="hidden" name="filter_group" value="{{ selected_group }}" />
         <input type="hidden" name="name" id="mat-out-name" value="" />
         <input type="hidden" name="quantity" id="mat-out-qty" value="0" />
-        <input type="hidden" name="reason" value="" />
+        <input type="hidden" name="reason" id="mat-out-reason" value="" />
       </form>
     </div>
 
@@ -280,6 +284,7 @@
   var groupEl = document.getElementById('mat-group');
   var nameEl = document.getElementById('mat-name-input');
   var qtyEl = document.getElementById('mat-qty');
+  var reasonEl = document.getElementById('mat-reason');
   var specEl = document.getElementById('mat-spec');
   var remarksEl = document.getElementById('mat-remarks');
   var locEl = document.getElementById('mat-location');
@@ -312,6 +317,7 @@
 
     document.getElementById('mat-out-name').value = name;
     document.getElementById('mat-out-qty').value = qty;
+    document.getElementById('mat-out-reason').value = (reasonEl.value || '').trim();
     document.getElementById('mat-del-name').value = name;
   }
 
@@ -332,7 +338,7 @@
     else syncHidden();
   });
   nameEl.addEventListener('input', syncHidden);
-  [qtyEl, specEl, remarksEl, locEl, groupEl].forEach(function (el) {
+  [qtyEl, reasonEl, specEl, remarksEl, locEl, groupEl].forEach(function (el) {
     el.addEventListener('input', syncHidden);
     el.addEventListener('change', syncHidden);
   });
@@ -356,6 +362,12 @@
     if (!document.getElementById('mat-out-name').value) {
       e.preventDefault();
       alert('자재를 선택/입력하세요.');
+      return;
+    }
+    if (!document.getElementById('mat-out-reason').value.trim()) {
+      e.preventDefault();
+      alert('출고 사유를 입력하세요.');
+      reasonEl.focus();
     }
   });
 

@@ -1939,6 +1939,11 @@ body.wo-col-resizing {
   font-size: 0.85rem;
   color: #333;
 }
+.mat-required {
+  color: #c62828;
+  font-weight: 700;
+  margin-left: 0.1rem;
+}
 .mat-field-row input[type="text"],
 .mat-field-row input[type="number"],
 .mat-field-row input[type="search"],
@@ -1955,6 +1960,9 @@ body.wo-col-resizing {
 .mat-field-row #mat-qty {
   max-width: 100px;
   flex: 0 0 100px;
+}
+.mat-field-row #mat-reason {
+  max-width: 420px;
 }
 .mat-hidden-forms { display: none; }
 .mat-filter-panel {

@@ -3962,6 +3962,12 @@ async def materials_stock_out(
             f"/admin/materials{_mat_qs(popup, error='출고 수량은 1 이상이어야 합니다.', group=filter_group)}",
             status_code=303,
         )
+    reason_text = (reason or "").strip()
+    if not reason_text:
+        return RedirectResponse(
+            f"/admin/materials{_mat_qs(popup, error='출고 사유를 입력하세요.', group=filter_group)}",
+            status_code=303,
+        )
     item = (
         await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
     ).scalar_one_or_none()
@@ -3977,7 +3983,7 @@ async def materials_stock_out(
             status_code=303,
         )
     item.quantity = current - qty
-    await _material_record_log(db, "출고", nm, qty, reason.strip())
+    await _material_record_log(db, "출고", nm, qty, reason_text)
     await db.commit()
     return RedirectResponse(
         f"/admin/materials{_mat_qs(popup, message=f'{nm} 출고 완료. 잔여: {item.quantity}', group=filter_group)}",
