@@ -1632,6 +1632,41 @@ body.wo-col-resizing {
   align-items: center;
   margin-bottom: 0.65rem;
 }
+.d1-board-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+.d1-board-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.42rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.d1-board-btn small { color: var(--muted); font-weight: 600; }
+.d1-board-btn:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.d1-board-btn.is-on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.d1-board-btn.is-on small { color: rgba(255,255,255,0.88); }
+.d1-hint {
+  margin: -0.25rem 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
 .d1-status-btns {
   display: flex;
   flex-wrap: wrap;

@@ -2666,6 +2666,7 @@ async def work_order_status(
     date_from: str = Form(""),
     date_to: str = Form(""),
     page: str = Form(""),
+    d1_board: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2713,7 +2714,17 @@ async def work_order_status(
 
     await db.commit()
     if redirect == "d1":
-        return RedirectResponse("/admin/d1", status_code=303)
+        params = {
+            k: v
+            for k, v in {
+                "board": (d1_board or "").strip(),
+                "page": page.strip() if str(page).strip() not in ("", "1") else "",
+                "status": filter_status.strip(),
+            }.items()
+            if v
+        }
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/admin/d1{qs}", status_code=303)
     if redirect == "list":
         params = {
             k: v
@@ -2742,6 +2753,7 @@ async def work_order_delete(
     date_from: str = Form(""),
     date_to: str = Form(""),
     page: str = Form(""),
+    d1_board: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2753,7 +2765,17 @@ async def work_order_delete(
     wo.is_active = False
     await db.commit()
     if redirect == "d1":
-        return RedirectResponse("/admin/d1", status_code=303)
+        params = {
+            k: v
+            for k, v in {
+                "board": (d1_board or "").strip(),
+                "page": page.strip() if str(page).strip() not in ("", "1") else "",
+                "status": filter_status.strip(),
+            }.items()
+            if v
+        }
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/admin/d1{qs}", status_code=303)
     params = {
         k: v
         for k, v in {
@@ -3360,6 +3382,8 @@ async def d1_list(
     status: list[str] = Query(default=[]),
     view: str = "",
     partner_id: int = 0,
+    board: str = Query("today"),
+    page: int = Query(1),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -3371,7 +3395,6 @@ async def d1_list(
         partner_sel = int(partner_id or 0)
     except (TypeError, ValueError):
         partner_sel = 0
-    # 업체별 보기가 아니면 업체 필터 무시
     if not view_partner:
         partner_sel = 0
 
@@ -3450,12 +3473,26 @@ async def d1_list(
     status_pool = _apply_status(list(open_works) + list(completed_raw))
     filtered_all = today_works + tomorrow_works + scheduled_works + completed_works
 
-    partner_counts: dict[int, int] = {}
-    for w in status_pool:
-        pid = int(w.partner_id or 0)
-        partner_counts[pid] = partner_counts.get(pid, 0) + 1
+    board_key = (board or "today").strip().lower()
+    board_map = {
+        "today": today_works,
+        "tomorrow": tomorrow_works,
+        "scheduled": scheduled_works,
+        "completed": completed_works,
+    }
+    if board_key not in board_map:
+        board_key = "today"
+
+    board_titles = {
+        "today": f"오늘 작업 ({today})",
+        "tomorrow": f"내일 작업 ({tomorrow})",
+        "scheduled": "정비 예정항목",
+        "completed": "정비완료항목",
+    }
 
     partner_groups: list[dict] = []
+    pager = None
+    board_orders: list = []
     if view_partner:
         by_partner: dict[str, list] = {}
         for w in filtered_all:
@@ -3463,6 +3500,19 @@ async def d1_list(
             by_partner.setdefault(name, []).append(w)
         for name in sorted(by_partner.keys(), key=lambda n: (n == "미지정", n)):
             partner_groups.append({"name": name, "orders": by_partner[name]})
+        pager = {
+            "page": 1,
+            "total": len(filtered_all),
+            "total_pages": 1,
+            "page_numbers": [1],
+            "has_prev": False,
+            "has_next": False,
+            "items": filtered_all,
+            "per_page": max(1, len(filtered_all)),
+        }
+    else:
+        pager = _paginate(board_map[board_key], page)
+        board_orders = pager["items"]
 
     partners = (
         await db.execute(
@@ -3470,7 +3520,11 @@ async def d1_list(
         )
     ).scalars().all()
 
-    # 업체 버튼: 건수 있는 협력사 + 미지정
+    partner_counts: dict[int, int] = {}
+    for w in status_pool:
+        pid = int(w.partner_id or 0)
+        partner_counts[pid] = partner_counts.get(pid, 0) + 1
+
     partner_btns: list[dict] = []
     if view_partner:
         for p in partners:
@@ -3492,13 +3546,24 @@ async def d1_list(
             "tomorrow_works": tomorrow_works,
             "scheduled_works": scheduled_works,
             "completed_works": completed_works,
+            "board_orders": board_orders,
+            "board_title": board_titles[board_key],
+            "board_counts": {
+                "today": len(today_works),
+                "tomorrow": len(tomorrow_works),
+                "scheduled": len(scheduled_works),
+                "completed": len(completed_works),
+            },
             "filtered_count": len(filtered_all),
             "partner_groups": partner_groups,
             "partner_btns": partner_btns,
+            "pager": pager,
             "filters": {
                 "statuses": status_vals,
                 "view_partner": view_partner,
                 "partner_id": partner_sel,
+                "board": board_key,
+                "page": pager["page"] if pager else 1,
             },
             "partners": partners,
         },
@@ -3510,6 +3575,7 @@ async def d1_export(
     status: list[str] = Query(default=[]),
     view: str = "",
     partner_id: int = 0,
+    board: str = Query("today"),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -3580,16 +3646,25 @@ async def d1_export(
             return False
         return True
 
-    orders = (
-        [w for w in open_works if w.scheduled_date == today and _ok(w)]
-        + [w for w in open_works if w.scheduled_date == tomorrow and _ok(w)]
-        + [
-            w
-            for w in open_works
-            if w.scheduled_date not in (today, tomorrow) and _ok(w)
-        ]
-        + [w for w in completed if _ok(w)]
-    )
+    today_o = [w for w in open_works if w.scheduled_date == today and _ok(w)]
+    tomorrow_o = [w for w in open_works if w.scheduled_date == tomorrow and _ok(w)]
+    scheduled_o = [
+        w for w in open_works if w.scheduled_date not in (today, tomorrow) and _ok(w)
+    ]
+    completed_o = [w for w in completed if _ok(w)]
+
+    if view_partner:
+        orders = today_o + tomorrow_o + scheduled_o + completed_o
+    else:
+        board_key = (board or "today").strip().lower()
+        board_map = {
+            "today": today_o,
+            "tomorrow": tomorrow_o,
+            "scheduled": scheduled_o,
+            "completed": completed_o,
+        }
+        orders = board_map.get(board_key, today_o)
+
     return _work_orders_excel_response(orders, "D1작업")
 
 
