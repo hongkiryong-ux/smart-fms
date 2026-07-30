@@ -1976,6 +1976,12 @@ body.wo-col-resizing {
   color: #fff;
 }
 .d1-board-btn.is-on small { color: rgba(255,255,255,0.88); }
+.d1-board-section {
+  scroll-margin-top: 1rem;
+}
+.d1-board-section + .d1-board-section {
+  margin-top: 0.25rem;
+}
 .d1-hint {
   margin: -0.25rem 0 0.75rem;
   color: var(--muted);

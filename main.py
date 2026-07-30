@@ -305,7 +305,11 @@ def _d1_resolve_boards(request: Request, board_param: list[str] | str | None) ->
     return _parse_d1_boards(raw)
 
 
-def _d1_board_toggle_urls(boards: list[str], status_vals: list[str]) -> dict[str, str]:
+def _d1_board_toggle_urls(
+    boards: list[str],
+    status_vals: list[str],
+    partner_id: int = 0,
+) -> dict[str, str]:
     from urllib.parse import urlencode
 
     links: dict[str, str] = {}
@@ -320,6 +324,8 @@ def _d1_board_toggle_urls(boards: list[str], status_vals: list[str]) -> dict[str
         else:
             params.append(("board", ""))
         params.extend(("status", s) for s in status_vals)
+        if partner_id:
+            params.append(("partner_id", str(partner_id)))
         links[key] = "/admin/d1?" + urlencode(params)
     return links
 
@@ -3198,6 +3204,7 @@ async def work_order_status(
     date_to: str = Form(""),
     page: str = Form(""),
     d1_board: str = Form(""),
+    d1_partner_id: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -3254,6 +3261,8 @@ async def work_order_status(
                 p = part.strip()
                 if p:
                     params.append(("status", p))
+        if (d1_partner_id or "").strip() not in ("", "0"):
+            params.append(("partner_id", (d1_partner_id or "").strip()))
         if page.strip() and page.strip() not in ("", "1"):
             params.append(("page", page.strip()))
         qs = f"?{urlencode(params)}" if params else ""
@@ -3287,6 +3296,7 @@ async def work_order_delete(
     date_to: str = Form(""),
     page: str = Form(""),
     d1_board: str = Form(""),
+    d1_partner_id: str = Form(""),
     user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
@@ -3307,6 +3317,8 @@ async def work_order_delete(
                 p = part.strip()
                 if p:
                     params.append(("status", p))
+        if (d1_partner_id or "").strip() not in ("", "0"):
+            params.append(("partner_id", (d1_partner_id or "").strip()))
         if page.strip() and page.strip() not in ("", "1"):
             params.append(("page", page.strip()))
         qs = f"?{urlencode(params)}" if params else ""
@@ -3930,8 +3942,6 @@ async def d1_list(
         partner_sel = int(partner_id or 0)
     except (TypeError, ValueError):
         partner_sel = 0
-    if not view_partner:
-        partner_sel = 0
 
     open_statuses = [
         WorkOrderStatus.received,
@@ -4021,7 +4031,22 @@ async def d1_list(
         "scheduled": "정비 예정항목",
         "completed": "정비완료항목",
     }
-    board_toggle_urls = _d1_board_toggle_urls(boards, status_vals)
+    board_toggle_urls = _d1_board_toggle_urls(boards, status_vals, partner_sel)
+
+    board_sections: list[dict] = []
+    for key in boards:
+        board_sections.append(
+            {
+                "key": key,
+                "title": board_titles.get(key, key),
+                "orders": board_map.get(key, []),
+                "hint": (
+                    "오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)"
+                    if key == "scheduled"
+                    else ""
+                ),
+            }
+        )
 
     selected_works: list = []
     seen_ids: set[int] = set()
@@ -4037,6 +4062,23 @@ async def d1_list(
         board_title = " · ".join(board_titles[k] for k in boards if k in board_titles)
     else:
         board_title = "선택된 작업 구분 없음"
+
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)
+        )
+    ).scalars().all()
+
+    selected_partner_name = ""
+    if partner_sel == -1:
+        selected_partner_name = "미지정"
+    elif partner_sel > 0:
+        for p in partners:
+            if p.id == partner_sel:
+                selected_partner_name = p.name
+                break
+        if not selected_partner_name:
+            selected_partner_name = f"업체 #{partner_sel}"
 
     partner_groups: list[dict] = []
     pager = None
@@ -4059,14 +4101,17 @@ async def d1_list(
             "per_page": max(1, len(filtered_all)),
         }
     else:
-        pager = _paginate(selected_works, page)
-        board_orders = pager["items"]
-
-    partners = (
-        await db.execute(
-            select(Partner).where(Partner.is_active == True).order_by(Partner.name)
-        )
-    ).scalars().all()
+        pager = {
+            "page": 1,
+            "total": len(selected_works),
+            "total_pages": 1,
+            "page_numbers": [1],
+            "has_prev": False,
+            "has_next": False,
+            "items": selected_works,
+            "per_page": max(1, len(selected_works) or 1),
+        }
+        board_orders = selected_works
 
     partner_counts: dict[int, int] = {}
     for w in status_pool:
@@ -4095,6 +4140,7 @@ async def d1_list(
             "scheduled_works": scheduled_works,
             "completed_works": completed_works,
             "board_orders": board_orders,
+            "board_sections": board_sections,
             "board_title": board_title,
             "board_counts": {
                 "today": len(today_works),
@@ -4106,6 +4152,7 @@ async def d1_list(
             "filtered_count": len(filtered_all),
             "partner_groups": partner_groups,
             "partner_btns": partner_btns,
+            "selected_partner_name": selected_partner_name,
             "pager": pager,
             "filters": {
                 "statuses": status_vals,
@@ -4136,7 +4183,7 @@ async def d1_export(
     status_vals = _parse_wo_status_filters(status)
     view_partner = (view or "").strip().lower() == "partner"
     try:
-        partner_sel = int(partner_id or 0) if view_partner else 0
+        partner_sel = int(partner_id or 0)
     except (TypeError, ValueError):
         partner_sel = 0
     open_statuses = [

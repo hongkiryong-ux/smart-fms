@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import Building, User, UserRole
+from models import Building, Partner, User, UserRole
 
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PW = os.environ.get("ADMIN_PW", "password123")
@@ -67,6 +67,7 @@ async def get_current_user(
     user_id = request.session.get("user_id")
     if not user_id:
         request.state.nav_buildings = []
+        request.state.nav_partners = []
         return None
     result = await db.execute(
         select(User).where(
@@ -78,6 +79,7 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if not hasattr(request.state, "nav_buildings"):
         request.state.nav_buildings = []
+        request.state.nav_partners = []
         if user:
             try:
                 rows = (
@@ -94,6 +96,22 @@ async def get_current_user(
                 ]
             except Exception:
                 request.state.nav_buildings = []
+            try:
+                partners = (
+                    await db.execute(
+                        select(Partner)
+                        .where(Partner.is_active == True)
+                        .order_by(Partner.name)
+                    )
+                ).scalars().all()
+                request.state.nav_partners = [
+                    {"id": p.id, "name": p.name or "", "code": getattr(p, "code", "") or ""}
+                    for p in partners
+                ]
+            except Exception:
+                request.state.nav_partners = []
+    if not hasattr(request.state, "nav_partners"):
+        request.state.nav_partners = []
     return user
 
 

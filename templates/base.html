@@ -12,7 +12,9 @@
   {% set is_popup = request.query_params.get('popup') == '1' %}
   {% if user and not is_popup %}
   {% set eq_path = '/equipment' in request.url.path %}
+  {% set d1_path = request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path or request.url.path.startswith('/admin/d1') %}
   {% set nav_bid = request.query_params.get('building_id') %}
+  {% set nav_pid = request.query_params.get('partner_id') %}
   <nav class="sidebar">
     <a href="/admin/dashboard" class="sidebar-brand">
       <strong>Smart FMS</strong>
@@ -53,7 +55,30 @@
       <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
       {% endif %}
       <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
-      <li><a href="/admin/d1" class="{% if request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path %}active{% endif %}">D-1 작업</a></li>
+      <li class="nav-expandable{% if d1_path %} is-open{% endif %}" id="nav-d1">
+        <div class="nav-parent-row">
+          <a href="/admin/d1"
+             class="nav-parent-link{% if d1_path and not nav_pid %} active{% endif %}">D-1 작업</a>
+          <button type="button"
+                  class="nav-toggle"
+                  aria-expanded="{% if d1_path %}true{% else %}false{% endif %}"
+                  aria-controls="nav-d1-sub"
+                  title="업체 목록 펼치기">
+            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <ul class="nav-sub" id="nav-d1-sub">
+          {% for p in request.state.nav_partners or [] %}
+          <li>
+            <a href="/admin/d1?partner_id={{ p.id }}"
+               class="{% if nav_pid == p.id|string %}active{% endif %}"
+               title="{{ p.name }}">{{ p.name }}</a>
+          </li>
+          {% else %}
+          <li class="nav-sub-empty">등록된 업체 없음</li>
+          {% endfor %}
+        </ul>
+      </li>
       <li><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
       <li>
         <a href="/admin/materials?popup=1"
@@ -73,42 +98,43 @@
   </nav>
   <script>
   (function () {
-    var item = document.getElementById('nav-equipment');
-    if (!item) return;
-    var btn = item.querySelector('.nav-toggle');
-    var link = item.querySelector('.nav-parent-link');
-    var key = 'nav-eq-open';
+    function bindNavExpandable(itemId, storageKey) {
+      var item = document.getElementById(itemId);
+      if (!item) return;
+      var btn = item.querySelector('.nav-toggle');
+      var link = item.querySelector('.nav-parent-link');
 
-    function setOpen(open) {
-      item.classList.toggle('is-open', !!open);
-      if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      try { sessionStorage.setItem(key, open ? '1' : '0'); } catch (e) {}
-    }
+      function setOpen(open) {
+        item.classList.toggle('is-open', !!open);
+        if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        try { sessionStorage.setItem(storageKey, open ? '1' : '0'); } catch (e) {}
+      }
 
-    var stored = null;
-    try { stored = sessionStorage.getItem(key); } catch (e) {}
-    if (stored === '0') setOpen(false);
-    else if (stored === '1') setOpen(true);
-    // stored 없으면 서버 렌더(is-open) 유지
+      var stored = null;
+      try { stored = sessionStorage.getItem(storageKey); } catch (e) {}
+      if (stored === '0') setOpen(false);
+      else if (stored === '1') setOpen(true);
 
-    if (btn) {
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        setOpen(!item.classList.contains('is-open'));
-      });
-    }
-    if (link) {
-      link.addEventListener('click', function (e) {
-        // 이미 펼쳐진 상태에서 다시 누르면 닫기 (페이지 이동 없음)
-        if (item.classList.contains('is-open')) {
+      if (btn) {
+        btn.addEventListener('click', function (e) {
           e.preventDefault();
-          setOpen(false);
-          return;
-        }
-        setOpen(true);
-      });
+          e.stopPropagation();
+          setOpen(!item.classList.contains('is-open'));
+        });
+      }
+      if (link) {
+        link.addEventListener('click', function (e) {
+          if (item.classList.contains('is-open') && itemId === 'nav-equipment') {
+            e.preventDefault();
+            setOpen(false);
+            return;
+          }
+          setOpen(true);
+        });
+      }
     }
+    bindNavExpandable('nav-equipment', 'nav-eq-open');
+    bindNavExpandable('nav-d1', 'nav-d1-open');
   })();
   </script>
   {% endif %}

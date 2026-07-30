@@ -60,6 +60,9 @@
             <input type="hidden" name="d1_board" value="{{ filters.board }}" />
             <input type="hidden" name="page" value="{{ filters.page }}" />
             <input type="hidden" name="filter_status" value="{{ filters.statuses|join(',') }}" />
+            {% if filters.partner_id %}
+            <input type="hidden" name="d1_partner_id" value="{{ filters.partner_id }}" />
+            {% endif %}
             {% endif %}
             <select name="status" class="wo-status-select" form="d1-wo-form-{{ wo.id }}">
               <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
@@ -92,6 +95,9 @@
             <input type="hidden" name="d1_board" value="{{ filters.board }}" />
             <input type="hidden" name="page" value="{{ filters.page }}" />
             <input type="hidden" name="filter_status" value="{{ filters.statuses|join(',') }}" />
+            {% if filters.partner_id %}
+            <input type="hidden" name="d1_partner_id" value="{{ filters.partner_id }}" />
+            {% endif %}
             {% endif %}
             <button type="submit" class="link-action link-danger">삭제</button>
           </form>
@@ -108,8 +114,10 @@
 
 {% block content %}
 <header class="page-header">
-  <h1>D-1 작업</h1>
-  <p>오늘 {{ today }} · 정비 예정일 기준 당일·익일 · 예정·완료 목록</p>
+  <h1>D-1 작업{% if selected_partner_name %} · {{ selected_partner_name }}{% endif %}</h1>
+  <p>오늘 {{ today }} · 정비 예정일 기준 당일·익일 · 예정·완료 목록
+    {% if selected_partner_name %}· <strong>{{ selected_partner_name }}</strong> 작업만 표시{% endif %}
+  </p>
 </header>
 
 <section class="card d1-filter-card">
@@ -137,9 +145,19 @@
     {% else %}
       <input type="hidden" name="board" value="" />
     {% endif %}
+    {% if filters.partner_id %}
+    <input type="hidden" name="partner_id" value="{{ filters.partner_id }}" />
+    {% endif %}
     <div class="d1-status-btns" role="group" aria-label="진행상태 필터">
+      {% set status_all_qs = [] %}
+      {% if filters.boards %}
+        {% for b in filters.boards %}{% set _ = status_all_qs.append('board=' ~ b) %}{% endfor %}
+      {% else %}
+        {% set _ = status_all_qs.append('board=') %}
+      {% endif %}
+      {% if filters.partner_id %}{% set _ = status_all_qs.append('partner_id=' ~ filters.partner_id) %}{% endif %}
       <a class="d1-status-btn{% if not filters.statuses and not filters.view_partner %} is-on{% endif %}"
-         href="/admin/d1{% if filters.boards %}?{% for b in filters.boards %}board={{ b }}{% if not loop.last %}&{% endif %}{% endfor %}{% else %}?board={% endif %}">전체</a>
+         href="/admin/d1?{{ status_all_qs|join('&') }}">전체</a>
       <label class="d1-status-btn{% if 'received' in filters.statuses %} is-on{% endif %}">
         <input type="checkbox" name="status" value="received"
                {% if 'received' in filters.statuses %}checked{% endif %} />
@@ -155,26 +173,7 @@
                {% if 'completed' in filters.statuses %}checked{% endif %} />
         정비완료
       </label>
-      <label class="d1-status-btn d1-view-partner-btn{% if filters.view_partner %} is-on{% endif %}">
-        <input type="checkbox" name="view" value="partner"
-               {% if filters.view_partner %}checked{% endif %} />
-        업체별 보기
-      </label>
-      {% if filters.view_partner %}
-      <span class="d1-partner-btn-sep" aria-hidden="true">|</span>
-      <a class="d1-status-btn d1-partner-btn{% if not filters.partner_id %} is-on{% endif %}"
-         href="/admin/d1?view=partner{% for s in filters.statuses %}&status={{ s }}{% endfor %}">전체 업체</a>
-      {% for pb in partner_btns %}
-      <a class="d1-status-btn d1-partner-btn{% if filters.partner_id == pb.id %} is-on{% endif %}"
-         href="/admin/d1?view=partner&partner_id={{ pb.id }}{% for s in filters.statuses %}&status={{ s }}{% endfor %}">
-        {{ pb.name }} <small>({{ pb.count }})</small>
-      </a>
-      {% endfor %}
-      {% endif %}
     </div>
-    {% if filters.view_partner and filters.partner_id %}
-    <input type="hidden" name="partner_id" value="{{ filters.partner_id }}" />
-    {% endif %}
   </form>
 </section>
 
@@ -196,35 +195,25 @@
   <p class="empty">표시할 정비가 없습니다.</p>
   {% endif %}
 </section>
-{% else %}
+{% elif not filters.boards %}
 <section class="card">
-  <div class="wo-list-head">
-    <h2>
-      {{ board_title }}
-      <small class="text-muted">
-        ({{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})
-      </small>
-    </h2>
-  </div>
-  {% if filters.boards and 'scheduled' in filters.boards %}
-  <p class="d1-hint">오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)</p>
-  {% endif %}
-  {% if not filters.boards %}
   <p class="empty">작업 구분 버튼을 선택하세요. (다시 누르면 해제됩니다)</p>
-  {% else %}
-  {{ wo_board_table(board_orders, partners, "표시할 항목이 없습니다.", filters) }}
-  {% endif %}
-  {% set ns = namespace(base='/admin/d1?') %}
-  {% set parts = [] %}
-  {% if filters.boards %}
-    {% for b in filters.boards %}{% set _ = parts.append('board=' ~ b) %}{% endfor %}
-  {% else %}
-    {% set _ = parts.append('board=') %}
-  {% endif %}
-  {% for s in filters.statuses %}{% set _ = parts.append('status=' ~ s) %}{% endfor %}
-  {% set base_url = '/admin/d1' ~ (('?' ~ parts|join('&')) if parts else '') %}
-  {% include "partials/pager.html" %}
 </section>
+{% else %}
+  {% for section in board_sections %}
+  <section class="card d1-board-section" id="d1-section-{{ section.key }}">
+    <div class="wo-list-head">
+      <h2>
+        {{ section.title }}
+        <small class="text-muted">({{ section.orders|length }}건)</small>
+      </h2>
+    </div>
+    {% if section.hint %}
+    <p class="d1-hint">{{ section.hint }}</p>
+    {% endif %}
+    {{ wo_board_table(section.orders, partners, "표시할 항목이 없습니다.", filters) }}
+  </section>
+  {% endfor %}
 {% endif %}
 
 <script>
@@ -238,7 +227,7 @@
     excel.href = '/admin/d1/export' + (qs ? ('?' + qs) : '');
   }
   if (form) {
-    form.querySelectorAll('input[name="status"], input[name="view"]').forEach(function (cb) {
+    form.querySelectorAll('input[name="status"]').forEach(function (cb) {
       cb.addEventListener('change', function () { form.submit(); });
     });
     syncExcel();
