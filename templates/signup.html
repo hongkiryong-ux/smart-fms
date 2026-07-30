@@ -20,25 +20,39 @@
     {% elif error == 'role' %}
     <div class="alert alert-error">선택할 수 없는 역할입니다.</div>
     {% endif %}
-    <form method="post" action="/admin/signup" class="form-stack">
-      <label>아이디</label>
-      <input type="text" name="username" required autofocus autocomplete="username" />
-      <label>이름</label>
-      <input type="text" name="name" required autocomplete="name" />
-      <label>역할</label>
-      <select name="role" required>
-        {% for r in signup_roles %}
-        <option value="{{ r.value }}" {% if r.value == 'facility_manager' %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
-        {% endfor %}
-      </select>
-      <label>비밀번호</label>
-      <input type="password" name="password" required minlength="6" autocomplete="new-password" />
-      <label>비밀번호 확인</label>
-      <input type="password" name="password2" required minlength="6" autocomplete="new-password" />
-      <label>연락처</label>
-      <input type="text" name="phone" autocomplete="tel" />
-      <label>이메일</label>
-      <input type="email" name="email" autocomplete="email" />
+    <form method="post" action="/admin/signup" class="form-stack login-form">
+      <div class="login-field">
+        <label for="signup-username">아이디</label>
+        <input type="text" id="signup-username" name="username" required autofocus autocomplete="username" />
+      </div>
+      <div class="login-field">
+        <label for="signup-name">이름</label>
+        <input type="text" id="signup-name" name="name" required autocomplete="name" />
+      </div>
+      <div class="login-field">
+        <label for="signup-role">역할</label>
+        <select id="signup-role" name="role" required>
+          {% for r in signup_roles %}
+          <option value="{{ r.value }}" {% if r.value == 'facility_manager' %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="login-field">
+        <label for="signup-password">비밀번호</label>
+        <input type="password" id="signup-password" name="password" required minlength="6" autocomplete="new-password" />
+      </div>
+      <div class="login-field">
+        <label for="signup-password2">비밀번호 확인</label>
+        <input type="password" id="signup-password2" name="password2" required minlength="6" autocomplete="new-password" />
+      </div>
+      <div class="login-field">
+        <label for="signup-phone">연락처</label>
+        <input type="text" id="signup-phone" name="phone" autocomplete="tel" />
+      </div>
+      <div class="login-field">
+        <label for="signup-email">이메일</label>
+        <input type="email" id="signup-email" name="email" autocomplete="email" />
+      </div>
       <button type="submit" class="btn btn-primary btn-block login-submit">가입신청</button>
     </form>
     <p class="login-hint"><a href="/admin/login">로그인으로 돌아가기</a></p>
