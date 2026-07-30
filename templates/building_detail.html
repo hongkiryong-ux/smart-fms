@@ -65,5 +65,73 @@
   </section>
 </div>
 
+{% if message %}<p class="flash ok">{{ message }}</p>{% endif %}
+{% if error %}<p class="flash err">{{ error }}</p>{% endif %}
+
+<section class="card building-drawings-card">
+  <h2>도면 첨부</h2>
+  <p class="text-muted" style="margin-top:-0.35rem">이미지·PDF·DWG/DXF 파일을 첨부할 수 있습니다. 필요 시 층에 연결하세요.</p>
+
+  <form method="post"
+        action="/admin/buildings/{{ building.id }}/drawings"
+        enctype="multipart/form-data"
+        class="form-stack drawing-upload-form">
+    <div class="drawing-upload-grid">
+      <div>
+        <label>도면 제목</label>
+        <input type="text" name="title" placeholder="비우면 파일명 사용" />
+      </div>
+      <div>
+        <label>연결 층 (선택)</label>
+        <select name="floor_id">
+          <option value="">건물 공통</option>
+          {% for floor in active_floors %}
+          <option value="{{ floor.id }}">{{ floor.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="drawing-file-field">
+        <label>파일</label>
+        <input type="file" name="files" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,.pdf,.dwg,.dxf,image/*,application/pdf" required />
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">도면 업로드</button>
+  </form>
+
+  {% if drawings %}
+  <div class="drawing-list">
+    {% for d in drawings %}
+    <article class="drawing-item">
+      <div class="drawing-preview">
+        {% if d.is_image %}
+        <a href="{{ d.url }}" target="_blank" rel="noopener">
+          <img src="{{ d.url }}" alt="{{ d.title }}" />
+        </a>
+        {% else %}
+        <a class="drawing-file-link" href="{{ d.url }}" target="_blank" rel="noopener">파일 보기</a>
+        {% endif %}
+      </div>
+      <div class="drawing-meta">
+        <strong>{{ d.title }}</strong>
+        <span class="text-muted">
+          {% if d.floor %}{{ d.floor.name }} · {% else %}건물 공통 · {% endif %}
+          {{ d.original_name or d.stored_name }}
+        </span>
+        <div class="drawing-actions">
+          <a class="btn btn-sm btn-secondary" href="{{ d.url }}" download="{{ d.original_name or d.stored_name }}">다운로드</a>
+          <form method="post" action="/admin/buildings/{{ building.id }}/drawings/{{ d.id }}/delete" class="inline-form"
+                onsubmit="return confirm('도면 «{{ d.title }}»을(를) 삭제할까요?');">
+            <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+          </form>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">첨부된 도면이 없습니다.</p>
+  {% endif %}
+</section>
+
 <p><a href="/admin/sites">&larr; 사업장 목록</a></p>
 {% endblock %}

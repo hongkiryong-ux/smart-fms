@@ -121,6 +121,39 @@ class Building(Base):
 
     site = relationship("Site", back_populates="buildings")
     floors = relationship("Floor", back_populates="building", cascade="all, delete-orphan")
+    drawings = relationship(
+        "BuildingDrawing", back_populates="building", cascade="all, delete-orphan"
+    )
+
+
+class BuildingDrawing(Base):
+    """건물 도면 첨부 파일."""
+
+    __tablename__ = "building_drawings"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    floor_id = Column(Integer, ForeignKey("floors.id"), nullable=True, index=True)
+    title = Column(String(200), nullable=False)
+    original_name = Column(String(300), nullable=True)
+    stored_name = Column(String(300), nullable=False)
+    content_type = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building", back_populates="drawings")
+    floor = relationship("Floor")
+
+    @property
+    def url(self) -> str:
+        return f"/static/uploads/buildings/{self.building_id}/{self.stored_name}"
+
+    @property
+    def is_image(self) -> bool:
+        ct = (self.content_type or "").lower()
+        name = (self.original_name or self.stored_name or "").lower()
+        if ct.startswith("image/"):
+            return True
+        return name.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"))
 
 
 class Floor(Base):

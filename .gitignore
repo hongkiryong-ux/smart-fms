@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 smart_fms.db
 qr_codes/
+static/uploads/
 .env.render
 .env
 risk_assessment/data/ai_settings.json

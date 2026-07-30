@@ -263,6 +263,26 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE zones ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"
         )
         await _exec("UPDATE zones SET is_active = TRUE WHERE is_active IS NULL")
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS building_drawings (
+                id SERIAL PRIMARY KEY,
+                building_id INTEGER NOT NULL REFERENCES buildings(id),
+                floor_id INTEGER REFERENCES floors(id),
+                title VARCHAR(200) NOT NULL,
+                original_name VARCHAR(300),
+                stored_name VARCHAR(300) NOT NULL,
+                content_type VARCHAR(100),
+                created_at TIMESTAMP WITHOUT TIME ZONE
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_building_drawings_building_id ON building_drawings (building_id)"
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_building_drawings_floor_id ON building_drawings (floor_id)"
+        )
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
@@ -298,6 +318,20 @@ async def ensure_schema_updates() -> None:
         await _exec("UPDATE work_orders SET is_active = 1 WHERE is_active IS NULL")
         await _exec("UPDATE floors SET is_active = 1 WHERE is_active IS NULL")
         await _exec("UPDATE zones SET is_active = 1 WHERE is_active IS NULL")
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS building_drawings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                building_id INTEGER NOT NULL,
+                floor_id INTEGER,
+                title VARCHAR(200) NOT NULL,
+                original_name VARCHAR(300),
+                stored_name VARCHAR(300) NOT NULL,
+                content_type VARCHAR(100),
+                created_at DATETIME
+            )
+            """
+        )
         await _exec(
             """
             CREATE TABLE IF NOT EXISTS pm_inspections (

@@ -30,6 +30,7 @@ from database import AsyncSessionLocal, Base, engine, get_db, ensure_schema_upda
 from init_data import seed_if_empty
 from models import (
     Building,
+    BuildingDrawing,
     Consumable,
     D1Plan,
     D1Status,
@@ -821,6 +822,8 @@ async def building_detail(
     request: Request,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
+    message: str = "",
+    error: str = "",
 ):
     result = await db.execute(
         select(Building)
@@ -828,13 +831,158 @@ async def building_detail(
         .options(
             selectinload(Building.site),
             selectinload(Building.floors).selectinload(Floor.zones),
+            selectinload(Building.drawings).selectinload(BuildingDrawing.floor),
         )
     )
     building = result.scalar_one_or_none()
     if not building or not building.is_active:
         raise HTTPException(404)
+    drawings = sorted(
+        building.drawings or [],
+        key=lambda d: (d.created_at or datetime.min, d.id or 0),
+        reverse=True,
+    )
+    active_floors = sorted(
+        [f for f in (building.floors or []) if getattr(f, "is_active", True)],
+        key=lambda f: (f.level or 0, f.name or "", f.id),
+    )
     return templates.TemplateResponse(
-        request, "building_detail.html", {"user": user, "building": building}
+        request,
+        "building_detail.html",
+        {
+            "user": user,
+            "building": building,
+            "drawings": drawings,
+            "active_floors": active_floors,
+            "message": message,
+            "error": error,
+        },
+    )
+
+
+DRAWING_ALLOWED_EXT = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".pdf",
+    ".dwg",
+    ".dxf",
+}
+
+
+def _building_upload_dir(building_id: int) -> Path:
+    path = Path("static") / "uploads" / "buildings" / str(building_id)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+@app.post("/admin/buildings/{building_id}/drawings")
+async def building_drawing_upload(
+    building_id: int,
+    title: str = Form(""),
+    floor_id: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    import uuid
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        raise HTTPException(404)
+
+    raw_files = files if isinstance(files, list) else ([files] if files else [])
+    uploads = [f for f in raw_files if f and getattr(f, "filename", None)]
+    if not uploads:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error={quote('도면 파일을 선택하세요.')}",
+            status_code=303,
+        )
+
+    linked_floor_id = None
+    if str(floor_id).strip().isdigit():
+        fid = int(str(floor_id).strip())
+        floor = await db.get(Floor, fid)
+        if floor and floor.building_id == building_id and getattr(floor, "is_active", True):
+            linked_floor_id = fid
+
+    upload_dir = _building_upload_dir(building_id)
+    saved = 0
+    skipped = 0
+    common_title = (title or "").strip()
+
+    for f in uploads:
+        original = Path(f.filename or "drawing").name
+        suffix = Path(original).suffix.lower()
+        if suffix not in DRAWING_ALLOWED_EXT:
+            skipped += 1
+            continue
+        stored = f"{uuid.uuid4().hex}{suffix}"
+        dest = upload_dir / stored
+        data = await f.read()
+        if not data:
+            skipped += 1
+            continue
+        dest.write_bytes(data)
+        draw_title = common_title or Path(original).stem or "도면"
+        db.add(
+            BuildingDrawing(
+                building_id=building_id,
+                floor_id=linked_floor_id,
+                title=draw_title[:200],
+                original_name=original[:300],
+                stored_name=stored,
+                content_type=f.content_type or None,
+            )
+        )
+        saved += 1
+
+    if not saved:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error="
+            + quote("업로드 가능한 파일이 없습니다. (이미지/PDF/DWG/DXF)"),
+            status_code=303,
+        )
+
+    await db.commit()
+    msg = f"도면 {saved}건 첨부 완료"
+    if skipped:
+        msg += f" (제외 {skipped}건)"
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}?message={quote(msg)}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/buildings/{building_id}/drawings/{drawing_id}/delete")
+async def building_drawing_delete(
+    building_id: int,
+    drawing_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    drawing = await db.get(BuildingDrawing, drawing_id)
+    if not drawing or drawing.building_id != building_id:
+        raise HTTPException(404)
+
+    file_path = Path("static") / "uploads" / "buildings" / str(building_id) / drawing.stored_name
+    await db.delete(drawing)
+    await db.commit()
+    try:
+        if file_path.is_file():
+            file_path.unlink()
+    except OSError:
+        pass
+
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}?message={quote('도면이 삭제되었습니다.')}",
+        status_code=303,
     )
 
 

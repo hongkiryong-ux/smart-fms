@@ -583,6 +583,99 @@ body {
 .flash.ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .flash.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 
+.building-drawings-card {
+  margin-top: 0.25rem;
+}
+
+.drawing-upload-form {
+  margin-bottom: 1.25rem;
+}
+
+.drawing-upload-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr 1.4fr;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.drawing-upload-grid label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+}
+
+.drawing-upload-grid input[type="text"],
+.drawing-upload-grid select,
+.drawing-upload-grid input[type="file"] {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.drawing-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.drawing-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fafbfc;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawing-preview {
+  background: #eef2f7;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drawing-preview img {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.drawing-file-link {
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.drawing-meta {
+  padding: 0.75rem 0.85rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.drawing-meta strong {
+  font-size: 0.95rem;
+}
+
+.drawing-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.45rem;
+}
+
+@media (max-width: 800px) {
+  .drawing-upload-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* 사업장 / 건물 카드 */
 .sites-layout .card-wide { min-width: 0; }
 
