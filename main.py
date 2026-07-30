@@ -2325,6 +2325,9 @@ async def work_orders_list(
 ):
     q_val = (q or "").strip()
     status_vals = _parse_wo_status_filters(status)
+    # 처음 진입(상태 미지정) 시 정비의뢰만 표시
+    if not status_vals:
+        status_vals = ["received"]
     priority_val = (priority or "").strip()
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
@@ -2457,6 +2460,8 @@ async def work_orders_export(
     """정비관리 목록(현재 필터) Excel 내보내기."""
     q_val = (q or "").strip()
     status_vals = _parse_wo_status_filters(status)
+    if not status_vals:
+        status_vals = ["received"]
     priority_val = (priority or "").strip()
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
@@ -3861,13 +3866,19 @@ async def pm_list(
 ):
     today = _today_kst()
     due_only = due in ("1", "due", "overdue")
-    schedules = await _pm_filtered_schedules(
-        db,
-        q=q,
-        building_id=building_id,
-        equipment_id=equipment_id,
-        due_only=due_only,
-    )
+    active_tab = tab if tab in ("list", "settings") else "list"
+
+    # 점검목록: 건물 선택 전에는 목록을 조회·표시하지 않음
+    if active_tab == "list" and not building_id:
+        schedules = []
+    else:
+        schedules = await _pm_filtered_schedules(
+            db,
+            q=q,
+            building_id=building_id,
+            equipment_id=equipment_id,
+            due_only=due_only,
+        )
 
     buildings = _sort_buildings(
         (
@@ -3937,7 +3948,7 @@ async def pm_list(
             "buildings": buildings,
             "equipment_list": equipment_list,
             "today": today,
-            "tab": tab if tab in ("list", "settings") else "list",
+            "tab": active_tab,
             "filters": {
                 "q": q,
                 "building_id": building_id,

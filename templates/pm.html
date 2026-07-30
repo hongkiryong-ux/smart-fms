@@ -112,11 +112,15 @@
   <div class="wo-list-head">
     <h2>
       예방점검 목록
+      {% if filters.building_id %}
       <small class="text-muted">({{ schedules|length }}건)</small>
+      {% endif %}
     </h2>
     <div class="row-actions">
+      {% if filters.building_id %}
       <a class="btn btn-sm btn-secondary"
          href="/admin/pm/export?q={{ filters.q|urlencode }}{% if filters.building_id %}&building_id={{ filters.building_id }}{% endif %}{% if filters.equipment_id %}&equipment_id={{ filters.equipment_id }}{% endif %}{% if filters.due %}&due=1{% endif %}">Excel 저장</a>
+      {% endif %}
       <a class="btn btn-sm btn-primary" href="/admin/pm?tab=settings">주기설정</a>
     </div>
   </div>
@@ -140,8 +144,6 @@
     <details class="pm-filter-details" open>
       <summary>건물별 필터</summary>
       <div class="pm-filter-chips">
-        <a class="pm-chip{% if not filters.building_id %} active{% endif %}"
-           href="/admin/pm?q={{ filters.q|urlencode }}{% if filters.due %}&due=1{% endif %}">전체</a>
         {% for b in buildings %}
         <a class="pm-chip{% if filters.building_id == b.id %} active{% endif %}"
            href="/admin/pm?building_id={{ b.id }}&q={{ filters.q|urlencode }}{% if filters.due %}&due=1{% endif %}">{{ b.name }}</a>
@@ -149,6 +151,7 @@
       </div>
     </details>
 
+    {% if filters.building_id %}
     <details class="pm-filter-details" {% if filters.equipment_id or filters.building_id %}open{% endif %}>
       <summary>설비별 필터</summary>
       <div class="pm-filter-chips">
@@ -164,9 +167,12 @@
         {% endfor %}
       </div>
     </details>
+    {% endif %}
   </div>
 
-  {% if grouped_list %}
+  {% if not filters.building_id %}
+  <p class="empty pm-select-building-hint">건물별 필터에서 건물을 선택하면 점검 목록이 표시됩니다.</p>
+  {% elif grouped_list %}
   <div class="pm-building-groups">
     {% for g in grouped_list %}
     <details class="pm-building-group" open>
