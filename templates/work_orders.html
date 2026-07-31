@@ -1,6 +1,118 @@
 {% extends "base.html" %}
 {% block title %}정비관리{% endblock %}
 {% block content %}
+{% macro wo_row(wo) -%}
+      <tr class="{% if wo.id in today_receipt_ids %}wo-today-receipt{% endif %}">
+        <td class="wo-eq-cell">
+          {% if wo.equipment %}
+          <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
+            <code>{{ wo.equipment.code }}</code>
+            <span class="wo-eq-name">{{ wo.equipment.name }}</span>
+          </div>
+          {% else %}-{% endif %}
+        </td>
+        <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
+          <span class="wo-req-text">
+            {% if wo.id in today_receipt_ids %}<span class="badge badge-wo">오늘접수</span> {% endif %}
+            {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
+          </span>
+        </td>
+        <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
+        <td>
+          <input type="date"
+                 name="scheduled_date"
+                 form="wo-form-{{ wo.id }}"
+                 class="wo-sched-input"
+                 value="{{ wo.scheduled_date or '' }}"
+                 title="정비 예정일" />
+        </td>
+        <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
+        <td>
+          <select name="partner_id" form="wo-form-{{ wo.id }}" class="wo-partner-select" title="협력사">
+            <option value="0">미지정</option>
+            {% for p in partners %}
+            <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
+            <input type="hidden" name="redirect" value="list" />
+            <input type="hidden" name="q" value="{{ filters.q }}" />
+            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+            <input type="hidden" name="filter_partner_id" value="{{ filters.partner_id or 0 }}" />
+            <input type="hidden" name="page" value="{{ filters.page }}" />
+            <select name="status" class="wo-status-select" form="wo-form-{{ wo.id }}">
+              <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
+              <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
+              <option value="completed" {% if wo.status.value in ['completed','verified','closed'] %}selected{% endif %}>정비완료</option>
+            </select>
+          </form>
+        </td>
+        <td>
+          <input type="text"
+                 name="action"
+                 form="wo-form-{{ wo.id }}"
+                 class="wo-action-input"
+                 value="{{ wo.action or '' }}"
+                 placeholder="조치내용"
+                 title="{{ wo.action or '' }}" />
+        </td>
+        <td>
+          <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
+        </td>
+        <td>
+          <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
+        </td>
+        {% if user_can_delete(user) %}
+        <td>
+          <form method="post" action="/admin/work-orders/{{ wo.id }}/delete" class="inline-form"
+                onsubmit="return confirm('이 정비의뢰를 삭제할까요?');">
+            <input type="hidden" name="redirect" value="list" />
+            <input type="hidden" name="q" value="{{ filters.q }}" />
+            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+            <input type="hidden" name="filter_partner_id" value="{{ filters.partner_id or 0 }}" />
+            <input type="hidden" name="page" value="{{ filters.page }}" />
+            <button type="submit" class="link-action link-danger">삭제</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+{%- endmacro %}
+{% macro wo_table(rows) -%}
+  <div class="table-scroll">
+  <table class="data-table wo-list-table wo-list-compact">
+    <thead>
+      <tr>
+        <th class="wo-eq-col-head">설비</th>
+        <th>정비의뢰내용</th>
+        <th>등록일</th>
+        <th>예정일</th>
+        <th>우선순위</th>
+        <th>협력사</th>
+        <th>진행</th>
+        <th>조치내용</th>
+        <th>저장</th>
+        <th>상세</th>
+        {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for wo in rows %}
+      {{ wo_row(wo) }}
+      {% else %}
+      <tr><td colspan="{% if user_can_delete(user) %}11{% else %}10{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{%- endmacro %}
 <header class="page-header">
   <h1>정비관리 (CMMS)</h1>
   <p>정비의뢰 → 정비진행 → 정비완료 · 예정일 지정 시 D-1에 자동 표시</p>
@@ -9,7 +121,7 @@
 <section class="card">
   <div class="wo-list-head">
     <h2>
-      정비 목록
+      {% if selected_partner_name %}{{ selected_partner_name }} · {% endif %}정비 목록
       <small class="text-muted">({{ result_count }}건{% if pager and pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small>
     </h2>
     <div class="row-actions">
@@ -27,6 +139,9 @@
   </div>
 
   <form method="get" action="/admin/work-orders" class="wo-filter-bar" id="wo-filter-form">
+    {% if filters.partner_id %}
+    <input type="hidden" name="partner_id" value="{{ filters.partner_id }}" />
+    {% endif %}
     <input type="search"
            name="q"
            value="{{ filters.q }}"
@@ -66,121 +181,34 @@
     <span class="wo-filter-tilde">~</span>
     <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo-filter-date" title="등록일 종료" />
     <button type="submit" class="btn btn-sm btn-primary">검색</button>
-    <a class="btn btn-sm btn-secondary" href="/admin/work-orders">초기화</a>
+    <a class="btn btn-sm btn-secondary" href="/admin/work-orders{% if filters.partner_id %}?partner_id={{ filters.partner_id }}{% endif %}">초기화</a>
   </form>
 
-  <div class="table-scroll">
-  <table class="data-table wo-list-table wo-list-compact">
-    <thead>
-      <tr>
-        <th class="wo-eq-col-head">설비</th>
-        <th>정비의뢰내용</th>
-        <th>등록일</th>
-        <th>예정일</th>
-        <th>우선순위</th>
-        <th>협력사</th>
-        <th>진행</th>
-        <th>조치내용</th>
-        <th>저장</th>
-        <th>상세</th>
-        {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for wo in orders %}
-      <tr>
-        <td class="wo-eq-cell">
-          {% if wo.equipment %}
-          <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
-            <code>{{ wo.equipment.code }}</code>
-            <span class="wo-eq-name">{{ wo.equipment.name }}</span>
-          </div>
-          {% else %}-{% endif %}
-        </td>
-        <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
-          <span class="wo-req-text">
-            {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
-          </span>
-        </td>
-        <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
-        <td>
-          <input type="date"
-                 name="scheduled_date"
-                 form="wo-form-{{ wo.id }}"
-                 class="wo-sched-input"
-                 value="{{ wo.scheduled_date or '' }}"
-                 title="정비 예정일" />
-        </td>
-        <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
-        <td>
-          <select name="partner_id" form="wo-form-{{ wo.id }}" class="wo-partner-select" title="협력사">
-            <option value="0">미지정</option>
-            {% for p in partners %}
-            <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
-            {% endfor %}
-          </select>
-        </td>
-        <td>
-          <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
-            <input type="hidden" name="redirect" value="list" />
-            <input type="hidden" name="q" value="{{ filters.q }}" />
-            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-            <input type="hidden" name="page" value="{{ filters.page }}" />
-            <select name="status" class="wo-status-select" form="wo-form-{{ wo.id }}">
-              <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
-              <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
-              <option value="completed" {% if wo.status.value in ['completed','verified','closed'] %}selected{% endif %}>정비완료</option>
-            </select>
-          </form>
-        </td>
-        <td>
-          <input type="text"
-                 name="action"
-                 form="wo-form-{{ wo.id }}"
-                 class="wo-action-input"
-                 value="{{ wo.action or '' }}"
-                 placeholder="조치내용"
-                 title="{{ wo.action or '' }}" />
-        </td>
-        <td>
-          <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
-        </td>
-        <td>
-          <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
-        </td>
-        {% if user_can_delete(user) %}
-        <td>
-          <form method="post" action="/admin/work-orders/{{ wo.id }}/delete" class="inline-form"
-                onsubmit="return confirm('이 정비의뢰를 삭제할까요?');">
-            <input type="hidden" name="redirect" value="list" />
-            <input type="hidden" name="q" value="{{ filters.q }}" />
-            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-            <input type="hidden" name="page" value="{{ filters.page }}" />
-            <button type="submit" class="link-action link-danger">삭제</button>
-          </form>
-        </td>
-        {% endif %}
-      </tr>
-      {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}11{% else %}10{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if partner_groups %}
+  <p class="d1-hint">협력사별로 묶었으며, 당일 접수·협력사 지정 정비의뢰는 각 협력사 목록 최상단에 표시됩니다.</p>
+  <div class="d1-partner-groups">
+    {% for g in partner_groups %}
+    <details class="d1-partner-group" open>
+      <summary>
+        {{ g.name }}
+        <small class="text-muted">({{ g.orders|length }}건{% if g.today_count %} · 오늘접수 {{ g.today_count }}건{% endif %})</small>
+      </summary>
+      {{ wo_table(g.orders) }}
+    </details>
+    {% endfor %}
   </div>
+  {% else %}
+  {{ wo_table(orders) }}
   {% set qs = [] %}
   {% for s in filters.statuses %}{% set _ = qs.append('status=' ~ s) %}{% endfor %}
   {% if filters.q %}{% set _ = qs.append('q=' ~ (filters.q|urlencode)) %}{% endif %}
   {% if filters.priority %}{% set _ = qs.append('priority=' ~ filters.priority) %}{% endif %}
   {% if filters.date_from %}{% set _ = qs.append('date_from=' ~ filters.date_from) %}{% endif %}
   {% if filters.date_to %}{% set _ = qs.append('date_to=' ~ filters.date_to) %}{% endif %}
+  {% if filters.partner_id %}{% set _ = qs.append('partner_id=' ~ filters.partner_id) %}{% endif %}
   {% set base_url = '/admin/work-orders' ~ (('?' ~ qs|join('&')) if qs else '') %}
   {% include "partials/pager.html" %}
+  {% endif %}
 </section>
 
 <dialog id="wo-create-dialog" class="eq-dialog wo-create-dialog">

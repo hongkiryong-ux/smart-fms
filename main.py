@@ -401,6 +401,61 @@ def _wo_matches_status_filter(wo: WorkOrder, status_vals: list[str]) -> bool:
     return False
 
 
+def _wo_created_date_kst(wo: WorkOrder) -> date | None:
+    dt = getattr(wo, "created_at", None)
+    if dt is None:
+        return None
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(KST).date()
+    if isinstance(dt, date):
+        return dt
+    return None
+
+
+def _wo_is_today_partner_receipt(wo: WorkOrder, today: date | None = None) -> bool:
+    """당일 접수 + 협력사 지정된 정비의뢰."""
+    if not getattr(wo, "partner_id", None):
+        return False
+    key = wo.status.value if isinstance(wo.status, WorkOrderStatus) else str(wo.status)
+    if key not in ("received", "assigned"):
+        return False
+    day = today or _today_kst()
+    return _wo_created_date_kst(wo) == day
+
+
+def _sort_orders_today_receipt_first(orders: list, today: date | None = None) -> list:
+    day = today or _today_kst()
+
+    def _key(w: WorkOrder):
+        pin = 0 if _wo_is_today_partner_receipt(w, day) else 1
+        created = getattr(w, "created_at", None) or datetime.min
+        ts = created.timestamp() if isinstance(created, datetime) else 0.0
+        return (pin, -ts, -(getattr(w, "id", 0) or 0))
+
+    return sorted(orders, key=_key)
+
+
+def _partner_groups_for_orders(orders: list, today: date | None = None) -> list[dict]:
+    day = today or _today_kst()
+    by_partner: dict[str, list] = {}
+    for w in orders:
+        name = w.partner.name if getattr(w, "partner", None) else "미지정"
+        by_partner.setdefault(name, []).append(w)
+    groups: list[dict] = []
+    for name in sorted(by_partner.keys(), key=lambda n: (n == "미지정", n)):
+        items = _sort_orders_today_receipt_first(by_partner[name], day)
+        groups.append(
+            {
+                "name": name,
+                "orders": items,
+                "today_count": sum(1 for w in items if _wo_is_today_partner_receipt(w, day)),
+            }
+        )
+    return groups
+
+
 def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목록"):
     from io import BytesIO
     from urllib.parse import quote
@@ -2987,6 +3042,7 @@ async def work_orders_list(
     priority: str = "",
     date_from: str = "",
     date_to: str = "",
+    partner_id: int = 0,
     page: int = Query(1),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
@@ -2999,6 +3055,11 @@ async def work_orders_list(
     priority_val = (priority or "").strip()
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
+    try:
+        partner_sel = int(partner_id or 0)
+    except (TypeError, ValueError):
+        partner_sel = 0
+    today = _today_kst()
 
     stmt = (
         select(WorkOrder)
@@ -3028,6 +3089,11 @@ async def work_orders_list(
     if priority_val in ("normal", "high"):
         filters.append(WorkOrder.priority == priority_val)
 
+    if partner_sel > 0:
+        filters.append(WorkOrder.partner_id == partner_sel)
+    elif partner_sel == -1:
+        filters.append(WorkOrder.partner_id.is_(None))
+
     if date_from_val:
         try:
             filters.append(
@@ -3047,17 +3113,49 @@ async def work_orders_list(
     if filters:
         stmt = stmt.where(and_(*filters))
 
-    all_orders = (
-        await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
-    ).scalars().unique().all()
-    pager = _paginate(list(all_orders), page)
-    orders = pager["items"]
+    all_orders = list(
+        (
+            await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
+        ).scalars().unique().all()
+    )
+    all_orders = _sort_orders_today_receipt_first(all_orders, today)
 
     partners = (
         await db.execute(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
         )
     ).scalars().all()
+
+    selected_partner_name = ""
+    if partner_sel == -1:
+        selected_partner_name = "미지정"
+    elif partner_sel > 0:
+        for p in partners:
+            if p.id == partner_sel:
+                selected_partner_name = p.name
+                break
+        if not selected_partner_name:
+            selected_partner_name = f"협력사 #{partner_sel}"
+
+    # 전체 보기: 협력사별 그룹(당일 접수·배정 건을 각 그룹 최상단)
+    # 특정 협력사: 평면 목록 + 페이지네이션
+    partner_groups: list[dict] = []
+    if partner_sel == 0:
+        partner_groups = _partner_groups_for_orders(all_orders, today)
+        pager = {
+            "page": 1,
+            "total": len(all_orders),
+            "total_pages": 1,
+            "page_numbers": [1],
+            "has_prev": False,
+            "has_next": False,
+            "items": all_orders,
+            "per_page": max(1, len(all_orders) or 1),
+        }
+        orders = all_orders
+    else:
+        pager = _paginate(all_orders, page)
+        orders = pager["items"]
 
     buildings = (
         await db.execute(
@@ -3100,11 +3198,19 @@ async def work_orders_list(
         {
             "user": user,
             "orders": orders,
+            "partner_groups": partner_groups,
             "pager": pager,
             "partners": partners,
             "buildings": buildings,
             "equipment_opts": equipment_opts,
             "equipment_opts_json": json.dumps(equipment_opts, ensure_ascii=False),
+            "today": today.isoformat(),
+            "selected_partner_name": selected_partner_name,
+            "today_receipt_ids": {
+                int(w.id)
+                for w in all_orders
+                if _wo_is_today_partner_receipt(w, today)
+            },
             "filters": {
                 "q": q_val,
                 "status": ",".join(status_vals),
@@ -3112,6 +3218,7 @@ async def work_orders_list(
                 "priority": priority_val,
                 "date_from": date_from_val,
                 "date_to": date_to_val,
+                "partner_id": partner_sel,
                 "page": pager["page"],
             },
             "result_count": pager["total"],
@@ -3126,6 +3233,7 @@ async def work_orders_export(
     priority: str = "",
     date_from: str = "",
     date_to: str = "",
+    partner_id: int = 0,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -3137,6 +3245,10 @@ async def work_orders_export(
     priority_val = (priority or "").strip()
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
+    try:
+        partner_sel = int(partner_id or 0)
+    except (TypeError, ValueError):
+        partner_sel = 0
 
     stmt = (
         select(WorkOrder)
@@ -3162,6 +3274,10 @@ async def work_orders_export(
         filters.append(status_f)
     if priority_val in ("normal", "high"):
         filters.append(WorkOrder.priority == priority_val)
+    if partner_sel > 0:
+        filters.append(WorkOrder.partner_id == partner_sel)
+    elif partner_sel == -1:
+        filters.append(WorkOrder.partner_id.is_(None))
     if date_from_val:
         try:
             filters.append(
@@ -3182,9 +3298,13 @@ async def work_orders_export(
     if filters:
         stmt = stmt.where(and_(*filters))
 
-    orders = (
-        await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
-    ).scalars().unique().all()
+    orders = _sort_orders_today_receipt_first(
+        list(
+            (
+                await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
+            ).scalars().unique().all()
+        )
+    )
     return _work_orders_excel_response(orders, "정비관리")
 
 
@@ -3304,6 +3424,7 @@ async def work_order_status(
     date_from: str = Form(""),
     date_to: str = Form(""),
     page: str = Form(""),
+    filter_partner_id: str = Form(""),
     d1_board: str = Form(""),
     d1_partner_id: str = Form(""),
     user: User = Depends(require_can_edit),
@@ -3381,6 +3502,9 @@ async def work_order_status(
                 "priority": filter_priority.strip(),
                 "date_from": date_from.strip(),
                 "date_to": date_to.strip(),
+                "partner_id": (filter_partner_id or "").strip()
+                if (filter_partner_id or "").strip() not in ("", "0")
+                else "",
                 "page": page.strip() if str(page).strip() not in ("", "1") else "",
             }.items()
             if v
@@ -3400,6 +3524,7 @@ async def work_order_delete(
     date_from: str = Form(""),
     date_to: str = Form(""),
     page: str = Form(""),
+    filter_partner_id: str = Form(""),
     d1_board: str = Form(""),
     d1_partner_id: str = Form(""),
     user: User = Depends(require_can_delete),
@@ -3440,6 +3565,9 @@ async def work_order_delete(
             "priority": filter_priority.strip(),
             "date_from": date_from.strip(),
             "date_to": date_to.strip(),
+            "partner_id": (filter_partner_id or "").strip()
+            if (filter_partner_id or "").strip() not in ("", "0")
+            else "",
             "page": page.strip() if str(page).strip() not in ("", "1") else "",
         }.items()
         if v
