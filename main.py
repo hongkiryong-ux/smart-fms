@@ -288,41 +288,48 @@ def _parse_d1_boards(raw: list[str] | None) -> list[str]:
     for item in raw or []:
         for part in str(item).split(","):
             key = part.strip().lower()
+            if key == "all":
+                return list(D1_BOARD_KEYS)
             if key in D1_BOARD_KEYS and key not in seen:
                 seen.add(key)
                 out.append(key)
     return out
 
 
-def _d1_resolve_boards(request: Request, board_param: list[str] | str | None) -> list[str]:
-    """board 미지정 시 오늘작업, board= 빈값이면 선택 없음(토글 해제)."""
+def _d1_resolve_boards(request: Request, board_param: list[str] | str | None) -> tuple[list[str], str]:
+    """단일 선택: board 미지정 시 오늘작업. board=all 이면 전체항목."""
     if "board" not in request.query_params:
-        return ["today"]
+        return ["today"], "today"
     if isinstance(board_param, str):
         raw = [board_param]
     else:
         raw = list(board_param or [])
-    return _parse_d1_boards(raw)
+    flat: list[str] = []
+    for item in raw:
+        for part in str(item).split(","):
+            key = part.strip().lower()
+            if key:
+                flat.append(key)
+    if "all" in flat:
+        return list(D1_BOARD_KEYS), "all"
+    parsed = _parse_d1_boards(raw)
+    if not parsed:
+        return ["today"], "today"
+    # 단일 선택 — 첫 번째만 사용
+    mode = parsed[0]
+    return [mode], mode
 
 
-def _d1_board_toggle_urls(
-    boards: list[str],
+def _d1_board_select_urls(
     status_vals: list[str],
     partner_id: int = 0,
 ) -> dict[str, str]:
+    """작업 구분 단일 선택 URL (전체/오늘/내일/예정/완료)."""
     from urllib.parse import urlencode
 
     links: dict[str, str] = {}
-    for key in D1_BOARD_KEYS:
-        if key in boards:
-            nxt = [b for b in boards if b != key]
-        else:
-            nxt = list(boards) + [key]
-        params: list[tuple[str, str]] = []
-        if nxt:
-            params.extend(("board", b) for b in nxt)
-        else:
-            params.append(("board", ""))
+    for key in ("all",) + D1_BOARD_KEYS:
+        params: list[tuple[str, str]] = [("board", key)]
         params.extend(("status", s) for s in status_vals)
         if partner_id:
             params.append(("partner_id", str(partner_id)))
@@ -3252,10 +3259,14 @@ async def work_order_status(
 
     await db.commit()
     if redirect == "d1":
-        board_vals = _parse_d1_boards([(d1_board or "").strip()] if (d1_board or "").strip() else [])
-        params: list[tuple[str, str]] = (
-            [("board", b) for b in board_vals] if board_vals else [("board", "")]
-        )
+        board_raw = (d1_board or "").strip().lower()
+        if board_raw == "all":
+            params: list[tuple[str, str]] = [("board", "all")]
+        else:
+            board_vals = _parse_d1_boards([board_raw] if board_raw else [])
+            params = (
+                [("board", board_vals[0])] if board_vals else [("board", "today")]
+            )
         if filter_status.strip():
             for part in filter_status.split(","):
                 p = part.strip()
@@ -3308,10 +3319,14 @@ async def work_order_delete(
     wo.is_active = False
     await db.commit()
     if redirect == "d1":
-        board_vals = _parse_d1_boards([(d1_board or "").strip()] if (d1_board or "").strip() else [])
-        params: list[tuple[str, str]] = (
-            [("board", b) for b in board_vals] if board_vals else [("board", "")]
-        )
+        board_raw = (d1_board or "").strip().lower()
+        if board_raw == "all":
+            params: list[tuple[str, str]] = [("board", "all")]
+        else:
+            board_vals = _parse_d1_boards([board_raw] if board_raw else [])
+            params = (
+                [("board", board_vals[0])] if board_vals else [("board", "today")]
+            )
         if filter_status.strip():
             for part in filter_status.split(","):
                 p = part.strip()
@@ -4018,7 +4033,7 @@ async def d1_list(
     status_pool = _apply_status(list(open_works) + list(completed_raw))
     filtered_all = today_works + tomorrow_works + scheduled_works + completed_works
 
-    boards = _d1_resolve_boards(request, board)
+    boards, board_mode = _d1_resolve_boards(request, board)
     board_map = {
         "today": today_works,
         "tomorrow": tomorrow_works,
@@ -4031,7 +4046,7 @@ async def d1_list(
         "scheduled": "정비 예정항목",
         "completed": "정비완료항목",
     }
-    board_toggle_urls = _d1_board_toggle_urls(boards, status_vals, partner_sel)
+    board_select_urls = _d1_board_select_urls(status_vals, partner_sel)
 
     board_sections: list[dict] = []
     for key in boards:
@@ -4058,8 +4073,10 @@ async def d1_list(
             seen_ids.add(wid)
             selected_works.append(w)
 
-    if boards:
-        board_title = " · ".join(board_titles[k] for k in boards if k in board_titles)
+    if board_mode == "all":
+        board_title = "전체항목"
+    elif boards:
+        board_title = board_titles.get(boards[0], boards[0])
     else:
         board_title = "선택된 작업 구분 없음"
 
@@ -4148,7 +4165,7 @@ async def d1_list(
                 "scheduled": len(scheduled_works),
                 "completed": len(completed_works),
             },
-            "board_toggle_urls": board_toggle_urls,
+            "board_select_urls": board_select_urls,
             "filtered_count": len(filtered_all),
             "partner_groups": partner_groups,
             "partner_btns": partner_btns,
@@ -4159,7 +4176,8 @@ async def d1_list(
                 "view_partner": view_partner,
                 "partner_id": partner_sel,
                 "boards": boards,
-                "board": ",".join(boards),
+                "board": board_mode,
+                "board_mode": board_mode,
                 "page": pager["page"] if pager else 1,
             },
             "partners": partners,
@@ -4254,7 +4272,7 @@ async def d1_export(
     if view_partner:
         orders = today_o + tomorrow_o + scheduled_o + completed_o
     else:
-        boards = _d1_resolve_boards(request, board)
+        boards, _board_mode = _d1_resolve_boards(request, board)
         board_map = {
             "today": today_o,
             "tomorrow": tomorrow_o,

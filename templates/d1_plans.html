@@ -127,34 +127,25 @@
   </div>
 
   <div class="d1-board-btns" role="group" aria-label="작업 구분 필터">
-    <a class="d1-board-btn{% if 'today' in filters.boards and not filters.view_partner %} is-on{% endif %}"
-       href="{{ board_toggle_urls.today }}">오늘작업 <small>({{ board_counts.today }})</small></a>
-    <a class="d1-board-btn{% if 'tomorrow' in filters.boards and not filters.view_partner %} is-on{% endif %}"
-       href="{{ board_toggle_urls.tomorrow }}">내일작업 <small>({{ board_counts.tomorrow }})</small></a>
-    <a class="d1-board-btn{% if 'scheduled' in filters.boards and not filters.view_partner %} is-on{% endif %}"
-       href="{{ board_toggle_urls.scheduled }}">정비 예정항목 <small>({{ board_counts.scheduled }})</small></a>
-    <a class="d1-board-btn{% if 'completed' in filters.boards and not filters.view_partner %} is-on{% endif %}"
-       href="{{ board_toggle_urls.completed }}">정비완료항목 <small>({{ board_counts.completed }})</small></a>
+    <a class="d1-board-btn{% if filters.board_mode == 'all' and not filters.view_partner %} is-on{% endif %}"
+       href="{{ board_select_urls.all }}">전체항목 <small>({{ filtered_count }})</small></a>
+    <a class="d1-board-btn{% if filters.board_mode == 'today' and not filters.view_partner %} is-on{% endif %}"
+       href="{{ board_select_urls.today }}">오늘작업 <small>({{ board_counts.today }})</small></a>
+    <a class="d1-board-btn{% if filters.board_mode == 'tomorrow' and not filters.view_partner %} is-on{% endif %}"
+       href="{{ board_select_urls.tomorrow }}">내일작업 <small>({{ board_counts.tomorrow }})</small></a>
+    <a class="d1-board-btn{% if filters.board_mode == 'scheduled' and not filters.view_partner %} is-on{% endif %}"
+       href="{{ board_select_urls.scheduled }}">정비 예정항목 <small>({{ board_counts.scheduled }})</small></a>
+    <a class="d1-board-btn{% if filters.board_mode == 'completed' and not filters.view_partner %} is-on{% endif %}"
+       href="{{ board_select_urls.completed }}">정비완료항목 <small>({{ board_counts.completed }})</small></a>
   </div>
 
   <form method="get" action="/admin/d1" class="d1-filter-bar" id="d1-filter-form">
-    {% if filters.boards %}
-      {% for b in filters.boards %}
-      <input type="hidden" name="board" value="{{ b }}" />
-      {% endfor %}
-    {% else %}
-      <input type="hidden" name="board" value="" />
-    {% endif %}
+    <input type="hidden" name="board" value="{{ filters.board_mode or 'today' }}" />
     {% if filters.partner_id %}
     <input type="hidden" name="partner_id" value="{{ filters.partner_id }}" />
     {% endif %}
     <div class="d1-status-btns" role="group" aria-label="진행상태 필터">
-      {% set status_all_qs = [] %}
-      {% if filters.boards %}
-        {% for b in filters.boards %}{% set _ = status_all_qs.append('board=' ~ b) %}{% endfor %}
-      {% else %}
-        {% set _ = status_all_qs.append('board=') %}
-      {% endif %}
+      {% set status_all_qs = ['board=' ~ (filters.board_mode or 'today')] %}
       {% if filters.partner_id %}{% set _ = status_all_qs.append('partner_id=' ~ filters.partner_id) %}{% endif %}
       <a class="d1-status-btn{% if not filters.statuses and not filters.view_partner %} is-on{% endif %}"
          href="/admin/d1?{{ status_all_qs|join('&') }}">전체</a>
@@ -197,7 +188,7 @@
 </section>
 {% elif not filters.boards %}
 <section class="card">
-  <p class="empty">작업 구분 버튼을 선택하세요. (다시 누르면 해제됩니다)</p>
+  <p class="empty">작업 구분을 선택하세요.</p>
 </section>
 {% else %}
   {% for section in board_sections %}
