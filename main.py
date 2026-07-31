@@ -1530,7 +1530,6 @@ async def building_detail(
             selectinload(Building.site),
             selectinload(Building.floors).selectinload(Floor.zones),
             selectinload(Building.drawings).selectinload(BuildingDrawing.floor),
-            selectinload(Building.standards),
         )
     )
     building = result.scalar_one_or_none()
@@ -1538,14 +1537,27 @@ async def building_detail(
         raise HTTPException(404)
     drawings = sorted(
         building.drawings or [],
-        key=lambda d: (d.created_at or datetime.min, d.id or 0),
+        key=_attachment_sort_key,
         reverse=True,
     )
-    standards = sorted(
-        building.standards or [],
-        key=lambda d: (d.created_at or datetime.min, d.id or 0),
-        reverse=True,
-    )
+    try:
+        standards = list(
+            (
+                await db.execute(
+                    select(BuildingStandard)
+                    .where(BuildingStandard.building_id == building_id)
+                    .order_by(BuildingStandard.id.desc())
+                )
+            ).scalars().all()
+        )
+        standards = sorted(standards, key=_attachment_sort_key, reverse=True)
+    except Exception as e:
+        print(f"[standards] load skip building={building_id}: {e}", flush=True)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        standards = []
     active_floors = sorted(
         [f for f in (building.floors or []) if getattr(f, "is_active", True)],
         key=lambda f: (f.level or 0, f.name or "", f.id),
@@ -1802,10 +1814,26 @@ STANDARD_ALLOWED_EXT = {
 }
 
 
-def _building_standards_dir(building_id: int) -> Path:
+def _building_standards_dir(building_id: int) -> Path | None:
     path = Path("static") / "uploads" / "buildings" / str(building_id) / "standards"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    except OSError as e:
+        print(f"[standards] mkdir skip: {e}", flush=True)
+        return None
+
+
+def _attachment_sort_key(item) -> tuple:
+    """created_at 정렬용 — aware/naive 혼용 방지."""
+    created = getattr(item, "created_at", None)
+    if isinstance(created, datetime):
+        if created.tzinfo is not None:
+            created = created.replace(tzinfo=None)
+        ts = created.timestamp()
+    else:
+        ts = 0.0
+    return (ts, int(getattr(item, "id", 0) or 0))
 
 
 def _standard_media_type(doc: BuildingStandard) -> str:
@@ -1900,8 +1928,8 @@ async def building_standard_file(
 @app.post("/admin/buildings/{building_id}/standards")
 async def building_standard_upload(
     building_id: int,
+    request: Request,
     title: str = Form(""),
-    files: list[UploadFile] = File(default=[]),
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1912,8 +1940,28 @@ async def building_standard_upload(
     if not building or not building.is_active:
         raise HTTPException(404)
 
-    raw_files = files if isinstance(files, list) else ([files] if files else [])
-    uploads = [f for f in raw_files if f and getattr(f, "filename", None)]
+    # 배포 DB에 테이블이 아직 없으면 생성 시도
+    try:
+        await ensure_schema_updates()
+    except Exception as e:
+        print(f"[standards] schema ensure: {e}", flush=True)
+
+    try:
+        form = await request.form()
+        raw_files = form.getlist("files")
+    except Exception as e:
+        print(f"[standards] form parse error: {e}", flush=True)
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error="
+            + quote(f"파일 전송 오류: {e}"),
+            status_code=303,
+        )
+
+    uploads = [
+        f
+        for f in raw_files
+        if f is not None and getattr(f, "filename", None) and hasattr(f, "read")
+    ]
     if not uploads:
         return RedirectResponse(
             f"/admin/buildings/{building_id}?error={quote('표준서 파일을 선택하세요.')}",
@@ -1923,49 +1971,72 @@ async def building_standard_upload(
     upload_dir = _building_standards_dir(building_id)
     saved = 0
     skipped = 0
-    common_title = (title or "").strip()
+    common_title = (title or "").strip() or str(form.get("title") or "").strip()
     max_bytes = 25 * 1024 * 1024
 
-    for f in uploads:
-        original = Path(f.filename or "standard").name
-        suffix = Path(original).suffix.lower()
-        if suffix not in STANDARD_ALLOWED_EXT:
-            skipped += 1
-            continue
-        stored = f"{uuid.uuid4().hex}{suffix}"
-        dest = upload_dir / stored
-        data = await f.read()
-        if not data:
-            skipped += 1
-            continue
-        if len(data) > max_bytes:
-            skipped += 1
-            continue
-        try:
-            dest.write_bytes(data)
-        except OSError:
-            pass
-        doc_title = common_title or Path(original).stem or "표준서"
-        db.add(
-            BuildingStandard(
-                building_id=building_id,
-                title=doc_title[:200],
-                original_name=original[:300],
-                stored_name=stored,
-                content_type=f.content_type or None,
-                file_data=data,
+    try:
+        for f in uploads:
+            original = Path(str(getattr(f, "filename", None) or "standard")).name
+            suffix = Path(original).suffix.lower()
+            if suffix not in STANDARD_ALLOWED_EXT:
+                skipped += 1
+                continue
+            stored = f"{uuid.uuid4().hex}{suffix}"
+            data = await f.read()
+            if not data:
+                skipped += 1
+                continue
+            if len(data) > max_bytes:
+                skipped += 1
+                continue
+            if upload_dir is not None:
+                try:
+                    (upload_dir / stored).write_bytes(data)
+                except OSError:
+                    pass
+            doc_title = common_title or Path(original).stem or "표준서"
+            db.add(
+                BuildingStandard(
+                    building_id=building_id,
+                    title=doc_title[:200],
+                    original_name=original[:300],
+                    stored_name=stored,
+                    content_type=getattr(f, "content_type", None) or None,
+                    file_data=bytes(data),
+                )
             )
-        )
-        saved += 1
+            saved += 1
 
-    if not saved:
+        if not saved:
+            return RedirectResponse(
+                f"/admin/buildings/{building_id}?error="
+                + quote(
+                    "업로드 가능한 파일이 없습니다. (PDF/DOC/XLS/PPT/HWP/이미지, 최대 25MB)"
+                ),
+                status_code=303,
+            )
+
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        print(f"[standards] upload failed building={building_id}: {e}", flush=True)
+        # 테이블 없음 등 — 한 번 더 스키마 보정 후 안내
+        try:
+            await ensure_schema_updates()
+        except Exception:
+            pass
+        detail = str(e)
+        if "building_standards" in detail.lower() or "does not exist" in detail.lower():
+            msg = "표준서 저장 테이블 준비 중입니다. 잠시 후 다시 시도해 주세요."
+        elif "memory" in detail.lower() or "too large" in detail.lower():
+            msg = "파일이 너무 큽니다. 25MB 이하로 나눠 업로드해 주세요."
+        else:
+            msg = f"표준서 업로드 중 오류: {detail[:180]}"
         return RedirectResponse(
-            f"/admin/buildings/{building_id}?error="
-            + quote("업로드 가능한 파일이 없습니다. (PDF/Office/HWP/이미지, 최대 25MB)"),
+            f"/admin/buildings/{building_id}?error={quote(msg)}",
             status_code=303,
         )
 
-    await db.commit()
     msg = f"표준서 {saved}건 등록 완료"
     if skipped:
         msg += f" (제외 {skipped}건)"

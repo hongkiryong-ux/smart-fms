@@ -334,6 +334,9 @@ async def ensure_schema_updates() -> None:
             "CREATE INDEX IF NOT EXISTS ix_building_standards_building_id ON building_standards (building_id)"
         )
         await _exec(
+            "ALTER TABLE building_standards ADD COLUMN IF NOT EXISTS file_data BYTEA"
+        )
+        await _exec(
             """
             CREATE TABLE IF NOT EXISTS equipment_change_logs (
                 id SERIAL PRIMARY KEY,
