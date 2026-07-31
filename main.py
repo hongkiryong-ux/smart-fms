@@ -596,9 +596,8 @@ def _d1_status_label(status: D1Status) -> str:
     }.get(status, status.value)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """DB 초기화 실패해도 앱은 기동시켜 health check / 재시도 가능하게 함."""
+async def _startup_db_init() -> None:
+    """기동 후 백그라운드에서 DB 스키마/시드 준비."""
     import os as _os
 
     _os.environ.setdefault("LAW_WEB_SEARCH", "0")
@@ -612,11 +611,9 @@ async def lifespan(app: FastAPI):
                 await seed_if_empty(session)
                 from excel_import import backfill_all_building_default_categories
 
-                # 기존 등록 건물에도 기본 대분류·코드 보강 (멱등)
                 await backfill_all_building_default_categories(session)
             print(f"[startup] DB ready (attempt {attempt})", flush=True)
-            last_err = None
-            break
+            return
         except Exception as e:
             last_err = e
             print(f"[startup] DB init failed ({attempt}/5): {e}", flush=True)
@@ -624,13 +621,31 @@ async def lifespan(app: FastAPI):
                 import asyncio
 
                 await asyncio.sleep(3)
-    if last_err is not None:
-        # 배포(health check)가 막히지 않도록 예외를 삼키고 기동 계속
-        print(
-            f"[startup] WARNING: continuing without full DB init: {last_err}",
-            flush=True,
-        )
-    yield
+    print(
+        f"[startup] WARNING: continuing without full DB init: {last_err}",
+        flush=True,
+    )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Render health check가 막히지 않도록 DB 초기화는 백그라운드로 수행."""
+    import asyncio
+    import os as _os
+
+    _os.environ.setdefault("LAW_WEB_SEARCH", "0")
+    init_task = asyncio.create_task(_startup_db_init())
+    try:
+        yield
+    finally:
+        if not init_task.done():
+            init_task.cancel()
+            try:
+                await init_task
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                print(f"[startup] background init cancel: {e}", flush=True)
 
 
 app = FastAPI(title="POSCO WIDE Smart FMS", lifespan=lifespan)
