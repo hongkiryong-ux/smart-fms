@@ -81,6 +81,8 @@ class User(Base):
     phone = Column(String(50), nullable=True)
     email = Column(String(120), nullable=True)
     partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
+    # 협력사 목록에 없을 때 직접 입력한 회사명 (목록 선택 시에도 표시용으로 동기화)
+    company_name = Column(String(200), nullable=True)
     is_active = Column(Boolean, default=True)
     # 직원 가입 후 관리자 승인 전 False
     is_approved = Column(Boolean, default=True)
@@ -92,6 +94,14 @@ class User(Base):
     # 위험성평가 AI — 계정별 개인 키 (다른 사용자와 공유하지 않음)
     openai_api_key = Column(String(200), nullable=True)
     openai_model = Column(String(80), nullable=True)
+
+    partner = relationship("Partner")
+
+    @property
+    def company_display(self) -> str:
+        if self.partner is not None and getattr(self.partner, "name", None):
+            return self.partner.name
+        return (self.company_name or "").strip()
 
 
 class Site(Base):

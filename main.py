@@ -414,6 +414,35 @@ def _wo_matches_status_filter(wo: WorkOrder, status_vals: list[str]) -> bool:
     return False
 
 
+async def _apply_user_company(
+    db: AsyncSession,
+    target: User,
+    *,
+    company_partner_id: str = "",
+    company_name: str = "",
+) -> None:
+    """협력사 선택 또는 직접입력 회사명을 User에 반영."""
+    raw = (company_partner_id or "").strip()
+    custom = (company_name or "").strip()[:200]
+    if raw in ("", "0"):
+        target.partner_id = None
+        target.company_name = None
+        return
+    if raw == "__custom__":
+        target.partner_id = None
+        target.company_name = custom or None
+        return
+    if raw.isdigit():
+        pid = int(raw)
+        partner = await db.get(Partner, pid)
+        if partner and getattr(partner, "is_active", True):
+            target.partner_id = partner.id
+            target.company_name = (partner.name or custom or "")[:200] or None
+            return
+    target.partner_id = None
+    target.company_name = custom or None
+
+
 def _wo_created_date_kst(wo: WorkOrder) -> date | None:
     dt = getattr(wo, "created_at", None)
     if dt is None:
@@ -728,15 +757,25 @@ async def admin_logout(request: Request):
 
 
 @app.get("/admin/signup")
-async def admin_signup_page(request: Request, user: User | None = Depends(get_current_user)):
+async def admin_signup_page(
+    request: Request,
+    user: User | None = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     if user:
         return RedirectResponse("/admin/dashboard", status_code=303)
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "signup.html",
         {
             "error": request.query_params.get("error"),
             "signup_roles": SIGNUP_ROLES,
+            "partners": partners,
         },
     )
 
@@ -751,6 +790,8 @@ async def admin_signup(
     role: str = Form("facility_manager"),
     phone: str = Form(""),
     email: str = Form(""),
+    company_partner_id: str = Form(""),
+    company_name: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -788,6 +829,12 @@ async def admin_signup(
         is_active=True,
         is_approved=False,
     )
+    await _apply_user_company(
+        db,
+        new_user,
+        company_partner_id=company_partner_id,
+        company_name=company_name,
+    )
     apply_role_permissions(new_user)
     db.add(new_user)
     await db.commit()
@@ -801,12 +848,26 @@ async def admin_signup(
 async def account_page(
     request: Request,
     user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
 ):
+    db_user = (
+        await db.execute(
+            select(User)
+            .where(User.id == user.id)
+            .options(selectinload(User.partner))
+        )
+    ).scalar_one_or_none() or user
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "account.html",
         {
-            "user": user,
+            "user": db_user,
+            "partners": partners,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -818,6 +879,8 @@ async def account_update_profile(
     name: str = Form(...),
     phone: str = Form(""),
     email: str = Form(""),
+    company_partner_id: str = Form(""),
+    company_name: str = Form(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -832,6 +895,12 @@ async def account_update_profile(
     db_user.name = nm
     db_user.phone = phone.strip() or None
     db_user.email = email.strip() or None
+    await _apply_user_company(
+        db,
+        db_user,
+        company_partner_id=company_partner_id,
+        company_name=company_name,
+    )
     await db.commit()
     return RedirectResponse(
         "/admin/account?message=" + quote("개인정보가 저장되었습니다."),
@@ -874,11 +943,20 @@ async def users_manage_page(
     db: AsyncSession = Depends(get_db),
 ):
     rows = (
-        await db.execute(select(User).order_by(User.is_approved.asc(), User.created_at.desc()))
-    ).scalars().all()
+        await db.execute(
+            select(User)
+            .options(selectinload(User.partner))
+            .order_by(User.is_approved.asc(), User.created_at.desc())
+        )
+    ).scalars().unique().all()
     pending = [u for u in rows if not u.is_approved and u.is_active]
     active = [u for u in rows if u.is_approved and u.is_active]
     inactive = [u for u in rows if not u.is_active]
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "users.html",
@@ -887,6 +965,7 @@ async def users_manage_page(
             "pending_users": pending,
             "active_users": active,
             "inactive_users": inactive,
+            "partners": partners,
             "roles": list(UserRole),
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
@@ -902,6 +981,8 @@ async def users_create(
     role: str = Form("viewer"),
     phone: str = Form(""),
     email: str = Form(""),
+    company_partner_id: str = Form(""),
+    company_name: str = Form(""),
     can_create_flag: str = Form(""),
     can_edit_flag: str = Form(""),
     can_delete_flag: str = Form(""),
@@ -936,6 +1017,12 @@ async def users_create(
         can_edit=can_edit_flag == "1",
         can_delete=can_delete_flag == "1",
     )
+    await _apply_user_company(
+        db,
+        new_user,
+        company_partner_id=company_partner_id,
+        company_name=company_name,
+    )
     if role_val == UserRole.system_admin:
         new_user.can_create = new_user.can_edit = new_user.can_delete = True
     db.add(new_user)
@@ -950,6 +1037,8 @@ async def users_create(
 async def users_approve(
     uid: int,
     role: str = Form("facility_manager"),
+    company_partner_id: str = Form(""),
+    company_name: str = Form(""),
     can_create_flag: str = Form(""),
     can_edit_flag: str = Form(""),
     can_delete_flag: str = Form(""),
@@ -971,6 +1060,12 @@ async def users_approve(
     target.can_create = can_create_flag == "1"
     target.can_edit = can_edit_flag == "1"
     target.can_delete = can_delete_flag == "1"
+    await _apply_user_company(
+        db,
+        target,
+        company_partner_id=company_partner_id,
+        company_name=company_name,
+    )
     if role_val == UserRole.system_admin:
         target.can_create = target.can_edit = target.can_delete = True
     await db.commit()
@@ -1009,6 +1104,8 @@ async def users_update(
     role: str = Form(...),
     phone: str = Form(""),
     email: str = Form(""),
+    company_partner_id: str = Form(""),
+    company_name: str = Form(""),
     can_create_flag: str = Form(""),
     can_edit_flag: str = Form(""),
     can_delete_flag: str = Form(""),
@@ -1032,6 +1129,12 @@ async def users_update(
     target.role = role_val
     target.phone = phone.strip() or None
     target.email = email.strip() or None
+    await _apply_user_company(
+        db,
+        target,
+        company_partner_id=company_partner_id,
+        company_name=company_name,
+    )
     target.can_create = can_create_flag == "1"
     target.can_edit = can_edit_flag == "1"
     target.can_delete = can_delete_flag == "1"

@@ -26,6 +26,25 @@
       <p class="text-muted" style="margin:0;font-size:0.82rem">아이디는 변경할 수 없습니다.</p>
       <label>이름</label>
       <input type="text" name="name" value="{{ user.name }}" required autocomplete="name" />
+      <label for="account-company-partner">회사명</label>
+      {% set is_custom = user.company_name and not user.partner_id %}
+      <select id="account-company-partner"
+              name="company_partner_id"
+              class="company-partner-select"
+              data-custom-input="account-company-name">
+        <option value="0">미지정</option>
+        {% for p in partners %}
+        <option value="{{ p.id }}" {% if user.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+        <option value="__custom__" {% if is_custom %}selected{% endif %}>직접입력</option>
+      </select>
+      <input type="text"
+             id="account-company-name"
+             name="company_name"
+             class="company-name-input"
+             value="{{ user.company_name if is_custom else '' }}"
+             placeholder="목록에 없으면 직접 입력"
+             style="{% if not is_custom %}display:none;{% endif %}margin-top:0.4rem" />
       <label>연락처</label>
       <input type="text" name="phone" value="{{ user.phone or '' }}" autocomplete="tel" placeholder="010-0000-0000" />
       <label>이메일</label>
@@ -37,6 +56,7 @@
       <dt>추가</dt><dd>{% if user_can_create(user) %}허용{% else %}불가{% endif %}</dd>
       <dt>수정</dt><dd>{% if user_can_edit(user) %}허용{% else %}불가{% endif %}</dd>
       <dt>삭제</dt><dd>{% if user_can_delete(user) %}허용{% else %}불가{% endif %}</dd>
+      <dt>회사명</dt><dd>{{ user.company_display or '-' }}</dd>
     </dl>
   </section>
 
@@ -53,4 +73,17 @@
     </form>
   </section>
 </div>
+<script>
+(function () {
+  var sel = document.getElementById('account-company-partner');
+  var input = document.getElementById('account-company-name');
+  if (!sel || !input) return;
+  function sync() {
+    var custom = sel.value === '__custom__';
+    input.style.display = custom ? '' : 'none';
+    if (!custom) input.value = '';
+  }
+  sel.addEventListener('change', sync);
+})();
+</script>
 {% endblock %}

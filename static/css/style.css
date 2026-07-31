@@ -1502,6 +1502,17 @@ body.users-col-resizing {
   background: #fff;
   height: 1.9rem;
 }
+.company-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 9rem;
+}
+.company-field-wrap .company-name-input {
+  margin-top: 0;
+  height: auto;
+  min-height: 1.9rem;
+}
 .users-center {
   text-align: center;
 }

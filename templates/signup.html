@@ -30,6 +30,22 @@
         <input type="text" id="signup-name" name="name" required autocomplete="name" />
       </div>
       <div class="login-field">
+        <label for="signup-company-partner">회사명</label>
+        <select id="signup-company-partner" name="company_partner_id" class="company-partner-select" data-custom-input="signup-company-name">
+          <option value="0">미지정</option>
+          {% for p in partners %}
+          <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+          <option value="__custom__">직접입력</option>
+        </select>
+        <input type="text"
+               id="signup-company-name"
+               name="company_name"
+               class="company-name-input"
+               placeholder="목록에 없으면 직접 입력"
+               style="display:none;margin-top:0.4rem" />
+      </div>
+      <div class="login-field">
         <label for="signup-role">역할</label>
         <select id="signup-role" name="role" required>
           {% for r in signup_roles %}
@@ -58,4 +74,18 @@
     <p class="login-hint"><a href="/admin/login">로그인으로 돌아가기</a></p>
   </div>
 </div>
+<script>
+(function () {
+  var sel = document.getElementById('signup-company-partner');
+  var input = document.getElementById('signup-company-name');
+  if (!sel || !input) return;
+  function sync() {
+    var custom = sel.value === '__custom__';
+    input.style.display = custom ? '' : 'none';
+    if (!custom) input.value = '';
+  }
+  sel.addEventListener('change', sync);
+  sync();
+})();
+</script>
 {% endblock %}

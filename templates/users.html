@@ -1,6 +1,32 @@
 {% extends "base.html" %}
 {% block title %}계정관리{% endblock %}
 {% block content %}
+{% macro company_fields(form_id, u=None, required=false) -%}
+  {% set pid = u.partner_id if u else none %}
+  {% set cname = (u.company_name or '') if u else '' %}
+  {% set is_custom = cname and not pid %}
+  <div class="company-field-wrap">
+    <select name="company_partner_id"
+            {% if form_id %}form="{{ form_id }}"{% endif %}
+            class="users-cell-input company-partner-select"
+            data-custom-input="company-name-{{ form_id or 'new' }}"
+            {% if required %}required{% endif %}>
+      <option value="0">미지정</option>
+      {% for p in partners %}
+      <option value="{{ p.id }}" {% if pid == p.id %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+      <option value="__custom__" {% if is_custom %}selected{% endif %}>직접입력</option>
+    </select>
+    <input type="text"
+           name="company_name"
+           {% if form_id %}form="{{ form_id }}"{% endif %}
+           id="company-name-{{ form_id or 'new' }}"
+           class="users-cell-input company-name-input"
+           value="{{ cname if is_custom else '' }}"
+           placeholder="회사명 직접입력"
+           style="{% if not is_custom %}display:none{% endif %}" />
+  </div>
+{%- endmacro %}
 <header class="page-header">
   <h1>계정관리</h1>
   <p>가입 승인 · 권한 설정 · 비밀번호 변경 · 계정 추가/비활성</p>
@@ -30,12 +56,13 @@
       <tr>
         <th data-col="p0">아이디<span class="col-resizer"></span></th>
         <th data-col="p1">이름<span class="col-resizer"></span></th>
-        <th data-col="p2">연락처<span class="col-resizer"></span></th>
-        <th data-col="p3">이메일<span class="col-resizer"></span></th>
-        <th data-col="p4">신청일<span class="col-resizer"></span></th>
-        <th data-col="p5">역할<span class="col-resizer"></span></th>
-        <th data-col="p6">권한<span class="col-resizer"></span></th>
-        <th data-col="p7">처리</th>
+        <th data-col="p2">회사명<span class="col-resizer"></span></th>
+        <th data-col="p3">연락처<span class="col-resizer"></span></th>
+        <th data-col="p4">이메일<span class="col-resizer"></span></th>
+        <th data-col="p5">신청일<span class="col-resizer"></span></th>
+        <th data-col="p6">역할<span class="col-resizer"></span></th>
+        <th data-col="p7">권한<span class="col-resizer"></span></th>
+        <th data-col="p8">처리</th>
       </tr>
     </thead>
     <tbody>
@@ -43,6 +70,7 @@
       <tr>
         <td><code>{{ u.username }}</code></td>
         <td>{{ u.name }}</td>
+        <td>{{ company_fields('approve-' ~ u.id, u) }}</td>
         <td>{{ u.phone or '-' }}</td>
         <td>{{ u.email or '-' }}</td>
         <td class="wo-date">{{ fmt_kst(u.created_at) }}</td>
@@ -83,16 +111,17 @@
       <tr>
         <th data-col="a0">아이디<span class="col-resizer"></span></th>
         <th data-col="a1">이름<span class="col-resizer"></span></th>
-        <th data-col="a2">역할<span class="col-resizer"></span></th>
-        <th data-col="a3">권한<span class="col-resizer"></span></th>
-        <th data-col="a4">연락처<span class="col-resizer"></span></th>
-        <th data-col="a5">이메일<span class="col-resizer"></span></th>
-        <th data-col="a6">활성<span class="col-resizer"></span></th>
-        <th data-col="a7">저장<span class="col-resizer"></span></th>
-        <th data-col="a8">새 비밀번호<span class="col-resizer"></span></th>
-        <th data-col="a9">확인<span class="col-resizer"></span></th>
-        <th data-col="a10">비밀번호<span class="col-resizer"></span></th>
-        <th data-col="a11">관리</th>
+        <th data-col="a2">회사명<span class="col-resizer"></span></th>
+        <th data-col="a3">역할<span class="col-resizer"></span></th>
+        <th data-col="a4">권한<span class="col-resizer"></span></th>
+        <th data-col="a5">연락처<span class="col-resizer"></span></th>
+        <th data-col="a6">이메일<span class="col-resizer"></span></th>
+        <th data-col="a7">활성<span class="col-resizer"></span></th>
+        <th data-col="a8">저장<span class="col-resizer"></span></th>
+        <th data-col="a9">새 비밀번호<span class="col-resizer"></span></th>
+        <th data-col="a10">확인<span class="col-resizer"></span></th>
+        <th data-col="a11">비밀번호<span class="col-resizer"></span></th>
+        <th data-col="a12">관리</th>
       </tr>
     </thead>
     <tbody>
@@ -102,6 +131,7 @@
         <td>
           <input type="text" name="name" form="update-{{ u.id }}" value="{{ u.name }}" required class="users-cell-input" />
         </td>
+        <td>{{ company_fields('update-' ~ u.id, u) }}</td>
         <td>
           <select name="role" form="update-{{ u.id }}" class="users-cell-input" {% if u.id == user.id %}disabled{% endif %}>
             {% for r in roles %}
@@ -165,7 +195,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="12" class="empty">활성 계정이 없습니다.</td></tr>
+      <tr><td colspan="13" class="empty">활성 계정이 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -177,7 +207,7 @@
     <h2>계정 추가</h2>
     <p class="text-muted users-create-hint">새 직원을 바로 등록합니다 (즉시 로그인 가능)</p>
   </div>
-  <form method="post" action="/admin/users/create" class="users-create-form">
+  <form method="post" action="/admin/users/create" class="users-create-form" id="users-create-form">
     <label class="users-create-field">
       <span>아이디</span>
       <input type="text" name="username" required />
@@ -198,6 +228,10 @@
         {% endfor %}
       </select>
     </label>
+    <div class="users-create-field">
+      <span>회사명</span>
+      {{ company_fields() }}
+    </div>
     <label class="users-create-field">
       <span>연락처</span>
       <input type="text" name="phone" />
@@ -230,8 +264,9 @@
       <tr>
         <th data-col="i0">아이디<span class="col-resizer"></span></th>
         <th data-col="i1">이름<span class="col-resizer"></span></th>
-        <th data-col="i2">역할<span class="col-resizer"></span></th>
-        <th data-col="i3">관리</th>
+        <th data-col="i2">회사명<span class="col-resizer"></span></th>
+        <th data-col="i3">역할<span class="col-resizer"></span></th>
+        <th data-col="i4">관리</th>
       </tr>
     </thead>
     <tbody>
@@ -239,6 +274,7 @@
       <tr>
         <td><code>{{ u.username }}</code></td>
         <td>{{ u.name }}</td>
+        <td>{{ u.company_display or '-' }}</td>
         <td>{{ role_labels.get(u.role, u.role.value) }}</td>
         <td>
           <form method="post" action="/admin/users/{{ u.id }}/update" class="inline-form">
@@ -246,6 +282,8 @@
             <input type="hidden" name="role" value="{{ u.role.value }}" />
             <input type="hidden" name="phone" value="{{ u.phone or '' }}" />
             <input type="hidden" name="email" value="{{ u.email or '' }}" />
+            <input type="hidden" name="company_partner_id" value="{% if u.partner_id %}{{ u.partner_id }}{% elif u.company_name %}__custom__{% else %}0{% endif %}" />
+            <input type="hidden" name="company_name" value="{{ u.company_name or '' }}" />
             <input type="hidden" name="can_create_flag" value="{% if u.can_create %}1{% endif %}" />
             <input type="hidden" name="can_edit_flag" value="{% if u.can_edit %}1{% endif %}" />
             <input type="hidden" name="can_delete_flag" value="{% if u.can_delete %}1{% endif %}" />
@@ -263,6 +301,23 @@
 
 <script>
 (function () {
+  function syncCompanySelect(sel) {
+    if (!sel) return;
+    var id = sel.getAttribute('data-custom-input');
+    var input = id ? document.getElementById(id) : null;
+    if (!input) return;
+    var custom = sel.value === '__custom__';
+    input.style.display = custom ? '' : 'none';
+    if (custom) {
+      input.focus();
+    } else {
+      input.value = '';
+    }
+  }
+  document.querySelectorAll('.company-partner-select').forEach(function (sel) {
+    sel.addEventListener('change', function () { syncCompanySelect(sel); });
+  });
+
   document.querySelectorAll('table.users-resizable').forEach(function (table) {
     var startX = 0;
     var startW = 0;
