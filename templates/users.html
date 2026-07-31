@@ -27,9 +27,37 @@
            style="{% if not is_custom %}display:none{% endif %}" />
   </div>
 {%- endmacro %}
+{% macro menu_access_fields(form_id, u=None, locked=false) -%}
+  {% set selected = user_menu_access(u) if u else [] %}
+  <div class="users-menu-access">
+    <div class="users-menu-access-title">메뉴 접근</div>
+    {% if locked %}
+    <span class="text-muted">전체</span>
+    {% for key, label in menu_items %}
+    <input type="hidden" name="menu_key" {% if form_id %}form="{{ form_id }}"{% endif %} value="{{ key }}" />
+    {% endfor %}
+    {% else %}
+    <div class="users-menu-grid">
+      {% for key, label in menu_items %}
+      {% if key == 'users' and (not u or u.role.value != 'system_admin') and not locked %}
+      {% else %}
+      <label class="users-perm users-menu-perm">
+        <input type="checkbox"
+               name="menu_key"
+               {% if form_id %}form="{{ form_id }}"{% endif %}
+               value="{{ key }}"
+               {% if (not u and key != 'users') or (u and key in selected) %}checked{% endif %} />
+        {{ label }}
+      </label>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+{%- endmacro %}
 <header class="page-header">
   <h1>계정관리</h1>
-  <p>가입 승인 · 권한 설정 · 비밀번호 변경 · 계정 추가/비활성</p>
+  <p>가입 승인 · CRUD/메뉴 권한 · 비밀번호 변경 · 계정 추가/비활성</p>
 </header>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -86,6 +114,7 @@
             <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" checked /> 추가</label>
             <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" checked /> 수정</label>
             <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" /> 삭제</label>
+            {{ menu_access_fields('approve-' ~ u.id, u) }}
           </form>
         </td>
         <td class="users-actions-cell">
@@ -144,15 +173,18 @@
         </td>
         <td>
           <form method="post" action="/admin/users/{{ u.id }}/update" class="users-perms-inline" id="update-{{ u.id }}">
+            <input type="hidden" name="menu_access_edit" value="1" />
             {% if u.role.value == 'system_admin' %}
-            <span class="text-muted">전체</span>
+            <span class="text-muted">CRUD 전체</span>
             <input type="hidden" name="can_create_flag" value="1" />
             <input type="hidden" name="can_edit_flag" value="1" />
             <input type="hidden" name="can_delete_flag" value="1" />
+            {{ menu_access_fields('update-' ~ u.id, u, locked=true) }}
             {% else %}
             <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" {% if u.can_create %}checked{% endif %} /> 추가</label>
             <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" {% if u.can_edit %}checked{% endif %} /> 수정</label>
             <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" {% if u.can_delete %}checked{% endif %} /> 삭제</label>
+            {{ menu_access_fields('update-' ~ u.id, u) }}
             {% endif %}
           </form>
         </td>
@@ -241,12 +273,16 @@
       <input type="email" name="email" />
     </label>
     <div class="users-create-field users-create-perms">
-      <span>권한</span>
+      <span>CRUD 권한</span>
       <div class="users-perms-inline">
         <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" checked /> 추가</label>
         <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" checked /> 수정</label>
         <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" /> 삭제</label>
       </div>
+    </div>
+    <div class="users-create-field users-create-menus">
+      <span>메뉴 접근</span>
+      {{ menu_access_fields(None, None) }}
     </div>
     <div class="users-create-field users-create-submit">
       <span>&nbsp;</span>

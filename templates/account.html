@@ -15,6 +15,8 @@
 <div class="alert alert-error">새 비밀번호는 6자 이상이어야 합니다.</div>
 {% elif error == 'mismatch' %}
 <div class="alert alert-error">새 비밀번호 확인이 일치하지 않습니다.</div>
+{% elif error == 'no_menu' %}
+<div class="alert alert-error">해당 메뉴에 대한 접근 권한이 없습니다. 관리자에게 문의하세요.</div>
 {% endif %}
 
 <div class="grid-2">

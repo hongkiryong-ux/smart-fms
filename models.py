@@ -90,6 +90,8 @@ class User(Base):
     can_create = Column(Boolean, default=True)
     can_edit = Column(Boolean, default=True)
     can_delete = Column(Boolean, default=True)
+    # 메인 메뉴 접근 키 목록 (null이면 역할 기본값 사용)
+    menu_access = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     # 위험성평가 AI — 계정별 개인 키 (다른 사용자와 공유하지 않음)
     openai_api_key = Column(String(200), nullable=True)

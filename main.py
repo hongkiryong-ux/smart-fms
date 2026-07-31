@@ -17,19 +17,27 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import (
+    MENU_ITEMS,
     ROLE_LABELS,
     SIGNUP_ROLES,
     apply_role_permissions,
     can_access_equipment_pm,
+    can_access_menu,
     can_create,
     can_delete,
     can_edit,
+    default_menu_access,
     default_permissions,
+    effective_menu_access,
     get_current_user,
     hash_password,
+    home_path_for_user,
+    menu_key_for_path,
+    normalize_menu_access,
     require_can_create,
     require_can_delete,
     require_can_edit,
@@ -650,12 +658,46 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="POSCO WIDE Smart FMS", lifespan=lifespan)
 
+
+class _MenuAccessMiddleware(BaseHTTPMiddleware):
+    """메뉴 권한이 없는 /admin/* 경로는 내 계정으로 리다이렉트."""
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        menu_key = menu_key_for_path(path)
+        if menu_key is None:
+            return await call_next(request)
+        if "session" not in request.scope:
+            return await call_next(request)
+        user_id = request.session.get("user_id")
+        if not user_id:
+            return await call_next(request)
+        try:
+            async with AsyncSessionLocal() as session:
+                u = (
+                    await session.execute(
+                        select(User).where(
+                            User.id == user_id,
+                            User.is_active == True,  # noqa: E712
+                            User.is_approved == True,  # noqa: E712
+                        )
+                    )
+                ).scalar_one_or_none()
+                if u is not None and not can_access_menu(u, menu_key):
+                    return RedirectResponse("/admin/account?error=no_menu", status_code=303)
+        except Exception as e:
+            print(f"[menu] access check skip: {e}", flush=True)
+        return await call_next(request)
+
+
 SECRET_KEY = os.environ.get("APP_SECRET_KEY", "change_this_secret_in_prod")
 _session_kw: dict = {"secret_key": SECRET_KEY, "same_site": "lax"}
 if os.environ.get("RENDER", "").lower() in ("true", "1", "yes") or os.environ.get(
     "COOKIE_HTTPS_ONLY", ""
 ).lower() in ("1", "true", "yes"):
     _session_kw["https_only"] = True
+# 안쪽(메뉴) → Session → Proxy 순으로 add (마지막이 가장 바깥)
+app.add_middleware(_MenuAccessMiddleware)
 app.add_middleware(SessionMiddleware, **_session_kw)
 
 try:
@@ -676,6 +718,9 @@ templates.env.globals["user_can_create"] = can_create
 templates.env.globals["user_can_edit"] = can_edit
 templates.env.globals["user_can_delete"] = can_delete
 templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
+templates.env.globals["user_can_access_menu"] = can_access_menu
+templates.env.globals["user_menu_access"] = effective_menu_access
+templates.env.globals["menu_items"] = MENU_ITEMS
 templates.env.globals["upload_max_mb"] = UPLOAD_MAX_FILE_MB
 templates.env.globals["upload_max_files"] = UPLOAD_MAX_FILES_PER_REQUEST
 templates.env.globals.update(
@@ -745,7 +790,7 @@ async def health():
 @app.get("/admin/login")
 async def admin_login_page(request: Request, user: User | None = Depends(get_current_user)):
     if user:
-        return RedirectResponse("/admin/dashboard", status_code=303)
+        return RedirectResponse(home_path_for_user(user), status_code=303)
     return templates.TemplateResponse(
         request,
         "login.html",
@@ -770,7 +815,7 @@ async def admin_login(
     if not getattr(user, "is_approved", True):
         return RedirectResponse("/admin/login?error=pending", status_code=303)
     request.session["user_id"] = user.id
-    return RedirectResponse("/admin/dashboard", status_code=303)
+    return RedirectResponse(home_path_for_user(user), status_code=303)
 
 
 @app.get("/admin/logout")
@@ -959,6 +1004,33 @@ async def account_change_password(
     )
 
 
+# ── Users / Account Admin ─────────────────────────────────────────────
+
+
+def _menu_keys_from_form(form, role: UserRole | None = None) -> list[str]:
+    """multipart/form에서 menu_key 다중 체크박스 값 수집."""
+    try:
+        raw = form.getlist("menu_key")
+    except Exception:
+        v = form.get("menu_key")
+        raw = [v] if v else []
+    keys = normalize_menu_access(list(raw))
+    # 계정관리 메뉴는 시스템관리자만 (라우트도 system_admin 전용)
+    if role != UserRole.system_admin:
+        keys = [k for k in keys if k != "users"]
+    return keys
+
+
+def _force_admin_menus(user_obj: User) -> None:
+    if user_obj.role == UserRole.system_admin:
+        user_obj.can_create = user_obj.can_edit = user_obj.can_delete = True
+        user_obj.menu_access = list(default_menu_access(UserRole.system_admin))
+    else:
+        # 비관리자 계정에 users 키가 남지 않도록 정리
+        keys = normalize_menu_access(getattr(user_obj, "menu_access", None) or [])
+        user_obj.menu_access = [k for k in keys if k != "users"]
+
+
 @app.get("/admin/users")
 async def users_manage_page(
     request: Request,
@@ -990,6 +1062,7 @@ async def users_manage_page(
             "inactive_users": inactive,
             "partners": partners,
             "roles": list(UserRole),
+            "menu_items": MENU_ITEMS,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -998,6 +1071,7 @@ async def users_manage_page(
 
 @app.post("/admin/users/create")
 async def users_create(
+    request: Request,
     username: str = Form(...),
     password: str = Form(...),
     name: str = Form(...),
@@ -1014,6 +1088,7 @@ async def users_create(
 ):
     from urllib.parse import quote
 
+    form = await request.form()
     uname = username.strip()
     nm = name.strip()
     pw = password.strip()
@@ -1039,6 +1114,7 @@ async def users_create(
         can_create=can_create_flag == "1",
         can_edit=can_edit_flag == "1",
         can_delete=can_delete_flag == "1",
+        menu_access=_menu_keys_from_form(form, role_val),
     )
     await _apply_user_company(
         db,
@@ -1046,8 +1122,7 @@ async def users_create(
         company_partner_id=company_partner_id,
         company_name=company_name,
     )
-    if role_val == UserRole.system_admin:
-        new_user.can_create = new_user.can_edit = new_user.can_delete = True
+    _force_admin_menus(new_user)
     db.add(new_user)
     await db.commit()
     return RedirectResponse(
@@ -1058,6 +1133,7 @@ async def users_create(
 
 @app.post("/admin/users/{uid}/approve")
 async def users_approve(
+    request: Request,
     uid: int,
     role: str = Form("facility_manager"),
     company_partner_id: str = Form(""),
@@ -1070,6 +1146,7 @@ async def users_approve(
 ):
     from urllib.parse import quote
 
+    form = await request.form()
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
@@ -1083,14 +1160,14 @@ async def users_approve(
     target.can_create = can_create_flag == "1"
     target.can_edit = can_edit_flag == "1"
     target.can_delete = can_delete_flag == "1"
+    target.menu_access = _menu_keys_from_form(form, role_val)
     await _apply_user_company(
         db,
         target,
         company_partner_id=company_partner_id,
         company_name=company_name,
     )
-    if role_val == UserRole.system_admin:
-        target.can_create = target.can_edit = target.can_delete = True
+    _force_admin_menus(target)
     await db.commit()
     return RedirectResponse(
         "/admin/users?message=" + quote(f"{target.username} 승인이 완료되었습니다."),
@@ -1122,6 +1199,7 @@ async def users_reject(
 
 @app.post("/admin/users/{uid}/update")
 async def users_update(
+    request: Request,
     uid: int,
     name: str = Form(...),
     role: str = Form(...),
@@ -1133,11 +1211,13 @@ async def users_update(
     can_edit_flag: str = Form(""),
     can_delete_flag: str = Form(""),
     is_active_flag: str = Form(""),
+    menu_access_edit: str = Form(""),
     user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
 
+    form = await request.form()
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
@@ -1161,8 +1241,9 @@ async def users_update(
     target.can_create = can_create_flag == "1"
     target.can_edit = can_edit_flag == "1"
     target.can_delete = can_delete_flag == "1"
-    if role_val == UserRole.system_admin:
-        target.can_create = target.can_edit = target.can_delete = True
+    if menu_access_edit == "1":
+        target.menu_access = _menu_keys_from_form(form, role_val)
+    _force_admin_menus(target)
     if target.id != user.id:
         target.is_active = is_active_flag == "1"
         if target.is_active:

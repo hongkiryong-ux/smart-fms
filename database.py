@@ -218,6 +218,9 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS company_name VARCHAR(200)"
         )
+        await _exec(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS menu_access JSONB"
+        )
         await _exec("UPDATE users SET is_approved = TRUE WHERE is_approved IS NULL")
         await _exec("UPDATE users SET can_create = TRUE WHERE can_create IS NULL")
         await _exec("UPDATE users SET can_edit = TRUE WHERE can_edit IS NULL")
@@ -370,6 +373,7 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE users ADD COLUMN can_delete BOOLEAN DEFAULT 1",
             "ALTER TABLE users ADD COLUMN partner_id INTEGER",
             "ALTER TABLE users ADD COLUMN company_name VARCHAR(200)",
+            "ALTER TABLE users ADD COLUMN menu_access TEXT",
             "ALTER TABLE floors ADD COLUMN is_active BOOLEAN DEFAULT 1",
             "ALTER TABLE zones ADD COLUMN is_active BOOLEAN DEFAULT 1",
             "ALTER TABLE building_drawings ADD COLUMN file_data BLOB",

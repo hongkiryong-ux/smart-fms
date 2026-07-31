@@ -1471,17 +1471,57 @@ button.link-action:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  margin-right: 0.5rem;
+  margin-right: 0.35rem;
   font-size: 0.82rem;
   white-space: nowrap;
 }
+.users-menu-access {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--border, #e5e7eb);
+  min-width: 220px;
+}
+.users-menu-access-title {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.users-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.15rem 0.4rem;
+}
+.users-menu-perm {
+  margin-right: 0;
+  white-space: normal;
+}
+.users-create-menus {
+  grid-column: 1 / -1;
+}
+.users-create-menus .users-menu-access {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+.users-create-menus .users-menu-grid {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+.users-table th[data-col="a4"],
+.users-table th[data-col="p7"] { width: 280px; min-width: 220px; }
 .users-perms { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0; }
 .users-perms-inline {
-  display: inline-flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 0.15rem;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.2rem;
   margin: 0;
+}
+.users-table td:has(.users-menu-access) {
+  white-space: normal;
+  overflow: visible;
+  vertical-align: top;
 }
 .users-section .table-scroll.users-table-scroll {
   overflow-x: auto;

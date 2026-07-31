@@ -25,9 +25,13 @@
            height="29" />
     </a>
     <ul class="nav-menu">
+      {% if user_can_access_menu(user, 'dashboard') %}
       <li><a href="/admin/dashboard" class="{% if request.url.path == '/admin/dashboard' %}active{% endif %}">Dashboard</a></li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'sites') %}
       <li><a href="/admin/sites" class="{% if '/sites' in request.url.path or '/buildings' in request.url.path %}active{% endif %}">사업장/건물</a></li>
-      {% if user_can_access_equipment_pm(user) %}
+      {% endif %}
+      {% if user_can_access_menu(user, 'equipment') %}
       <li class="nav-expandable{% if eq_path %} is-open{% endif %}" id="nav-equipment">
         <div class="nav-parent-row">
           <a href="/admin/equipment"
@@ -52,9 +56,14 @@
           {% endfor %}
         </ul>
       </li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'pm') %}
       <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
       {% endif %}
+      {% if user_can_access_menu(user, 'work_orders') %}
       <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'd1') %}
       <li class="nav-expandable{% if d1_path %} is-open{% endif %}" id="nav-d1">
         <div class="nav-parent-row">
           <a href="/admin/d1"
@@ -79,14 +88,21 @@
           {% endfor %}
         </ul>
       </li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'risk_assessment') %}
       <li><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'materials') %}
       <li>
         <a href="/admin/materials?popup=1"
            class="{% if '/materials' in request.url.path %}active{% endif %}"
            onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;">자재관리</a>
       </li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'partners') %}
       <li><a href="/admin/partners" class="{% if '/partners' in request.url.path %}active{% endif %}">협력사</a></li>
-      {% if user.role.value == 'system_admin' %}
+      {% endif %}
+      {% if user_can_access_menu(user, 'users') %}
       <li><a href="/admin/users" class="{% if '/admin/users' in request.url.path %}active{% endif %}">계정관리</a></li>
       {% endif %}
       <li><a href="/admin/account" class="{% if request.url.path == '/admin/account' %}active{% endif %}">내 계정</a></li>

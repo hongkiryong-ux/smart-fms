@@ -59,6 +59,119 @@ def apply_role_permissions(user: User) -> None:
     user.can_create = create
     user.can_edit = edit
     user.can_delete = delete
+    user.menu_access = default_menu_access(user.role)
+
+
+# 메인 메뉴 키 (사이드바 표시·접근 제어). 내 계정(account)은 항상 허용.
+MENU_ITEMS: tuple[tuple[str, str], ...] = (
+    ("dashboard", "Dashboard"),
+    ("sites", "사업장/건물"),
+    ("equipment", "설비관리"),
+    ("pm", "점검(PM)"),
+    ("work_orders", "정비관리"),
+    ("d1", "D-1 작업"),
+    ("risk_assessment", "위험성평가"),
+    ("materials", "자재관리"),
+    ("partners", "협력사"),
+    ("users", "계정관리"),
+)
+MENU_KEYS: tuple[str, ...] = tuple(k for k, _ in MENU_ITEMS)
+MENU_LABELS: dict[str, str] = dict(MENU_ITEMS)
+
+# 경로 prefix → 메뉴 키 (긴 경로 우선 매칭용으로 길이순 정렬해 사용)
+_MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("/admin/users", "users"),
+    ("/admin/dashboard", "dashboard"),
+    ("/admin/sites", "sites"),
+    ("/admin/buildings", "sites"),
+    ("/admin/equipment", "equipment"),
+    ("/admin/pm", "pm"),
+    ("/admin/work-orders", "work_orders"),
+    ("/admin/d1", "d1"),
+    ("/admin/risk-assessment", "risk_assessment"),
+    ("/admin/materials", "materials"),
+    ("/admin/partners", "partners"),
+)
+
+_MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
+    ("dashboard", "/admin/dashboard"),
+    ("sites", "/admin/sites"),
+    ("equipment", "/admin/equipment"),
+    ("pm", "/admin/pm"),
+    ("work_orders", "/admin/work-orders"),
+    ("d1", "/admin/d1"),
+    ("risk_assessment", "/admin/risk-assessment"),
+    ("materials", "/admin/materials?popup=1"),
+    ("partners", "/admin/partners"),
+    ("users", "/admin/users"),
+)
+
+
+def default_menu_access(role: UserRole) -> list[str]:
+    """역할별 기본 메뉴 접근 목록."""
+    if role == UserRole.system_admin:
+        return list(MENU_KEYS)
+    denied = {"users"}
+    if role in (UserRole.partner, UserRole.external):
+        denied |= {"equipment", "pm"}
+    return [k for k in MENU_KEYS if k not in denied]
+
+
+def normalize_menu_access(raw) -> list[str]:
+    """폼/DB 값을 유효한 메뉴 키 목록으로 정규화."""
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        raw = [x.strip() for x in raw.split(",") if x.strip()]
+    if not isinstance(raw, (list, tuple, set)):
+        return []
+    allowed = set(MENU_KEYS)
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        key = str(item or "").strip()
+        if key in allowed and key not in seen:
+            seen.add(key)
+            out.append(key)
+    return out
+
+
+def effective_menu_access(user: User | None) -> list[str]:
+    if user is None:
+        return []
+    if user.role == UserRole.system_admin:
+        return list(MENU_KEYS)
+    raw = getattr(user, "menu_access", None)
+    if raw is None:
+        return default_menu_access(user.role)
+    return normalize_menu_access(raw)
+
+
+def can_access_menu(user: User | None, menu_key: str) -> bool:
+    """메인 메뉴 접근 가능 여부. account(내 계정)는 항상 True."""
+    if user is None:
+        return False
+    if menu_key == "account":
+        return True
+    if user.role == UserRole.system_admin:
+        return True
+    return menu_key in effective_menu_access(user)
+
+
+def menu_key_for_path(path: str) -> str | None:
+    for prefix, key in _MENU_PATH_PREFIXES:
+        if path == prefix or path.startswith(prefix + "/"):
+            return key
+    return None
+
+
+def home_path_for_user(user: User | None) -> str:
+    if user is None:
+        return "/admin/login"
+    for key, path in _MENU_HOME_PATHS:
+        if can_access_menu(user, key):
+            return path
+    return "/admin/account"
 
 
 async def get_current_user(
@@ -211,7 +324,5 @@ SIGNUP_ROLES: tuple[UserRole, ...] = (
 
 
 def can_access_equipment_pm(user: User | None) -> bool:
-    """협력사·외부업체는 설비관리·점검(PM) 메뉴 비표시."""
-    if user is None:
-        return False
-    return user.role not in (UserRole.partner, UserRole.external)
+    """설비관리·점검(PM) 둘 다 접근 가능한지 (하위 호환)."""
+    return can_access_menu(user, "equipment") and can_access_menu(user, "pm")
