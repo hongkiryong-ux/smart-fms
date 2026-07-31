@@ -70,6 +70,11 @@ from models import (
 
 KST = ZoneInfo("Asia/Seoul")
 
+# 도면·표준서 공통 업로드 제한
+UPLOAD_MAX_FILE_MB = 20
+UPLOAD_MAX_FILE_BYTES = UPLOAD_MAX_FILE_MB * 1024 * 1024
+UPLOAD_MAX_FILES_PER_REQUEST = 10
+
 
 def _today_kst() -> date:
     return datetime.now(KST).date()
@@ -656,6 +661,8 @@ templates.env.globals["user_can_create"] = can_create
 templates.env.globals["user_can_edit"] = can_edit
 templates.env.globals["user_can_delete"] = can_delete
 templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
+templates.env.globals["upload_max_mb"] = UPLOAD_MAX_FILE_MB
+templates.env.globals["upload_max_files"] = UPLOAD_MAX_FILES_PER_REQUEST
 templates.env.globals.update(
     fmt_kst=_fmt_kst,
     fmt_kst_date=_fmt_kst_date,
@@ -1589,11 +1596,76 @@ DRAWING_ALLOWED_EXT = {
     ".dxf",
 }
 
+# 도면·표준서 공통 업로드 제한 (상단 UPLOAD_MAX_* 상수 사용)
 
-def _building_upload_dir(building_id: int) -> Path:
+
+def _attachment_sort_key(item) -> tuple:
+    """created_at 정렬용 — aware/naive 혼용 방지."""
+    created = getattr(item, "created_at", None)
+    if isinstance(created, datetime):
+        if created.tzinfo is not None:
+            created = created.replace(tzinfo=None)
+        ts = created.timestamp()
+    else:
+        ts = 0.0
+    return (ts, int(getattr(item, "id", 0) or 0))
+
+
+def _building_upload_dir(building_id: int) -> Path | None:
     path = Path("static") / "uploads" / "buildings" / str(building_id)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    except OSError as e:
+        print(f"[upload] mkdir skip: {e}", flush=True)
+        return None
+
+
+async def _ensure_building_standards_table() -> None:
+    """표준서 테이블만 빠르게 보장 (전체 스키마 재실행 금지 — 서비스 지연/잠금 방지)."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError, OperationalError, ProgrammingError
+
+    url = (os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_INTERNAL_URL") or "").lower()
+    is_pg = "postgres" in url
+    if is_pg:
+        stmts = [
+            """
+            CREATE TABLE IF NOT EXISTS building_standards (
+                id SERIAL PRIMARY KEY,
+                building_id INTEGER NOT NULL REFERENCES buildings(id),
+                title VARCHAR(200) NOT NULL,
+                original_name VARCHAR(300),
+                stored_name VARCHAR(300) NOT NULL,
+                content_type VARCHAR(100),
+                file_data BYTEA,
+                created_at TIMESTAMP WITHOUT TIME ZONE
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS ix_building_standards_building_id ON building_standards (building_id)",
+            "ALTER TABLE building_standards ADD COLUMN IF NOT EXISTS file_data BYTEA",
+        ]
+    else:
+        stmts = [
+            """
+            CREATE TABLE IF NOT EXISTS building_standards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                building_id INTEGER NOT NULL,
+                title VARCHAR(200) NOT NULL,
+                original_name VARCHAR(300),
+                stored_name VARCHAR(300) NOT NULL,
+                content_type VARCHAR(100),
+                file_data BLOB,
+                created_at DATETIME
+            )
+            """,
+        ]
+    for stmt in stmts:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except (OperationalError, ProgrammingError, DBAPIError) as e:
+            print(f"[standards] schema skip: {e}", flush=True)
 
 
 def _drawing_media_type(drawing: BuildingDrawing) -> str:
@@ -1705,6 +1777,12 @@ async def building_drawing_upload(
             f"/admin/buildings/{building_id}?error={quote('도면 파일을 선택하세요.')}",
             status_code=303,
         )
+    if len(uploads) > UPLOAD_MAX_FILES_PER_REQUEST:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error="
+            + quote(f"한 번에 최대 {UPLOAD_MAX_FILES_PER_REQUEST}개까지 업로드할 수 있습니다."),
+            status_code=303,
+        )
 
     linked_floor_id = None
     if str(floor_id).strip().isdigit():
@@ -1717,49 +1795,61 @@ async def building_drawing_upload(
     saved = 0
     skipped = 0
     common_title = (title or "").strip()
-    max_bytes = 25 * 1024 * 1024  # 25MB
 
-    for f in uploads:
-        original = Path(f.filename or "drawing").name
-        suffix = Path(original).suffix.lower()
-        if suffix not in DRAWING_ALLOWED_EXT:
-            skipped += 1
-            continue
-        stored = f"{uuid.uuid4().hex}{suffix}"
-        dest = upload_dir / stored
-        data = await f.read()
-        if not data:
-            skipped += 1
-            continue
-        if len(data) > max_bytes:
-            skipped += 1
-            continue
-        try:
-            dest.write_bytes(data)
-        except OSError:
-            pass
-        draw_title = common_title or Path(original).stem or "도면"
-        db.add(
-            BuildingDrawing(
-                building_id=building_id,
-                floor_id=linked_floor_id,
-                title=draw_title[:200],
-                original_name=original[:300],
-                stored_name=stored,
-                content_type=f.content_type or None,
-                file_data=data,
+    try:
+        for f in uploads:
+            original = Path(f.filename or "drawing").name
+            suffix = Path(original).suffix.lower()
+            if suffix not in DRAWING_ALLOWED_EXT:
+                skipped += 1
+                continue
+            stored = f"{uuid.uuid4().hex}{suffix}"
+            data = await f.read()
+            if not data:
+                skipped += 1
+                continue
+            if len(data) > UPLOAD_MAX_FILE_BYTES:
+                skipped += 1
+                continue
+            if upload_dir is not None:
+                try:
+                    (upload_dir / stored).write_bytes(data)
+                except OSError:
+                    pass
+            draw_title = common_title or Path(original).stem or "도면"
+            db.add(
+                BuildingDrawing(
+                    building_id=building_id,
+                    floor_id=linked_floor_id,
+                    title=draw_title[:200],
+                    original_name=original[:300],
+                    stored_name=stored,
+                    content_type=f.content_type or None,
+                    file_data=bytes(data),
+                )
             )
-        )
-        saved += 1
+            saved += 1
 
-    if not saved:
+        if not saved:
+            return RedirectResponse(
+                f"/admin/buildings/{building_id}?error="
+                + quote(
+                    f"업로드 가능한 파일이 없습니다. (이미지/PDF/DWG/DXF, 파일당 최대 {UPLOAD_MAX_FILE_MB}MB, "
+                    f"한 번에 {UPLOAD_MAX_FILES_PER_REQUEST}개)"
+                ),
+                status_code=303,
+            )
+
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        print(f"[drawings] upload failed building={building_id}: {e}", flush=True)
         return RedirectResponse(
             f"/admin/buildings/{building_id}?error="
-            + quote("업로드 가능한 파일이 없습니다. (이미지/PDF/DWG/DXF, 최대 25MB)"),
+            + quote(f"도면 업로드 중 오류: {str(e)[:180]}"),
             status_code=303,
         )
 
-    await db.commit()
     msg = f"도면 {saved}건 첨부 완료"
     if skipped:
         msg += f" (제외 {skipped}건)"
@@ -1822,18 +1912,6 @@ def _building_standards_dir(building_id: int) -> Path | None:
     except OSError as e:
         print(f"[standards] mkdir skip: {e}", flush=True)
         return None
-
-
-def _attachment_sort_key(item) -> tuple:
-    """created_at 정렬용 — aware/naive 혼용 방지."""
-    created = getattr(item, "created_at", None)
-    if isinstance(created, datetime):
-        if created.tzinfo is not None:
-            created = created.replace(tzinfo=None)
-        ts = created.timestamp()
-    else:
-        ts = 0.0
-    return (ts, int(getattr(item, "id", 0) or 0))
 
 
 def _standard_media_type(doc: BuildingStandard) -> str:
@@ -1940,9 +2018,9 @@ async def building_standard_upload(
     if not building or not building.is_active:
         raise HTTPException(404)
 
-    # 배포 DB에 테이블이 아직 없으면 생성 시도
+    # 배포 DB에 테이블이 아직 없으면 표준서 테이블만 빠르게 생성
     try:
-        await ensure_schema_updates()
+        await _ensure_building_standards_table()
     except Exception as e:
         print(f"[standards] schema ensure: {e}", flush=True)
 
@@ -1967,12 +2045,17 @@ async def building_standard_upload(
             f"/admin/buildings/{building_id}?error={quote('표준서 파일을 선택하세요.')}",
             status_code=303,
         )
+    if len(uploads) > UPLOAD_MAX_FILES_PER_REQUEST:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error="
+            + quote(f"한 번에 최대 {UPLOAD_MAX_FILES_PER_REQUEST}개까지 업로드할 수 있습니다."),
+            status_code=303,
+        )
 
     upload_dir = _building_standards_dir(building_id)
     saved = 0
     skipped = 0
     common_title = (title or "").strip() or str(form.get("title") or "").strip()
-    max_bytes = 25 * 1024 * 1024
 
     try:
         for f in uploads:
@@ -1986,7 +2069,7 @@ async def building_standard_upload(
             if not data:
                 skipped += 1
                 continue
-            if len(data) > max_bytes:
+            if len(data) > UPLOAD_MAX_FILE_BYTES:
                 skipped += 1
                 continue
             if upload_dir is not None:
@@ -2011,7 +2094,8 @@ async def building_standard_upload(
             return RedirectResponse(
                 f"/admin/buildings/{building_id}?error="
                 + quote(
-                    "업로드 가능한 파일이 없습니다. (PDF/DOC/XLS/PPT/HWP/이미지, 최대 25MB)"
+                    f"업로드 가능한 파일이 없습니다. (PDF/DOC/XLS/PPT/HWP/이미지, "
+                    f"파일당 최대 {UPLOAD_MAX_FILE_MB}MB, 한 번에 {UPLOAD_MAX_FILES_PER_REQUEST}개)"
                 ),
                 status_code=303,
             )
@@ -2020,16 +2104,15 @@ async def building_standard_upload(
     except Exception as e:
         await db.rollback()
         print(f"[standards] upload failed building={building_id}: {e}", flush=True)
-        # 테이블 없음 등 — 한 번 더 스키마 보정 후 안내
         try:
-            await ensure_schema_updates()
+            await _ensure_building_standards_table()
         except Exception:
             pass
         detail = str(e)
         if "building_standards" in detail.lower() or "does not exist" in detail.lower():
             msg = "표준서 저장 테이블 준비 중입니다. 잠시 후 다시 시도해 주세요."
         elif "memory" in detail.lower() or "too large" in detail.lower():
-            msg = "파일이 너무 큽니다. 25MB 이하로 나눠 업로드해 주세요."
+            msg = f"파일이 너무 큽니다. 파일당 {UPLOAD_MAX_FILE_MB}MB 이하로 올려 주세요."
         else:
             msg = f"표준서 업로드 중 오류: {detail[:180]}"
         return RedirectResponse(

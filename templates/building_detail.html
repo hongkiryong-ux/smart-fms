@@ -72,7 +72,7 @@
 
 <section class="card building-drawings-card">
   <h2>도면 첨부</h2>
-  <p class="text-muted" style="margin-top:-0.35rem">이미지·PDF·DWG/DXF 파일을 첨부할 수 있습니다. 필요 시 층에 연결하세요. (이미지/PDF는 바로 보기, DWG/DXF는 다운로드)</p>
+  <p class="text-muted" style="margin-top:-0.35rem">이미지·PDF·DWG/DXF 파일을 첨부할 수 있습니다. 필요 시 층에 연결하세요. (이미지/PDF는 바로 보기, DWG/DXF는 다운로드) · 파일당 최대 {{ upload_max_mb }}MB · 한 번에 {{ upload_max_files }}개</p>
 
   <form method="post"
         action="/admin/buildings/{{ building.id }}/drawings"
@@ -141,7 +141,7 @@
 
 <section class="card building-drawings-card">
   <h2>표준서 등록</h2>
-  <p class="text-muted" style="margin-top:-0.35rem">PDF·Office·HWP·이미지 등 표준서 파일을 등록하고 다운로드할 수 있습니다.</p>
+  <p class="text-muted" style="margin-top:-0.35rem">PDF·Office·HWP·이미지 등 표준서 파일을 등록하고 다운로드할 수 있습니다. · 파일당 최대 {{ upload_max_mb }}MB · 한 번에 {{ upload_max_files }}개</p>
 
   <form method="post"
         action="/admin/buildings/{{ building.id }}/standards"
