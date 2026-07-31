@@ -6573,10 +6573,9 @@ async def equipment_mobile(
         .where(Equipment.code == code)
         .options(
             selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
-            selectinload(Equipment.consumables),
             selectinload(Equipment.pm_schedules).selectinload(PMSchedule.inspections),
             selectinload(Equipment.pm_inspections).selectinload(PMInspection.schedule),
-            selectinload(Equipment.work_orders),
+            selectinload(Equipment.maintenance_records),
             selectinload(Equipment.equipment_type),
         )
     )
@@ -6589,6 +6588,39 @@ async def equipment_mobile(
         key=lambda x: x.inspected_at or datetime.min,
         reverse=True,
     )
+    history = sorted(
+        eq.maintenance_records or [],
+        key=lambda x: (x.work_date or date.min, x.id or 0),
+        reverse=True,
+    )
+    location_parts = []
+    if eq.zone and eq.zone.floor and eq.zone.floor.building:
+        location_parts = [
+            eq.zone.floor.building.name,
+            eq.zone.floor.name,
+            eq.zone.name,
+        ]
+    sheet_fields = get_category_fields(eq.category or "", [eq]) if eq.category else []
+    history_json = json.dumps(
+        [
+            {
+                "id": h.id,
+                "title": h.title or "",
+                "work_date": h.work_date.isoformat() if h.work_date else "",
+                "worker_name": h.worker_name or "",
+                "cause": h.cause or "",
+                "action": h.action or "",
+                "parts_used": h.parts_used or "",
+                "work_hours": h.work_hours,
+                "cost": h.cost,
+                "note": h.note or "",
+                "is_manual": bool(h.is_manual),
+                "work_order_id": h.work_order_id,
+            }
+            for h in history
+        ],
+        ensure_ascii=False,
+    )
     msg = request.query_params.get("msg", "")
     error = request.query_params.get("error", "")
     return templates.TemplateResponse(
@@ -6598,6 +6630,10 @@ async def equipment_mobile(
             "eq": eq,
             "active_pms": active_pms,
             "all_inspections": all_inspections,
+            "history": history,
+            "history_json": history_json,
+            "location_text": " / ".join(p for p in location_parts if p) or "-",
+            "sheet_fields": sheet_fields,
             "today": _today_kst(),
             "message": msg,
             "error": error,

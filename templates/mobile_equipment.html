@@ -23,25 +23,32 @@
 
     <section class="mobile-card">
       <h2>설비정보</h2>
-      <dl class="info-dl">
-        <dt>종류</dt><dd>{{ eq.equipment_type.name if eq.equipment_type else (eq.category or '-') }}</dd>
+      <dl class="info-dl mobile-info-dl">
+        <dt>코드</dt><dd><code>{{ eq.code }}</code></dd>
+        <dt>설비명</dt><dd>{{ eq.name or '-' }}</dd>
+        <dt>분류</dt><dd>{{ eq.category or '-' }}</dd>
+        <dt>종류</dt><dd>{{ eq.equipment_type.name if eq.equipment_type else '-' }}</dd>
         <dt>제조사</dt><dd>{{ eq.manufacturer or '-' }}</dd>
         <dt>모델</dt><dd>{{ eq.model or '-' }}</dd>
+        <dt>시리얼번호</dt><dd>{{ eq.serial_no or '-' }}</dd>
+        <dt>설치일</dt><dd>{{ eq.installed_at or '-' }}</dd>
         <dt>담당자</dt><dd>{{ eq.manager_name or '-' }}</dd>
-        <dt>상태</dt><dd><span class="status-dot status-{{ eq.status }}">{{ eq.status }}</span></dd>
+        <dt>상태</dt><dd><span class="status-dot status-{{ eq.status }}">{{ eq.status or '-' }}</span></dd>
+        <dt>위치</dt><dd>{{ location_text }}</dd>
+        <dt>PLC 태그</dt><dd>{{ eq.plc_tag or '-' }}</dd>
+        <dt>가동시간</dt><dd>{% if eq.running_hours is not none %}{{ eq.running_hours }} h{% else %}-{% endif %}</dd>
+        <dt>NFC</dt><dd>{{ eq.nfc_tag or '-' }}</dd>
+        {% if eq.description %}
+        <dt>설명</dt><dd>{{ eq.description }}</dd>
+        {% endif %}
+        {% for field in sheet_fields %}
+          {% set val = field_value(eq, field) %}
+          {% if val and field not in ['코드', '설비명', '설비코드', '명칭', '이름', '제조사', '모델', '시리얼', '시리얼번호', '설치일', '담당자'] %}
+          <dt>{{ field }}</dt><dd>{{ val }}</dd>
+          {% endif %}
+        {% endfor %}
       </dl>
     </section>
-
-    {% if eq.zone %}
-    <section class="mobile-card">
-      <h2>위치</h2>
-      <p>
-        {% if eq.zone.floor and eq.zone.floor.building %}
-        {{ eq.zone.floor.building.name }} / {{ eq.zone.floor.name }} / {{ eq.zone.name }}
-        {% endif %}
-      </p>
-    </section>
-    {% endif %}
 
     <section class="mobile-card">
       <h2>예방점검 (PM)</h2>
@@ -132,19 +139,47 @@
     </section>
 
     <section class="mobile-card">
-      <h2>소모품</h2>
-      {% for c in eq.consumables %}
-      <div class="list-item">{{ c.name }} · 교체 {{ c.next_replace or '-' }}</div>
-      {% else %}<p class="empty">없음</p>{% endfor %}
-    </section>
-
-    <section class="mobile-card">
       <h2>정비이력</h2>
-      {% for wo in eq.work_orders[:5] %}
-      <div class="list-item">{{ wo.title }} · {{ wo_status_label(wo.status) }}</div>
-      {% else %}<p class="empty">없음</p>{% endfor %}
+      {% if history %}
+      <ul class="mobile-history-list">
+        {% for h in history[:20] %}
+        <li>
+          <button type="button"
+                  class="mobile-history-item"
+                  data-history-id="{{ h.id }}"
+                  aria-label="정비이력 상세 보기">
+            <div class="mobile-history-top">
+              <strong>{{ h.title }}</strong>
+              <span class="text-muted">{{ h.work_date or '-' }}</span>
+            </div>
+            <div class="mobile-history-sub text-muted">
+              {{ h.worker_name or '작업자 미기재' }}
+              {% if h.is_manual %} · 수동{% else %} · 자동{% endif %}
+            </div>
+            {% if h.action or h.cause %}
+            <p class="mobile-history-preview">{{ (h.action or h.cause)|truncate(80) }}</p>
+            {% endif %}
+          </button>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty">등록된 정비이력이 없습니다.</p>
+      {% endif %}
     </section>
   </main>
+
+  <dialog id="history-detail-dialog" class="eq-dialog mobile-history-dialog">
+    <form method="dialog" class="eq-dialog-top">
+      <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+    </form>
+    <div class="eq-popup-body">
+      <h2>정비이력 상세</h2>
+      <dl class="info-dl mobile-info-dl" id="history-detail-body"></dl>
+    </div>
+  </dialog>
+
+  <script type="application/json" id="history-data">{{ history_json | safe }}</script>
 
   <footer class="mobile-footer">
     <small>POSCO WIDE Smart FMS · QR Scan</small>
@@ -166,7 +201,50 @@
       form.submit();
     }
 
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function row(label, value) {
+      var v = (value === null || value === undefined || value === '') ? '-' : value;
+      return '<dt>' + esc(label) + '</dt><dd>' + esc(v) + '</dd>';
+    }
+
+    var historyMap = {};
+    try {
+      var raw = document.getElementById('history-data');
+      var list = raw ? JSON.parse(raw.textContent || '[]') : [];
+      list.forEach(function (h) { historyMap[String(h.id)] = h; });
+    } catch (e) { historyMap = {}; }
+
     document.addEventListener('click', function (e) {
+      var histBtn = e.target.closest('[data-history-id]');
+      if (histBtn) {
+        var h = historyMap[String(histBtn.getAttribute('data-history-id'))];
+        if (!h) return;
+        var body = document.getElementById('history-detail-body');
+        if (!body) return;
+        var html = '';
+        html += row('제목', h.title);
+        html += row('작업일', h.work_date);
+        html += row('작업자', h.worker_name);
+        html += row('원인', h.cause);
+        html += row('작업내용(조치)', h.action);
+        html += row('사용부품', h.parts_used);
+        html += row('작업시간', h.work_hours != null ? (h.work_hours + ' h') : '');
+        html += row('비용', h.cost != null ? h.cost : '');
+        html += row('비고', h.note);
+        html += row('구분', h.is_manual ? '수동 등록' : '자동 등록');
+        if (h.work_order_id) html += row('정비의뢰', '#' + h.work_order_id);
+        body.innerHTML = html;
+        openDialog('history-detail-dialog');
+        return;
+      }
+
       var resultBtn = e.target.closest('[data-pm-result]');
       if (resultBtn) {
         var form = resultBtn.closest('.pm-inspect-form');
