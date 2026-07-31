@@ -280,25 +280,35 @@ def _parse_wo_status_filters(status: list[str] | None) -> list[str]:
 
 LIST_PAGE_SIZE = 20
 D1_BOARD_KEYS = ("today", "tomorrow", "scheduled", "completed")
+D1_ALL_BOARD_KEYS = ("receipt",) + D1_BOARD_KEYS
 
 
-def _parse_d1_boards(raw: list[str] | None) -> list[str]:
+def _parse_d1_boards(raw: list[str] | None, *, allow_receipt: bool = False) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
+    allowed = set(D1_ALL_BOARD_KEYS if allow_receipt else D1_BOARD_KEYS)
     for item in raw or []:
         for part in str(item).split(","):
             key = part.strip().lower()
             if key == "all":
                 return list(D1_BOARD_KEYS)
-            if key in D1_BOARD_KEYS and key not in seen:
+            if key in allowed and key not in seen:
                 seen.add(key)
                 out.append(key)
     return out
 
 
-def _d1_resolve_boards(request: Request, board_param: list[str] | str | None) -> tuple[list[str], str]:
-    """단일 선택: board 미지정 시 오늘작업. board=all 이면 전체항목."""
+def _d1_resolve_boards(
+    request: Request,
+    board_param: list[str] | str | None,
+    *,
+    partner_id: int = 0,
+) -> tuple[list[str], str]:
+    """단일 선택: board 미지정 시 일반=오늘작업, 협력사 선택=오늘접수. board=all 이면 전체항목."""
+    allow_receipt = bool(partner_id)
     if "board" not in request.query_params:
+        if allow_receipt:
+            return ["receipt"], "receipt"
         return ["today"], "today"
     if isinstance(board_param, str):
         raw = [board_param]
@@ -312,8 +322,10 @@ def _d1_resolve_boards(request: Request, board_param: list[str] | str | None) ->
                 flat.append(key)
     if "all" in flat:
         return list(D1_BOARD_KEYS), "all"
-    parsed = _parse_d1_boards(raw)
+    parsed = _parse_d1_boards(raw, allow_receipt=allow_receipt)
     if not parsed:
+        if allow_receipt:
+            return ["receipt"], "receipt"
         return ["today"], "today"
     # 단일 선택 — 첫 번째만 사용
     mode = parsed[0]
@@ -324,11 +336,12 @@ def _d1_board_select_urls(
     status_vals: list[str],
     partner_id: int = 0,
 ) -> dict[str, str]:
-    """작업 구분 단일 선택 URL (전체/오늘/내일/예정/완료)."""
+    """작업 구분 단일 선택 URL (전체/오늘접수/오늘/내일/예정/완료)."""
     from urllib.parse import urlencode
 
+    keys = ("all",) + (D1_ALL_BOARD_KEYS if partner_id else D1_BOARD_KEYS)
     links: dict[str, str] = {}
-    for key in ("all",) + D1_BOARD_KEYS:
+    for key in keys:
         params: list[tuple[str, str]] = [("board", key)]
         params.extend(("status", s) for s in status_vals)
         if partner_id:
@@ -3412,19 +3425,26 @@ async def work_order_status(
     await db.commit()
     if redirect == "d1":
         board_raw = (d1_board or "").strip().lower()
+        has_partner = (d1_partner_id or "").strip() not in ("", "0")
         if board_raw == "all":
             params: list[tuple[str, str]] = [("board", "all")]
         else:
-            board_vals = _parse_d1_boards([board_raw] if board_raw else [])
+            board_vals = _parse_d1_boards(
+                [board_raw] if board_raw else [],
+                allow_receipt=has_partner,
+            )
+            default_board = "receipt" if has_partner else "today"
             params = (
-                [("board", board_vals[0])] if board_vals else [("board", "today")]
+                [("board", board_vals[0])]
+                if board_vals
+                else [("board", default_board)]
             )
         if filter_status.strip():
             for part in filter_status.split(","):
                 p = part.strip()
                 if p:
                     params.append(("status", p))
-        if (d1_partner_id or "").strip() not in ("", "0"):
+        if has_partner:
             params.append(("partner_id", (d1_partner_id or "").strip()))
         if page.strip() and page.strip() not in ("", "1"):
             params.append(("page", page.strip()))
@@ -3476,19 +3496,26 @@ async def work_order_delete(
     await db.commit()
     if redirect == "d1":
         board_raw = (d1_board or "").strip().lower()
+        has_partner = (d1_partner_id or "").strip() not in ("", "0")
         if board_raw == "all":
             params: list[tuple[str, str]] = [("board", "all")]
         else:
-            board_vals = _parse_d1_boards([board_raw] if board_raw else [])
+            board_vals = _parse_d1_boards(
+                [board_raw] if board_raw else [],
+                allow_receipt=has_partner,
+            )
+            default_board = "receipt" if has_partner else "today"
             params = (
-                [("board", board_vals[0])] if board_vals else [("board", "today")]
+                [("board", board_vals[0])]
+                if board_vals
+                else [("board", default_board)]
             )
         if filter_status.strip():
             for part in filter_status.split(","):
                 p = part.strip()
                 if p:
                     params.append(("status", p))
-        if (d1_partner_id or "").strip() not in ("", "0"):
+        if has_partner:
             params.append(("partner_id", (d1_partner_id or "").strip()))
         if page.strip() and page.strip() not in ("", "1"):
             params.append(("page", page.strip()))
@@ -4188,30 +4215,27 @@ async def d1_list(
         )
     )
     completed_works = _apply_partner(_apply_status(list(completed_raw)))
-
-    # 사이드바에서 특정 협력사 선택 시: 당일 접수·배정 정비의뢰를 최상단
-    if partner_sel != 0:
-        today_works = _sort_orders_today_receipt_first(today_works, today)
-        tomorrow_works = _sort_orders_today_receipt_first(tomorrow_works, today)
-        scheduled_works = _sort_orders_today_receipt_first(scheduled_works, today)
-        completed_works = _sort_orders_today_receipt_first(completed_works, today)
+    receipt_works = _apply_partner(
+        _apply_status(
+            [w for w in open_works if _wo_is_today_partner_receipt(w, today)]
+        )
+    )
+    receipt_works = _sort_orders_today_receipt_first(receipt_works, today)
 
     status_pool = _apply_status(list(open_works) + list(completed_raw))
     filtered_all = today_works + tomorrow_works + scheduled_works + completed_works
-    today_receipt_ids = {
-        int(w.id)
-        for w in filtered_all
-        if _wo_is_today_partner_receipt(w, today)
-    }
+    today_receipt_ids = {int(w.id) for w in receipt_works}
 
-    boards, board_mode = _d1_resolve_boards(request, board)
+    boards, board_mode = _d1_resolve_boards(request, board, partner_id=partner_sel)
     board_map = {
+        "receipt": receipt_works,
         "today": today_works,
         "tomorrow": tomorrow_works,
         "scheduled": scheduled_works,
         "completed": completed_works,
     }
     board_titles = {
+        "receipt": "접수된 항목 오늘접수내용",
         "today": f"오늘 작업 ({today})",
         "tomorrow": f"내일 작업 ({tomorrow})",
         "scheduled": "정비 예정항목",
@@ -4221,24 +4245,6 @@ async def d1_list(
 
     selected_works: list = []
     seen_ids: set[int] = set()
-    # 협력사 선택 시: 당일 접수 정비의뢰를 보드와 무관하게 최상단 노출
-    if partner_sel != 0:
-        partner_receipts = [
-            w
-            for w in open_works
-            if _wo_is_today_partner_receipt(w, today)
-            and (
-                (partner_sel == -1 and not w.partner_id)
-                or (partner_sel > 0 and int(w.partner_id or 0) == partner_sel)
-            )
-            and _wo_matches_status_filter(w, status_vals)
-        ]
-        for w in _sort_orders_today_receipt_first(partner_receipts, today):
-            wid = int(w.id)
-            if wid in seen_ids:
-                continue
-            seen_ids.add(wid)
-            selected_works.append(w)
     for key in boards:
         for w in board_map.get(key, []):
             wid = int(w.id)
@@ -4325,13 +4331,17 @@ async def d1_list(
                         "title": board_titles.get(key, key),
                         "orders": by_key.get(key, []),
                         "hint": (
+                        "당일 등록·협력사 지정된 정비의뢰"
+                        if key == "receipt"
+                        else (
                             "오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)"
                             if key == "scheduled"
                             else ""
-                        ),
-                        "total": len(board_map.get(key, [])),
-                    }
-                )
+                        )
+                    ),
+                    "total": len(board_map.get(key, [])),
+                }
+            )
         else:
             key = boards[0]
             board_sections.append(
@@ -4340,9 +4350,13 @@ async def d1_list(
                     "title": board_titles.get(key, key),
                     "orders": board_orders,
                     "hint": (
-                        "오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)"
-                        if key == "scheduled"
-                        else ""
+                        "당일 등록·협력사 지정된 정비의뢰"
+                        if key == "receipt"
+                        else (
+                            "오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)"
+                            if key == "scheduled"
+                            else ""
+                        )
                     ),
                     "total": len(selected_works),
                 }
@@ -4381,6 +4395,7 @@ async def d1_list(
             "board_sections": board_sections,
             "board_title": board_title,
             "board_counts": {
+                "receipt": len(receipt_works),
                 "today": len(today_works),
                 "tomorrow": len(tomorrow_works),
                 "scheduled": len(scheduled_works),
@@ -4490,12 +4505,20 @@ async def d1_export(
         w for w in open_works if w.scheduled_date not in (today, tomorrow) and _ok(w)
     ]
     completed_o = [w for w in completed if _ok(w)]
+    receipt_o = [
+        w
+        for w in open_works
+        if _wo_is_today_partner_receipt(w, today) and _ok(w)
+    ]
 
     if view_partner:
         orders = today_o + tomorrow_o + scheduled_o + completed_o
     else:
-        boards, _board_mode = _d1_resolve_boards(request, board)
+        boards, _board_mode = _d1_resolve_boards(
+            request, board, partner_id=partner_sel
+        )
         board_map = {
+            "receipt": receipt_o,
             "today": today_o,
             "tomorrow": tomorrow_o,
             "scheduled": scheduled_o,

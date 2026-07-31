@@ -70,7 +70,7 @@
         <ul class="nav-sub" id="nav-d1-sub">
           {% for p in request.state.nav_partners or [] %}
           <li>
-            <a href="/admin/d1?partner_id={{ p.id }}"
+            <a href="/admin/d1?partner_id={{ p.id }}&board=receipt"
                class="{% if d1_path and nav_pid == p.id|string %}active{% endif %}"
                title="{{ p.name }}">{{ p.name }}</a>
           </li>
