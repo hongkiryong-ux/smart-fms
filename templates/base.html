@@ -45,11 +45,18 @@
           </button>
         </div>
         <ul class="nav-sub" id="nav-equipment-sub">
-          {% for b in request.state.nav_buildings or [] %}
-          <li>
-            <a href="/admin/equipment?building_id={{ b.id }}"
-               class="{% if nav_bid == b.id|string %}active{% endif %}"
-               title="{{ b.name }}">{{ b.name }}</a>
+          {% for g in request.state.nav_building_groups or [] %}
+          <li class="nav-site-group">
+            <div class="nav-site-label" title="{{ g.site_name }}">{{ g.site_name }}</div>
+            <ul class="nav-site-buildings">
+              {% for b in g.buildings %}
+              <li>
+                <a href="/admin/equipment?building_id={{ b.id }}"
+                   class="{% if nav_bid == b.id|string %}active{% endif %}"
+                   title="{{ b.name }}">{{ b.name }}</a>
+              </li>
+              {% endfor %}
+            </ul>
           </li>
           {% else %}
           <li class="nav-sub-empty">등록된 건물 없음</li>

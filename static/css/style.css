@@ -151,6 +151,34 @@ body {
   font-size: 0.76rem;
   color: rgba(158, 182, 204, 0.55);
 }
+.nav-site-group {
+  list-style: none;
+  margin: 0;
+  padding: 0.2rem 0 0.35rem;
+}
+.nav-site-group + .nav-site-group {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 0.15rem;
+  padding-top: 0.35rem;
+}
+.nav-site-label {
+  padding: 0.15rem 0.75rem 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #c5d7e8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-site-buildings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nav-site-buildings a {
+  padding-left: 1.35rem;
+}
 
 .sidebar-footer {
   padding: 1rem;
@@ -984,6 +1012,18 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 0.75rem;
+}
+.eq-site-building-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.eq-site-group-title {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  color: var(--primary, #003876);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border, #e5e7eb);
 }
 
 .eq-building-card {

@@ -34,6 +34,7 @@ from auth import (
     default_permissions,
     effective_menu_access,
     get_current_user,
+    group_buildings_by_site,
     hash_password,
     home_path_for_user,
     menu_key_for_path,
@@ -2677,6 +2678,7 @@ async def equipment_list(
             ).scalars().all()
         )
     )
+    building_groups = group_buildings_by_site(buildings)
 
     selected_building = None
     categories: list[str] = []
@@ -2792,6 +2794,7 @@ async def equipment_list(
         {
             "user": user,
             "buildings": buildings,
+            "building_groups": building_groups,
             "selected_building": selected_building,
             "building_id": building_id,
             "category": category,

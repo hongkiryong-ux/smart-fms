@@ -9,6 +9,7 @@ from typing import Callable
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from database import get_db
 from models import Building, Partner, User, UserRole
@@ -41,6 +42,49 @@ def nav_building_sort_key(name: str | None) -> tuple:
     else:
         group = 3
     return (group, n.casefold())
+
+
+def group_buildings_by_site(buildings: list) -> list[dict]:
+    """건물을 사업장(site) 단위로 묶어 사이드바·설비관리 목록에 사용."""
+    groups: dict[int | str, dict] = {}
+    for b in buildings:
+        site = getattr(b, "site", None)
+        site_id = getattr(b, "site_id", None)
+        if site_id is None and site is not None:
+            site_id = getattr(site, "id", None)
+        key: int | str = site_id if site_id is not None else "_none"
+        site_name = ""
+        if site is not None:
+            site_name = (getattr(site, "name", None) or "").strip()
+        if not site_name:
+            site_name = "미지정 사업장"
+        if key not in groups:
+            groups[key] = {
+                "site_id": site_id,
+                "site_name": site_name,
+                "buildings": [],
+            }
+        item = b
+        if not isinstance(b, dict):
+            item = {
+                "id": b.id,
+                "name": b.name or "",
+                "code": getattr(b, "code", "") or "",
+                "site_id": site_id,
+                "site_name": site_name,
+            }
+        groups[key]["buildings"].append(item)
+
+    result = list(groups.values())
+    for g in result:
+        g["buildings"] = sorted(
+            g["buildings"],
+            key=lambda x: nav_building_sort_key(
+                x.get("name") if isinstance(x, dict) else getattr(x, "name", None)
+            ),
+        )
+    result.sort(key=lambda g: nav_building_sort_key(g.get("site_name")))
+    return result
 
 
 def default_permissions(role: UserRole) -> tuple[bool, bool, bool]:
@@ -180,6 +224,7 @@ async def get_current_user(
     user_id = request.session.get("user_id")
     if not user_id:
         request.state.nav_buildings = []
+        request.state.nav_building_groups = []
         request.state.nav_partners = []
         return None
     result = await db.execute(
@@ -192,28 +237,32 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if not hasattr(request.state, "nav_buildings"):
         request.state.nav_buildings = []
+        request.state.nav_building_groups = []
         request.state.nav_partners = []
         if user:
             try:
                 rows = (
-                    await db.execute(select(Building).where(Building.is_active == True))
+                    await db.execute(
+                        select(Building)
+                        .where(Building.is_active == True)  # noqa: E712
+                        .options(selectinload(Building.site))
+                    )
                 ).scalars().all()
-                # dict로 보관 — 이후 commit/expire 시 템플릿 greenlet 오류 방지
-                sorted_rows = sorted(
-                    list(rows),
-                    key=lambda b: nav_building_sort_key(getattr(b, "name", None)),
-                )
+                request.state.nav_building_groups = group_buildings_by_site(list(rows))
+                # 하위 호환: 평면 목록
                 request.state.nav_buildings = [
-                    {"id": b.id, "name": b.name or "", "code": getattr(b, "code", "") or ""}
-                    for b in sorted_rows
+                    b
+                    for g in request.state.nav_building_groups
+                    for b in g.get("buildings", [])
                 ]
             except Exception:
                 request.state.nav_buildings = []
+                request.state.nav_building_groups = []
             try:
                 partners = (
                     await db.execute(
                         select(Partner)
-                        .where(Partner.is_active == True)
+                        .where(Partner.is_active == True)  # noqa: E712
                         .order_by(Partner.name)
                     )
                 ).scalars().all()
@@ -223,6 +272,8 @@ async def get_current_user(
                 ]
             except Exception:
                 request.state.nav_partners = []
+    if not hasattr(request.state, "nav_building_groups"):
+        request.state.nav_building_groups = []
     if not hasattr(request.state, "nav_partners"):
         request.state.nav_partners = []
     return user
