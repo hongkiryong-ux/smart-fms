@@ -134,104 +134,104 @@
 
 <section class="card card-wide users-section">
   <h2>활성 계정</h2>
-  <div class="table-scroll users-table-scroll">
-  <table class="data-table users-table users-resizable">
-    <thead>
-      <tr>
-        <th data-col="a0">아이디<span class="col-resizer"></span></th>
-        <th data-col="a1">이름<span class="col-resizer"></span></th>
-        <th data-col="a2">회사명<span class="col-resizer"></span></th>
-        <th data-col="a3">역할<span class="col-resizer"></span></th>
-        <th data-col="a4">권한<span class="col-resizer"></span></th>
-        <th data-col="a5">연락처<span class="col-resizer"></span></th>
-        <th data-col="a6">이메일<span class="col-resizer"></span></th>
-        <th data-col="a7">활성<span class="col-resizer"></span></th>
-        <th data-col="a8">저장<span class="col-resizer"></span></th>
-        <th data-col="a9">새 비밀번호<span class="col-resizer"></span></th>
-        <th data-col="a10">확인<span class="col-resizer"></span></th>
-        <th data-col="a11">비밀번호<span class="col-resizer"></span></th>
-        <th data-col="a12">관리</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for u in active_users %}
-      <tr>
-        <td><code>{{ u.username }}</code></td>
-        <td>
-          <input type="text" name="name" form="update-{{ u.id }}" value="{{ u.name }}" required class="users-cell-input" />
-        </td>
-        <td>{{ company_fields('update-' ~ u.id, u) }}</td>
-        <td>
-          <select name="role" form="update-{{ u.id }}" class="users-cell-input" {% if u.id == user.id %}disabled{% endif %}>
-            {% for r in roles %}
-            <option value="{{ r.value }}" {% if u.role == r %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
-            {% endfor %}
-          </select>
-          {% if u.id == user.id %}
-          <input type="hidden" name="role" form="update-{{ u.id }}" value="{{ u.role.value }}" />
-          {% endif %}
-        </td>
-        <td>
-          <form method="post" action="/admin/users/{{ u.id }}/update" class="users-perms-inline" id="update-{{ u.id }}">
-            <input type="hidden" name="menu_access_edit" value="1" />
+  {% if active_users %}
+  <div class="users-active-list">
+    {% for u in active_users %}
+    <article class="users-active-card">
+      <form method="post" action="/admin/users/{{ u.id }}/update" class="users-active-form" id="update-{{ u.id }}">
+        <input type="hidden" name="menu_access_edit" value="1" />
+        {# 1줄: 기본정보 + 저장/비활성 #}
+        <div class="users-active-row users-active-row-main">
+          <label class="users-active-field">
+            <span>아이디</span>
+            <code>{{ u.username }}</code>
+          </label>
+          <label class="users-active-field">
+            <span>이름</span>
+            <input type="text" name="name" value="{{ u.name }}" required class="users-cell-input" />
+          </label>
+          <div class="users-active-field users-active-field-company">
+            <span>회사명</span>
+            {{ company_fields(None, u) }}
+          </div>
+          <label class="users-active-field">
+            <span>역할</span>
+            <select name="role" class="users-cell-input" {% if u.id == user.id %}disabled{% endif %}>
+              {% for r in roles %}
+              <option value="{{ r.value }}" {% if u.role == r %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
+              {% endfor %}
+            </select>
+            {% if u.id == user.id %}
+            <input type="hidden" name="role" value="{{ u.role.value }}" />
+            {% endif %}
+          </label>
+          <label class="users-active-field">
+            <span>연락처</span>
+            <input type="text" name="phone" value="{{ u.phone or '' }}" class="users-cell-input" placeholder="-" />
+          </label>
+          <label class="users-active-field">
+            <span>이메일</span>
+            <input type="email" name="email" value="{{ u.email or '' }}" class="users-cell-input" placeholder="-" />
+          </label>
+          <div class="users-active-field users-active-field-sm">
+            <span>활성</span>
+            {% if u.id != user.id %}
+            <input type="checkbox" name="is_active_flag" value="1" checked title="활성" />
+            {% else %}
+            <input type="hidden" name="is_active_flag" value="1" />
+            <span class="text-muted">본인</span>
+            {% endif %}
+          </div>
+          <div class="users-active-actions">
+            <button type="submit" class="btn btn-sm btn-secondary">저장</button>
+            {% if u.id != user.id %}
+            <button type="submit"
+                    form="deactivate-{{ u.id }}"
+                    class="btn btn-sm btn-danger"
+                    onclick="return confirm('「{{ u.username }}」 계정을 비활성화할까요?');">비활성</button>
+            {% endif %}
+          </div>
+        </div>
+        {# 2줄: CRUD/메뉴 권한 + 비밀번호 #}
+        <div class="users-active-row users-active-row-perms">
+          <div class="users-active-crud">
+            <span class="users-active-sublabel">CRUD</span>
             {% if u.role.value == 'system_admin' %}
-            <span class="text-muted">CRUD 전체</span>
+            <span class="text-muted">전체</span>
             <input type="hidden" name="can_create_flag" value="1" />
             <input type="hidden" name="can_edit_flag" value="1" />
             <input type="hidden" name="can_delete_flag" value="1" />
-            {{ menu_access_fields('update-' ~ u.id, u, locked=true) }}
             {% else %}
             <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" {% if u.can_create %}checked{% endif %} /> 추가</label>
             <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" {% if u.can_edit %}checked{% endif %} /> 수정</label>
             <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" {% if u.can_delete %}checked{% endif %} /> 삭제</label>
-            {{ menu_access_fields('update-' ~ u.id, u) }}
             {% endif %}
-          </form>
-        </td>
-        <td>
-          <input type="text" name="phone" form="update-{{ u.id }}" value="{{ u.phone or '' }}" class="users-cell-input" placeholder="-" />
-        </td>
-        <td>
-          <input type="email" name="email" form="update-{{ u.id }}" value="{{ u.email or '' }}" class="users-cell-input" placeholder="-" />
-        </td>
-        <td class="users-center">
-          {% if u.id != user.id %}
-          <input type="checkbox" name="is_active_flag" form="update-{{ u.id }}" value="1" checked title="활성" />
-          {% else %}
-          <input type="hidden" name="is_active_flag" form="update-{{ u.id }}" value="1" />
-          <span class="text-muted">본인</span>
-          {% endif %}
-        </td>
-        <td class="users-center">
-          <button type="submit" form="update-{{ u.id }}" class="btn btn-sm btn-secondary">저장</button>
-        </td>
-        <td>
-          <input type="password" name="new_password" form="pw-{{ u.id }}" placeholder="새 비밀번호" required minlength="6" class="users-cell-input" autocomplete="new-password" />
-        </td>
-        <td>
-          <input type="password" name="new_password2" form="pw-{{ u.id }}" placeholder="확인" required minlength="6" class="users-cell-input" autocomplete="new-password" />
-        </td>
-        <td class="users-center">
-          <form method="post" action="/admin/users/{{ u.id }}/password" id="pw-{{ u.id }}" class="inline-form"></form>
-          <button type="submit" form="pw-{{ u.id }}" class="btn btn-sm btn-secondary">변경</button>
-        </td>
-        <td class="users-center">
-          {% if u.id != user.id %}
-          <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline-form"
-                onsubmit="return confirm('「{{ u.username }}」 계정을 비활성화할까요?');">
-            <button type="submit" class="btn btn-sm btn-danger">비활성</button>
-          </form>
-          {% else %}
-          <span class="text-muted">-</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="13" class="empty">활성 계정이 없습니다.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          </div>
+          <div class="users-active-menus">
+            {% if u.role.value == 'system_admin' %}
+            {{ menu_access_fields(None, u, locked=true) }}
+            {% else %}
+            {{ menu_access_fields(None, u) }}
+            {% endif %}
+          </div>
+          <div class="users-active-pw">
+            <span class="users-active-sublabel">비밀번호</span>
+            <input type="password" name="new_password" form="pw-{{ u.id }}" placeholder="새 비밀번호" required minlength="6" class="users-cell-input" autocomplete="new-password" />
+            <input type="password" name="new_password2" form="pw-{{ u.id }}" placeholder="확인" required minlength="6" class="users-cell-input" autocomplete="new-password" />
+            <button type="submit" form="pw-{{ u.id }}" class="btn btn-sm btn-secondary">변경</button>
+          </div>
+        </div>
+      </form>
+      <form method="post" action="/admin/users/{{ u.id }}/password" id="pw-{{ u.id }}" class="users-hidden-form"></form>
+      {% if u.id != user.id %}
+      <form method="post" action="/admin/users/{{ u.id }}/delete" id="deactivate-{{ u.id }}" class="users-hidden-form"></form>
+      {% endif %}
+    </article>
+    {% endfor %}
   </div>
+  {% else %}
+  <p class="empty">활성 계정이 없습니다.</p>
+  {% endif %}
 </section>
 
 <section class="card card-wide users-section">
