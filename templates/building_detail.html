@@ -72,7 +72,7 @@
 
 <section class="card building-drawings-card">
   <h2>도면 첨부</h2>
-  <p class="text-muted" style="margin-top:-0.35rem">이미지·PDF·DWG/DXF 파일을 첨부할 수 있습니다. 필요 시 층에 연결하세요.</p>
+  <p class="text-muted" style="margin-top:-0.35rem">이미지·PDF·DWG/DXF 파일을 첨부할 수 있습니다. 필요 시 층에 연결하세요. (이미지/PDF는 바로 보기, DWG/DXF는 다운로드)</p>
 
   <form method="post"
         action="/admin/buildings/{{ building.id }}/drawings"
@@ -109,8 +109,10 @@
         <a href="{{ d.url }}" target="_blank" rel="noopener">
           <img src="{{ d.url }}" alt="{{ d.title }}" />
         </a>
+        {% elif d.is_pdf %}
+        <a class="drawing-file-link" href="{{ d.url }}" target="_blank" rel="noopener">PDF 보기</a>
         {% else %}
-        <a class="drawing-file-link" href="{{ d.url }}" target="_blank" rel="noopener">파일 보기</a>
+        <a class="drawing-file-link" href="{{ d.url }}?download=1">파일 다운로드</a>
         {% endif %}
       </div>
       <div class="drawing-meta">
@@ -120,7 +122,7 @@
           {{ d.original_name or d.stored_name }}
         </span>
         <div class="drawing-actions">
-          <a class="btn btn-sm btn-secondary" href="{{ d.url }}" download="{{ d.original_name or d.stored_name }}">다운로드</a>
+          <a class="btn btn-sm btn-secondary" href="{{ d.url }}?download=1">다운로드</a>
           {% if user_can_delete(user) %}
           <form method="post" action="/admin/buildings/{{ building.id }}/drawings/{{ d.id }}/delete" class="inline-form"
                 onsubmit="return confirm('도면 «{{ d.title }}»을(를) 삭제할까요?');">

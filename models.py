@@ -13,6 +13,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     JSON,
@@ -144,6 +145,8 @@ class BuildingDrawing(Base):
     original_name = Column(String(300), nullable=True)
     stored_name = Column(String(300), nullable=False)
     content_type = Column(String(100), nullable=True)
+    # Render 등에서 디스크가 휘발성이라 DB에도 본문 보관
+    file_data = Column(LargeBinary, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     building = relationship("Building", back_populates="drawings")
@@ -151,7 +154,7 @@ class BuildingDrawing(Base):
 
     @property
     def url(self) -> str:
-        return f"/static/uploads/buildings/{self.building_id}/{self.stored_name}"
+        return f"/admin/buildings/{self.building_id}/drawings/{self.id}/file"
 
     @property
     def is_image(self) -> bool:
@@ -160,6 +163,12 @@ class BuildingDrawing(Base):
         if ct.startswith("image/"):
             return True
         return name.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"))
+
+    @property
+    def is_pdf(self) -> bool:
+        ct = (self.content_type or "").lower()
+        name = (self.original_name or self.stored_name or "").lower()
+        return ct == "application/pdf" or name.endswith(".pdf")
 
 
 class Floor(Base):

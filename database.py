@@ -308,6 +308,9 @@ async def ensure_schema_updates() -> None:
             "CREATE INDEX IF NOT EXISTS ix_building_drawings_floor_id ON building_drawings (floor_id)"
         )
         await _exec(
+            "ALTER TABLE building_drawings ADD COLUMN IF NOT EXISTS file_data BYTEA"
+        )
+        await _exec(
             """
             CREATE TABLE IF NOT EXISTS equipment_change_logs (
                 id SERIAL PRIMARY KEY,
@@ -341,6 +344,7 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE users ADD COLUMN can_delete BOOLEAN DEFAULT 1",
             "ALTER TABLE floors ADD COLUMN is_active BOOLEAN DEFAULT 1",
             "ALTER TABLE zones ADD COLUMN is_active BOOLEAN DEFAULT 1",
+            "ALTER TABLE building_drawings ADD COLUMN file_data BLOB",
             """
             CREATE TABLE IF NOT EXISTS maintenance_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

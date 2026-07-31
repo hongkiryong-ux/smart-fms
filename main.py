@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import and_, func, or_, select
@@ -1405,6 +1405,92 @@ def _building_upload_dir(building_id: int) -> Path:
     return path
 
 
+def _drawing_media_type(drawing: BuildingDrawing) -> str:
+    ct = (drawing.content_type or "").strip()
+    name = (drawing.original_name or drawing.stored_name or "").lower()
+    if ct and ct.lower() not in {"application/octet-stream", "binary/octet-stream"}:
+        return ct
+    if name.endswith(".pdf"):
+        return "application/pdf"
+    if name.endswith((".png",)):
+        return "image/png"
+    if name.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if name.endswith(".gif"):
+        return "image/gif"
+    if name.endswith(".webp"):
+        return "image/webp"
+    if name.endswith(".bmp"):
+        return "image/bmp"
+    if name.endswith(".dwg"):
+        return "image/vnd.dwg"
+    if name.endswith(".dxf"):
+        return "image/vnd.dxf"
+    return "application/octet-stream"
+
+
+def _drawing_content_disposition(drawing: BuildingDrawing, *, as_attachment: bool = False) -> str:
+    from urllib.parse import quote
+
+    filename = drawing.original_name or drawing.stored_name or "drawing"
+    # DWG/DXF는 브라우저에서 미리보기 불가 → 다운로드
+    force_attach = as_attachment or not (drawing.is_image or drawing.is_pdf)
+    kind = "attachment" if force_attach else "inline"
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii") or "drawing"
+    return f"{kind}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}"
+
+
+async def _load_drawing_bytes(
+    drawing: BuildingDrawing,
+    building_id: int,
+    db: AsyncSession,
+) -> bytes | None:
+    """DB 우선, 없으면 디스크에서 읽어 DB에 백필."""
+    data = drawing.file_data
+    if data:
+        return bytes(data)
+
+    file_path = Path("static") / "uploads" / "buildings" / str(building_id) / drawing.stored_name
+    if file_path.is_file():
+        raw = file_path.read_bytes()
+        if raw:
+            drawing.file_data = raw
+            await db.commit()
+            return raw
+    return None
+
+
+@app.get("/admin/buildings/{building_id}/drawings/{drawing_id}/file")
+async def building_drawing_file(
+    building_id: int,
+    drawing_id: int,
+    download: int = Query(0),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    drawing = await db.get(BuildingDrawing, drawing_id)
+    if not drawing or drawing.building_id != building_id:
+        raise HTTPException(404, detail="도면을 찾을 수 없습니다.")
+
+    data = await _load_drawing_bytes(drawing, building_id, db)
+    if not data:
+        raise HTTPException(
+            404,
+            detail="도면 파일이 없습니다. 배포 환경에서는 파일이 유지되지 않을 수 있으니 다시 업로드해 주세요.",
+        )
+
+    return Response(
+        content=data,
+        media_type=_drawing_media_type(drawing),
+        headers={
+            "Content-Disposition": _drawing_content_disposition(
+                drawing, as_attachment=bool(download)
+            ),
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
 @app.post("/admin/buildings/{building_id}/drawings")
 async def building_drawing_upload(
     building_id: int,
@@ -1440,6 +1526,7 @@ async def building_drawing_upload(
     saved = 0
     skipped = 0
     common_title = (title or "").strip()
+    max_bytes = 25 * 1024 * 1024  # 25MB
 
     for f in uploads:
         original = Path(f.filename or "drawing").name
@@ -1453,7 +1540,13 @@ async def building_drawing_upload(
         if not data:
             skipped += 1
             continue
-        dest.write_bytes(data)
+        if len(data) > max_bytes:
+            skipped += 1
+            continue
+        try:
+            dest.write_bytes(data)
+        except OSError:
+            pass
         draw_title = common_title or Path(original).stem or "도면"
         db.add(
             BuildingDrawing(
@@ -1463,6 +1556,7 @@ async def building_drawing_upload(
                 original_name=original[:300],
                 stored_name=stored,
                 content_type=f.content_type or None,
+                file_data=data,
             )
         )
         saved += 1
@@ -1470,7 +1564,7 @@ async def building_drawing_upload(
     if not saved:
         return RedirectResponse(
             f"/admin/buildings/{building_id}?error="
-            + quote("업로드 가능한 파일이 없습니다. (이미지/PDF/DWG/DXF)"),
+            + quote("업로드 가능한 파일이 없습니다. (이미지/PDF/DWG/DXF, 최대 25MB)"),
             status_code=303,
         )
 
