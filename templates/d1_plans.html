@@ -192,11 +192,15 @@
 </section>
 {% else %}
   {% for section in board_sections %}
+  {% if section.orders or filters.board_mode != 'all' %}
   <section class="card d1-board-section" id="d1-section-{{ section.key }}">
     <div class="wo-list-head">
       <h2>
         {{ section.title }}
-        <small class="text-muted">({{ section.orders|length }}건)</small>
+        <small class="text-muted">
+          ({% if filters.board_mode == 'all' %}이 페이지 {{ section.orders|length }}{% else %}{{ pager.total }}{% endif %}건
+          {% if pager and pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})
+        </small>
       </h2>
     </div>
     {% if section.hint %}
@@ -204,7 +208,14 @@
     {% endif %}
     {{ wo_board_table(section.orders, partners, "표시할 항목이 없습니다.", filters) }}
   </section>
+  {% endif %}
   {% endfor %}
+  {% set parts = [] %}
+  {% set _ = parts.append('board=' ~ (filters.board_mode or 'today')) %}
+  {% for s in filters.statuses %}{% set _ = parts.append('status=' ~ s) %}{% endfor %}
+  {% if filters.partner_id %}{% set _ = parts.append('partner_id=' ~ filters.partner_id) %}{% endif %}
+  {% set base_url = '/admin/d1' ~ (('?' ~ parts|join('&')) if parts else '') %}
+  {% include "partials/pager.html" %}
 {% endif %}
 
 <script>

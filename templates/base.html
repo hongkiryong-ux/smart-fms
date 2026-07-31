@@ -124,11 +124,13 @@
       }
       if (link) {
         link.addEventListener('click', function (e) {
-          if (item.classList.contains('is-open') && itemId === 'nav-equipment') {
+          // 펼쳐진 상태에서 메인 메뉴 클릭 → 닫기 (페이지 이동 없음)
+          if (item.classList.contains('is-open')) {
             e.preventDefault();
             setOpen(false);
             return;
           }
+          // 닫힌 상태 → 펼치고 링크 이동
           setOpen(true);
         });
       }

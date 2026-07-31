@@ -4048,21 +4048,6 @@ async def d1_list(
     }
     board_select_urls = _d1_board_select_urls(status_vals, partner_sel)
 
-    board_sections: list[dict] = []
-    for key in boards:
-        board_sections.append(
-            {
-                "key": key,
-                "title": board_titles.get(key, key),
-                "orders": board_map.get(key, []),
-                "hint": (
-                    "오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)"
-                    if key == "scheduled"
-                    else ""
-                ),
-            }
-        )
-
     selected_works: list = []
     seen_ids: set[int] = set()
     for key in boards:
@@ -4100,6 +4085,7 @@ async def d1_list(
     partner_groups: list[dict] = []
     pager = None
     board_orders: list = []
+    board_sections: list[dict] = []
     if view_partner:
         by_partner: dict[str, list] = {}
         for w in filtered_all:
@@ -4115,20 +4101,55 @@ async def d1_list(
             "has_prev": False,
             "has_next": False,
             "items": filtered_all,
-            "per_page": max(1, len(filtered_all)),
+            "per_page": max(1, len(filtered_all) or 1),
         }
+        board_orders = filtered_all
+    elif boards:
+        pager = _paginate(selected_works, page)
+        board_orders = pager["items"]
+        # 페이지에 포함된 항목만 구분해 섹션 표시 (전체항목일 때 유형별 묶음)
+        if board_mode == "all":
+            by_key: dict[str, list] = {k: [] for k in boards}
+            id_to_key: dict[int, str] = {}
+            for key in boards:
+                for w in board_map.get(key, []):
+                    id_to_key[int(w.id)] = key
+            for w in board_orders:
+                key = id_to_key.get(int(w.id))
+                if key:
+                    by_key[key].append(w)
+            for key in boards:
+                board_sections.append(
+                    {
+                        "key": key,
+                        "title": board_titles.get(key, key),
+                        "orders": by_key.get(key, []),
+                        "hint": (
+                            "오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)"
+                            if key == "scheduled"
+                            else ""
+                        ),
+                        "total": len(board_map.get(key, [])),
+                    }
+                )
+        else:
+            key = boards[0]
+            board_sections.append(
+                {
+                    "key": key,
+                    "title": board_titles.get(key, key),
+                    "orders": board_orders,
+                    "hint": (
+                        "오늘·내일 외 미완료 정비(예정일 미지정·과거·모레 이후)"
+                        if key == "scheduled"
+                        else ""
+                    ),
+                    "total": len(selected_works),
+                }
+            )
     else:
-        pager = {
-            "page": 1,
-            "total": len(selected_works),
-            "total_pages": 1,
-            "page_numbers": [1],
-            "has_prev": False,
-            "has_next": False,
-            "items": selected_works,
-            "per_page": max(1, len(selected_works) or 1),
-        }
-        board_orders = selected_works
+        pager = _paginate([], page)
+        board_orders = []
 
     partner_counts: dict[int, int] = {}
     for w in status_pool:
