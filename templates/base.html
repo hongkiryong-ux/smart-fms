@@ -12,7 +12,6 @@
   {% set is_popup = request.query_params.get('popup') == '1' %}
   {% if user and not is_popup %}
   {% set eq_path = '/equipment' in request.url.path %}
-  {% set wo_path = '/work-orders' in request.url.path %}
   {% set d1_path = request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path or request.url.path.startswith('/admin/d1') %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
@@ -55,30 +54,7 @@
       </li>
       <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
       {% endif %}
-      <li class="nav-expandable{% if wo_path %} is-open{% endif %}" id="nav-work-orders">
-        <div class="nav-parent-row">
-          <a href="/admin/work-orders"
-             class="nav-parent-link{% if wo_path and not nav_pid %} active{% endif %}">정비관리</a>
-          <button type="button"
-                  class="nav-toggle"
-                  aria-expanded="{% if wo_path %}true{% else %}false{% endif %}"
-                  aria-controls="nav-work-orders-sub"
-                  title="협력사 목록 펼치기">
-            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
-          </button>
-        </div>
-        <ul class="nav-sub" id="nav-work-orders-sub">
-          {% for p in request.state.nav_partners or [] %}
-          <li>
-            <a href="/admin/work-orders?partner_id={{ p.id }}"
-               class="{% if wo_path and nav_pid == p.id|string %}active{% endif %}"
-               title="{{ p.name }}">{{ p.name }}</a>
-          </li>
-          {% else %}
-          <li class="nav-sub-empty">등록된 업체 없음</li>
-          {% endfor %}
-        </ul>
-      </li>
+      <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
       <li class="nav-expandable{% if d1_path %} is-open{% endif %}" id="nav-d1">
         <div class="nav-parent-row">
           <a href="/admin/d1"
@@ -160,7 +136,6 @@
       }
     }
     bindNavExpandable('nav-equipment', 'nav-eq-open');
-    bindNavExpandable('nav-work-orders', 'nav-wo-open');
     bindNavExpandable('nav-d1', 'nav-d1-open');
   })();
   </script>

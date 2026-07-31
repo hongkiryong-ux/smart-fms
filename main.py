@@ -3042,7 +3042,6 @@ async def work_orders_list(
     priority: str = "",
     date_from: str = "",
     date_to: str = "",
-    partner_id: int = 0,
     page: int = Query(1),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
@@ -3055,11 +3054,6 @@ async def work_orders_list(
     priority_val = (priority or "").strip()
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
-    try:
-        partner_sel = int(partner_id or 0)
-    except (TypeError, ValueError):
-        partner_sel = 0
-    today = _today_kst()
 
     stmt = (
         select(WorkOrder)
@@ -3089,11 +3083,6 @@ async def work_orders_list(
     if priority_val in ("normal", "high"):
         filters.append(WorkOrder.priority == priority_val)
 
-    if partner_sel > 0:
-        filters.append(WorkOrder.partner_id == partner_sel)
-    elif partner_sel == -1:
-        filters.append(WorkOrder.partner_id.is_(None))
-
     if date_from_val:
         try:
             filters.append(
@@ -3118,44 +3107,14 @@ async def work_orders_list(
             await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
         ).scalars().unique().all()
     )
-    all_orders = _sort_orders_today_receipt_first(all_orders, today)
+    pager = _paginate(all_orders, page)
+    orders = pager["items"]
 
     partners = (
         await db.execute(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
         )
     ).scalars().all()
-
-    selected_partner_name = ""
-    if partner_sel == -1:
-        selected_partner_name = "미지정"
-    elif partner_sel > 0:
-        for p in partners:
-            if p.id == partner_sel:
-                selected_partner_name = p.name
-                break
-        if not selected_partner_name:
-            selected_partner_name = f"협력사 #{partner_sel}"
-
-    # 전체 보기: 협력사별 그룹(당일 접수·배정 건을 각 그룹 최상단)
-    # 특정 협력사: 평면 목록 + 페이지네이션
-    partner_groups: list[dict] = []
-    if partner_sel == 0:
-        partner_groups = _partner_groups_for_orders(all_orders, today)
-        pager = {
-            "page": 1,
-            "total": len(all_orders),
-            "total_pages": 1,
-            "page_numbers": [1],
-            "has_prev": False,
-            "has_next": False,
-            "items": all_orders,
-            "per_page": max(1, len(all_orders) or 1),
-        }
-        orders = all_orders
-    else:
-        pager = _paginate(all_orders, page)
-        orders = pager["items"]
 
     buildings = (
         await db.execute(
@@ -3198,19 +3157,11 @@ async def work_orders_list(
         {
             "user": user,
             "orders": orders,
-            "partner_groups": partner_groups,
             "pager": pager,
             "partners": partners,
             "buildings": buildings,
             "equipment_opts": equipment_opts,
             "equipment_opts_json": json.dumps(equipment_opts, ensure_ascii=False),
-            "today": today.isoformat(),
-            "selected_partner_name": selected_partner_name,
-            "today_receipt_ids": {
-                int(w.id)
-                for w in all_orders
-                if _wo_is_today_partner_receipt(w, today)
-            },
             "filters": {
                 "q": q_val,
                 "status": ",".join(status_vals),
@@ -3218,7 +3169,6 @@ async def work_orders_list(
                 "priority": priority_val,
                 "date_from": date_from_val,
                 "date_to": date_to_val,
-                "partner_id": partner_sel,
                 "page": pager["page"],
             },
             "result_count": pager["total"],
@@ -3233,7 +3183,6 @@ async def work_orders_export(
     priority: str = "",
     date_from: str = "",
     date_to: str = "",
-    partner_id: int = 0,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -3245,10 +3194,6 @@ async def work_orders_export(
     priority_val = (priority or "").strip()
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
-    try:
-        partner_sel = int(partner_id or 0)
-    except (TypeError, ValueError):
-        partner_sel = 0
 
     stmt = (
         select(WorkOrder)
@@ -3274,10 +3219,6 @@ async def work_orders_export(
         filters.append(status_f)
     if priority_val in ("normal", "high"):
         filters.append(WorkOrder.priority == priority_val)
-    if partner_sel > 0:
-        filters.append(WorkOrder.partner_id == partner_sel)
-    elif partner_sel == -1:
-        filters.append(WorkOrder.partner_id.is_(None))
     if date_from_val:
         try:
             filters.append(
@@ -3298,13 +3239,9 @@ async def work_orders_export(
     if filters:
         stmt = stmt.where(and_(*filters))
 
-    orders = _sort_orders_today_receipt_first(
-        list(
-            (
-                await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
-            ).scalars().unique().all()
-        )
-    )
+    orders = (
+        await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
+    ).scalars().unique().all()
     return _work_orders_excel_response(orders, "정비관리")
 
 
@@ -4252,8 +4189,20 @@ async def d1_list(
     )
     completed_works = _apply_partner(_apply_status(list(completed_raw)))
 
+    # 사이드바에서 특정 협력사 선택 시: 당일 접수·배정 정비의뢰를 최상단
+    if partner_sel != 0:
+        today_works = _sort_orders_today_receipt_first(today_works, today)
+        tomorrow_works = _sort_orders_today_receipt_first(tomorrow_works, today)
+        scheduled_works = _sort_orders_today_receipt_first(scheduled_works, today)
+        completed_works = _sort_orders_today_receipt_first(completed_works, today)
+
     status_pool = _apply_status(list(open_works) + list(completed_raw))
     filtered_all = today_works + tomorrow_works + scheduled_works + completed_works
+    today_receipt_ids = {
+        int(w.id)
+        for w in filtered_all
+        if _wo_is_today_partner_receipt(w, today)
+    }
 
     boards, board_mode = _d1_resolve_boards(request, board)
     board_map = {
@@ -4272,6 +4221,24 @@ async def d1_list(
 
     selected_works: list = []
     seen_ids: set[int] = set()
+    # 협력사 선택 시: 당일 접수 정비의뢰를 보드와 무관하게 최상단 노출
+    if partner_sel != 0:
+        partner_receipts = [
+            w
+            for w in open_works
+            if _wo_is_today_partner_receipt(w, today)
+            and (
+                (partner_sel == -1 and not w.partner_id)
+                or (partner_sel > 0 and int(w.partner_id or 0) == partner_sel)
+            )
+            and _wo_matches_status_filter(w, status_vals)
+        ]
+        for w in _sort_orders_today_receipt_first(partner_receipts, today):
+            wid = int(w.id)
+            if wid in seen_ids:
+                continue
+            seen_ids.add(wid)
+            selected_works.append(w)
     for key in boards:
         for w in board_map.get(key, []):
             wid = int(w.id)
@@ -4314,7 +4281,18 @@ async def d1_list(
             name = w.partner.name if w.partner else "미지정"
             by_partner.setdefault(name, []).append(w)
         for name in sorted(by_partner.keys(), key=lambda n: (n == "미지정", n)):
-            partner_groups.append({"name": name, "orders": by_partner[name]})
+            items = by_partner[name]
+            if partner_sel != 0:
+                items = _sort_orders_today_receipt_first(items, today)
+            partner_groups.append(
+                {
+                    "name": name,
+                    "orders": items,
+                    "today_count": sum(
+                        1 for w in items if _wo_is_today_partner_receipt(w, today)
+                    ),
+                }
+            )
         pager = {
             "page": 1,
             "total": len(filtered_all),
@@ -4412,6 +4390,7 @@ async def d1_list(
             "filtered_count": len(filtered_all),
             "partner_groups": partner_groups,
             "partner_btns": partner_btns,
+            "today_receipt_ids": today_receipt_ids,
             "selected_partner_name": selected_partner_name,
             "pager": pager,
             "filters": {

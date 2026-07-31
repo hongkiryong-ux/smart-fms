@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}D-1 작업{% endblock %}
 
-{% macro wo_board_table(orders, partners, empty_msg, filters=None) %}
+{% macro wo_board_table(orders, partners, empty_msg, filters=None, today_receipt_ids=None) %}
+  {% set today_ids = today_receipt_ids or [] %}
   <div class="table-scroll">
   <table class="data-table wo-list-table wo-list-compact">
     <thead>
@@ -21,7 +22,7 @@
     </thead>
     <tbody>
       {% for wo in orders %}
-      <tr>
+      <tr class="{% if wo.id in today_ids %}wo-today-receipt{% endif %}">
         <td class="wo-eq-cell">
           {% if wo.equipment %}
           <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
@@ -32,6 +33,7 @@
         </td>
         <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
           <span class="wo-req-text">
+            {% if wo.id in today_ids %}<span class="badge badge-wo">오늘접수</span> {% endif %}
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
           </span>
         </td>
@@ -177,8 +179,8 @@
   <div class="d1-partner-groups">
     {% for g in partner_groups %}
     <details class="d1-partner-group" open>
-      <summary>{{ g.name }} <small class="text-muted">({{ g.orders|length }}건)</small></summary>
-      {{ wo_board_table(g.orders, partners, "항목 없음", filters) }}
+      <summary>{{ g.name }} <small class="text-muted">({{ g.orders|length }}건{% if g.today_count %} · 오늘접수 {{ g.today_count }}건{% endif %})</small></summary>
+      {{ wo_board_table(g.orders, partners, "항목 없음", filters, today_receipt_ids) }}
     </details>
     {% endfor %}
   </div>
@@ -206,7 +208,7 @@
     {% if section.hint %}
     <p class="d1-hint">{{ section.hint }}</p>
     {% endif %}
-    {{ wo_board_table(section.orders, partners, "표시할 항목이 없습니다.", filters) }}
+    {{ wo_board_table(section.orders, partners, "표시할 항목이 없습니다.", filters, today_receipt_ids) }}
   </section>
   {% endif %}
   {% endfor %}
