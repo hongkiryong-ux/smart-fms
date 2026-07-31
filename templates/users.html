@@ -114,7 +114,6 @@
             <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" checked /> 추가</label>
             <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" checked /> 수정</label>
             <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" /> 삭제</label>
-            {{ menu_access_fields('approve-' ~ u.id, u) }}
           </form>
         </td>
         <td class="users-actions-cell">
@@ -139,17 +138,21 @@
     {% for u in active_users %}
     <article class="users-active-card">
       <form method="post" action="/admin/users/{{ u.id }}/update" class="users-active-form" id="update-{{ u.id }}">
-        <input type="hidden" name="menu_access_edit" value="1" />
         {# 1줄: 기본정보 + 저장/비활성 #}
         <div class="users-active-row users-active-row-main">
-          <label class="users-active-field">
-            <span>아이디</span>
-            <code>{{ u.username }}</code>
-          </label>
-          <label class="users-active-field">
-            <span>이름</span>
-            <input type="text" name="name" value="{{ u.name }}" required class="users-cell-input" />
-          </label>
+          <div class="users-active-idname">
+            <label class="users-active-field">
+              <span>아이디</span>
+              <code>{{ u.username }}</code>
+            </label>
+            <label class="users-active-field">
+              <span>이름</span>
+              <input type="text" name="name" value="{{ u.name }}" required class="users-cell-input" />
+            </label>
+            <a href="#menu-access-{{ u.id }}"
+               class="btn btn-sm btn-secondary users-menu-jump"
+               data-menu-target="menu-access-{{ u.id }}">메뉴접근 설정</a>
+          </div>
           <div class="users-active-field users-active-field-company">
             <span>회사명</span>
             {{ company_fields(None, u) }}
@@ -192,7 +195,7 @@
             {% endif %}
           </div>
         </div>
-        {# 2줄: CRUD/메뉴 권한 + 비밀번호 #}
+        {# 2줄: CRUD + 비밀번호 #}
         <div class="users-active-row users-active-row-perms">
           <div class="users-active-crud">
             <span class="users-active-sublabel">CRUD</span>
@@ -205,13 +208,6 @@
             <label class="users-perm"><input type="checkbox" name="can_create_flag" value="1" {% if u.can_create %}checked{% endif %} /> 추가</label>
             <label class="users-perm"><input type="checkbox" name="can_edit_flag" value="1" {% if u.can_edit %}checked{% endif %} /> 수정</label>
             <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" {% if u.can_delete %}checked{% endif %} /> 삭제</label>
-            {% endif %}
-          </div>
-          <div class="users-active-menus">
-            {% if u.role.value == 'system_admin' %}
-            {{ menu_access_fields(None, u, locked=true) }}
-            {% else %}
-            {{ menu_access_fields(None, u) }}
             {% endif %}
           </div>
           <div class="users-active-pw">
@@ -280,10 +276,6 @@
         <label class="users-perm"><input type="checkbox" name="can_delete_flag" value="1" /> 삭제</label>
       </div>
     </div>
-    <div class="users-create-field users-create-menus">
-      <span>메뉴 접근</span>
-      {{ menu_access_fields(None, None) }}
-    </div>
     <div class="users-create-field users-create-submit">
       <span>&nbsp;</span>
       <button type="submit" class="btn btn-primary">계정 추가</button>
@@ -335,6 +327,34 @@
 </section>
 {% endif %}
 
+{% if active_users %}
+<section class="card card-wide users-section" id="menu-access-section">
+  <h2>메뉴 접근 설정</h2>
+  <p class="text-muted users-menu-section-hint">활성 계정 옆의 「메뉴접근 설정」을 누르면 해당 계정으로 이동합니다.</p>
+  <div class="users-menu-list">
+    {% for u in active_users %}
+    <article class="users-menu-card" id="menu-access-{{ u.id }}">
+      <div class="users-menu-card-head">
+        <strong><code>{{ u.username }}</code> {{ u.name }}</strong>
+        <span class="text-muted">{{ role_labels.get(u.role, u.role.value) }}</span>
+      </div>
+      <form method="post" action="/admin/users/{{ u.id }}/menu-access" class="users-menu-form">
+        {% if u.role.value == 'system_admin' %}
+        {{ menu_access_fields(None, u, locked=true) }}
+        <p class="text-muted" style="margin:0.35rem 0 0;font-size:0.82rem">시스템관리자는 모든 메뉴에 접근합니다.</p>
+        {% else %}
+        {{ menu_access_fields(None, u) }}
+        <div class="users-menu-form-actions">
+          <button type="submit" class="btn btn-sm btn-primary">메뉴 접근 저장</button>
+        </div>
+        {% endif %}
+      </form>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 <script>
 (function () {
   function syncCompanySelect(sel) {
@@ -353,6 +373,31 @@
   document.querySelectorAll('.company-partner-select').forEach(function (sel) {
     sel.addEventListener('change', function () { syncCompanySelect(sel); });
   });
+
+  function highlightMenuCard(id) {
+    if (!id) return;
+    var el = document.getElementById(id);
+    if (!el) return;
+    document.querySelectorAll('.users-menu-card.is-target').forEach(function (c) {
+      c.classList.remove('is-target');
+    });
+    el.classList.add('is-target');
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  document.querySelectorAll('.users-menu-jump').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var id = a.getAttribute('data-menu-target');
+      if (!id) return;
+      e.preventDefault();
+      history.replaceState(null, '', '#' + id);
+      highlightMenuCard(id);
+    });
+  });
+
+  if (location.hash && location.hash.indexOf('#menu-access-') === 0) {
+    highlightMenuCard(location.hash.slice(1));
+  }
 
   document.querySelectorAll('table.users-resizable').forEach(function (table) {
     var startX = 0;

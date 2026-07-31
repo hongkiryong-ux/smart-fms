@@ -1546,6 +1546,62 @@ button.link-action:hover { text-decoration: underline; }
   gap: 0.25rem 0.45rem;
   min-width: 160px;
 }
+.users-active-idname {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem 0.55rem;
+  flex: 1 1 280px;
+  min-width: 240px;
+}
+.users-active-idname .users-active-field {
+  flex: 1 1 100px;
+  min-width: 90px;
+}
+.users-menu-jump {
+  align-self: flex-end;
+  margin-bottom: 0.05rem;
+  white-space: nowrap;
+}
+.users-menu-section-hint {
+  margin: -0.25rem 0 0.85rem;
+  font-size: 0.85rem;
+}
+.users-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.users-menu-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.75rem 0.9rem;
+  scroll-margin-top: 1rem;
+}
+.users-menu-card.is-target {
+  border-color: var(--primary, #003876);
+  box-shadow: 0 0 0 2px rgba(0, 56, 118, 0.15);
+}
+.users-menu-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.55rem;
+}
+.users-menu-form .users-menu-access {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+  min-width: 0;
+}
+.users-menu-form .users-menu-grid {
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+}
+.users-menu-form-actions {
+  margin-top: 0.65rem;
+}
 .users-active-menus {
   flex: 1 1 320px;
   min-width: 260px;

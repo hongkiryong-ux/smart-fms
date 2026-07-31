@@ -1071,7 +1071,6 @@ async def users_manage_page(
 
 @app.post("/admin/users/create")
 async def users_create(
-    request: Request,
     username: str = Form(...),
     password: str = Form(...),
     name: str = Form(...),
@@ -1088,7 +1087,6 @@ async def users_create(
 ):
     from urllib.parse import quote
 
-    form = await request.form()
     uname = username.strip()
     nm = name.strip()
     pw = password.strip()
@@ -1114,7 +1112,7 @@ async def users_create(
         can_create=can_create_flag == "1",
         can_edit=can_edit_flag == "1",
         can_delete=can_delete_flag == "1",
-        menu_access=_menu_keys_from_form(form, role_val),
+        menu_access=default_menu_access(role_val),
     )
     await _apply_user_company(
         db,
@@ -1133,7 +1131,6 @@ async def users_create(
 
 @app.post("/admin/users/{uid}/approve")
 async def users_approve(
-    request: Request,
     uid: int,
     role: str = Form("facility_manager"),
     company_partner_id: str = Form(""),
@@ -1146,7 +1143,6 @@ async def users_approve(
 ):
     from urllib.parse import quote
 
-    form = await request.form()
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
@@ -1160,7 +1156,7 @@ async def users_approve(
     target.can_create = can_create_flag == "1"
     target.can_edit = can_edit_flag == "1"
     target.can_delete = can_delete_flag == "1"
-    target.menu_access = _menu_keys_from_form(form, role_val)
+    target.menu_access = default_menu_access(role_val)
     await _apply_user_company(
         db,
         target,
@@ -1211,13 +1207,11 @@ async def users_update(
     can_edit_flag: str = Form(""),
     can_delete_flag: str = Form(""),
     is_active_flag: str = Form(""),
-    menu_access_edit: str = Form(""),
     user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
 
-    form = await request.form()
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
@@ -1241,9 +1235,9 @@ async def users_update(
     target.can_create = can_create_flag == "1"
     target.can_edit = can_edit_flag == "1"
     target.can_delete = can_delete_flag == "1"
-    if menu_access_edit == "1":
-        target.menu_access = _menu_keys_from_form(form, role_val)
-    _force_admin_menus(target)
+    if role_val == UserRole.system_admin:
+        target.can_create = target.can_edit = target.can_delete = True
+        target.menu_access = default_menu_access(UserRole.system_admin)
     if target.id != user.id:
         target.is_active = is_active_flag == "1"
         if target.is_active:
@@ -1251,6 +1245,31 @@ async def users_update(
     await db.commit()
     return RedirectResponse(
         "/admin/users?message=" + quote(f"{target.username} 정보가 저장되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/users/{uid}/menu-access")
+async def users_menu_access(
+    request: Request,
+    uid: int,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """하단 메뉴 접근 설정 전용 저장."""
+    from urllib.parse import quote
+
+    form = await request.form()
+    target = await db.get(User, uid)
+    if not target:
+        raise HTTPException(404)
+    target.menu_access = _menu_keys_from_form(form, target.role)
+    _force_admin_menus(target)
+    await db.commit()
+    return RedirectResponse(
+        "/admin/users?message="
+        + quote(f"{target.username} 메뉴 접근이 저장되었습니다.")
+        + f"#menu-access-{target.id}",
         status_code=303,
     )
 
