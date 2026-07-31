@@ -141,6 +141,9 @@ class Building(Base):
     drawings = relationship(
         "BuildingDrawing", back_populates="building", cascade="all, delete-orphan"
     )
+    standards = relationship(
+        "BuildingStandard", back_populates="building", cascade="all, delete-orphan"
+    )
 
 
 class BuildingDrawing(Base):
@@ -173,6 +176,33 @@ class BuildingDrawing(Base):
         if ct.startswith("image/"):
             return True
         return name.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"))
+
+    @property
+    def is_pdf(self) -> bool:
+        ct = (self.content_type or "").lower()
+        name = (self.original_name or self.stored_name or "").lower()
+        return ct == "application/pdf" or name.endswith(".pdf")
+
+
+class BuildingStandard(Base):
+    """건물 표준서 첨부 파일."""
+
+    __tablename__ = "building_standards"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    original_name = Column(String(300), nullable=True)
+    stored_name = Column(String(300), nullable=False)
+    content_type = Column(String(100), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building", back_populates="standards")
+
+    @property
+    def url(self) -> str:
+        return f"/admin/buildings/{self.building_id}/standards/{self.id}/file"
 
     @property
     def is_pdf(self) -> bool:

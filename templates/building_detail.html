@@ -139,5 +139,62 @@
   {% endif %}
 </section>
 
+<section class="card building-drawings-card">
+  <h2>표준서 등록</h2>
+  <p class="text-muted" style="margin-top:-0.35rem">PDF·Office·HWP·이미지 등 표준서 파일을 등록하고 다운로드할 수 있습니다.</p>
+
+  <form method="post"
+        action="/admin/buildings/{{ building.id }}/standards"
+        enctype="multipart/form-data"
+        class="form-stack drawing-upload-form">
+    <div class="drawing-upload-grid">
+      <div>
+        <label>표준서 제목</label>
+        <input type="text" name="title" placeholder="비우면 파일명 사용" />
+      </div>
+      <div class="drawing-file-field">
+        <label>파일</label>
+        <input type="file"
+               name="files"
+               multiple
+               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.hwp,.hwpx,.txt,.png,.jpg,.jpeg,application/pdf"
+               required />
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">표준서 등록</button>
+  </form>
+
+  {% if standards %}
+  <div class="drawing-list">
+    {% for s in standards %}
+    <article class="drawing-item">
+      <div class="drawing-preview">
+        {% if s.is_pdf %}
+        <a class="drawing-file-link" href="{{ s.url }}" target="_blank" rel="noopener">PDF 보기</a>
+        {% else %}
+        <a class="drawing-file-link" href="{{ s.url }}">파일 다운로드</a>
+        {% endif %}
+      </div>
+      <div class="drawing-meta">
+        <strong>{{ s.title }}</strong>
+        <span class="text-muted">{{ s.original_name or s.stored_name }}</span>
+        <div class="drawing-actions">
+          <a class="btn btn-sm btn-secondary" href="{{ s.url }}">다운로드</a>
+          {% if user_can_delete(user) %}
+          <form method="post" action="/admin/buildings/{{ building.id }}/standards/{{ s.id }}/delete" class="inline-form"
+                onsubmit="return confirm('표준서 «{{ s.title }}»을(를) 삭제할까요?');">
+            <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">등록된 표준서가 없습니다.</p>
+  {% endif %}
+</section>
+
 <p><a href="/admin/sites">&larr; 사업장 목록</a></p>
 {% endblock %}

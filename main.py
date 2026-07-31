@@ -42,6 +42,7 @@ from init_data import seed_if_empty
 from models import (
     Building,
     BuildingDrawing,
+    BuildingStandard,
     Consumable,
     D1Plan,
     D1Status,
@@ -1529,6 +1530,7 @@ async def building_detail(
             selectinload(Building.site),
             selectinload(Building.floors).selectinload(Floor.zones),
             selectinload(Building.drawings).selectinload(BuildingDrawing.floor),
+            selectinload(Building.standards),
         )
     )
     building = result.scalar_one_or_none()
@@ -1536,6 +1538,11 @@ async def building_detail(
         raise HTTPException(404)
     drawings = sorted(
         building.drawings or [],
+        key=lambda d: (d.created_at or datetime.min, d.id or 0),
+        reverse=True,
+    )
+    standards = sorted(
+        building.standards or [],
         key=lambda d: (d.created_at or datetime.min, d.id or 0),
         reverse=True,
     )
@@ -1550,6 +1557,7 @@ async def building_detail(
             "user": user,
             "building": building,
             "drawings": drawings,
+            "standards": standards,
             "active_floors": active_floors,
             "message": message,
             "error": error,
@@ -1773,6 +1781,231 @@ async def building_drawing_delete(
 
     return RedirectResponse(
         f"/admin/buildings/{building_id}?message={quote('도면이 삭제되었습니다.')}",
+        status_code=303,
+    )
+
+
+STANDARD_ALLOWED_EXT = {
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".hwp",
+    ".hwpx",
+    ".txt",
+    ".png",
+    ".jpg",
+    ".jpeg",
+}
+
+
+def _building_standards_dir(building_id: int) -> Path:
+    path = Path("static") / "uploads" / "buildings" / str(building_id) / "standards"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _standard_media_type(doc: BuildingStandard) -> str:
+    ct = (doc.content_type or "").strip()
+    name = (doc.original_name or doc.stored_name or "").lower()
+    if ct and ct.lower() not in {"application/octet-stream", "binary/octet-stream"}:
+        return ct
+    if name.endswith(".pdf"):
+        return "application/pdf"
+    if name.endswith(".doc"):
+        return "application/msword"
+    if name.endswith(".docx"):
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    if name.endswith(".xls"):
+        return "application/vnd.ms-excel"
+    if name.endswith(".xlsx"):
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if name.endswith(".ppt"):
+        return "application/vnd.ms-powerpoint"
+    if name.endswith(".pptx"):
+        return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    if name.endswith(".txt"):
+        return "text/plain"
+    if name.endswith(".png"):
+        return "image/png"
+    if name.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    return "application/octet-stream"
+
+
+def _standard_content_disposition(doc: BuildingStandard) -> str:
+    from urllib.parse import quote
+
+    filename = doc.original_name or doc.stored_name or "standard"
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii") or "standard"
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+
+
+async def _load_standard_bytes(
+    doc: BuildingStandard,
+    building_id: int,
+    db: AsyncSession,
+) -> bytes | None:
+    data = doc.file_data
+    if data:
+        return bytes(data)
+    file_path = (
+        Path("static")
+        / "uploads"
+        / "buildings"
+        / str(building_id)
+        / "standards"
+        / doc.stored_name
+    )
+    if file_path.is_file():
+        raw = file_path.read_bytes()
+        if raw:
+            doc.file_data = raw
+            await db.commit()
+            return raw
+    return None
+
+
+@app.get("/admin/buildings/{building_id}/standards/{standard_id}/file")
+async def building_standard_file(
+    building_id: int,
+    standard_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    doc = await db.get(BuildingStandard, standard_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404, detail="표준서를 찾을 수 없습니다.")
+
+    data = await _load_standard_bytes(doc, building_id, db)
+    if not data:
+        raise HTTPException(
+            404,
+            detail="표준서 파일이 없습니다. 다시 업로드해 주세요.",
+        )
+
+    return Response(
+        content=data,
+        media_type=_standard_media_type(doc),
+        headers={
+            "Content-Disposition": _standard_content_disposition(doc),
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
+@app.post("/admin/buildings/{building_id}/standards")
+async def building_standard_upload(
+    building_id: int,
+    title: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
+    user: User = Depends(require_can_create),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    import uuid
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        raise HTTPException(404)
+
+    raw_files = files if isinstance(files, list) else ([files] if files else [])
+    uploads = [f for f in raw_files if f and getattr(f, "filename", None)]
+    if not uploads:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error={quote('표준서 파일을 선택하세요.')}",
+            status_code=303,
+        )
+
+    upload_dir = _building_standards_dir(building_id)
+    saved = 0
+    skipped = 0
+    common_title = (title or "").strip()
+    max_bytes = 25 * 1024 * 1024
+
+    for f in uploads:
+        original = Path(f.filename or "standard").name
+        suffix = Path(original).suffix.lower()
+        if suffix not in STANDARD_ALLOWED_EXT:
+            skipped += 1
+            continue
+        stored = f"{uuid.uuid4().hex}{suffix}"
+        dest = upload_dir / stored
+        data = await f.read()
+        if not data:
+            skipped += 1
+            continue
+        if len(data) > max_bytes:
+            skipped += 1
+            continue
+        try:
+            dest.write_bytes(data)
+        except OSError:
+            pass
+        doc_title = common_title or Path(original).stem or "표준서"
+        db.add(
+            BuildingStandard(
+                building_id=building_id,
+                title=doc_title[:200],
+                original_name=original[:300],
+                stored_name=stored,
+                content_type=f.content_type or None,
+                file_data=data,
+            )
+        )
+        saved += 1
+
+    if not saved:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error="
+            + quote("업로드 가능한 파일이 없습니다. (PDF/Office/HWP/이미지, 최대 25MB)"),
+            status_code=303,
+        )
+
+    await db.commit()
+    msg = f"표준서 {saved}건 등록 완료"
+    if skipped:
+        msg += f" (제외 {skipped}건)"
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}?message={quote(msg)}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/buildings/{building_id}/standards/{standard_id}/delete")
+async def building_standard_delete(
+    building_id: int,
+    standard_id: int,
+    user: User = Depends(require_can_delete),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    doc = await db.get(BuildingStandard, standard_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404)
+
+    file_path = (
+        Path("static")
+        / "uploads"
+        / "buildings"
+        / str(building_id)
+        / "standards"
+        / doc.stored_name
+    )
+    await db.delete(doc)
+    await db.commit()
+    try:
+        if file_path.is_file():
+            file_path.unlink()
+    except OSError:
+        pass
+
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}?message={quote('표준서가 삭제되었습니다.')}",
         status_code=303,
     )
 
