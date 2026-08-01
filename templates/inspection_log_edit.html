@@ -15,7 +15,7 @@
   <div class="ilog-edit-title-row">
     <div>
       <h1>{{ doc.title }}</h1>
-      <p class="text-muted">{{ doc.original_name or doc.stored_name }} · 셀을 수정한 뒤 저장하세요</p>
+      <p class="text-muted">{{ doc.original_name or doc.stored_name }} · 수식(=) 포함 · 셀 수정 시 자동 계산 · 저장 시 수식 유지</p>
     </div>
     <div class="ilog-edit-actions">
       <a class="btn btn-secondary btn-sm" href="{{ file_url }}">다운로드</a>
@@ -25,6 +25,10 @@
       <span class="text-muted">수정 권한이 없어 저장할 수 없습니다.</span>
       {% endif %}
     </div>
+  </div>
+  <div class="ilog-formula-bar">
+    <span class="ilog-formula-cell" id="ilog-formula-cell">A1</span>
+    <input type="text" id="ilog-formula-input" class="ilog-formula-input" placeholder="수식 또는 값 (예: =A1+B1)" {% if not can_save %}readonly{% endif %} />
   </div>
   <div id="ilog-status" class="ilog-status" hidden></div>
 </header>
@@ -40,27 +44,50 @@
 <script src="https://cdn.jsdelivr.net/npm/jsuites@5.8.3/dist/jsuites.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.15.0/dist/index.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hyperformula@2.7.1/dist/hyperformula.full.min.js"></script>
 <script>
 (function () {
   var FILE_URL = {{ file_url | tojson }};
   var SAVE_URL = {{ save_url | tojson }};
   var CAN_SAVE = {{ can_save | tojson }};
-  var sheets = []; // { name, data: string[][] }
+  var sheets = []; // { name, data: any[][] }  — 수식은 '=SUM(A1:A2)' 형태
   var active = 0;
   var spreadsheet = null;
   var dirty = false;
+  var selected = { x: 0, y: 0 };
 
   var tabsEl = document.getElementById('ilog-sheet-tabs');
   var host = document.getElementById('ilog-spreadsheet');
   var loading = document.getElementById('ilog-loading');
   var statusEl = document.getElementById('ilog-status');
   var saveBtn = document.getElementById('ilog-save-btn');
+  var formulaCell = document.getElementById('ilog-formula-cell');
+  var formulaInput = document.getElementById('ilog-formula-input');
 
   function setStatus(msg, kind) {
     if (!statusEl) return;
     statusEl.hidden = !msg;
     statusEl.textContent = msg || '';
     statusEl.className = 'ilog-status' + (kind ? ' ilog-status-' + kind : '');
+  }
+
+  function colName(n) {
+    var s = '';
+    var x = n + 1;
+    while (x > 0) {
+      var m = (x - 1) % 26;
+      s = String.fromCharCode(65 + m) + s;
+      x = Math.floor((x - 1) / 26);
+    }
+    return s;
+  }
+
+  function cellLabel(x, y) {
+    return colName(x) + String(y + 1);
+  }
+
+  function isFormula(v) {
+    return typeof v === 'string' && v.length > 1 && v.charAt(0) === '=';
   }
 
   function normalizeAoa(aoa) {
@@ -76,11 +103,132 @@
       var row = [];
       for (var c = 0; c < maxCols; c++) {
         var v = (aoa[r] && aoa[r][c] != null) ? aoa[r][c] : '';
-        row.push(v === null || v === undefined ? '' : String(v));
+        row.push(v);
       }
       out.push(row);
     }
     return out;
+  }
+
+  /** SheetJS 워크시트 → 수식 포함 2차원 배열 */
+  function sheetToAoaWithFormulas(ws) {
+    if (!ws || !ws['!ref']) return [['']];
+    var range = XLSX.utils.decode_range(ws['!ref']);
+    var aoa = [];
+    for (var R = range.s.r; R <= range.e.r; R++) {
+      var row = [];
+      for (var C = range.s.c; C <= range.e.c; C++) {
+        var addr = XLSX.utils.encode_cell({ r: R, c: C });
+        var cell = ws[addr];
+        if (!cell) {
+          row.push('');
+        } else if (cell.f) {
+          row.push('=' + String(cell.f).replace(/^\=/, ''));
+        } else if (cell.v != null && cell.v !== undefined) {
+          row.push(cell.v);
+        } else if (cell.w != null) {
+          row.push(cell.w);
+        } else {
+          row.push('');
+        }
+      }
+      aoa.push(row);
+    }
+    return aoa;
+  }
+
+  /** 수식 포함 AOA → SheetJS 워크시트 (수식은 f 로 저장) */
+  function aoaToSheetWithFormulas(aoa) {
+    var ws = {};
+    var maxR = 0;
+    var maxC = 0;
+    for (var R = 0; R < aoa.length; R++) {
+      var row = aoa[R] || [];
+      for (var C = 0; C < row.length; C++) {
+        var val = row[C];
+        if (val === '' || val === null || val === undefined) continue;
+        maxR = Math.max(maxR, R);
+        maxC = Math.max(maxC, C);
+        var addr = XLSX.utils.encode_cell({ r: R, c: C });
+        if (isFormula(val)) {
+          ws[addr] = { t: 'n', f: String(val).slice(1) };
+        } else if (typeof val === 'number') {
+          ws[addr] = { t: 'n', v: val };
+        } else if (typeof val === 'boolean') {
+          ws[addr] = { t: 'b', v: val };
+        } else {
+          var s = String(val);
+          var num = Number(s);
+          if (s.trim() !== '' && !isNaN(num) && /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(s.trim())) {
+            ws[addr] = { t: 'n', v: num };
+          } else {
+            ws[addr] = { t: 's', v: s };
+          }
+        }
+      }
+    }
+    ws['!ref'] = XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: Math.max(maxR, 0), c: Math.max(maxC, 0) }
+    });
+    return ws;
+  }
+
+  /** HyperFormula로 시트 재계산 후, 표시용 값 배열 반환 (수식 셀은 계산값, 맵은 원본 유지) */
+  function calculateSheetData(dataWithFormulas) {
+    if (typeof HyperFormula === 'undefined') {
+      return dataWithFormulas.map(function (row) { return row.slice(); });
+    }
+    try {
+      var src = dataWithFormulas.map(function (row) {
+        return (row || []).map(function (v) {
+          if (v === null || v === undefined) return null;
+          if (isFormula(v)) return v;
+          if (typeof v === 'number' || typeof v === 'boolean') return v;
+          var s = String(v);
+          if (s.trim() === '') return null;
+          var n = Number(s);
+          if (!isNaN(n) && /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(s.trim())) return n;
+          return s;
+        });
+      });
+      var hf = HyperFormula.buildFromArray(src, {
+        licenseKey: 'gpl-v3',
+        useColumnIndex: false
+      });
+      var sheetId = hf.getSheetId('Sheet1');
+      if (sheetId == null) sheetId = 0;
+      var h = src.length;
+      var w = 0;
+      for (var i = 0; i < src.length; i++) w = Math.max(w, (src[i] || []).length);
+      var out = [];
+      for (var r = 0; r < h; r++) {
+        var row = [];
+        for (var c = 0; c < w; c++) {
+          var original = (dataWithFormulas[r] && dataWithFormulas[r][c] != null)
+            ? dataWithFormulas[r][c] : '';
+          if (isFormula(original)) {
+            var cv = hf.getCellValue({ sheet: sheetId, row: r, col: c });
+            if (cv && typeof cv === 'object' && cv.type) {
+              // DetailedCellError
+              row.push(original);
+            } else if (cv === null || cv === undefined) {
+              row.push(original);
+            } else {
+              row.push(cv);
+            }
+          } else {
+            row.push(original === null || original === undefined ? '' : original);
+          }
+        }
+        out.push(row);
+      }
+      try { hf.destroy(); } catch (e) {}
+      return out;
+    } catch (err) {
+      console.warn('HyperFormula calc skip', err);
+      return dataWithFormulas.map(function (row) { return row.slice(); });
+    }
   }
 
   function destroySheet() {
@@ -109,23 +257,108 @@
     });
   }
 
+  function syncFormulaBar(x, y) {
+    selected = { x: x, y: y };
+    if (formulaCell) formulaCell.textContent = cellLabel(x, y);
+    var sheet = sheets[active];
+    if (!sheet || !formulaInput) return;
+    var raw = (sheet.data[y] && sheet.data[y][x] != null) ? sheet.data[y][x] : '';
+    formulaInput.value = raw === null || raw === undefined ? '' : String(raw);
+  }
+
+  /** jspreadsheet에서 수식+값 원본 복원 */
   function flushActiveToModel() {
     if (!spreadsheet || !sheets[active]) return;
     try {
-      sheets[active].data = spreadsheet.getData();
+      var data = spreadsheet.getData();
+      var rows = data.length;
+      var cols = (data[0] && data[0].length) || 0;
+      var merged = [];
+      for (var y = 0; y < rows; y++) {
+        var row = [];
+        for (var x = 0; x < cols; x++) {
+          var prev = (sheets[active].data[y] && sheets[active].data[y][x] != null)
+            ? sheets[active].data[y][x] : '';
+          var shown = data[y][x];
+          // 기존이 수식이면 수식 유지 (화면에 계산값이 보여도)
+          if (isFormula(prev)) {
+            row.push(prev);
+          } else {
+            row.push(shown);
+          }
+        }
+        merged.push(row);
+      }
+      // jspreadsheet 내부 formulas 맵이 있으면 반영
+      try {
+        var fdict = spreadsheet.formulas || (spreadsheet.worksheets && spreadsheet.worksheets[0] && spreadsheet.worksheets[0].formulas);
+        if (fdict) {
+          Object.keys(fdict).forEach(function (name) {
+            var f = fdict[name];
+            if (!f) return;
+            var coords = null;
+            try {
+              if (jspreadsheet.helpers && jspreadsheet.helpers.getCoordsFromCellName) {
+                coords = jspreadsheet.helpers.getCoordsFromCellName(name);
+              }
+            } catch (e) {}
+            if (!coords && /^([A-Z]+)(\d+)$/i.test(name)) {
+              var m = name.toUpperCase().match(/^([A-Z]+)(\d+)$/);
+              var cx = 0;
+              var letters = m[1];
+              for (var i = 0; i < letters.length; i++) {
+                cx = cx * 26 + (letters.charCodeAt(i) - 64);
+              }
+              coords = [cx - 1, parseInt(m[2], 10) - 1];
+            }
+            if (coords && merged[coords[1]]) {
+              var fs = String(f);
+              merged[coords[1]][coords[0]] = fs.charAt(0) === '=' ? fs : ('=' + fs);
+            }
+          });
+        }
+      } catch (e2) {}
+      sheets[active].data = merged;
     } catch (e) {}
+  }
+
+  function applyFormulaBarValue() {
+    if (!CAN_SAVE || !spreadsheet || !formulaInput) return;
+    var v = formulaInput.value;
+    var x = selected.x;
+    var y = selected.y;
+    if (!sheets[active].data[y]) return;
+    sheets[active].data[y][x] = v;
+    dirty = true;
+    // 재계산 후 시트 다시 그림
+    renderActiveSheet();
+    try {
+      spreadsheet.updateCell(x, y, isFormula(v) ? v : v, true);
+    } catch (e) {
+      // re-render already applied
+    }
+    syncFormulaBar(x, y);
   }
 
   function renderActiveSheet() {
     destroySheet();
     var sheet = sheets[active];
     if (!sheet) return;
-    var data = normalizeAoa(sheet.data);
+    sheet.data = normalizeAoa(sheet.data);
+    // 표시: 수식은 HyperFormula 계산값, 내부 data는 수식 유지
+    var display = calculateSheetData(sheet.data);
+    // jspreadsheet에는 수식 문자열을 넣어 자체 계산도 병행
+    var forGrid = sheet.data.map(function (row, ri) {
+      return row.map(function (v, ci) {
+        if (isFormula(v)) return v;
+        return display[ri][ci];
+      });
+    });
     spreadsheet = jspreadsheet(host, {
-      data: data,
+      data: forGrid,
       tableOverflow: true,
       tableWidth: '100%',
-      tableHeight: '65vh',
+      tableHeight: '60vh',
       defaultColWidth: 100,
       allowInsertRow: true,
       allowInsertColumn: true,
@@ -133,26 +366,75 @@
       allowDeleteColumn: true,
       columnSorting: false,
       editable: !!CAN_SAVE,
-      onchange: function () { dirty = true; },
-      oninsertrow: function () { dirty = true; },
-      oninsertcolumn: function () { dirty = true; },
-      ondeleterow: function () { dirty = true; },
-      ondeletecolumn: function () { dirty = true; }
+      onselection: function (el, px, py, ux, uy) {
+        var x = typeof px === 'number' ? px : 0;
+        var y = typeof py === 'number' ? py : 0;
+        syncFormulaBar(x, y);
+      },
+      onchange: function (instance, cell, x, y, value) {
+        dirty = true;
+        x = parseInt(x, 10);
+        y = parseInt(y, 10);
+        if (!sheets[active].data[y]) sheets[active].data[y] = [];
+        var prev = sheets[active].data[y][x];
+        if (isFormula(value)) {
+          sheets[active].data[y][x] = value;
+        } else if (isFormula(prev)) {
+          // 수식 셀이 계산값으로 갱신된 경우 → 수식 유지
+          // 사용자가 수식을 일반 값으로 바꾼 경우는 수식 바에 일반 값이 들어감
+          var fromBar = formulaInput && document.activeElement === formulaInput;
+          if (fromBar && !isFormula(formulaInput.value)) {
+            sheets[active].data[y][x] = value;
+          }
+          // else keep prev formula
+        } else {
+          sheets[active].data[y][x] = value;
+        }
+        syncFormulaBar(x, y);
+      },
+      oninsertrow: function () { dirty = true; flushActiveToModel(); },
+      oninsertcolumn: function () { dirty = true; flushActiveToModel(); },
+      ondeleterow: function () { dirty = true; flushActiveToModel(); },
+      ondeletecolumn: function () { dirty = true; flushActiveToModel(); }
     });
+    syncFormulaBar(selected.x, selected.y);
   }
 
   function workbookFromSheets() {
     var wb = XLSX.utils.book_new();
     sheets.forEach(function (s) {
-      var aoa = s.data || [['']];
-      // 끝의 완전 빈 행 정리
+      var aoa = (s.data || [['']]).map(function (row) { return row.slice(); });
       while (aoa.length > 1) {
         var last = aoa[aoa.length - 1];
-        var empty = !last || last.every(function (c) { return c === '' || c == null; });
+        var empty = !last || last.every(function (c) {
+          return c === '' || c == null;
+        });
         if (!empty) break;
         aoa.pop();
       }
-      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      var ws = aoaToSheetWithFormulas(aoa);
+      // 계산값도 v로 채워 두면 Excel에서 바로 보임
+      try {
+        var calc = calculateSheetData(aoa);
+        for (var r = 0; r < aoa.length; r++) {
+          for (var c = 0; c < (aoa[r] || []).length; c++) {
+            if (!isFormula(aoa[r][c])) continue;
+            var addr = XLSX.utils.encode_cell({ r: r, c: c });
+            if (!ws[addr]) continue;
+            var cv = calc[r][c];
+            if (typeof cv === 'number') {
+              ws[addr].t = 'n';
+              ws[addr].v = cv;
+            } else if (typeof cv === 'boolean') {
+              ws[addr].t = 'b';
+              ws[addr].v = cv;
+            } else if (cv != null && !isFormula(cv)) {
+              ws[addr].t = 's';
+              ws[addr].v = String(cv);
+            }
+          }
+        }
+      } catch (e) {}
       var name = (s.name || 'Sheet').substring(0, 31) || 'Sheet';
       XLSX.utils.book_append_sheet(wb, ws, name);
     });
@@ -165,11 +447,15 @@
       var res = await fetch(FILE_URL, { credentials: 'same-origin' });
       if (!res.ok) throw new Error('파일을 불러오지 못했습니다. (' + res.status + ')');
       var buf = await res.arrayBuffer();
-      var wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      var wb = XLSX.read(buf, {
+        type: 'array',
+        cellDates: true,
+        cellFormula: true,
+        sheetStubs: true
+      });
       sheets = wb.SheetNames.map(function (name) {
         var ws = wb.Sheets[name];
-        var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
-        return { name: name, data: normalizeAoa(aoa) };
+        return { name: name, data: normalizeAoa(sheetToAoaWithFormulas(ws)) };
       });
       if (!sheets.length) sheets = [{ name: 'Sheet1', data: [['']] }];
       active = 0;
@@ -177,6 +463,7 @@
       renderTabs();
       renderActiveSheet();
       dirty = false;
+      setStatus('수식을 포함해 불러왔습니다. 값을 바꾸면 관련 수식이 다시 계산됩니다.', 'ok');
     } catch (err) {
       if (loading) loading.textContent = '불러오기 실패: ' + (err.message || err);
       setStatus(String(err.message || err), 'error');
@@ -190,10 +477,13 @@
     saveBtn.disabled = true;
     try {
       var wb = workbookFromSheets();
-      var out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      var out = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellFormula: true });
       var bytes = new Uint8Array(out);
       var binary = '';
-      for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      var chunk = 0x8000;
+      for (var i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
       var b64 = btoa(binary);
       var res = await fetch(SAVE_URL, {
         method: 'POST',
@@ -207,7 +497,7 @@
         throw new Error((payload && (payload.detail || payload.message)) || ('저장 실패 (' + res.status + ')'));
       }
       dirty = false;
-      setStatus((payload && payload.message) || '저장되었습니다.', 'ok');
+      setStatus((payload && payload.message) || '수식 포함해 저장되었습니다.', 'ok');
     } catch (err) {
       setStatus(String(err.message || err), 'error');
     } finally {
@@ -216,6 +506,15 @@
   }
 
   if (saveBtn) saveBtn.addEventListener('click', saveFile);
+  if (formulaInput) {
+    formulaInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyFormulaBarValue();
+      }
+    });
+    formulaInput.addEventListener('change', applyFormulaBarValue);
+  }
   window.addEventListener('beforeunload', function (e) {
     if (!dirty) return;
     e.preventDefault();

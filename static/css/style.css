@@ -1095,6 +1095,31 @@ body {
   align-items: center;
   gap: 0.4rem;
 }
+.ilog-formula-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.ilog-formula-cell {
+  flex: 0 0 auto;
+  min-width: 3rem;
+  padding: 0.35rem 0.55rem;
+  background: #eef2f7;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.ilog-formula-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.9rem;
+}
 .ilog-status {
   margin-top: 0.65rem;
   padding: 0.55rem 0.75rem;
