@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.15.0/dist/jspreadsheet.min.css" />
 
 <header class="page-header ilog-edit-header">
-  <div class="breadcrumb-nav">
+  <div class="breadcrumb-nav ilog-breadcrumb">
     <a href="/admin/inspection-logs">점검일지</a>
     <span>›</span>
     <a href="/admin/inspection-logs/{{ building.id }}">{{ building.name }}</a>
@@ -15,58 +15,116 @@
   <h1 class="ilog-edit-doc-title">{{ doc.title }}</h1>
 
   <div class="ilog-excel-chrome">
-    <div class="ilog-toolbar" id="ilog-toolbar" role="toolbar" aria-label="엑셀 메뉴">
+    <div class="ilog-toolbar" id="ilog-toolbar" role="toolbar" aria-label="엑셀 도구 모음">
       <div class="ilog-toolbar-row">
-        <button type="button" class="ilog-ribbon-btn" id="ilog-save-btn" {% if not can_save %}disabled title="수정 권한 없음"{% endif %}>저장</button>
-        <a class="ilog-ribbon-btn" id="ilog-download-btn" href="{{ file_url }}">다운로드</a>
-        <a class="ilog-ribbon-btn" href="/admin/inspection-logs/{{ building.id }}">목록</a>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" id="ilog-save-btn" {% if not can_save %}disabled title="수정 권한 없음"{% endif %}>저장</button>
+          <a class="ilog-ribbon-btn" id="ilog-download-btn" href="{{ file_url }}">다운로드</a>
+          <a class="ilog-ribbon-btn" href="/admin/inspection-logs/{{ building.id }}">목록</a>
+        </span>
         <span class="ilog-ribbon-sep"></span>
-        <button type="button" class="ilog-ribbon-btn" id="ilog-undo-btn" data-cmd="undo" title="Ctrl+Z" {% if not can_save %}disabled{% endif %}>뒤로 되돌리기</button>
-        <button type="button" class="ilog-ribbon-btn" id="ilog-redo-btn" data-cmd="redo" title="Ctrl+Y" {% if not can_save %}disabled{% endif %}>앞으로 되돌리기</button>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" id="ilog-undo-btn" data-cmd="undo" title="Ctrl+Z" {% if not can_save %}disabled{% endif %}>뒤로 되돌리기</button>
+          <button type="button" class="ilog-ribbon-btn" id="ilog-redo-btn" data-cmd="redo" title="Ctrl+Y" {% if not can_save %}disabled{% endif %}>앞으로 되돌리기</button>
+        </span>
         <span class="ilog-ribbon-sep"></span>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="cut" {% if not can_save %}disabled{% endif %}>잘라내기</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="copy">복사</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="paste" {% if not can_save %}disabled{% endif %}>붙여넣기</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="clear" {% if not can_save %}disabled{% endif %}>내용 지우기</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="fill-down" {% if not can_save %}disabled{% endif %}>아래로 채우기</button>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="cut" {% if not can_save %}disabled{% endif %}>잘라내기</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="copy">복사</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="paste" {% if not can_save %}disabled{% endif %}>붙여넣기</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="clear" {% if not can_save %}disabled{% endif %}>내용 지우기</button>
+        </span>
+        <span class="ilog-ribbon-sep"></span>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="find" title="Ctrl+F">찾기</button>
+        </span>
       </div>
       <div class="ilog-toolbar-row">
-        <button type="button" class="ilog-ribbon-btn" data-cmd="insert-row" {% if not can_save %}disabled{% endif %}>행 삽입</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="insert-col" {% if not can_save %}disabled{% endif %}>열 삽입</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="insert-row-below" {% if not can_save %}disabled{% endif %}>아래에 행</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="insert-col-right" {% if not can_save %}disabled{% endif %}>오른쪽에 열</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="delete-row" {% if not can_save %}disabled{% endif %}>행 삭제</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="delete-col" {% if not can_save %}disabled{% endif %}>열 삭제</button>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn ilog-fmt-btn" data-cmd="bold" title="굵게" {% if not can_save %}disabled{% endif %}><strong>B</strong></button>
+          <button type="button" class="ilog-ribbon-btn ilog-fmt-btn" data-cmd="italic" title="기울임" {% if not can_save %}disabled{% endif %}><em>I</em></button>
+          <button type="button" class="ilog-ribbon-btn ilog-fmt-btn" data-cmd="underline" title="밑줄" {% if not can_save %}disabled{% endif %}><span class="ilog-u">U</span></button>
+        </span>
         <span class="ilog-ribbon-sep"></span>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="recalc">다시 계산</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="toggle-formula" id="ilog-toggle-formula">수식 표시</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="edit-formula" {% if not can_save %}disabled{% endif %}>수식 편집 (F2)</button>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="align-left" title="왼쪽 정렬" {% if not can_save %}disabled{% endif %}>왼쪽</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="align-center" title="가운데 정렬" {% if not can_save %}disabled{% endif %}>가운데</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="align-right" title="오른쪽 정렬" {% if not can_save %}disabled{% endif %}>오른쪽</button>
+        </span>
         <span class="ilog-ribbon-sep"></span>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-out">축소</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-reset">100%</button>
-        <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-in">확대</button>
+        <span class="ilog-ribbon-group ilog-color-group">
+          <label class="ilog-color-label" title="채우기색">채우기
+            <input type="color" id="ilog-fill-color" class="ilog-color-input" value="#ffffff" {% if not can_save %}disabled{% endif %} />
+          </label>
+          <label class="ilog-color-label" title="글자색">글자
+            <input type="color" id="ilog-font-color" class="ilog-color-input" value="#000000" {% if not can_save %}disabled{% endif %} />
+          </label>
+        </span>
+        <span class="ilog-ribbon-sep"></span>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="insert-row" {% if not can_save %}disabled{% endif %}>행 삽입</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="insert-col" {% if not can_save %}disabled{% endif %}>열 삽입</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="delete-row" {% if not can_save %}disabled{% endif %}>행 삭제</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="delete-col" {% if not can_save %}disabled{% endif %}>열 삭제</button>
+        </span>
+        <span class="ilog-ribbon-sep"></span>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="merge" {% if not can_save %}disabled{% endif %}>병합</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="unmerge" {% if not can_save %}disabled{% endif %}>병합해제</button>
+        </span>
+        <span class="ilog-ribbon-sep"></span>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="recalc">다시계산</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="toggle-formula" id="ilog-toggle-formula">수식표시</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="edit-formula" title="F2" {% if not can_save %}disabled{% endif %}>F2</button>
+        </span>
+        <span class="ilog-ribbon-sep"></span>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-out">축소</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-reset">100%</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-in">확대</button>
+        </span>
       </div>
     </div>
 
     <div class="ilog-formula-bar">
-      <input type="text" id="ilog-formula-cell" class="ilog-formula-cell" value="A1" title="셀 주소 (예: A1)" {% if not can_save %}readonly{% endif %} autocomplete="off" />
-      <button type="button" class="ilog-fx-btn" id="ilog-fx-btn" title="수식 입력" {% if not can_save %}disabled{% endif %}>ƒx</button>
+      <input type="text" id="ilog-formula-cell" class="ilog-formula-cell" value="A1" title="이름 상자 (예: A1)" {% if not can_save %}readonly{% endif %} autocomplete="off" />
+      <button type="button" class="ilog-fx-btn" id="ilog-fx-btn" title="수식 입력" {% if not can_save %}disabled{% endif %}>fx</button>
       <input type="text" id="ilog-formula-input" class="ilog-formula-input" placeholder="선택한 셀의 값 또는 수식" {% if not can_save %}readonly{% endif %} autocomplete="off" />
-      <button type="button" class="ilog-fx-ok" id="ilog-fx-ok" title="확정 (Enter)" {% if not can_save %}disabled{% endif %}>✓</button>
-      <button type="button" class="ilog-fx-cancel" id="ilog-fx-cancel" title="취소 (Esc)" {% if not can_save %}disabled{% endif %}>✕</button>
+      <button type="button" class="ilog-fx-ok" id="ilog-fx-ok" title="확정 (Enter)" {% if not can_save %}disabled{% endif %}>확인</button>
+      <button type="button" class="ilog-fx-cancel" id="ilog-fx-cancel" title="취소 (Esc)" {% if not can_save %}disabled{% endif %}>취소</button>
     </div>
     <div id="ilog-pick-hint" class="ilog-pick-hint" hidden>수식 입력 모드: 셀을 클릭하면 참조가 들어갑니다. Enter로 확정, Esc로 취소</div>
-    <div id="ilog-status" class="ilog-status" hidden></div>
+    <div id="ilog-toast" class="ilog-toast" hidden></div>
   </div>
 </header>
 
 <section class="card card-wide ilog-edit-card">
-  <div id="ilog-sheet-tabs" class="ilog-sheet-tabs"></div>
   <div id="ilog-sheet-wrap" class="ilog-sheet-wrap">
     <p class="text-muted" id="ilog-loading">엑셀 파일을 불러오는 중…</p>
     <div id="ilog-spreadsheet"></div>
   </div>
+  <div class="ilog-sheet-bar">
+    <div id="ilog-sheet-tabs" class="ilog-sheet-tabs" role="tablist" aria-label="시트"></div>
+    <button type="button" class="ilog-sheet-add" id="ilog-sheet-add" title="시트 추가" {% if not can_save %}disabled{% endif %}>+</button>
+  </div>
+  <div class="ilog-statusbar" id="ilog-statusbar">
+    <span class="ilog-status-ready" id="ilog-status-ready">준비</span>
+    <span class="ilog-status-stats" id="ilog-status-stats"></span>
+    <span class="ilog-status-zoom" id="ilog-status-zoom">100%</span>
+  </div>
 </section>
+
+<dialog id="ilog-find-dialog" class="ilog-find-dialog">
+  <form method="dialog" id="ilog-find-form" class="ilog-find-form">
+    <label for="ilog-find-input">찾기</label>
+    <input type="text" id="ilog-find-input" class="ilog-find-input" autocomplete="off" />
+    <div class="ilog-find-actions">
+      <button type="submit" class="ilog-ribbon-btn" value="next">다음 찾기</button>
+      <button type="button" class="ilog-ribbon-btn" id="ilog-find-close" value="cancel">닫기</button>
+    </div>
+  </form>
+</dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/jsuites@5.8.3/dist/jsuites.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.15.0/dist/index.min.js"></script>
@@ -78,25 +136,24 @@
   var SAVE_URL = {{ save_url | tojson }};
   var CAN_SAVE = {{ can_save | tojson }};
 
-  var sheets = []; // { name, data } — 수식은 '=...' 원본 유지
+  var sheets = []; // { name, data, styles, merges }
   var active = 0;
   var spreadsheet = null;
   var hf = null;
   var dirty = false;
-  var selected = { x: 0, y: 0 };
+  var selected = { x: 0, y: 0, x2: 0, y2: 0 };
   var suppressSelection = false;
   var showFormulas = false;
   var zoomLevel = 1;
-  var clipboard = { text: '', isCut: false, sheet: -1, x: -1, y: -1 };
+  var clipboard = { text: '', isCut: false, sheet: -1, range: null };
   var barEditing = false;
   var history = { undo: [], redo: [], max: 50, applying: false };
-  var undoBtn = null;
-  var redoBtn = null;
+  var findState = { query: '', lastX: -1, lastY: -1 };
+  var toastTimer = null;
 
-  /** 수식 포인트 모드 (= 입력 중 셀 클릭으로 참조 삽입) */
   var pick = {
     on: false,
-    via: null, // 'bar' | 'cell'
+    via: null,
     sheet: 0,
     x: 0,
     y: 0,
@@ -109,7 +166,7 @@
   var tabsEl = document.getElementById('ilog-sheet-tabs');
   var host = document.getElementById('ilog-spreadsheet');
   var loading = document.getElementById('ilog-loading');
-  var statusEl = document.getElementById('ilog-status');
+  var toastEl = document.getElementById('ilog-toast');
   var saveBtn = document.getElementById('ilog-save-btn');
   var formulaCell = document.getElementById('ilog-formula-cell');
   var formulaInput = document.getElementById('ilog-formula-input');
@@ -119,16 +176,50 @@
   var fxOk = document.getElementById('ilog-fx-ok');
   var fxCancel = document.getElementById('ilog-fx-cancel');
   var toggleFormulaBtn = document.getElementById('ilog-toggle-formula');
-  undoBtn = document.getElementById('ilog-undo-btn');
-  redoBtn = document.getElementById('ilog-redo-btn');
+  var undoBtn = document.getElementById('ilog-undo-btn');
+  var redoBtn = document.getElementById('ilog-redo-btn');
+  var statusReady = document.getElementById('ilog-status-ready');
+  var statusStats = document.getElementById('ilog-status-stats');
+  var statusZoom = document.getElementById('ilog-status-zoom');
+  var fillColorInput = document.getElementById('ilog-fill-color');
+  var fontColorInput = document.getElementById('ilog-font-color');
+  var sheetAddBtn = document.getElementById('ilog-sheet-add');
+  var findDialog = document.getElementById('ilog-find-dialog');
+  var findInput = document.getElementById('ilog-find-input');
+  var findForm = document.getElementById('ilog-find-form');
+  var findClose = document.getElementById('ilog-find-close');
+
+  function cloneStyles(st) {
+    var out = {};
+    if (!st) return out;
+    Object.keys(st).forEach(function (k) { out[k] = st[k]; });
+    return out;
+  }
+
+  function cloneMerges(mg) {
+    var out = {};
+    if (!mg) return out;
+    Object.keys(mg).forEach(function (k) {
+      out[k] = Array.isArray(mg[k]) ? mg[k].slice() : mg[k];
+    });
+    return out;
+  }
 
   function cloneSheets(src) {
     return (src || []).map(function (s) {
       return {
         name: s.name,
-        data: (s.data || []).map(function (row) { return (row || []).slice(); })
+        data: (s.data || []).map(function (row) { return (row || []).slice(); }),
+        styles: cloneStyles(s.styles),
+        merges: cloneMerges(s.merges)
       };
     });
+  }
+
+  function ensureSheetMeta(s) {
+    if (!s.styles) s.styles = {};
+    if (!s.merges) s.merges = {};
+    return s;
   }
 
   function updateHistoryButtons() {
@@ -138,10 +229,15 @@
 
   function pushHistory() {
     if (history.applying || !sheets.length) return;
+    persistActiveMeta();
     history.undo.push({
       sheets: cloneSheets(sheets),
       active: active,
-      selected: { x: selected.x, y: selected.y }
+      selected: {
+        x: selected.x, y: selected.y,
+        x2: selected.x2 != null ? selected.x2 : selected.x,
+        y2: selected.y2 != null ? selected.y2 : selected.y
+      }
     });
     if (history.undo.length > history.max) history.undo.shift();
     history.redo = [];
@@ -152,15 +248,16 @@
     history.applying = true;
     sheets = cloneSheets(snap.sheets);
     active = snap.active || 0;
-    selected = snap.selected || { x: 0, y: 0 };
+    selected = snap.selected || { x: 0, y: 0, x2: 0, y2: 0 };
     expandSheetsForFormulaRefs();
     rebuildHf();
     renderTabs();
     renderActiveSheet();
     try {
-      spreadsheet.updateSelectionFromCoords(selected.x, selected.y, selected.x, selected.y);
+      spreadsheet.updateSelectionFromCoords(selected.x, selected.y, selected.x2 || selected.x, selected.y2 || selected.y);
     } catch (e) {}
     syncFormulaBar(selected.x, selected.y);
+    updateSelectionStats();
     history.applying = false;
     dirty = true;
     updateHistoryButtons();
@@ -168,35 +265,68 @@
 
   function undoChange() {
     if (!CAN_SAVE || !history.undo.length) return;
+    persistActiveMeta();
     var current = {
       sheets: cloneSheets(sheets),
       active: active,
-      selected: { x: selected.x, y: selected.y }
+      selected: {
+        x: selected.x, y: selected.y,
+        x2: selected.x2 != null ? selected.x2 : selected.x,
+        y2: selected.y2 != null ? selected.y2 : selected.y
+      }
     };
     var prev = history.undo.pop();
     history.redo.push(current);
     restoreSnapshot(prev);
-    setStatus('뒤로 되돌렸습니다.', 'ok');
+    setToast('뒤로 되돌렸습니다.', 'ok');
   }
 
   function redoChange() {
     if (!CAN_SAVE || !history.redo.length) return;
+    persistActiveMeta();
     var current = {
       sheets: cloneSheets(sheets),
       active: active,
-      selected: { x: selected.x, y: selected.y }
+      selected: {
+        x: selected.x, y: selected.y,
+        x2: selected.x2 != null ? selected.x2 : selected.x,
+        y2: selected.y2 != null ? selected.y2 : selected.y
+      }
     };
     var next = history.redo.pop();
     history.undo.push(current);
     restoreSnapshot(next);
-    setStatus('앞으로 되돌렸습니다.', 'ok');
+    setToast('앞으로 되돌렸습니다.', 'ok');
+  }
+
+  function setToast(msg, kind) {
+    if (toastEl) {
+      toastEl.hidden = !msg;
+      toastEl.textContent = msg || '';
+      toastEl.className = 'ilog-toast' + (kind ? ' ilog-toast-' + kind : '');
+      clearTimeout(toastTimer);
+      if (msg) {
+        toastTimer = setTimeout(function () {
+          toastEl.hidden = true;
+        }, 4000);
+      }
+    }
+    if (statusReady) {
+      statusReady.textContent = msg || '준비';
+      statusReady.className = 'ilog-status-ready' + (kind ? ' ilog-status-' + kind : '');
+      if (msg) {
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+          statusReady.textContent = '준비';
+          statusReady.className = 'ilog-status-ready';
+          if (toastEl) toastEl.hidden = true;
+        }, 4000);
+      }
+    }
   }
 
   function setStatus(msg, kind) {
-    if (!statusEl) return;
-    statusEl.hidden = !msg;
-    statusEl.textContent = msg || '';
-    statusEl.className = 'ilog-status' + (kind ? ' ilog-status-' + kind : '');
+    setToast(msg, kind);
   }
 
   function colName(n) {
@@ -227,7 +357,6 @@
     return typeof v === 'string' && v.length > 1 && v.charAt(0) === '=';
   }
 
-  /** 수식 입력 중 (= 만 있어도 포인트 모드) */
   function startsFormula(v) {
     return typeof v === 'string' && v.charAt(0) === '=';
   }
@@ -280,7 +409,6 @@
     return out;
   }
 
-  /** 수식에 등장하는 참조 셀까지 시트 크기 확장 (AH2 등) */
   function expandSheetsForFormulaRefs() {
     var dims = sheets.map(function (s) {
       var cols = 0;
@@ -346,6 +474,22 @@
     return aoa;
   }
 
+  function mergesFromWs(ws) {
+    var out = {};
+    var merges = (ws && ws['!merges']) || [];
+    merges.forEach(function (m) {
+      if (!m || !m.s || !m.e) return;
+      var label = cellLabel(m.s.c, m.s.r);
+      out[label] = [m.e.c - m.s.c + 1, m.e.r - m.s.r + 1];
+    });
+    return out;
+  }
+
+  function stylesFromWs(ws) {
+    // SheetJS CE는 스타일 읽기가 제한적이므로 빈 객체로 시작
+    return {};
+  }
+
   function cellToHf(v) {
     if (v === null || v === undefined || v === '') return null;
     if (isFormula(v)) return v;
@@ -396,7 +540,7 @@
       });
     } catch (err) {
       console.warn('HyperFormula rebuild failed', err);
-      setStatus('수식 엔진 초기화 실패: ' + (err.message || err), 'error');
+      setToast('수식 엔진 초기화 실패: ' + (err.message || err), 'error');
     }
   }
 
@@ -405,7 +549,6 @@
     var name = sheetKey(sheets[sheetIdx] && sheets[sheetIdx].name);
     var id = hf.getSheetId(name);
     if (id == null && sheets[sheetIdx]) {
-      // 중복명 보정으로 바뀐 경우 인덱스 폴백
       var names = hf.getSheetNames();
       if (names[sheetIdx] != null) id = hf.getSheetId(names[sheetIdx]);
     }
@@ -444,7 +587,13 @@
     return out;
   }
 
-  function aoaToSheetWithFormulas(aoa, calcAoa) {
+  function getCalculatedCell(sheetIdx, x, y) {
+    var aoa = getCalculatedAoa(sheetIdx);
+    if (!aoa[y]) return '';
+    return aoa[y][x] != null ? aoa[y][x] : '';
+  }
+
+  function aoaToSheetWithFormulas(aoa, calcAoa, sheetMeta) {
     var ws = {};
     var maxR = 0;
     var maxC = 0;
@@ -489,10 +638,42 @@
       s: { r: 0, c: 0 },
       e: { r: Math.max(maxR, 0), c: Math.max(maxC, 0) }
     });
+    if (sheetMeta && sheetMeta.merges) {
+      var mergeList = [];
+      Object.keys(sheetMeta.merges).forEach(function (label) {
+        var span = sheetMeta.merges[label];
+        if (!span || !span.length) return;
+        var m = String(label).toUpperCase().match(/^([A-Z]+)(\d+)$/);
+        if (!m) return;
+        var c0 = parseColLetters(m[1]);
+        var r0 = parseInt(m[2], 10) - 1;
+        var colspan = Math.max(1, parseInt(span[0], 10) || 1);
+        var rowspan = Math.max(1, parseInt(span[1], 10) || 1);
+        if (colspan === 1 && rowspan === 1) return;
+        mergeList.push({
+          s: { r: r0, c: c0 },
+          e: { r: r0 + rowspan - 1, c: c0 + colspan - 1 }
+        });
+      });
+      if (mergeList.length) ws['!merges'] = mergeList;
+    }
     return ws;
   }
 
+  function persistActiveMeta() {
+    if (!spreadsheet || !sheets[active]) return;
+    ensureSheetMeta(sheets[active]);
+    try {
+      var st = spreadsheet.getStyle && spreadsheet.getStyle();
+      if (st && typeof st === 'object') {
+        sheets[active].styles = cloneStyles(st);
+      }
+    } catch (e) {}
+    // merges는 merge/unmerge 명령과 로드 시에만 sheets[].merges에 유지
+  }
+
   function destroySheet() {
+    persistActiveMeta();
     if (spreadsheet) {
       try { spreadsheet.destroy(); } catch (e) {}
       spreadsheet = null;
@@ -590,9 +771,17 @@
   }
 
   function syncFormulaBar(x, y) {
-    selected = { x: x, y: y };
-    if (formulaCell) formulaCell.value = cellLabel(x, y);
-    // 수식 포인트 모드(= 입력 중)면 수식 바 내용을 덮어쓰지 않음
+    selected.x = x;
+    selected.y = y;
+    if (selected.x2 == null) selected.x2 = x;
+    if (selected.y2 == null) selected.y2 = y;
+    if (formulaCell) {
+      if (selected.x2 !== selected.x || selected.y2 !== selected.y) {
+        formulaCell.value = cellLabel(Math.min(selected.x, selected.x2), Math.min(selected.y, selected.y2));
+      } else {
+        formulaCell.value = cellLabel(x, y);
+      }
+    }
     if (pick.on && pick.via === 'bar' && startsFormula(formulaInput && formulaInput.value)) return;
     if (barEditing && document.activeElement === formulaInput && startsFormula(formulaInput.value)) return;
     var sheet = sheets[active];
@@ -637,8 +826,6 @@
   }
 
   function flushActiveToModel() {
-    // 표시값은 계산 결과이므로 모델은 이미 sheets[]에 수식/값으로 유지됨
-    // 편집 중이면 에디터 값을 반영
     if (pick.on && pick.via === 'cell') {
       var ed = getPickInput();
       if (ed && isFormula(ed.value)) {
@@ -670,7 +857,9 @@
         spreadsheet.updateSelectionFromCoords(x, y, x, y);
       } catch (e) {}
       suppressSelection = false;
+      selected = { x: x, y: y, x2: x, y2: y };
       syncFormulaBar(x, y);
+      updateSelectionStats();
     }
   }
 
@@ -703,6 +892,82 @@
     syncFormulaBar(x, y);
   }
 
+  function toNumber(v) {
+    if (typeof v === 'number' && isFinite(v)) return v;
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    var s = String(v == null ? '' : v).replace(/,/g, '').trim();
+    if (!s || s.charAt(0) === '#') return null;
+    var n = Number(s);
+    if (!isNaN(n) && /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(s)) return n;
+    return null;
+  }
+
+  function updateSelectionStats() {
+    if (!statusStats) return;
+    var sel = getSelectedCoords();
+    var x1 = Math.min(sel.x, sel.x2);
+    var y1 = Math.min(sel.y, sel.y2);
+    var x2 = Math.max(sel.x, sel.x2);
+    var y2 = Math.max(sel.y, sel.y2);
+    var sum = 0;
+    var count = 0;
+    var numeric = 0;
+    for (var y = y1; y <= y2; y++) {
+      for (var x = x1; x <= x2; x++) {
+        var cv = getCalculatedCell(active, x, y);
+        if (cv === '' || cv == null) continue;
+        count++;
+        var n = toNumber(cv);
+        if (n != null) {
+          sum += n;
+          numeric++;
+        }
+      }
+    }
+    if (count === 0) {
+      statusStats.textContent = '';
+      return;
+    }
+    var parts = [];
+    if (numeric > 0) {
+      parts.push('합계: ' + formatStat(sum));
+      parts.push('평균: ' + formatStat(sum / numeric));
+    }
+    parts.push('개수: ' + count);
+    statusStats.textContent = parts.join('  |  ');
+  }
+
+  function formatStat(n) {
+    if (!isFinite(n)) return String(n);
+    var r = Math.round(n * 10000) / 10000;
+    return String(r);
+  }
+
+  function updateZoomStatus() {
+    if (statusZoom) statusZoom.textContent = Math.round(zoomLevel * 100) + '%';
+  }
+
+  function buildContextMenu(obj, x, y, e, items, section) {
+    if (section === 'header') return false;
+    var menu = [];
+    if (CAN_SAVE) {
+      menu.push({ title: '잘라내기', onclick: function () { runCmd('cut'); } });
+    }
+    menu.push({ title: '복사', onclick: function () { runCmd('copy'); } });
+    if (CAN_SAVE) {
+      menu.push({ title: '붙여넣기', onclick: function () { runCmd('paste'); } });
+      menu.push({ title: '지우기', onclick: function () { runCmd('clear'); } });
+      menu.push({ type: 'line' });
+      menu.push({ title: '행 삽입', onclick: function () { runCmd('insert-row'); } });
+      menu.push({ title: '열 삽입', onclick: function () { runCmd('insert-col'); } });
+      menu.push({ title: '행 삭제', onclick: function () { runCmd('delete-row'); } });
+      menu.push({ title: '열 삭제', onclick: function () { runCmd('delete-col'); } });
+      menu.push({ type: 'line' });
+      menu.push({ title: '병합', onclick: function () { runCmd('merge'); } });
+    }
+    return menu;
+  }
+
   function renderTabs() {
     tabsEl.innerHTML = '';
     sheets.forEach(function (s, idx) {
@@ -710,10 +975,11 @@
       btn.type = 'button';
       btn.className = 'ilog-sheet-tab' + (idx === active ? ' active' : '');
       btn.textContent = s.name || ('Sheet' + (idx + 1));
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', idx === active ? 'true' : 'false');
       btn.addEventListener('click', function () {
         if (idx === active) return;
         if (isPickMode()) {
-          // 시트 간 참조를 위해 다른 시트로 이동 (수식 대상 셀은 pick에 유지)
           flushActiveToModel();
           active = idx;
           renderTabs();
@@ -722,28 +988,374 @@
           return;
         }
         flushActiveToModel();
+        persistActiveMeta();
         active = idx;
         renderTabs();
         renderActiveSheet();
       });
+      btn.addEventListener('dblclick', function (ev) {
+        ev.preventDefault();
+        if (!CAN_SAVE) return;
+        var current = sheets[idx].name || '';
+        var name = window.prompt('시트 이름', current);
+        if (name == null) return;
+        name = String(name).trim().substring(0, 31);
+        if (!name) return;
+        pushHistory();
+        sheets[idx].name = name;
+        dirty = true;
+        rebuildHf();
+        renderTabs();
+        setToast('시트 이름을 변경했습니다.', 'ok');
+      });
       tabsEl.appendChild(btn);
     });
+  }
+
+  function addSheet() {
+    if (!CAN_SAVE) return;
+    pushHistory();
+    persistActiveMeta();
+    var n = sheets.length + 1;
+    var name = 'Sheet' + n;
+    while (findSheetIndexByName(name) >= 0) {
+      n++;
+      name = 'Sheet' + n;
+    }
+    sheets.push(ensureSheetMeta({ name: name, data: normalizeAoa([['']], 20, 10), styles: {}, merges: {} }));
+    active = sheets.length - 1;
+    dirty = true;
+    rebuildHf();
+    renderTabs();
+    renderActiveSheet();
+    setToast('시트를 추가했습니다.', 'ok');
+  }
+
+  function applyStoredStyles() {
+    if (!spreadsheet || !sheets[active]) return;
+    var st = sheets[active].styles || {};
+    if (!Object.keys(st).length) return;
+    try {
+      if (spreadsheet.setStyle) spreadsheet.setStyle(st);
+    } catch (e) {}
+  }
+
+  function forEachSelectedCell(fn) {
+    var sel = getSelectedCoords();
+    var x1 = Math.min(sel.x, sel.x2);
+    var y1 = Math.min(sel.y, sel.y2);
+    var x2 = Math.max(sel.x, sel.x2);
+    var y2 = Math.max(sel.y, sel.y2);
+    for (var y = y1; y <= y2; y++) {
+      for (var x = x1; x <= x2; x++) fn(x, y);
+    }
+  }
+
+  function toggleCssProp(css, prop, onVal, offVal) {
+    var map = parseCssMap(css);
+    if (map[prop] === onVal) {
+      if (offVal == null) delete map[prop];
+      else map[prop] = offVal;
+    } else {
+      map[prop] = onVal;
+    }
+    return serializeCssMap(map);
+  }
+
+  function setCssProp(css, prop, val) {
+    var map = parseCssMap(css);
+    if (val == null || val === '') delete map[prop];
+    else map[prop] = val;
+    return serializeCssMap(map);
+  }
+
+  function parseCssMap(css) {
+    var map = {};
+    String(css || '').split(';').forEach(function (part) {
+      var p = part.trim();
+      if (!p) return;
+      var i = p.indexOf(':');
+      if (i < 0) return;
+      map[p.slice(0, i).trim().toLowerCase()] = p.slice(i + 1).trim();
+    });
+    return map;
+  }
+
+  function serializeCssMap(map) {
+    return Object.keys(map).map(function (k) { return k + ':' + map[k]; }).join(';');
+  }
+
+  function applyStyleToSelection(mutator) {
+    if (!CAN_SAVE || !spreadsheet || !sheets[active]) return;
+    pushHistory();
+    ensureSheetMeta(sheets[active]);
+    var patch = {};
+    forEachSelectedCell(function (x, y) {
+      var label = cellLabel(x, y);
+      var cur = sheets[active].styles[label] || '';
+      try {
+        var live = spreadsheet.getStyle && spreadsheet.getStyle(label);
+        if (live) cur = live;
+      } catch (e) {}
+      var next = mutator(cur || '');
+      sheets[active].styles[label] = next;
+      patch[label] = next;
+    });
+    dirty = true;
+    try {
+      if (spreadsheet.setStyle) spreadsheet.setStyle(patch);
+    } catch (e2) {}
+  }
+
+  function applyNamedStyle(kind) {
+    if (kind === 'bold') {
+      applyStyleToSelection(function (css) {
+        return toggleCssProp(css, 'font-weight', 'bold', 'normal');
+      });
+    } else if (kind === 'italic') {
+      applyStyleToSelection(function (css) {
+        return toggleCssProp(css, 'font-style', 'italic', 'normal');
+      });
+    } else if (kind === 'underline') {
+      applyStyleToSelection(function (css) {
+        return toggleCssProp(css, 'text-decoration', 'underline', 'none');
+      });
+    } else if (kind === 'align-left') {
+      applyStyleToSelection(function (css) { return setCssProp(css, 'text-align', 'left'); });
+    } else if (kind === 'align-center') {
+      applyStyleToSelection(function (css) { return setCssProp(css, 'text-align', 'center'); });
+    } else if (kind === 'align-right') {
+      applyStyleToSelection(function (css) { return setCssProp(css, 'text-align', 'right'); });
+    }
+  }
+
+  function applyFillColor(color) {
+    applyStyleToSelection(function (css) {
+      return setCssProp(css, 'background-color', color);
+    });
+  }
+
+  function applyFontColor(color) {
+    applyStyleToSelection(function (css) {
+      return setCssProp(css, 'color', color);
+    });
+  }
+
+  function mergeSelection() {
+    if (!CAN_SAVE || !spreadsheet) return;
+    var sel = getSelectedCoords();
+    var x1 = Math.min(sel.x, sel.x2);
+    var y1 = Math.min(sel.y, sel.y2);
+    var x2 = Math.max(sel.x, sel.x2);
+    var y2 = Math.max(sel.y, sel.y2);
+    if (x1 === x2 && y1 === y2) {
+      setToast('병합할 범위를 선택하세요.', 'error');
+      return;
+    }
+    pushHistory();
+    ensureSheetMeta(sheets[active]);
+    var label = cellLabel(x1, y1);
+    var colspan = x2 - x1 + 1;
+    var rowspan = y2 - y1 + 1;
+    // 범위 내 기존 병합 제거
+    Object.keys(sheets[active].merges || {}).forEach(function (k) {
+      var m = String(k).toUpperCase().match(/^([A-Z]+)(\d+)$/);
+      if (!m) return;
+      var cx = parseColLetters(m[1]);
+      var cy = parseInt(m[2], 10) - 1;
+      var sp = sheets[active].merges[k];
+      var cx2 = cx + (Math.max(1, parseInt(sp[0], 10) || 1) - 1);
+      var cy2 = cy + (Math.max(1, parseInt(sp[1], 10) || 1) - 1);
+      if (cx <= x2 && cx2 >= x1 && cy <= y2 && cy2 >= y1) {
+        delete sheets[active].merges[k];
+      }
+    });
+    sheets[active].merges[label] = [colspan, rowspan];
+    dirty = true;
+    renderActiveSheet();
+    try {
+      spreadsheet.updateSelectionFromCoords(x1, y1, x2, y2);
+    } catch (e) {}
+    setToast('셀을 병합했습니다.', 'ok');
+  }
+
+  function unmergeSelection() {
+    if (!CAN_SAVE || !spreadsheet) return;
+    var sel = getSelectedCoords();
+    var x1 = Math.min(sel.x, sel.x2);
+    var y1 = Math.min(sel.y, sel.y2);
+    var x2 = Math.max(sel.x, sel.x2);
+    var y2 = Math.max(sel.y, sel.y2);
+    pushHistory();
+    ensureSheetMeta(sheets[active]);
+    var removed = 0;
+    Object.keys(sheets[active].merges || {}).forEach(function (k) {
+      var m = String(k).toUpperCase().match(/^([A-Z]+)(\d+)$/);
+      if (!m) return;
+      var cx = parseColLetters(m[1]);
+      var cy = parseInt(m[2], 10) - 1;
+      var sp = sheets[active].merges[k];
+      var cx2 = cx + (Math.max(1, parseInt(sp[0], 10) || 1) - 1);
+      var cy2 = cy + (Math.max(1, parseInt(sp[1], 10) || 1) - 1);
+      if (cx <= x2 && cx2 >= x1 && cy <= y2 && cy2 >= y1) {
+        delete sheets[active].merges[k];
+        removed++;
+      }
+    });
+    dirty = true;
+    renderActiveSheet();
+    setToast(removed ? '병합을 해제했습니다.' : '선택한 범위에 병합된 셀이 없습니다.', removed ? 'ok' : '');
+  }
+
+  function getRangeTsv() {
+    var sel = getSelectedCoords();
+    var x1 = Math.min(sel.x, sel.x2);
+    var y1 = Math.min(sel.y, sel.y2);
+    var x2 = Math.max(sel.x, sel.x2);
+    var y2 = Math.max(sel.y, sel.y2);
+    var lines = [];
+    for (var y = y1; y <= y2; y++) {
+      var cells = [];
+      for (var x = x1; x <= x2; x++) {
+        var v = getRawCell(x, y);
+        cells.push(v == null ? '' : String(v));
+      }
+      lines.push(cells.join('\t'));
+    }
+    return {
+      text: lines.join('\n'),
+      range: { x1: x1, y1: y1, x2: x2, y2: y2 }
+    };
+  }
+
+  function pasteTsv(text, startX, startY) {
+    var rows = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    if (rows.length && rows[rows.length - 1] === '') rows.pop();
+    if (!rows.length) return;
+    var maxCols = 0;
+    var grid = rows.map(function (line) {
+      var cols = line.split('\t');
+      maxCols = Math.max(maxCols, cols.length);
+      return cols;
+    });
+    var needRows = startY + grid.length;
+    var needCols = startX + maxCols;
+    sheets[active].data = padSheet(
+      sheets[active].data,
+      Math.max(sheets[active].data.length, needRows),
+      Math.max((sheets[active].data[0] || []).length, needCols)
+    );
+    for (var r = 0; r < grid.length; r++) {
+      for (var c = 0; c < grid[r].length; c++) {
+        setModelCell(active, startX + c, startY + r, grid[r][c]);
+      }
+    }
+  }
+
+  function clearSelectionContents() {
+    if (!CAN_SAVE) return;
+    pushHistory();
+    forEachSelectedCell(function (x, y) {
+      setModelCell(active, x, y, '');
+    });
+    dirty = true;
+    rebuildHf();
+    renderActiveSheet();
+    updateSelectionStats();
+  }
+
+  function openFind() {
+    if (findDialog && typeof findDialog.showModal === 'function') {
+      if (findInput) findInput.value = findState.query || '';
+      findDialog.showModal();
+      setTimeout(function () { if (findInput) findInput.focus(); }, 0);
+    } else {
+      var q = window.prompt('찾기', findState.query || '');
+      if (q == null) return;
+      findState.query = q;
+      findNext();
+    }
+  }
+
+  function findNext() {
+    var q = findState.query;
+    if (findInput && findDialog && findDialog.open) q = findInput.value;
+    q = String(q || '').trim();
+    if (!q) {
+      setToast('찾을 내용을 입력하세요.', 'error');
+      return;
+    }
+    findState.query = q;
+    var sheet = sheets[active];
+    if (!sheet) return;
+    var data = sheet.data || [];
+    var rows = data.length;
+    var cols = 0;
+    for (var i = 0; i < rows; i++) cols = Math.max(cols, (data[i] || []).length);
+    var startX = findState.lastX + 1;
+    var startY = findState.lastY;
+    if (startY < 0) { startY = 0; startX = 0; }
+    var lower = q.toLowerCase();
+    function cellMatch(x, y) {
+      var raw = data[y] && data[y][x] != null ? String(data[y][x]) : '';
+      var calc = String(getCalculatedCell(active, x, y));
+      return raw.toLowerCase().indexOf(lower) >= 0 || calc.toLowerCase().indexOf(lower) >= 0;
+    }
+    for (var y = startY; y < rows; y++) {
+      var x0 = (y === startY) ? startX : 0;
+      for (var x = x0; x < cols; x++) {
+        if (cellMatch(x, y)) {
+          findState.lastX = x;
+          findState.lastY = y;
+          try {
+            spreadsheet.updateSelectionFromCoords(x, y, x, y);
+          } catch (e) {}
+          selected = { x: x, y: y, x2: x, y2: y };
+          syncFormulaBar(x, y);
+          updateSelectionStats();
+          setToast('찾음: ' + cellLabel(x, y), 'ok');
+          return;
+        }
+      }
+    }
+    // wrap
+    for (var y2 = 0; y2 <= startY; y2++) {
+      var xMax = (y2 === startY) ? Math.min(startX, cols) : cols;
+      for (var x2 = 0; x2 < xMax; x2++) {
+        if (cellMatch(x2, y2)) {
+          findState.lastX = x2;
+          findState.lastY = y2;
+          try {
+            spreadsheet.updateSelectionFromCoords(x2, y2, x2, y2);
+          } catch (e) {}
+          selected = { x: x2, y: y2, x2: x2, y2: y2 };
+          syncFormulaBar(x2, y2);
+          updateSelectionStats();
+          setToast('처음부터 다시 찾음: ' + cellLabel(x2, y2), 'ok');
+          return;
+        }
+      }
+    }
+    setToast('일치하는 항목이 없습니다.', 'error');
   }
 
   function renderActiveSheet() {
     destroySheet();
     var sheet = sheets[active];
     if (!sheet) return;
+    ensureSheetMeta(sheet);
     sheet.data = normalizeAoa(sheet.data, sheet.data.length, (sheet.data[0] || []).length);
     var display = showFormulas
       ? sheet.data.map(function (row) { return (row || []).slice(); })
       : getCalculatedAoa(active);
 
+    var mergeCells = cloneMerges(sheet.merges);
+
     spreadsheet = jspreadsheet(host, {
       data: display,
       tableOverflow: true,
       tableWidth: '100%',
-      tableHeight: '60vh',
+      tableHeight: '58vh',
       defaultColWidth: 100,
       allowInsertRow: true,
       allowInsertColumn: true,
@@ -753,10 +1365,14 @@
       editable: !!CAN_SAVE,
       parseFormulas: false,
       autoIncrement: false,
-      onselection: function (el, px, py) {
+      mergeCells: mergeCells,
+      contextMenu: buildContextMenu,
+      onselection: function (el, px, py, px2, py2) {
         if (suppressSelection) return;
         var x = typeof px === 'number' ? px : 0;
         var y = typeof py === 'number' ? py : 0;
+        var x2 = typeof px2 === 'number' ? px2 : x;
+        var y2 = typeof py2 === 'number' ? py2 : y;
         if (isPickMode()) {
           if (!pick.mouseInserted) insertRefAtPick(active, x, y);
           if (pick.sheet === active) {
@@ -770,7 +1386,6 @@
           }
           return;
         }
-        // 수식 바에서 일반 값 편집 중 다른 셀 클릭 → 이전 셀 확정 후 이동
         if (barEditing && document.activeElement === formulaInput && !startsFormula(formulaInput.value)) {
           var prevX = selected.x;
           var prevY = selected.y;
@@ -783,7 +1398,9 @@
           expandSheetsForFormulaRefs();
           rebuildHf();
         }
+        selected = { x: x, y: y, x2: x2, y2: y2 };
         syncFormulaBar(x, y);
+        updateSelectionStats();
       },
       ondblclick: function () {
         focusFormulaBarForEdit();
@@ -791,7 +1408,7 @@
       oneditionstart: function (el, cell, x, y) {
         x = parseInt(x, 10);
         y = parseInt(y, 10);
-        selected = { x: x, y: y };
+        selected = { x: x, y: y, x2: x, y2: y };
         var raw = (sheets[active].data[y] && sheets[active].data[y][x] != null)
           ? sheets[active].data[y][x] : '';
         setTimeout(function () {
@@ -835,7 +1452,6 @@
         var prev = (sheets[active].data[y] && sheets[active].data[y][x] != null)
           ? sheets[active].data[y][x] : '';
         if (!startsFormula(v) && isFormula(prev)) {
-          // 편집 취소로 계산값이 돌아온 경우
           var shown = '';
           try { shown = String(getCalculatedAoa(active)[y][x]); } catch (e) {}
           if (String(v) === shown) return;
@@ -862,6 +1478,8 @@
       ondeletecolumn: function () { dirty = true; captureGridSize(); rebuildHf(); renderActiveSheet(); }
     });
 
+    applyStoredStyles();
+
     if (pick.on && pick.via === 'bar') {
       try { formulaInput.focus(); } catch (e) {}
     } else if (!(pick.on && pick.sheet !== active)) {
@@ -870,6 +1488,7 @@
       formulaCell.value = cellLabel(pick.x, pick.y);
     }
     applyZoom();
+    updateSelectionStats();
   }
 
   function captureGridSize() {
@@ -884,8 +1503,10 @@
 
   function workbookFromSheets() {
     var wb = XLSX.utils.book_new();
+    persistActiveMeta();
     rebuildHf();
     sheets.forEach(function (s, idx) {
+      ensureSheetMeta(s);
       var aoa = (s.data || [['']]).map(function (row) { return row.slice(); });
       while (aoa.length > 1) {
         var last = aoa[aoa.length - 1];
@@ -894,7 +1515,7 @@
         aoa.pop();
       }
       var calc = getCalculatedAoa(idx);
-      var ws = aoaToSheetWithFormulas(aoa, calc);
+      var ws = aoaToSheetWithFormulas(aoa, calc, s);
       var name = sheetKey(s.name) || 'Sheet';
       XLSX.utils.book_append_sheet(wb, ws, name);
     });
@@ -902,7 +1523,7 @@
   }
 
   async function loadFile() {
-    setStatus('', '');
+    setToast('', '');
     try {
       var res = await fetch(FILE_URL, { credentials: 'same-origin' });
       if (!res.ok) throw new Error('파일을 불러오지 못했습니다. (' + res.status + ')');
@@ -915,9 +1536,14 @@
       });
       sheets = wb.SheetNames.map(function (name) {
         var ws = wb.Sheets[name];
-        return { name: name, data: normalizeAoa(sheetToAoaWithFormulas(ws)) };
+        return ensureSheetMeta({
+          name: name,
+          data: normalizeAoa(sheetToAoaWithFormulas(ws)),
+          styles: stylesFromWs(ws),
+          merges: mergesFromWs(ws)
+        });
       });
-      if (!sheets.length) sheets = [{ name: 'Sheet1', data: [['']] }];
+      if (!sheets.length) sheets = [ensureSheetMeta({ name: 'Sheet1', data: [['']], styles: {}, merges: {} })];
       expandSheetsForFormulaRefs();
       rebuildHf();
       active = 0;
@@ -928,10 +1554,10 @@
       renderTabs();
       renderActiveSheet();
       dirty = false;
-      setStatus('수식·시트 참조를 포함해 불러왔습니다. 값 변경 시 자동 재계산됩니다.', 'ok');
+      setToast('수식·시트 참조를 포함해 불러왔습니다.', 'ok');
     } catch (err) {
       if (loading) loading.textContent = '불러오기 실패: ' + (err.message || err);
-      setStatus(String(err.message || err), 'error');
+      setToast(String(err.message || err), 'error');
     }
   }
 
@@ -939,7 +1565,8 @@
     if (!CAN_SAVE || !saveBtn) return;
     flushActiveToModel();
     exitPickMode();
-    setStatus('저장 중…', '');
+    persistActiveMeta();
+    setToast('저장 중…', '');
     saveBtn.disabled = true;
     try {
       var wb = workbookFromSheets();
@@ -963,17 +1590,17 @@
         throw new Error((payload && (payload.detail || payload.message)) || ('저장 실패 (' + res.status + ')'));
       }
       dirty = false;
-      setStatus((payload && payload.message) || '수식 포함해 저장되었습니다.', 'ok');
+      setToast((payload && payload.message) || '수식 포함해 저장되었습니다.', 'ok');
     } catch (err) {
-      setStatus(String(err.message || err), 'error');
+      setToast(String(err.message || err), 'error');
     } finally {
       saveBtn.disabled = false;
     }
   }
 
   if (saveBtn) saveBtn.addEventListener('click', saveFile);
+  if (sheetAddBtn) sheetAddBtn.addEventListener('click', addSheet);
 
-  // 수식 입력 중 셀 클릭 → 참조 삽입 (편집 종료 방지)
   host.addEventListener('mousedown', function (e) {
     if (!CAN_SAVE || !isPickMode()) return;
     var td = e.target && e.target.closest ? e.target.closest('td[data-x]') : null;
@@ -986,7 +1613,6 @@
     insertRefAtPick(active, x, y);
   }, true);
 
-  // 셀 한 번 클릭 후 바로 수식 바에서 수정할 수 있게: 그리드 클릭 시 수식 바 동기화
   host.addEventListener('click', function (e) {
     if (isPickMode()) return;
     var td = e.target && e.target.closest ? e.target.closest('td[data-x]') : null;
@@ -995,6 +1621,7 @@
     var y = parseInt(td.getAttribute('data-y'), 10);
     if (isNaN(x) || isNaN(y)) return;
     syncFormulaBar(x, y);
+    updateSelectionStats();
   });
 
   function applyZoom() {
@@ -1003,6 +1630,7 @@
     var table = host.querySelector('table');
     if (table) table.style.zoom = String(zoomLevel);
     host.style.fontSize = (13 * zoomLevel) + 'px';
+    updateZoomStatus();
   }
 
   function parseCellAddress(addr) {
@@ -1012,9 +1640,15 @@
   }
 
   function getSelectedCoords() {
-    if (!spreadsheet) return { x: selected.x, y: selected.y, x2: selected.x, y2: selected.y };
+    if (!spreadsheet) {
+      return {
+        x: selected.x, y: selected.y,
+        x2: selected.x2 != null ? selected.x2 : selected.x,
+        y2: selected.y2 != null ? selected.y2 : selected.y
+      };
+    }
     try {
-      var sel = spreadsheet.selectedCell || spreadsheet.getSelected && spreadsheet.getSelected();
+      var sel = spreadsheet.selectedCell || (spreadsheet.getSelected && spreadsheet.getSelected());
       if (Array.isArray(sel) && sel.length >= 2) {
         return {
           x: parseInt(sel[0], 10),
@@ -1024,7 +1658,11 @@
         };
       }
     } catch (e) {}
-    return { x: selected.x, y: selected.y, x2: selected.x, y2: selected.y };
+    return {
+      x: selected.x, y: selected.y,
+      x2: selected.x2 != null ? selected.x2 : selected.x,
+      y2: selected.y2 != null ? selected.y2 : selected.y
+    };
   }
 
   function getRawCell(x, y) {
@@ -1037,8 +1675,16 @@
   function runCmd(cmd) {
     if (cmd === 'undo') { undoChange(); return; }
     if (cmd === 'redo') { redoChange(); return; }
+    if (cmd === 'find') { openFind(); return; }
+    if (cmd === 'bold' || cmd === 'italic' || cmd === 'underline'
+        || cmd === 'align-left' || cmd === 'align-center' || cmd === 'align-right') {
+      applyNamedStyle(cmd);
+      return;
+    }
+    if (cmd === 'merge') { mergeSelection(); return; }
+    if (cmd === 'unmerge') { unmergeSelection(); return; }
     if (!spreadsheet && cmd !== 'recalc') {
-      setStatus('시트를 먼저 불러오세요.', 'error');
+      setToast('시트를 먼저 불러오세요.', 'error');
       return;
     }
     var sel = getSelectedCoords();
@@ -1048,76 +1694,70 @@
     var y2 = Math.max(sel.y, sel.y2);
 
     if (cmd === 'copy' || cmd === 'cut') {
+      var packed = getRangeTsv();
       clipboard = {
-        text: String(getRawCell(x, y)),
+        text: packed.text,
         isCut: cmd === 'cut',
         sheet: active,
-        x: x,
-        y: y
+        range: packed.range
       };
       try { navigator.clipboard.writeText(String(clipboard.text)); } catch (e) {}
-      setStatus(cmd === 'cut' ? '잘라내기 준비됨' : '복사됨', 'ok');
+      setToast(cmd === 'cut' ? '잘라내기 준비됨' : '복사됨', 'ok');
       return;
     }
     if (cmd === 'paste') {
       if (!CAN_SAVE) return;
-      var text = clipboard.text;
       var finish = function (v) {
         pushHistory();
-        if (clipboard.isCut && clipboard.sheet >= 0) {
-          setModelCell(clipboard.sheet, clipboard.x, clipboard.y, '');
+        if (clipboard.isCut && clipboard.sheet >= 0 && clipboard.range) {
+          var r = clipboard.range;
+          for (var yy = r.y1; yy <= r.y2; yy++) {
+            for (var xx = r.x1; xx <= r.x2; xx++) {
+              if (clipboard.sheet === active || sheets[clipboard.sheet]) {
+                setModelCell(clipboard.sheet, xx, yy, '');
+              }
+            }
+          }
           clipboard.isCut = false;
         }
-        commitCellValue(active, x, y, v, { noHistory: true });
-        setStatus('붙여넣기 완료', 'ok');
+        pasteTsv(v, x, y);
+        dirty = true;
+        expandSheetsForFormulaRefs();
+        rebuildHf();
+        renderActiveSheet();
+        try {
+          spreadsheet.updateSelectionFromCoords(x, y, x, y);
+        } catch (e) {}
+        syncFormulaBar(x, y);
+        updateSelectionStats();
+        setToast('붙여넣기 완료', 'ok');
       };
-      if (text != null && text !== '') {
-        finish(text);
+      if (clipboard.text != null && clipboard.text !== '') {
+        finish(clipboard.text);
       } else if (navigator.clipboard && navigator.clipboard.readText) {
         navigator.clipboard.readText().then(finish).catch(function () {
-          setStatus('클립보드를 읽을 수 없습니다.', 'error');
+          setToast('클립보드를 읽을 수 없습니다.', 'error');
         });
       }
       return;
     }
     if (cmd === 'clear') {
+      clearSelectionContents();
+      return;
+    }
+    if (cmd === 'insert-row') {
       if (!CAN_SAVE) return;
       pushHistory();
-      for (var yy = y; yy <= y2; yy++) {
-        for (var xx = x; xx <= x2; xx++) setModelCell(active, xx, yy, '');
-      }
+      sheets[active].data.splice(y, 0, (sheets[active].data[0] || []).map(function () { return ''; }));
       dirty = true;
       rebuildHf();
       renderActiveSheet();
       return;
     }
-    if (cmd === 'fill-down') {
+    if (cmd === 'insert-col') {
       if (!CAN_SAVE) return;
       pushHistory();
-      var src = getRawCell(x, y);
-      for (var fy = y + 1; fy <= Math.max(y2, y + 1); fy++) {
-        setModelCell(active, x, fy, src);
-      }
-      dirty = true;
-      rebuildHf();
-      renderActiveSheet();
-      return;
-    }
-    if (cmd === 'insert-row' || cmd === 'insert-row-below') {
-      if (!CAN_SAVE) return;
-      pushHistory();
-      var at = cmd === 'insert-row-below' ? y + 1 : y;
-      sheets[active].data.splice(at, 0, (sheets[active].data[0] || []).map(function () { return ''; }));
-      dirty = true;
-      rebuildHf();
-      renderActiveSheet();
-      return;
-    }
-    if (cmd === 'insert-col' || cmd === 'insert-col-right') {
-      if (!CAN_SAVE) return;
-      pushHistory();
-      var cat = cmd === 'insert-col-right' ? x + 1 : x;
-      sheets[active].data.forEach(function (row) { row.splice(cat, 0, ''); });
+      sheets[active].data.forEach(function (row) { row.splice(x, 0, ''); });
       dirty = true;
       rebuildHf();
       renderActiveSheet();
@@ -1147,14 +1787,14 @@
       expandSheetsForFormulaRefs();
       rebuildHf();
       renderActiveSheet();
-      setStatus('다시 계산했습니다.', 'ok');
+      setToast('다시 계산했습니다.', 'ok');
       return;
     }
     if (cmd === 'toggle-formula') {
       showFormulas = !showFormulas;
       if (toggleFormulaBtn) {
         toggleFormulaBtn.classList.toggle('active', showFormulas);
-        toggleFormulaBtn.textContent = showFormulas ? '값 표시' : '수식 표시';
+        toggleFormulaBtn.textContent = showFormulas ? '값표시' : '수식표시';
       }
       renderActiveSheet();
       return;
@@ -1179,12 +1819,22 @@
     }
   }
 
-  // 툴바 버튼
   document.querySelectorAll('.ilog-ribbon-btn[data-cmd]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       runCmd(btn.getAttribute('data-cmd'));
     });
   });
+
+  if (fillColorInput) {
+    fillColorInput.addEventListener('change', function () {
+      applyFillColor(fillColorInput.value);
+    });
+  }
+  if (fontColorInput) {
+    fontColorInput.addEventListener('change', function () {
+      applyFontColor(fontColorInput.value);
+    });
+  }
 
   if (fxBtn) fxBtn.addEventListener('click', beginFormulaFromFx);
   if (fxOk) fxOk.addEventListener('click', function () { applyFormulaBarValue(); });
@@ -1193,16 +1843,27 @@
     syncFormulaBar(selected.x, selected.y);
   });
 
+  if (findForm) {
+    findForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      findNext();
+    });
+  }
+  if (findClose) {
+    findClose.addEventListener('click', function () {
+      if (findDialog) findDialog.close();
+    });
+  }
+
   if (formulaCell) {
     formulaCell.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter') return;
       e.preventDefault();
       var pos = parseCellAddress(formulaCell.value);
       if (!pos || !spreadsheet) {
-        setStatus('올바른 셀 주소를 입력하세요 (예: B12)', 'error');
+        setToast('올바른 셀 주소를 입력하세요 (예: B12)', 'error');
         return;
       }
-      // 범위 밖이면 확장
       sheets[active].data = padSheet(
         sheets[active].data,
         Math.max(sheets[active].data.length, pos.y + 1),
@@ -1213,6 +1874,7 @@
       try {
         spreadsheet.updateSelectionFromCoords(pos.x, pos.y, pos.x, pos.y);
       } catch (err) {}
+      selected = { x: pos.x, y: pos.y, x2: pos.x, y2: pos.y };
       syncFormulaBar(pos.x, pos.y);
       focusFormulaBarForEdit();
     });
@@ -1222,7 +1884,6 @@
     formulaInput.addEventListener('focus', function () {
       if (!CAN_SAVE) return;
       barEditing = true;
-      // 포커스만으로는 포인트 모드 진입하지 않음 — = 입력 시 진입
       if (startsFormula(formulaInput.value)) {
         enterPickMode('bar', active, selected.x, selected.y, null);
       }
@@ -1267,14 +1928,26 @@
     });
   }
 
+  function isEditingInput(el) {
+    if (!el) return false;
+    var tag = (el.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (el.isContentEditable) return true;
+    return false;
+  }
+
   document.addEventListener('keydown', function (e) {
     if (e.key === 'F2') {
       e.preventDefault();
       focusFormulaBarForEdit();
       return;
     }
-    var tag = (e.target && e.target.tagName) || '';
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+      e.preventDefault();
+      openFind();
+      return;
+    }
+    if (isEditingInput(e.target)) return;
     if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
       e.preventDefault();
       saveFile();
@@ -1293,6 +1966,9 @@
     } else if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
       e.preventDefault();
       runCmd('paste');
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      clearSelectionContents();
     }
   });
 
@@ -1303,6 +1979,7 @@
   });
 
   updateHistoryButtons();
+  updateZoomStatus();
   loadFile();
 })();
 </script>

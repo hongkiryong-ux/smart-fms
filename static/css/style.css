@@ -1082,6 +1082,13 @@ body {
 .ilog-file-open:hover {
   text-decoration: underline;
 }
+.ilog-edit-header {
+  margin-bottom: 0.5rem;
+}
+.ilog-breadcrumb {
+  font-size: 0.82rem;
+  margin-bottom: 0.15rem;
+}
 .ilog-edit-header .ilog-edit-title-row {
   display: flex;
   flex-wrap: wrap;
@@ -1090,36 +1097,38 @@ body {
   gap: 0.75rem 1rem;
 }
 .ilog-edit-doc-title {
-  font-size: 1.15rem;
-  margin: 0.35rem 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+  margin: 0.15rem 0 0.4rem;
+  color: #1f2937;
 }
 .ilog-excel-chrome {
-  border: 1px solid #c5cdd8;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #f7f9fc 0%, #eef2f7 100%);
+  border: 1px solid #b8c0cc;
+  border-radius: 4px;
+  background: #f3f3f3;
   overflow: hidden;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 .ilog-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  background: #fff;
-  border-bottom: 1px solid #d8dee8;
-  padding: 0.4rem 0.55rem;
+  gap: 0.2rem;
+  background: linear-gradient(180deg, #fafafa 0%, #f0f0f0 100%);
+  border-bottom: 1px solid #c8c8c8;
+  padding: 0.3rem 0.45rem;
 }
 .ilog-toolbar-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.3rem;
+  gap: 0.2rem 0.25rem;
 }
 .ilog-toolbar-row .ilog-ribbon-sep {
   width: 1px;
-  height: 1.4rem;
+  height: 1.35rem;
   align-self: center;
-  background: #d8dee8;
-  margin: 0 0.25rem;
+  background: #c8c8c8;
+  margin: 0 0.2rem;
 }
 .ilog-menubar {
   display: none;
@@ -1152,53 +1161,85 @@ body {
 }
 .ilog-ribbon-panel.active { display: flex; }
 .ilog-ribbon-group {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.2rem;
   align-items: center;
 }
 .ilog-ribbon-sep {
   width: 1px;
   align-self: stretch;
-  background: #d8dee8;
-  margin: 0 0.2rem;
+  min-height: 1.2rem;
+  background: #c8c8c8;
+  margin: 0 0.15rem;
 }
 .ilog-ribbon-btn {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   min-width: 0;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #f8fafc;
-  color: #1e293b;
-  font-size: 0.8rem;
-  line-height: 1.2;
+  min-height: 1.7rem;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #222;
+  font-size: 0.78rem;
+  line-height: 1.15;
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
 }
 .ilog-ribbon-btn:hover:not(:disabled) {
-  background: #e8f0fe;
-  border-color: #c5d4f0;
+  background: #e5f0da;
+  border-color: #a9c27c;
 }
 .ilog-ribbon-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 .ilog-ribbon-btn.active {
-  background: #dbeafe;
-  border-color: #93c5fd;
+  background: #d4e5b8;
+  border-color: #8faf5a;
   font-weight: 700;
+}
+.ilog-fmt-btn {
+  min-width: 1.7rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.9rem;
+}
+.ilog-fmt-btn .ilog-u {
+  text-decoration: underline;
+}
+.ilog-color-group {
+  gap: 0.35rem;
+}
+.ilog-color-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #444;
+  cursor: pointer;
+}
+.ilog-color-input {
+  width: 1.55rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 1px solid #aaa;
+  border-radius: 2px;
+  background: #fff;
+  cursor: pointer;
+}
+.ilog-color-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 #ilog-undo-btn,
 #ilog-redo-btn {
-  font-weight: 650;
-  border-color: #cbd5e1;
-  background: #fff;
+  font-weight: 600;
 }
 .ilog-ribbon-ico {
   font-size: 1rem;
@@ -1213,37 +1254,38 @@ body {
 .ilog-formula-bar {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.55rem 0.5rem;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  gap: 0.3rem;
+  padding: 0.28rem 0.45rem;
+  background: #fff;
+  border-top: 1px solid #c8c8c8;
 }
 .ilog-formula-cell {
   flex: 0 0 auto;
-  width: 4.5rem;
-  min-width: 3.5rem;
-  padding: 0.35rem 0.4rem;
+  width: 4.25rem;
+  min-width: 3.25rem;
+  padding: 0.28rem 0.35rem;
   background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  border: 1px solid #aaa;
+  border-radius: 2px;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   text-align: center;
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: Consolas, "Courier New", monospace;
 }
 .ilog-fx-btn,
 .ilog-fx-ok,
 .ilog-fx-cancel {
   flex: 0 0 auto;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  background: #fff;
+  min-width: 2.1rem;
+  height: 1.75rem;
+  padding: 0 0.35rem;
+  border: 1px solid #aaa;
+  border-radius: 2px;
+  background: #f7f7f7;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   line-height: 1;
-  color: #334155;
+  color: #333;
 }
 .ilog-fx-btn:hover,
 .ilog-fx-ok:hover,
@@ -1253,36 +1295,53 @@ body {
 .ilog-fx-btn:disabled,
 .ilog-fx-ok:disabled,
 .ilog-fx-cancel:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
-.ilog-fx-ok { color: #15803d; font-weight: 700; }
-.ilog-fx-cancel { color: #b91c1c; }
+.ilog-fx-btn {
+  font-style: italic;
+  font-family: Georgia, serif;
+  font-weight: 700;
+  color: #1f4e79;
+}
+.ilog-fx-ok { color: #0b6a0b; font-weight: 700; }
+.ilog-fx-cancel { color: #9b1c1c; }
 .ilog-formula-input {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.9rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #aaa;
+  border-radius: 2px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.86rem;
   background: #fff;
 }
 .ilog-pick-hint {
-  margin-top: 0.45rem;
-  padding: 0.4rem 0.65rem;
-  border-radius: 6px;
-  background: #eff6ff;
-  color: #1e40af;
-  font-size: 0.82rem;
+  margin: 0;
+  padding: 0.3rem 0.55rem;
+  background: #fff8dc;
+  color: #5c4a00;
+  font-size: 0.78rem;
+  border-top: 1px solid #e6d9a8;
 }
 body.ilog-formula-picking .ilog-formula-input {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  border-color: #6b9e2e;
+  box-shadow: 0 0 0 2px rgba(107, 158, 46, 0.25);
 }
 body.ilog-formula-picking .ilog-sheet-wrap {
-  outline: 2px solid #93c5fd;
+  outline: 2px solid #9bc26e;
+  outline-offset: -2px;
 }
+.ilog-toast {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
+  background: #eef6e6;
+  color: #2f5d12;
+  border-top: 1px solid #c5d9a8;
+}
+.ilog-toast-ok { background: #eef6e6; color: #2f5d12; }
+.ilog-toast-error { background: #fde8e8; color: #9b1c1c; }
 .ilog-status {
   margin-top: 0.65rem;
   padding: 0.55rem 0.75rem;
@@ -1290,47 +1349,153 @@ body.ilog-formula-picking .ilog-sheet-wrap {
   font-size: 0.9rem;
   background: #f1f5f9;
 }
-.ilog-status-ok {
-  background: #ecfdf5;
-  color: #047857;
-}
-.ilog-status-error {
-  background: #fef2f2;
-  color: #b91c1c;
-}
+.ilog-status-ok { color: #2f5d12; }
+.ilog-status-error { color: #9b1c1c; }
 .ilog-edit-card {
-  padding-top: 0.75rem;
-}
-.ilog-sheet-tabs {
+  padding: 0;
+  overflow: hidden;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.65rem;
-}
-.ilog-sheet-tab {
-  border: 1px solid var(--border, #e5e7eb);
-  background: #f8fafc;
-  border-radius: 6px 6px 0 0;
-  padding: 0.35rem 0.75rem;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.ilog-sheet-tab.active {
-  background: #fff;
-  border-bottom-color: #fff;
-  font-weight: 700;
-  color: var(--primary, #003876);
+  flex-direction: column;
+  border: 1px solid #b8c0cc;
+  border-radius: 4px;
 }
 .ilog-sheet-wrap {
   overflow: auto;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
   background: #fff;
   min-height: 420px;
-  padding: 0.35rem;
+  padding: 0;
+  flex: 1 1 auto;
 }
 .ilog-sheet-wrap .jexcel_container {
   width: 100% !important;
+}
+.ilog-sheet-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: #e9e9e9;
+  border-top: 1px solid #b0b0b0;
+  min-height: 1.85rem;
+  padding: 0 0.15rem;
+}
+.ilog-sheet-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0;
+  margin: 0;
+  overflow-x: auto;
+  flex: 1 1 auto;
+  padding-top: 0.2rem;
+}
+.ilog-sheet-tab {
+  border: 1px solid #a8a8a8;
+  border-bottom: 0;
+  background: #d6d6d6;
+  border-radius: 0;
+  padding: 0.28rem 0.85rem 0.32rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #333;
+  margin-right: -1px;
+  white-space: nowrap;
+}
+.ilog-sheet-tab:hover {
+  background: #cfe0b0;
+}
+.ilog-sheet-tab.active {
+  background: #fff;
+  border-color: #8faf5a;
+  border-top: 2px solid #217346;
+  font-weight: 700;
+  color: #1a1a1a;
+  z-index: 1;
+  position: relative;
+}
+.ilog-sheet-add {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 1.6rem;
+  height: 1.5rem;
+  margin: 0 0.25rem;
+  border: 1px solid #aaa;
+  border-radius: 2px;
+  background: #f3f3f3;
+  color: #333;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.ilog-sheet-add:hover:not(:disabled) {
+  background: #e5f0da;
+  border-color: #8faf5a;
+}
+.ilog-sheet-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ilog-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  background: #217346;
+  color: #fff;
+  font-size: 0.75rem;
+  min-height: 1.45rem;
+}
+.ilog-status-ready {
+  flex: 0 0 auto;
+  min-width: 4rem;
+}
+.ilog-status-ready.ilog-status-error {
+  color: #ffe0e0;
+}
+.ilog-status-stats {
+  flex: 1 1 auto;
+  text-align: center;
+  opacity: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+.ilog-status-zoom {
+  flex: 0 0 auto;
+  min-width: 3rem;
+  text-align: right;
+}
+.ilog-find-dialog {
+  border: 1px solid #8faf5a;
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  max-width: 22rem;
+  width: calc(100% - 2rem);
+}
+.ilog-find-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.25);
+}
+.ilog-find-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.ilog-find-form label {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: #1f2937;
+}
+.ilog-find-input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #aaa;
+  border-radius: 2px;
+  font-size: 0.9rem;
+}
+.ilog-find-actions {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
 }
 
 .eq-building-card {
