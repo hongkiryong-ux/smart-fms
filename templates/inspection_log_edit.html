@@ -705,6 +705,7 @@
     pick.editor = editor || null;
     pick.replaceStart = -1;
     pick.replaceEnd = -1;
+    if (via === 'bar') barEditing = true;
     if (formulaCell) formulaCell.value = cellLabel(x, y);
     updatePickHint();
   }
@@ -712,13 +713,31 @@
   function isPickMode() {
     if (!pick.on) return false;
     if (pick.via === 'bar') {
-      return !!(formulaInput && startsFormula(formulaInput.value));
+      // 수식 바에 수식이 '표시'만 된 상태는 포인트 모드 아님 — 편집 중일 때만
+      return !!(barEditing && formulaInput && startsFormula(formulaInput.value));
     }
     if (pick.via === 'cell') {
       var ed = pick.editor || findCellEditor();
       return !!(ed && startsFormula(ed.value));
     }
     return false;
+  }
+
+  /** 셀 편집 중 시트 이동 시 수식 바로 이어서 편집 (에디터가 파괴되므로) */
+  function transferCellPickToBar() {
+    if (!pick.on || pick.via !== 'cell') return;
+    var ed = getPickInput();
+    var v = ed ? String(ed.value || '') : '';
+    if (!v) {
+      v = String((sheets[pick.sheet].data[pick.y] && sheets[pick.sheet].data[pick.y][pick.x]) || '');
+    }
+    if (!startsFormula(v)) v = '=' + v.replace(/^\=/, '');
+    formulaInput.value = v;
+    enterPickMode('bar', pick.sheet, pick.x, pick.y, null);
+    try {
+      formulaInput.focus();
+      formulaInput.setSelectionRange(formulaInput.value.length, formulaInput.value.length);
+    } catch (e) {}
   }
 
   function findCellEditor() {
@@ -782,13 +801,13 @@
         formulaCell.value = cellLabel(x, y);
       }
     }
-    if (pick.on && pick.via === 'bar' && startsFormula(formulaInput && formulaInput.value)) return;
-    if (barEditing && document.activeElement === formulaInput && startsFormula(formulaInput.value)) return;
+    // 수식 포인트/편집 중이면 수식 바 덮어쓰지 않음
+    if (isPickMode()) return;
+    if (barEditing && document.activeElement === formulaInput) return;
     var sheet = sheets[active];
     if (!sheet || !formulaInput) return;
     var raw = (sheet.data[y] && sheet.data[y][x] != null) ? sheet.data[y][x] : '';
     formulaInput.value = raw === null || raw === undefined ? '' : String(raw);
-    barEditing = false;
   }
 
   function focusFormulaBarForEdit() {
@@ -840,8 +859,29 @@
     changeRecalcTimer = setTimeout(function () {
       expandSheetsForFormulaRefs();
       rebuildHf();
-      renderActiveSheet();
+      refreshCalculatedDisplays();
+      updateSelectionStats();
     }, 120);
+  }
+
+  /** 그리드 재생성 없이 수식 결과만 갱신 (선택 유지) */
+  function refreshCalculatedDisplays() {
+    if (!spreadsheet || !sheets[active] || showFormulas) return;
+    var display = getCalculatedAoa(active);
+    var src = sheets[active].data;
+    suppressSelection = true;
+    try {
+      for (var y = 0; y < src.length; y++) {
+        for (var x = 0; x < (src[y] || []).length; x++) {
+          if (!isFormula(src[y][x])) continue;
+          try {
+            spreadsheet.setValueFromCoords(x, y, display[y][x], true);
+          } catch (e) {}
+        }
+      }
+    } finally {
+      suppressSelection = false;
+    }
   }
 
   function commitCellValue(sheetIdx, x, y, value, opts) {
@@ -851,7 +891,7 @@
     expandSheetsForFormulaRefs();
     rebuildHf();
     if (active === sheetIdx) {
-      renderActiveSheet();
+      refreshCalculatedDisplays();
       try {
         suppressSelection = true;
         spreadsheet.updateSelectionFromCoords(x, y, x, y);
@@ -860,6 +900,18 @@
       selected = { x: x, y: y, x2: x, y2: y };
       syncFormulaBar(x, y);
       updateSelectionStats();
+    } else {
+      // 다른 시트에 수식 확정 후 해당 시트로 복귀
+      active = sheetIdx;
+      renderTabs();
+      renderActiveSheet();
+      try {
+        suppressSelection = true;
+        spreadsheet.updateSelectionFromCoords(x, y, x, y);
+      } catch (e2) {}
+      suppressSelection = false;
+      selected = { x: x, y: y, x2: x, y2: y };
+      syncFormulaBar(x, y);
     }
   }
 
@@ -980,11 +1032,25 @@
       btn.addEventListener('click', function () {
         if (idx === active) return;
         if (isPickMode()) {
+          // 시트 간 수식 참조: 셀 편집 중이면 수식 바로 옮겨 유지
+          if (pick.via === 'cell') transferCellPickToBar();
           flushActiveToModel();
+          persistActiveMeta();
+          var keepFormula = formulaInput ? formulaInput.value : '';
           active = idx;
           renderTabs();
           renderActiveSheet();
+          if (formulaInput) {
+            formulaInput.value = keepFormula;
+            barEditing = true;
+            enterPickMode('bar', pick.sheet, pick.x, pick.y, null);
+            try {
+              formulaInput.focus();
+              formulaInput.setSelectionRange(keepFormula.length, keepFormula.length);
+            } catch (e) {}
+          }
           updatePickHint();
+          setToast('다른 시트 셀을 클릭하면 참조가 들어갑니다. Enter로 확정', 'ok');
           return;
         }
         flushActiveToModel();
@@ -1375,16 +1441,13 @@
         var y2 = typeof py2 === 'number' ? py2 : y;
         if (isPickMode()) {
           if (!pick.mouseInserted) insertRefAtPick(active, x, y);
-          if (pick.sheet === active) {
-            setTimeout(function () {
-              try {
-                suppressSelection = true;
-                spreadsheet.updateSelectionFromCoords(pick.x, pick.y, pick.x, pick.y);
-              } catch (e) {}
-              suppressSelection = false;
-            }, 0);
-          }
+          // 클릭한 참조 셀 하이라이트 유지 (수식 셀로 강제 복원하지 않음)
           return;
+        }
+        // 수식 바 포커스가 아니면 편집/픽 모드 종료 → 일반 선택 유지
+        if (document.activeElement !== formulaInput) {
+          barEditing = false;
+          if (pick.on) exitPickMode();
         }
         if (barEditing && document.activeElement === formulaInput && !startsFormula(formulaInput.value)) {
           var prevX = selected.x;
@@ -1397,23 +1460,24 @@
           dirty = true;
           expandSheetsForFormulaRefs();
           rebuildHf();
+          refreshCalculatedDisplays();
         }
         selected = { x: x, y: y, x2: x2, y2: y2 };
         syncFormulaBar(x, y);
         updateSelectionStats();
       },
-      ondblclick: function () {
-        focusFormulaBarForEdit();
-      },
+      // 더블클릭은 jspreadsheet 기본 셀 편집 사용 (수식 바로 보내지 않음)
       oneditionstart: function (el, cell, x, y) {
         x = parseInt(x, 10);
         y = parseInt(y, 10);
         selected = { x: x, y: y, x2: x, y2: y };
+        syncFormulaBar(x, y);
         var raw = (sheets[active].data[y] && sheets[active].data[y][x] != null)
           ? sheets[active].data[y][x] : '';
         setTimeout(function () {
           var ed = findCellEditor();
           if (!ed) return;
+          // 계산값 대신 수식 원본을 셀에서 바로 수정
           if (isFormula(raw)) {
             ed.value = String(raw);
             try { ed.setSelectionRange(ed.value.length, ed.value.length); } catch (e) {}
@@ -1424,6 +1488,8 @@
             } else if (pick.on && pick.via === 'cell') {
               exitPickMode();
             }
+            // 수식 바에도 동기화
+            if (formulaInput) formulaInput.value = ed.value;
           }
           ed.addEventListener('input', onEditorInput);
           ed.addEventListener('keydown', function (e) {
@@ -1448,7 +1514,12 @@
         if (pick.on && pick.via === 'cell' && pick.editor && startsFormula(pick.editor.value)) {
           v = pick.editor.value;
         }
+        // 시트 이동으로 수식 바로 이관된 경우 셀 커밋 스킵
+        if (pick.on && pick.via === 'bar') {
+          return;
+        }
         exitPickMode();
+        barEditing = false;
         var prev = (sheets[active].data[y] && sheets[active].data[y][x] != null)
           ? sheets[active].data[y][x] : '';
         if (!startsFormula(v) && isFormula(prev)) {
@@ -1465,6 +1536,7 @@
         y = parseInt(y, 10);
         var prev = (sheets[active].data[y] && sheets[active].data[y][x] != null)
           ? sheets[active].data[y][x] : '';
+        // 수식 셀에 계산값 표시 갱신 → 무시
         if (isFormula(prev) && !startsFormula(value)) return;
         if (startsFormula(value) || !isFormula(prev)) {
           setModelCell(active, x, y, value);
@@ -1472,10 +1544,10 @@
           scheduleRecalcFromChange();
         }
       },
-      oninsertrow: function () { dirty = true; captureGridSize(); rebuildHf(); renderActiveSheet(); },
-      oninsertcolumn: function () { dirty = true; captureGridSize(); rebuildHf(); renderActiveSheet(); },
-      ondeleterow: function () { dirty = true; captureGridSize(); rebuildHf(); renderActiveSheet(); },
-      ondeletecolumn: function () { dirty = true; captureGridSize(); rebuildHf(); renderActiveSheet(); }
+      oninsertrow: function () { dirty = true; pushHistory(); captureGridSize(); rebuildHf(); renderActiveSheet(); },
+      oninsertcolumn: function () { dirty = true; pushHistory(); captureGridSize(); rebuildHf(); renderActiveSheet(); },
+      ondeleterow: function () { dirty = true; pushHistory(); captureGridSize(); rebuildHf(); renderActiveSheet(); },
+      ondeletecolumn: function () { dirty = true; pushHistory(); captureGridSize(); rebuildHf(); renderActiveSheet(); }
     });
 
     applyStoredStyles();
@@ -1487,6 +1559,16 @@
     } else if (formulaCell) {
       formulaCell.value = cellLabel(pick.x, pick.y);
     }
+    // 선택 복원
+    try {
+      suppressSelection = true;
+      spreadsheet.updateSelectionFromCoords(
+        selected.x, selected.y,
+        selected.x2 != null ? selected.x2 : selected.x,
+        selected.y2 != null ? selected.y2 : selected.y
+      );
+    } catch (e) {}
+    suppressSelection = false;
     applyZoom();
     updateSelectionStats();
   }
@@ -1612,17 +1694,6 @@
     e.stopPropagation();
     insertRefAtPick(active, x, y);
   }, true);
-
-  host.addEventListener('click', function (e) {
-    if (isPickMode()) return;
-    var td = e.target && e.target.closest ? e.target.closest('td[data-x]') : null;
-    if (!td || !host.contains(td)) return;
-    var x = parseInt(td.getAttribute('data-x'), 10);
-    var y = parseInt(td.getAttribute('data-y'), 10);
-    if (isNaN(x) || isNaN(y)) return;
-    syncFormulaBar(x, y);
-    updateSelectionStats();
-  });
 
   function applyZoom() {
     if (!sheetWrap) return;
@@ -1884,10 +1955,19 @@
     formulaInput.addEventListener('focus', function () {
       if (!CAN_SAVE) return;
       barEditing = true;
+      // 기존 수식을 수식 바에서 편집할 때만 포인트 모드 (시트 간 참조 포함)
       if (startsFormula(formulaInput.value)) {
-        enterPickMode('bar', active, selected.x, selected.y, null);
+        enterPickMode('bar', pick.on ? pick.sheet : active, pick.on ? pick.x : selected.x, pick.on ? pick.y : selected.y, null);
       }
       updatePickHint();
+    });
+    formulaInput.addEventListener('blur', function () {
+      // 셀 클릭으로 참조 넣는 중이면 blur 무시 (포커스 유지 시도)
+      setTimeout(function () {
+        if (isPickMode()) {
+          try { formulaInput.focus(); } catch (e) {}
+        }
+      }, 0);
     });
     formulaInput.addEventListener('input', function () {
       if (!CAN_SAVE) return;
@@ -1896,7 +1976,7 @@
         enterPickMode('bar', pick.on ? pick.sheet : active, pick.on ? pick.x : selected.x, pick.on ? pick.y : selected.y, null);
       } else {
         pick.on = false;
-        pick.via = 'bar';
+        pick.via = null;
         updatePickHint();
       }
     });
@@ -1923,6 +2003,7 @@
         var nextX = selected.x + (e.shiftKey ? -1 : 1);
         if (nextX < 0) nextX = 0;
         try { spreadsheet.updateSelectionFromCoords(nextX, selected.y, nextX, selected.y); } catch (err) {}
+        selected = { x: nextX, y: selected.y, x2: nextX, y2: selected.y };
         syncFormulaBar(nextX, selected.y);
       }
     });
@@ -1939,7 +2020,20 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'F2') {
       e.preventDefault();
-      focusFormulaBarForEdit();
+      // 엑셀처럼 현재 셀에서 바로 편집
+      if (!CAN_SAVE || !spreadsheet) return;
+      try {
+        var cellEl = spreadsheet.getCellFromCoords
+          ? spreadsheet.getCellFromCoords(selected.x, selected.y)
+          : null;
+        if (cellEl && spreadsheet.openEditor) {
+          spreadsheet.openEditor(cellEl);
+        } else {
+          focusFormulaBarForEdit();
+        }
+      } catch (err) {
+        focusFormulaBarForEdit();
+      }
       return;
     }
     if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
