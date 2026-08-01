@@ -52,12 +52,17 @@
       <tbody>
         {% for f in files %}
         <tr>
-          <td>{{ f.title }}</td>
-          <td>{{ f.original_name or f.stored_name }}</td>
+          <td>
+            <a class="ilog-file-open" href="/admin/inspection-logs/{{ building.id }}/files/{{ f.id }}/edit">{{ f.title }}</a>
+          </td>
+          <td>
+            <a class="ilog-file-open" href="/admin/inspection-logs/{{ building.id }}/files/{{ f.id }}/edit">{{ f.original_name or f.stored_name }}</a>
+          </td>
           <td>{{ f.uploaded_by or '-' }}</td>
           <td class="wo-date">{{ fmt_kst(f.created_at) }}</td>
           <td>
             <a class="btn btn-sm btn-secondary" href="{{ f.url }}">다운로드</a>
+            <a class="btn btn-sm btn-primary" href="/admin/inspection-logs/{{ building.id }}/files/{{ f.id }}/edit">열기</a>
           </td>
           {% if user_can_delete(user) %}
           <td>

@@ -5849,6 +5849,102 @@ async def inspection_log_file_download(
     )
 
 
+@app.get("/admin/inspection-logs/{building_id}/files/{file_id}/edit")
+async def inspection_log_file_edit(
+    building_id: int,
+    file_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    registered = (
+        await db.execute(
+            select(InspectionLogBuilding).where(
+                InspectionLogBuilding.building_id == building_id
+            )
+        )
+    ).scalar_one_or_none()
+    building = (
+        await db.execute(
+            select(Building)
+            .where(Building.id == building_id, Building.is_active == True)  # noqa: E712
+            .options(selectinload(Building.site))
+        )
+    ).scalar_one_or_none()
+    doc = await db.get(InspectionLogFile, file_id)
+    if not registered or not building or not doc or doc.building_id != building_id:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+
+    return templates.TemplateResponse(
+        request,
+        "inspection_log_edit.html",
+        {
+            "user": user,
+            "building": building,
+            "doc": doc,
+            "can_save": can_edit(user),
+            "file_url": f"/admin/inspection-logs/{building_id}/files/{file_id}/file",
+            "save_url": f"/admin/inspection-logs/{building_id}/files/{file_id}/save",
+        },
+    )
+
+
+@app.post("/admin/inspection-logs/{building_id}/files/{file_id}/save")
+async def inspection_log_file_save(
+    building_id: int,
+    file_id: int,
+    request: Request,
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """브라우저에서 수정한 엑셀(base64 xlsx)을 저장."""
+    import base64
+
+    doc = await db.get(InspectionLogFile, file_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, detail="잘못된 요청입니다.")
+
+    b64 = (body.get("data_base64") or "").strip()
+    if not b64:
+        raise HTTPException(400, detail="저장할 데이터가 없습니다.")
+    if "," in b64 and b64.lower().startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    try:
+        raw = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(400, detail="파일 디코딩에 실패했습니다.")
+    if not raw:
+        raise HTTPException(400, detail="빈 파일입니다.")
+    if len(raw) > UPLOAD_MAX_FILE_BYTES:
+        raise HTTPException(
+            400, detail=f"파일이 너무 큽니다. (최대 {UPLOAD_MAX_FILE_MB}MB)"
+        )
+
+    # 저장은 xlsx로 통일 (편집기 출력 형식)
+    orig = doc.original_name or doc.stored_name or "inspection.xlsx"
+    stem = Path(orig).stem or "inspection"
+    new_name = f"{stem}.xlsx"
+    doc.file_data = raw
+    doc.original_name = new_name[:300]
+    doc.content_type = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    doc.uploaded_by = user.name or user.username
+    await db.commit()
+    return JSONResponse(
+        {
+            "ok": True,
+            "message": "저장되었습니다.",
+            "filename": new_name,
+        }
+    )
+
+
 @app.post("/admin/inspection-logs/{building_id}/files/{file_id}/delete")
 async def inspection_log_file_delete(
     building_id: int,

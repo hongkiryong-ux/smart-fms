@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} · 엑셀 편집{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsuites@5.8.3/dist/jsuites.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.15.0/dist/jspreadsheet.min.css" />
+
+<header class="page-header ilog-edit-header">
+  <div class="breadcrumb-nav">
+    <a href="/admin/inspection-logs">점검일지</a>
+    <span>›</span>
+    <a href="/admin/inspection-logs/{{ building.id }}">{{ building.name }}</a>
+    <span>›</span>
+    <strong>{{ doc.title }}</strong>
+  </div>
+  <div class="ilog-edit-title-row">
+    <div>
+      <h1>{{ doc.title }}</h1>
+      <p class="text-muted">{{ doc.original_name or doc.stored_name }} · 셀을 수정한 뒤 저장하세요</p>
+    </div>
+    <div class="ilog-edit-actions">
+      <a class="btn btn-secondary btn-sm" href="{{ file_url }}">다운로드</a>
+      {% if can_save %}
+      <button type="button" id="ilog-save-btn" class="btn btn-primary btn-sm">저장</button>
+      {% else %}
+      <span class="text-muted">수정 권한이 없어 저장할 수 없습니다.</span>
+      {% endif %}
+    </div>
+  </div>
+  <div id="ilog-status" class="ilog-status" hidden></div>
+</header>
+
+<section class="card card-wide ilog-edit-card">
+  <div id="ilog-sheet-tabs" class="ilog-sheet-tabs"></div>
+  <div id="ilog-sheet-wrap" class="ilog-sheet-wrap">
+    <p class="text-muted" id="ilog-loading">엑셀 파일을 불러오는 중…</p>
+    <div id="ilog-spreadsheet"></div>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/jsuites@5.8.3/dist/jsuites.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4.15.0/dist/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function () {
+  var FILE_URL = {{ file_url | tojson }};
+  var SAVE_URL = {{ save_url | tojson }};
+  var CAN_SAVE = {{ can_save | tojson }};
+  var sheets = []; // { name, data: string[][] }
+  var active = 0;
+  var spreadsheet = null;
+  var dirty = false;
+
+  var tabsEl = document.getElementById('ilog-sheet-tabs');
+  var host = document.getElementById('ilog-spreadsheet');
+  var loading = document.getElementById('ilog-loading');
+  var statusEl = document.getElementById('ilog-status');
+  var saveBtn = document.getElementById('ilog-save-btn');
+
+  function setStatus(msg, kind) {
+    if (!statusEl) return;
+    statusEl.hidden = !msg;
+    statusEl.textContent = msg || '';
+    statusEl.className = 'ilog-status' + (kind ? ' ilog-status-' + kind : '');
+  }
+
+  function normalizeAoa(aoa) {
+    if (!aoa || !aoa.length) return [['']];
+    var maxCols = 0;
+    for (var i = 0; i < aoa.length; i++) {
+      maxCols = Math.max(maxCols, (aoa[i] || []).length);
+    }
+    maxCols = Math.max(maxCols, 8);
+    var rows = Math.max(aoa.length, 20);
+    var out = [];
+    for (var r = 0; r < rows; r++) {
+      var row = [];
+      for (var c = 0; c < maxCols; c++) {
+        var v = (aoa[r] && aoa[r][c] != null) ? aoa[r][c] : '';
+        row.push(v === null || v === undefined ? '' : String(v));
+      }
+      out.push(row);
+    }
+    return out;
+  }
+
+  function destroySheet() {
+    if (spreadsheet) {
+      try { spreadsheet.destroy(); } catch (e) {}
+      spreadsheet = null;
+    }
+    host.innerHTML = '';
+  }
+
+  function renderTabs() {
+    tabsEl.innerHTML = '';
+    sheets.forEach(function (s, idx) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ilog-sheet-tab' + (idx === active ? ' active' : '');
+      btn.textContent = s.name || ('Sheet' + (idx + 1));
+      btn.addEventListener('click', function () {
+        if (idx === active) return;
+        flushActiveToModel();
+        active = idx;
+        renderTabs();
+        renderActiveSheet();
+      });
+      tabsEl.appendChild(btn);
+    });
+  }
+
+  function flushActiveToModel() {
+    if (!spreadsheet || !sheets[active]) return;
+    try {
+      sheets[active].data = spreadsheet.getData();
+    } catch (e) {}
+  }
+
+  function renderActiveSheet() {
+    destroySheet();
+    var sheet = sheets[active];
+    if (!sheet) return;
+    var data = normalizeAoa(sheet.data);
+    spreadsheet = jspreadsheet(host, {
+      data: data,
+      tableOverflow: true,
+      tableWidth: '100%',
+      tableHeight: '65vh',
+      defaultColWidth: 100,
+      allowInsertRow: true,
+      allowInsertColumn: true,
+      allowDeleteRow: true,
+      allowDeleteColumn: true,
+      columnSorting: false,
+      editable: !!CAN_SAVE,
+      onchange: function () { dirty = true; },
+      oninsertrow: function () { dirty = true; },
+      oninsertcolumn: function () { dirty = true; },
+      ondeleterow: function () { dirty = true; },
+      ondeletecolumn: function () { dirty = true; }
+    });
+  }
+
+  function workbookFromSheets() {
+    var wb = XLSX.utils.book_new();
+    sheets.forEach(function (s) {
+      var aoa = s.data || [['']];
+      // 끝의 완전 빈 행 정리
+      while (aoa.length > 1) {
+        var last = aoa[aoa.length - 1];
+        var empty = !last || last.every(function (c) { return c === '' || c == null; });
+        if (!empty) break;
+        aoa.pop();
+      }
+      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      var name = (s.name || 'Sheet').substring(0, 31) || 'Sheet';
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    });
+    return wb;
+  }
+
+  async function loadFile() {
+    setStatus('', '');
+    try {
+      var res = await fetch(FILE_URL, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('파일을 불러오지 못했습니다. (' + res.status + ')');
+      var buf = await res.arrayBuffer();
+      var wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      sheets = wb.SheetNames.map(function (name) {
+        var ws = wb.Sheets[name];
+        var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+        return { name: name, data: normalizeAoa(aoa) };
+      });
+      if (!sheets.length) sheets = [{ name: 'Sheet1', data: [['']] }];
+      active = 0;
+      if (loading) loading.hidden = true;
+      renderTabs();
+      renderActiveSheet();
+      dirty = false;
+    } catch (err) {
+      if (loading) loading.textContent = '불러오기 실패: ' + (err.message || err);
+      setStatus(String(err.message || err), 'error');
+    }
+  }
+
+  async function saveFile() {
+    if (!CAN_SAVE || !saveBtn) return;
+    flushActiveToModel();
+    setStatus('저장 중…', '');
+    saveBtn.disabled = true;
+    try {
+      var wb = workbookFromSheets();
+      var out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      var bytes = new Uint8Array(out);
+      var binary = '';
+      for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      var b64 = btoa(binary);
+      var res = await fetch(SAVE_URL, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_base64: b64 })
+      });
+      var payload = null;
+      try { payload = await res.json(); } catch (e) {}
+      if (!res.ok) {
+        throw new Error((payload && (payload.detail || payload.message)) || ('저장 실패 (' + res.status + ')'));
+      }
+      dirty = false;
+      setStatus((payload && payload.message) || '저장되었습니다.', 'ok');
+    } catch (err) {
+      setStatus(String(err.message || err), 'error');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  if (saveBtn) saveBtn.addEventListener('click', saveFile);
+  window.addEventListener('beforeunload', function (e) {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  loadFile();
+})();
+</script>
+{% endblock %}
