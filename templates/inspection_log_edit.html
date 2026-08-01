@@ -58,6 +58,11 @@
           <button type="button" class="ilog-ribbon-btn" data-cmd="align-right" title="오른쪽 정렬" {% if not can_save %}disabled{% endif %}>오른쪽</button>
         </span>
         <span class="ilog-ribbon-sep"></span>
+        <span class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="dec-decimal" title="소수점 자리 줄이기" {% if not can_save %}disabled{% endif %}>.0←</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="inc-decimal" title="소수점 자리 늘리기" {% if not can_save %}disabled{% endif %}>.0→</button>
+        </span>
+        <span class="ilog-ribbon-sep"></span>
         <span class="ilog-ribbon-group ilog-color-group">
           <label class="ilog-color-label" title="채우기색">채우기
             <input type="color" id="ilog-fill-color" class="ilog-color-input" value="#ffffff" {% if not can_save %}disabled{% endif %} />
@@ -141,8 +146,11 @@
   var FILE_URL = {{ file_url | tojson }};
   var SAVE_URL = {{ save_url | tojson }};
   var CAN_SAVE = {{ can_save | tojson }};
+  var FILE_ID = {{ file_id | tojson }};
+  var CURSOR_URL = {{ cursor_url | tojson }};
+  var INITIAL_POS = {{ last_edit_pos | tojson }};
 
-  var sheets = []; // { name, data, styles, merges }
+  var sheets = []; // { name, data, styles, merges, formats }
   var active = 0;
   var spreadsheet = null;
   var hf = null;
@@ -156,6 +164,7 @@
   var history = { undo: [], redo: [], max: 50, applying: false };
   var findState = { query: '', lastX: -1, lastY: -1 };
   var toastTimer = null;
+  var cursorTimer = null;
 
   var pick = {
     on: false,
@@ -217,7 +226,8 @@
         name: s.name,
         data: (s.data || []).map(function (row) { return (row || []).slice(); }),
         styles: cloneStyles(s.styles),
-        merges: cloneMerges(s.merges)
+        merges: cloneMerges(s.merges),
+        formats: cloneStyles(s.formats)
       };
     });
   }
@@ -225,6 +235,7 @@
   function ensureSheetMeta(s) {
     if (!s.styles) s.styles = {};
     if (!s.merges) s.merges = {};
+    if (!s.formats) s.formats = {}; // { A1: 2 } 소수점 자리수
     return s;
   }
 
@@ -496,6 +507,26 @@
     return {};
   }
 
+  function formatsFromWs(ws) {
+    var out = {};
+    if (!ws || !ws['!ref']) return out;
+    var range = XLSX.utils.decode_range(ws['!ref']);
+    for (var R = range.s.r; R <= range.e.r; R++) {
+      for (var C = range.s.c; C <= range.e.c; C++) {
+        var addr = XLSX.utils.encode_cell({ r: R, c: C });
+        var cell = ws[addr];
+        if (!cell || !cell.z) continue;
+        var z = String(cell.z);
+        var m = z.match(/0\.(0+)/);
+        if (m) out[cellLabel(C, R)] = m[1].length;
+        else if (/^0+$/.test(z.replace(/[#,]/g, '').split('.')[0] || '') && z.indexOf('.') < 0) {
+          out[cellLabel(C, R)] = 0;
+        }
+      }
+    }
+    return out;
+  }
+
   function cellToHf(v) {
     if (v === null || v === undefined || v === '') return null;
     if (isFormula(v)) return v;
@@ -513,14 +544,33 @@
     return '#' + String(t).replace(/^#/, '').replace(/!$/, '') + '!';
   }
 
-  function formatDisplayValue(cv, original) {
+  function formatDisplayValue(cv, original, decimals) {
     if (cv && typeof cv === 'object' && (cv.type || cv.message)) {
       return formatHfError(cv);
     }
     if (cv === null || cv === undefined) {
       return isFormula(original) ? '' : (original == null ? '' : original);
     }
+    if (decimals != null && decimals >= 0) {
+      var n = typeof cv === 'number' ? cv : Number(cv);
+      if (!isNaN(n) && String(cv).trim() !== '' && typeof cv !== 'boolean') {
+        return n.toFixed(decimals);
+      }
+    }
     return cv;
+  }
+
+  function decimalsForCell(sheetIdx, x, y) {
+    var s = sheets[sheetIdx];
+    if (!s || !s.formats) return null;
+    var d = s.formats[cellLabel(x, y)];
+    return (d == null || d === '') ? null : parseInt(d, 10);
+  }
+
+  function excelNumFmt(decimals) {
+    decimals = Math.max(0, Math.min(10, parseInt(decimals, 10) || 0));
+    if (decimals === 0) return '0';
+    return '0.' + new Array(decimals + 1).join('0');
   }
 
   function rebuildHf() {
@@ -578,14 +628,16 @@
       var row = [];
       for (var c = 0; c < w; c++) {
         var original = (src[r] && src[r][c] != null) ? src[r][c] : '';
+        var dec = decimalsForCell(sheetIdx, c, r);
         if (isFormula(original)) {
           try {
-            row.push(formatDisplayValue(hf.getCellValue({ sheet: sheetId, row: r, col: c }), original));
+            row.push(formatDisplayValue(hf.getCellValue({ sheet: sheetId, row: r, col: c }), original, dec));
           } catch (e) {
             row.push('#ERROR!');
           }
         } else {
-          row.push(original === null || original === undefined ? '' : original);
+          var raw = original === null || original === undefined ? '' : original;
+          row.push(formatDisplayValue(raw, raw, dec));
         }
       }
       out.push(row);
@@ -636,6 +688,12 @@
             ws[addr] = { t: 'n', v: num };
           } else {
             ws[addr] = { t: 's', v: s };
+          }
+        }
+        if (sheetMeta && sheetMeta.formats) {
+          var fd = sheetMeta.formats[cellLabel(C, R)];
+          if (fd != null && fd !== '' && ws[addr] && ws[addr].t === 'n') {
+            ws[addr].z = excelNumFmt(fd);
           }
         }
       }
@@ -1096,7 +1154,7 @@
       n++;
       name = 'Sheet' + n;
     }
-    sheets.push(ensureSheetMeta({ name: name, data: normalizeAoa([['']], 20, 10), styles: {}, merges: {} }));
+    sheets.push(ensureSheetMeta({ name: name, data: normalizeAoa([['']], 20, 10), styles: {}, merges: {}, formats: {} }));
     active = sheets.length - 1;
     dirty = true;
     rebuildHf();
@@ -1213,6 +1271,98 @@
     applyStyleToSelection(function (css) {
       return setCssProp(css, 'color', color);
     });
+  }
+
+  function adjustDecimals(delta) {
+    if (!CAN_SAVE || !sheets[active]) return;
+    pushHistory();
+    ensureSheetMeta(sheets[active]);
+    var changed = 0;
+    forEachSelectedCell(function (x, y) {
+      var label = cellLabel(x, y);
+      var cur = sheets[active].formats[label];
+      if (cur == null || cur === '') {
+        var v = getCalculatedCell(active, x, y);
+        var n = typeof v === 'number' ? v : Number(v);
+        if (isNaN(n) || String(v).trim() === '') return;
+        // 현재 표시에서 자리수 추정
+        var s = String(v);
+        var dot = s.indexOf('.');
+        cur = dot >= 0 ? Math.min(10, s.length - dot - 1) : 0;
+      }
+      cur = Math.max(0, Math.min(10, parseInt(cur, 10) + delta));
+      sheets[active].formats[label] = cur;
+      changed++;
+    });
+    if (!changed) {
+      setToast('숫자 셀을 선택한 뒤 소수점 자리를 조정하세요.', 'error');
+      return;
+    }
+    dirty = true;
+    refreshCalculatedDisplays();
+    updateSelectionStats();
+    setToast('소수점 ' + (delta > 0 ? '증가' : '감소') + ' 적용', 'ok');
+  }
+
+  function saveEditPos(force) {
+    var pos = {
+      sheet: (sheets[active] && sheets[active].name) || null,
+      sheetIndex: active,
+      x: selected.x,
+      y: selected.y,
+      cell: cellLabel(selected.x, selected.y)
+    };
+    try {
+      localStorage.setItem('ilog-pos-' + FILE_ID, JSON.stringify(pos));
+    } catch (e) {}
+    if (!CURSOR_URL) return;
+    clearTimeout(cursorTimer);
+    var send = function () {
+      fetch(CURSOR_URL, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pos),
+        keepalive: !!force
+      }).catch(function () {});
+    };
+    if (force) send();
+    else cursorTimer = setTimeout(send, 700);
+  }
+
+  function resolveInitialPos() {
+    var pos = INITIAL_POS;
+    try {
+      var raw = localStorage.getItem('ilog-pos-' + FILE_ID);
+      if (raw) {
+        var ls = JSON.parse(raw);
+        if (ls && (ls.cell || ls.x != null)) pos = ls;
+      }
+    } catch (e) {}
+    return pos;
+  }
+
+  function applyInitialPos() {
+    var pos = resolveInitialPos();
+    if (!pos) return;
+    if (pos.sheetIndex != null && sheets[pos.sheetIndex]) {
+      active = parseInt(pos.sheetIndex, 10) || 0;
+    } else if (pos.sheet) {
+      var idx = findSheetIndexByName(pos.sheet);
+      if (idx >= 0) active = idx;
+    }
+    var x = parseInt(pos.x, 10);
+    var y = parseInt(pos.y, 10);
+    if (isNaN(x) && pos.cell) {
+      var m = String(pos.cell).toUpperCase().match(/^([A-Z]+)(\d+)$/);
+      if (m) {
+        x = parseColLetters(m[1]);
+        y = parseInt(m[2], 10) - 1;
+      }
+    }
+    if (isNaN(x)) x = 0;
+    if (isNaN(y)) y = 0;
+    selected = { x: x, y: y, x2: x, y2: y };
   }
 
   function mergeSelection() {
@@ -1473,6 +1623,7 @@
         selected = { x: x, y: y, x2: x2, y2: y2 };
         syncFormulaBar(x, y);
         updateSelectionStats();
+        saveEditPos(false);
       },
       // 더블클릭은 jspreadsheet 기본 셀 편집 사용 (수식 바로 보내지 않음)
       oneditionstart: function (el, cell, x, y) {
@@ -1480,6 +1631,7 @@
         y = parseInt(y, 10);
         selected = { x: x, y: y, x2: x, y2: y };
         syncFormulaBar(x, y);
+        saveEditPos(false);
         var raw = (sheets[active].data[y] && sheets[active].data[y][x] != null)
           ? sheets[active].data[y][x] : '';
         setTimeout(function () {
@@ -1630,21 +1782,38 @@
           name: name,
           data: normalizeAoa(sheetToAoaWithFormulas(ws)),
           styles: stylesFromWs(ws),
-          merges: mergesFromWs(ws)
+          merges: mergesFromWs(ws),
+          formats: formatsFromWs(ws)
         });
       });
-      if (!sheets.length) sheets = [ensureSheetMeta({ name: 'Sheet1', data: [['']], styles: {}, merges: {} })];
+      if (!sheets.length) sheets = [ensureSheetMeta({ name: 'Sheet1', data: [['']], styles: {}, merges: {}, formats: {} })];
       expandSheetsForFormulaRefs();
       rebuildHf();
       active = 0;
       history.undo = [];
       history.redo = [];
       updateHistoryButtons();
+      applyInitialPos();
       if (loading) loading.hidden = true;
       renderTabs();
       renderActiveSheet();
+      try {
+        suppressSelection = true;
+        spreadsheet.updateSelectionFromCoords(selected.x, selected.y, selected.x, selected.y);
+        var cellEl = spreadsheet.getCellFromCoords
+          ? spreadsheet.getCellFromCoords(selected.x, selected.y)
+          : null;
+        if (cellEl && cellEl.scrollIntoView) {
+          cellEl.scrollIntoView({ block: 'center', inline: 'center' });
+        }
+      } catch (e) {}
+      suppressSelection = false;
+      syncFormulaBar(selected.x, selected.y);
       dirty = false;
-      setToast('수식·시트 참조를 포함해 불러왔습니다.', 'ok');
+      var posLabel = cellLabel(selected.x, selected.y);
+      var sheetLabel = (sheets[active] && sheets[active].name) ? (sheets[active].name + '!') : '';
+      setToast('불러옴 · 마지막 위치 ' + sheetLabel + posLabel + ' 부터', 'ok');
+      saveEditPos(false);
     } catch (err) {
       if (loading) loading.textContent = '불러오기 실패: ' + (err.message || err);
       setToast(String(err.message || err), 'error');
@@ -1680,6 +1849,7 @@
         throw new Error((payload && (payload.detail || payload.message)) || ('저장 실패 (' + res.status + ')'));
       }
       dirty = false;
+      saveEditPos(true);
       setToast((payload && payload.message) || '수식 포함해 저장되었습니다.', 'ok');
     } catch (err) {
       setToast(String(err.message || err), 'error');
@@ -1760,6 +1930,8 @@
       applyNamedStyle(cmd);
       return;
     }
+    if (cmd === 'inc-decimal') { adjustDecimals(1); return; }
+    if (cmd === 'dec-decimal') { adjustDecimals(-1); return; }
     if (cmd === 'merge') { mergeSelection(); return; }
     if (cmd === 'unmerge') { unmergeSelection(); return; }
     if (!spreadsheet && cmd !== 'recalc') {
@@ -2075,9 +2247,13 @@
   });
 
   window.addEventListener('beforeunload', function (e) {
+    saveEditPos(true);
     if (!dirty) return;
     e.preventDefault();
     e.returnValue = '';
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') saveEditPos(true);
   });
 
   updateHistoryButtons();

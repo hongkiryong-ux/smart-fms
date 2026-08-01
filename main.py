@@ -5513,6 +5513,23 @@ async def _ensure_inspection_log_tables() -> None:
                     """
                 )
             )
+        try:
+            if is_pg:
+                await conn.execute(
+                    text(
+                        "ALTER TABLE inspection_log_files "
+                        "ADD COLUMN IF NOT EXISTS last_edit_pos JSONB"
+                    )
+                )
+            else:
+                await conn.execute(
+                    text(
+                        "ALTER TABLE inspection_log_files "
+                        "ADD COLUMN last_edit_pos TEXT"
+                    )
+                )
+        except Exception:
+            pass
 
 
 def _inspection_log_excel_ok(filename: str) -> bool:
@@ -5923,6 +5940,8 @@ async def inspection_log_file_edit(
     )
     use_legacy = (editor or "").lower() in ("legacy", "simple", "js")
     want_oo = oo.onlyoffice_enabled() and not use_legacy
+    cursor_url = f"/admin/inspection-logs/{building_id}/files/{file_id}/cursor"
+    last_edit_pos = getattr(doc, "last_edit_pos", None) or None
 
     if want_oo:
         oo_error = None
@@ -5962,6 +5981,9 @@ async def inspection_log_file_edit(
                 "editor_config_json": _json.dumps(
                     editor_config or {}, ensure_ascii=False
                 ),
+                "cursor_url": cursor_url,
+                "last_edit_pos": last_edit_pos,
+                "file_id": file_id,
             },
         )
 
@@ -5979,8 +6001,52 @@ async def inspection_log_file_edit(
             "onlyoffice_edit_url": (
                 f"/admin/inspection-logs/{building_id}/files/{file_id}/edit"
             ),
+            "cursor_url": cursor_url,
+            "last_edit_pos": last_edit_pos,
+            "file_id": file_id,
         },
     )
+
+
+@app.post("/admin/inspection-logs/{building_id}/files/{file_id}/cursor")
+async def inspection_log_file_cursor(
+    building_id: int,
+    file_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """마지막 편집 셀 위치 저장 (다시 열 때 복원용)."""
+    doc = await db.get(InspectionLogFile, file_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, detail="잘못된 요청입니다.")
+    if not isinstance(body, dict):
+        raise HTTPException(400, detail="잘못된 요청입니다.")
+    pos = {
+        "sheet": str(body.get("sheet") or "")[:80] or None,
+        "sheetIndex": body.get("sheetIndex"),
+        "cell": str(body.get("cell") or "")[:20] or None,
+        "x": body.get("x"),
+        "y": body.get("y"),
+        "user_id": user.id,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+    try:
+        if pos["sheetIndex"] is not None:
+            pos["sheetIndex"] = int(pos["sheetIndex"])
+        if pos["x"] is not None:
+            pos["x"] = int(pos["x"])
+        if pos["y"] is not None:
+            pos["y"] = int(pos["y"])
+    except (TypeError, ValueError):
+        raise HTTPException(400, detail="위치 값이 올바르지 않습니다.")
+    doc.last_edit_pos = pos
+    await db.commit()
+    return JSONResponse({"ok": True})
 
 
 @app.get("/oo/inspection-logs/{building_id}/files/{file_id}/content")

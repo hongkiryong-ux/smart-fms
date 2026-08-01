@@ -244,6 +244,8 @@ class InspectionLogFile(Base):
     file_data = Column(LargeBinary, nullable=True)
     uploaded_by = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # 마지막 편집 위치 {sheet, sheetIndex, cell, x, y}
+    last_edit_pos = Column(JSON, nullable=True)
 
     building = relationship("Building", back_populates="inspection_log_files")
 
