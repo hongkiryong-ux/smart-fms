@@ -1120,6 +1120,21 @@ body {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.9rem;
 }
+.ilog-pick-hint {
+  margin-top: 0.45rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 0.82rem;
+}
+body.ilog-formula-picking .ilog-formula-input {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+body.ilog-formula-picking .ilog-sheet-wrap {
+  outline: 2px solid #93c5fd;
+}
 .ilog-status {
   margin-top: 0.65rem;
   padding: 0.55rem 0.75rem;
