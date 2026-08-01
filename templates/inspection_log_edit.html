@@ -12,26 +12,84 @@
     <span>›</span>
     <strong>{{ doc.title }}</strong>
   </div>
-  <div class="ilog-edit-title-row">
-    <div>
-      <h1>{{ doc.title }}</h1>
-      <p class="text-muted">수식 유지 · 자동 계산 · 수식 입력 중 셀 클릭으로 참조 · 시트 간 참조 지원</p>
+  <h1 class="ilog-edit-doc-title">{{ doc.title }}</h1>
+
+  <div class="ilog-excel-chrome">
+    <nav class="ilog-menubar" role="menubar" aria-label="엑셀 메뉴">
+      <button type="button" class="ilog-menu-tab active" data-menu="file" role="menuitem">파일</button>
+      <button type="button" class="ilog-menu-tab" data-menu="home" role="menuitem">홈</button>
+      <button type="button" class="ilog-menu-tab" data-menu="insert" role="menuitem">삽입</button>
+      <button type="button" class="ilog-menu-tab" data-menu="formula" role="menuitem">수식</button>
+      <button type="button" class="ilog-menu-tab" data-menu="view" role="menuitem">보기</button>
+    </nav>
+
+    <div class="ilog-ribbon" id="ilog-ribbon">
+      <div class="ilog-ribbon-panel active" data-panel="file">
+        <div class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" id="ilog-save-btn" {% if not can_save %}disabled title="수정 권한 없음"{% endif %}>
+            <span>저장</span>
+          </button>
+          <a class="ilog-ribbon-btn" id="ilog-download-btn" href="{{ file_url }}">
+            <span>다운로드</span>
+          </a>
+          <a class="ilog-ribbon-btn" href="/admin/inspection-logs/{{ building.id }}">
+            <span>목록</span>
+          </a>
+        </div>
+      </div>
+      <div class="ilog-ribbon-panel" data-panel="home">
+        <div class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="cut" {% if not can_save %}disabled{% endif %}>잘라내기</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="copy">복사</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="paste" {% if not can_save %}disabled{% endif %}>붙여넣기</button>
+        </div>
+        <div class="ilog-ribbon-sep"></div>
+        <div class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="clear" {% if not can_save %}disabled{% endif %}>내용 지우기</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="fill-down" {% if not can_save %}disabled{% endif %}>아래로 채우기</button>
+        </div>
+        <div class="ilog-ribbon-sep"></div>
+        <div class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="insert-row" {% if not can_save %}disabled{% endif %}>행 삽입</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="insert-col" {% if not can_save %}disabled{% endif %}>열 삽입</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="delete-row" {% if not can_save %}disabled{% endif %}>행 삭제</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="delete-col" {% if not can_save %}disabled{% endif %}>열 삭제</button>
+        </div>
+      </div>
+      <div class="ilog-ribbon-panel" data-panel="insert">
+        <div class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="insert-row" {% if not can_save %}disabled{% endif %}>행 삽입</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="insert-col" {% if not can_save %}disabled{% endif %}>열 삽입</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="insert-row-below" {% if not can_save %}disabled{% endif %}>아래에 행</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="insert-col-right" {% if not can_save %}disabled{% endif %}>오른쪽에 열</button>
+        </div>
+      </div>
+      <div class="ilog-ribbon-panel" data-panel="formula">
+        <div class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="recalc">모두 다시 계산</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="toggle-formula" id="ilog-toggle-formula">수식 표시</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="edit-formula" {% if not can_save %}disabled{% endif %}>수식 편집 (F2)</button>
+        </div>
+      </div>
+      <div class="ilog-ribbon-panel" data-panel="view">
+        <div class="ilog-ribbon-group">
+          <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-in">확대</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-out">축소</button>
+          <button type="button" class="ilog-ribbon-btn" data-cmd="zoom-reset">100%</button>
+        </div>
+      </div>
     </div>
-    <div class="ilog-edit-actions">
-      <a class="btn btn-secondary btn-sm" href="{{ file_url }}">다운로드</a>
-      {% if can_save %}
-      <button type="button" id="ilog-save-btn" class="btn btn-primary btn-sm">저장</button>
-      {% else %}
-      <span class="text-muted">수정 권한이 없어 저장할 수 없습니다.</span>
-      {% endif %}
+
+    <div class="ilog-formula-bar">
+      <input type="text" id="ilog-formula-cell" class="ilog-formula-cell" value="A1" title="셀 주소 (예: A1)" {% if not can_save %}readonly{% endif %} autocomplete="off" />
+      <button type="button" class="ilog-fx-btn" id="ilog-fx-btn" title="수식 입력" {% if not can_save %}disabled{% endif %}>ƒx</button>
+      <input type="text" id="ilog-formula-input" class="ilog-formula-input" placeholder="선택한 셀의 값 또는 수식" {% if not can_save %}readonly{% endif %} autocomplete="off" />
+      <button type="button" class="ilog-fx-ok" id="ilog-fx-ok" title="확정 (Enter)" {% if not can_save %}disabled{% endif %}>✓</button>
+      <button type="button" class="ilog-fx-cancel" id="ilog-fx-cancel" title="취소 (Esc)" {% if not can_save %}disabled{% endif %}>✕</button>
     </div>
+    <div id="ilog-pick-hint" class="ilog-pick-hint" hidden>수식 입력 모드: 셀을 클릭하면 참조가 들어갑니다. Enter로 확정, Esc로 취소</div>
+    <div id="ilog-status" class="ilog-status" hidden></div>
   </div>
-  <div class="ilog-formula-bar">
-    <span class="ilog-formula-cell" id="ilog-formula-cell">A1</span>
-    <input type="text" id="ilog-formula-input" class="ilog-formula-input" placeholder="수식 또는 값 (예: =A1+B1  /  ='1월 입력'!AH2)" {% if not can_save %}readonly{% endif %} autocomplete="off" />
-  </div>
-  <div id="ilog-pick-hint" class="ilog-pick-hint" hidden>수식 입력 모드: 셀을 클릭하면 참조가 들어갑니다. Enter로 확정, Esc로 취소</div>
-  <div id="ilog-status" class="ilog-status" hidden></div>
 </header>
 
 <section class="card card-wide ilog-edit-card">
@@ -59,6 +117,10 @@
   var dirty = false;
   var selected = { x: 0, y: 0 };
   var suppressSelection = false;
+  var showFormulas = false;
+  var zoomLevel = 1;
+  var clipboard = { text: '', isCut: false, sheet: -1, x: -1, y: -1 };
+  var barEditing = false; // 수식 바에서 편집 중 (클릭한 셀 내용)
 
   /** 수식 포인트 모드 (= 입력 중 셀 클릭으로 참조 삽입) */
   var pick = {
@@ -69,7 +131,8 @@
     y: 0,
     replaceStart: -1,
     replaceEnd: -1,
-    editor: null
+    editor: null,
+    mouseInserted: false
   };
 
   var tabsEl = document.getElementById('ilog-sheet-tabs');
@@ -80,6 +143,11 @@
   var formulaCell = document.getElementById('ilog-formula-cell');
   var formulaInput = document.getElementById('ilog-formula-input');
   var pickHint = document.getElementById('ilog-pick-hint');
+  var sheetWrap = document.getElementById('ilog-sheet-wrap');
+  var fxBtn = document.getElementById('ilog-fx-btn');
+  var fxOk = document.getElementById('ilog-fx-ok');
+  var fxCancel = document.getElementById('ilog-fx-cancel');
+  var toggleFormulaBtn = document.getElementById('ilog-toggle-formula');
 
   function setStatus(msg, kind) {
     if (!statusEl) return;
@@ -413,7 +481,7 @@
     pick.editor = editor || null;
     pick.replaceStart = -1;
     pick.replaceEnd = -1;
-    if (formulaCell) formulaCell.textContent = cellLabel(x, y);
+    if (formulaCell) formulaCell.value = cellLabel(x, y);
     updatePickHint();
   }
 
@@ -480,12 +548,43 @@
 
   function syncFormulaBar(x, y) {
     selected = { x: x, y: y };
-    if (formulaCell) formulaCell.textContent = cellLabel(x, y);
-    if (pick.on && pick.via === 'bar') return;
+    if (formulaCell) formulaCell.value = cellLabel(x, y);
+    // 수식 포인트 모드(= 입력 중)면 수식 바 내용을 덮어쓰지 않음
+    if (pick.on && pick.via === 'bar' && startsFormula(formulaInput && formulaInput.value)) return;
+    if (barEditing && document.activeElement === formulaInput && startsFormula(formulaInput.value)) return;
     var sheet = sheets[active];
     if (!sheet || !formulaInput) return;
     var raw = (sheet.data[y] && sheet.data[y][x] != null) ? sheet.data[y][x] : '';
     formulaInput.value = raw === null || raw === undefined ? '' : String(raw);
+    barEditing = false;
+  }
+
+  function focusFormulaBarForEdit() {
+    if (!CAN_SAVE || !formulaInput) return;
+    barEditing = true;
+    pick.on = false;
+    pick.via = null;
+    updatePickHint();
+    syncFormulaBar(selected.x, selected.y);
+    formulaInput.focus();
+    try {
+      var len = formulaInput.value.length;
+      formulaInput.setSelectionRange(len, len);
+    } catch (e) {}
+  }
+
+  function beginFormulaFromFx() {
+    if (!CAN_SAVE || !formulaInput) return;
+    barEditing = true;
+    enterPickMode('bar', active, selected.x, selected.y, null);
+    if (!startsFormula(formulaInput.value)) {
+      formulaInput.value = '=' + (formulaInput.value || '');
+    }
+    formulaInput.focus();
+    try {
+      formulaInput.setSelectionRange(formulaInput.value.length, formulaInput.value.length);
+    } catch (e) {}
+    updatePickHint();
   }
 
   function setModelCell(sheetIdx, x, y, value) {
@@ -538,6 +637,7 @@
     var x = pick.on ? pick.x : selected.x;
     var y = pick.on ? pick.y : selected.y;
     exitPickMode();
+    barEditing = false;
     if (active !== sheetIdx) {
       active = sheetIdx;
       renderTabs();
@@ -591,7 +691,9 @@
     var sheet = sheets[active];
     if (!sheet) return;
     sheet.data = normalizeAoa(sheet.data, sheet.data.length, (sheet.data[0] || []).length);
-    var display = getCalculatedAoa(active);
+    var display = showFormulas
+      ? sheet.data.map(function (row) { return (row || []).slice(); })
+      : getCalculatedAoa(active);
 
     spreadsheet = jspreadsheet(host, {
       data: display,
@@ -624,7 +726,22 @@
           }
           return;
         }
+        // 수식 바에서 일반 값 편집 중 다른 셀 클릭 → 이전 셀 확정 후 이동
+        if (barEditing && document.activeElement === formulaInput && !startsFormula(formulaInput.value)) {
+          var prevX = selected.x;
+          var prevY = selected.y;
+          var prevSheet = active;
+          var v = formulaInput.value;
+          barEditing = false;
+          setModelCell(prevSheet, prevX, prevY, v);
+          dirty = true;
+          expandSheetsForFormulaRefs();
+          rebuildHf();
+        }
         syncFormulaBar(x, y);
+      },
+      ondblclick: function () {
+        focusFormulaBarForEdit();
       },
       oneditionstart: function (el, cell, x, y) {
         x = parseInt(x, 10);
@@ -705,8 +822,9 @@
     } else if (!(pick.on && pick.sheet !== active)) {
       syncFormulaBar(selected.x, selected.y);
     } else if (formulaCell) {
-      formulaCell.textContent = cellLabel(pick.x, pick.y);
+      formulaCell.value = cellLabel(pick.x, pick.y);
     }
+    applyZoom();
   }
 
   function captureGridSize() {
@@ -820,19 +938,273 @@
     insertRefAtPick(active, x, y);
   }, true);
 
+  // 셀 한 번 클릭 후 바로 수식 바에서 수정할 수 있게: 그리드 클릭 시 수식 바 동기화
+  host.addEventListener('click', function (e) {
+    if (isPickMode()) return;
+    var td = e.target && e.target.closest ? e.target.closest('td[data-x]') : null;
+    if (!td || !host.contains(td)) return;
+    var x = parseInt(td.getAttribute('data-x'), 10);
+    var y = parseInt(td.getAttribute('data-y'), 10);
+    if (isNaN(x) || isNaN(y)) return;
+    syncFormulaBar(x, y);
+  });
+
+  function applyZoom() {
+    if (!sheetWrap) return;
+    sheetWrap.style.setProperty('--ilog-zoom', String(zoomLevel));
+    var table = host.querySelector('table');
+    if (table) table.style.zoom = String(zoomLevel);
+    host.style.fontSize = (13 * zoomLevel) + 'px';
+  }
+
+  function parseCellAddress(addr) {
+    var m = String(addr || '').trim().toUpperCase().match(/^([A-Z]+)(\d+)$/);
+    if (!m) return null;
+    return { x: parseColLetters(m[1]), y: parseInt(m[2], 10) - 1 };
+  }
+
+  function getSelectedCoords() {
+    if (!spreadsheet) return { x: selected.x, y: selected.y, x2: selected.x, y2: selected.y };
+    try {
+      var sel = spreadsheet.selectedCell || spreadsheet.getSelected && spreadsheet.getSelected();
+      if (Array.isArray(sel) && sel.length >= 2) {
+        return {
+          x: parseInt(sel[0], 10),
+          y: parseInt(sel[1], 10),
+          x2: parseInt(sel[2] != null ? sel[2] : sel[0], 10),
+          y2: parseInt(sel[3] != null ? sel[3] : sel[1], 10)
+        };
+      }
+    } catch (e) {}
+    return { x: selected.x, y: selected.y, x2: selected.x, y2: selected.y };
+  }
+
+  function getRawCell(x, y) {
+    var sheet = sheets[active];
+    if (!sheet || !sheet.data[y]) return '';
+    var v = sheet.data[y][x];
+    return v == null ? '' : v;
+  }
+
+  function runCmd(cmd) {
+    if (!spreadsheet && cmd !== 'recalc') {
+      setStatus('시트를 먼저 불러오세요.', 'error');
+      return;
+    }
+    var sel = getSelectedCoords();
+    var x = Math.min(sel.x, sel.x2);
+    var y = Math.min(sel.y, sel.y2);
+    var x2 = Math.max(sel.x, sel.x2);
+    var y2 = Math.max(sel.y, sel.y2);
+
+    if (cmd === 'copy' || cmd === 'cut') {
+      clipboard = {
+        text: String(getRawCell(x, y)),
+        isCut: cmd === 'cut',
+        sheet: active,
+        x: x,
+        y: y
+      };
+      try { navigator.clipboard.writeText(String(clipboard.text)); } catch (e) {}
+      setStatus(cmd === 'cut' ? '잘라내기 준비됨' : '복사됨', 'ok');
+      return;
+    }
+    if (cmd === 'paste') {
+      if (!CAN_SAVE) return;
+      var text = clipboard.text;
+      var finish = function (v) {
+        if (clipboard.isCut && clipboard.sheet >= 0) {
+          setModelCell(clipboard.sheet, clipboard.x, clipboard.y, '');
+          clipboard.isCut = false;
+        }
+        commitCellValue(active, x, y, v);
+        setStatus('붙여넣기 완료', 'ok');
+      };
+      if (text != null && text !== '') {
+        finish(text);
+      } else if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(finish).catch(function () {
+          setStatus('클립보드를 읽을 수 없습니다.', 'error');
+        });
+      }
+      return;
+    }
+    if (cmd === 'clear') {
+      if (!CAN_SAVE) return;
+      for (var yy = y; yy <= y2; yy++) {
+        for (var xx = x; xx <= x2; xx++) setModelCell(active, xx, yy, '');
+      }
+      dirty = true;
+      rebuildHf();
+      renderActiveSheet();
+      return;
+    }
+    if (cmd === 'fill-down') {
+      if (!CAN_SAVE) return;
+      var src = getRawCell(x, y);
+      for (var fy = y + 1; fy <= Math.max(y2, y + 1); fy++) {
+        setModelCell(active, x, fy, src);
+      }
+      dirty = true;
+      rebuildHf();
+      renderActiveSheet();
+      return;
+    }
+    if (cmd === 'insert-row' || cmd === 'insert-row-below') {
+      if (!CAN_SAVE) return;
+      try {
+        var at = cmd === 'insert-row-below' ? y + 1 : y;
+        spreadsheet.insertRow(1, at);
+      } catch (e1) {
+        sheets[active].data.splice(y, 0, (sheets[active].data[0] || []).map(function () { return ''; }));
+        dirty = true;
+        rebuildHf();
+        renderActiveSheet();
+      }
+      dirty = true;
+      return;
+    }
+    if (cmd === 'insert-col' || cmd === 'insert-col-right') {
+      if (!CAN_SAVE) return;
+      try {
+        var cat = cmd === 'insert-col-right' ? x + 1 : x;
+        spreadsheet.insertColumn(1, cat);
+      } catch (e2) {
+        sheets[active].data.forEach(function (row) { row.splice(x, 0, ''); });
+        dirty = true;
+        rebuildHf();
+        renderActiveSheet();
+      }
+      dirty = true;
+      return;
+    }
+    if (cmd === 'delete-row') {
+      if (!CAN_SAVE) return;
+      try { spreadsheet.deleteRow(y, Math.max(1, y2 - y + 1)); } catch (e3) {
+        sheets[active].data.splice(y, Math.max(1, y2 - y + 1));
+        dirty = true;
+        rebuildHf();
+        renderActiveSheet();
+      }
+      dirty = true;
+      return;
+    }
+    if (cmd === 'delete-col') {
+      if (!CAN_SAVE) return;
+      try { spreadsheet.deleteColumn(x, Math.max(1, x2 - x + 1)); } catch (e4) {
+        sheets[active].data.forEach(function (row) { row.splice(x, Math.max(1, x2 - x + 1)); });
+        dirty = true;
+        rebuildHf();
+        renderActiveSheet();
+      }
+      dirty = true;
+      return;
+    }
+    if (cmd === 'recalc') {
+      expandSheetsForFormulaRefs();
+      rebuildHf();
+      renderActiveSheet();
+      setStatus('다시 계산했습니다.', 'ok');
+      return;
+    }
+    if (cmd === 'toggle-formula') {
+      showFormulas = !showFormulas;
+      if (toggleFormulaBtn) {
+        toggleFormulaBtn.classList.toggle('active', showFormulas);
+        toggleFormulaBtn.textContent = showFormulas ? '값 표시' : '수식 표시';
+      }
+      renderActiveSheet();
+      return;
+    }
+    if (cmd === 'edit-formula') {
+      focusFormulaBarForEdit();
+      return;
+    }
+    if (cmd === 'zoom-in') {
+      zoomLevel = Math.min(2, Math.round((zoomLevel + 0.1) * 10) / 10);
+      applyZoom();
+      return;
+    }
+    if (cmd === 'zoom-out') {
+      zoomLevel = Math.max(0.6, Math.round((zoomLevel - 0.1) * 10) / 10);
+      applyZoom();
+      return;
+    }
+    if (cmd === 'zoom-reset') {
+      zoomLevel = 1;
+      applyZoom();
+    }
+  }
+
+  // 메뉴 탭
+  document.querySelectorAll('.ilog-menu-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.ilog-menu-tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.ilog-ribbon-panel').forEach(function (p) { p.classList.remove('active'); });
+      tab.classList.add('active');
+      var panel = document.querySelector('.ilog-ribbon-panel[data-panel="' + tab.getAttribute('data-menu') + '"]');
+      if (panel) panel.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.ilog-ribbon-btn[data-cmd]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      runCmd(btn.getAttribute('data-cmd'));
+    });
+  });
+
+  if (fxBtn) fxBtn.addEventListener('click', beginFormulaFromFx);
+  if (fxOk) fxOk.addEventListener('click', function () { applyFormulaBarValue(); });
+  if (fxCancel) fxCancel.addEventListener('click', function () {
+    cancelFormulaBarEdit();
+    syncFormulaBar(selected.x, selected.y);
+  });
+
+  if (formulaCell) {
+    formulaCell.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      var pos = parseCellAddress(formulaCell.value);
+      if (!pos || !spreadsheet) {
+        setStatus('올바른 셀 주소를 입력하세요 (예: B12)', 'error');
+        return;
+      }
+      // 범위 밖이면 확장
+      sheets[active].data = padSheet(
+        sheets[active].data,
+        Math.max(sheets[active].data.length, pos.y + 1),
+        Math.max((sheets[active].data[0] || []).length, pos.x + 1)
+      );
+      rebuildHf();
+      renderActiveSheet();
+      try {
+        spreadsheet.updateSelectionFromCoords(pos.x, pos.y, pos.x, pos.y);
+      } catch (err) {}
+      syncFormulaBar(pos.x, pos.y);
+      focusFormulaBarForEdit();
+    });
+  }
+
   if (formulaInput) {
     formulaInput.addEventListener('focus', function () {
       if (!CAN_SAVE) return;
-      enterPickMode('bar', active, selected.x, selected.y, null);
+      barEditing = true;
+      // 포커스만으로는 포인트 모드 진입하지 않음 — = 입력 시 진입
+      if (startsFormula(formulaInput.value)) {
+        enterPickMode('bar', active, selected.x, selected.y, null);
+      }
       updatePickHint();
     });
     formulaInput.addEventListener('input', function () {
       if (!CAN_SAVE) return;
-      var sx = pick.on ? pick.sheet : active;
-      var x = pick.on ? pick.x : selected.x;
-      var y = pick.on ? pick.y : selected.y;
-      enterPickMode('bar', sx, x, y, null);
-      updatePickHint();
+      barEditing = true;
+      if (startsFormula(formulaInput.value)) {
+        enterPickMode('bar', pick.on ? pick.sheet : active, pick.on ? pick.x : selected.x, pick.on ? pick.y : selected.y, null);
+      } else {
+        pick.on = false;
+        pick.via = 'bar';
+        updatePickHint();
+      }
     });
     formulaInput.addEventListener('keydown', function (e) {
       if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
@@ -842,20 +1214,58 @@
       if (e.key === 'Enter') {
         e.preventDefault();
         applyFormulaBarValue();
+        barEditing = false;
         formulaInput.blur();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         cancelFormulaBarEdit();
+        barEditing = false;
+        syncFormulaBar(selected.x, selected.y);
         formulaInput.blur();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        applyFormulaBarValue();
+        barEditing = false;
+        var nextX = selected.x + (e.shiftKey ? -1 : 1);
+        if (nextX < 0) nextX = 0;
+        try { spreadsheet.updateSelectionFromCoords(nextX, selected.y, nextX, selected.y); } catch (err) {}
+        syncFormulaBar(nextX, selected.y);
       }
     });
   }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'F2') {
+      e.preventDefault();
+      focusFormulaBarForEdit();
+      return;
+    }
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      saveFile();
+    } else if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      runCmd('copy');
+    } else if (e.ctrlKey && (e.key === 'x' || e.key === 'X')) {
+      e.preventDefault();
+      runCmd('cut');
+    } else if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
+      e.preventDefault();
+      runCmd('paste');
+    }
+  });
 
   window.addEventListener('beforeunload', function (e) {
     if (!dirty) return;
     e.preventDefault();
     e.returnValue = '';
   });
+
+  // 기본 메뉴: 홈
+  var homeTab = document.querySelector('.ilog-menu-tab[data-menu="home"]');
+  if (homeTab) homeTab.click();
 
   loadFile();
 })();

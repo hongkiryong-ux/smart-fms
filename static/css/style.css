@@ -1089,6 +1089,102 @@ body {
   align-items: flex-start;
   gap: 0.75rem 1rem;
 }
+.ilog-edit-doc-title {
+  font-size: 1.15rem;
+  margin: 0.35rem 0 0.55rem;
+}
+.ilog-excel-chrome {
+  border: 1px solid #c5cdd8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f7f9fc 0%, #eef2f7 100%);
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+.ilog-menubar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  background: #e8edf4;
+  border-bottom: 1px solid #c5cdd8;
+  padding: 0 0.25rem;
+}
+.ilog-menu-tab {
+  border: 0;
+  background: transparent;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: #334155;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.ilog-menu-tab:hover { background: #dfe7f1; }
+.ilog-menu-tab.active {
+  background: #fff;
+  color: #0f3d7a;
+  font-weight: 700;
+  border-bottom-color: #0f3d7a;
+}
+.ilog-ribbon {
+  background: #fff;
+  border-bottom: 1px solid #d8dee8;
+  min-height: 52px;
+  padding: 0.35rem 0.55rem;
+}
+.ilog-ribbon-panel {
+  display: none;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+}
+.ilog-ribbon-panel.active { display: flex; }
+.ilog-ribbon-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+.ilog-ribbon-sep {
+  width: 1px;
+  align-self: stretch;
+  background: #d8dee8;
+  margin: 0 0.2rem;
+}
+.ilog-ribbon-btn {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #1e293b;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ilog-ribbon-btn:hover:not(:disabled) {
+  background: #e8f0fe;
+  border-color: #c5d4f0;
+}
+.ilog-ribbon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ilog-ribbon-btn.active {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  font-weight: 700;
+}
+.ilog-ribbon-ico {
+  font-size: 1rem;
+  line-height: 1;
+}
 .ilog-edit-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1098,27 +1194,60 @@ body {
 .ilog-formula-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.65rem;
+  gap: 0.35rem;
+  padding: 0.4rem 0.55rem 0.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
 }
 .ilog-formula-cell {
   flex: 0 0 auto;
-  min-width: 3rem;
-  padding: 0.35rem 0.55rem;
-  background: #eef2f7;
-  border-radius: 6px;
+  width: 4.5rem;
+  min-width: 3.5rem;
+  padding: 0.35rem 0.4rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
   font-weight: 700;
   font-size: 0.85rem;
   text-align: center;
+  font-family: ui-monospace, Consolas, monospace;
 }
+.ilog-fx-btn,
+.ilog-fx-ok,
+.ilog-fx-cancel {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: #334155;
+}
+.ilog-fx-btn:hover,
+.ilog-fx-ok:hover,
+.ilog-fx-cancel:hover {
+  background: #e8f0fe;
+}
+.ilog-fx-btn:disabled,
+.ilog-fx-ok:disabled,
+.ilog-fx-cancel:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ilog-fx-ok { color: #15803d; font-weight: 700; }
+.ilog-fx-cancel { color: #b91c1c; }
 .ilog-formula-input {
   flex: 1 1 auto;
   min-width: 0;
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.9rem;
+  background: #fff;
 }
 .ilog-pick-hint {
   margin-top: 0.45rem;
