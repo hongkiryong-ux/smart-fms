@@ -146,6 +146,9 @@ class Building(Base):
     standards = relationship(
         "BuildingStandard", back_populates="building", cascade="all, delete-orphan"
     )
+    inspection_log_files = relationship(
+        "InspectionLogFile", back_populates="building", cascade="all, delete-orphan"
+    )
 
 
 class BuildingDrawing(Base):
@@ -211,6 +214,42 @@ class BuildingStandard(Base):
         ct = (self.content_type or "").lower()
         name = (self.original_name or self.stored_name or "").lower()
         return ct == "application/pdf" or name.endswith(".pdf")
+
+
+class InspectionLogBuilding(Base):
+    """점검일지에 등록된 건물."""
+
+    __tablename__ = "inspection_log_buildings"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(
+        Integer, ForeignKey("buildings.id"), nullable=False, unique=True, index=True
+    )
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building")
+
+
+class InspectionLogFile(Base):
+    """점검일지 엑셀 파일."""
+
+    __tablename__ = "inspection_log_files"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    original_name = Column(String(300), nullable=True)
+    stored_name = Column(String(300), nullable=False)
+    content_type = Column(String(100), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    uploaded_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building", back_populates="inspection_log_files")
+
+    @property
+    def url(self) -> str:
+        return f"/admin/inspection-logs/{self.building_id}/files/{self.id}/file"
 
 
 class Floor(Base):

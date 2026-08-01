@@ -12,9 +12,12 @@
   {% set is_popup = request.query_params.get('popup') == '1' %}
   {% if user and not is_popup %}
   {% set eq_path = '/equipment' in request.url.path %}
+  {% set ilog_path = '/inspection-logs' in request.url.path %}
   {% set d1_path = request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path or request.url.path.startswith('/admin/d1') %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
+  {% set ilog_path_parts = request.url.path.split('/') %}
+  {% set ilog_bid = ilog_path_parts[3] if ilog_path and ilog_path_parts|length > 3 and ilog_path_parts[3].isdigit() else none %}
   <nav class="sidebar">
     <a href="/admin/dashboard" class="sidebar-brand">
       <strong>Smart FMS</strong>
@@ -66,6 +69,32 @@
       {% endif %}
       {% if user_can_access_menu(user, 'pm') %}
       <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'inspection_logs') %}
+      <li class="nav-expandable{% if ilog_path %} is-open{% endif %}" id="nav-inspection-logs">
+        <div class="nav-parent-row">
+          <a href="/admin/inspection-logs"
+             class="nav-parent-link{% if ilog_path and not ilog_bid %} active{% endif %}">점검일지</a>
+          <button type="button"
+                  class="nav-toggle"
+                  aria-expanded="{% if ilog_path %}true{% else %}false{% endif %}"
+                  aria-controls="nav-inspection-logs-sub"
+                  title="등록 건물 펼치기">
+            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <ul class="nav-sub" id="nav-inspection-logs-sub">
+          {% for b in request.state.nav_inspection_log_buildings or [] %}
+          <li>
+            <a href="/admin/inspection-logs/{{ b.id }}"
+               class="{% if ilog_bid == b.id|string %}active{% endif %}"
+               title="{{ b.name }}">{{ b.name }}</a>
+          </li>
+          {% else %}
+          <li class="nav-sub-empty">등록된 건물 없음</li>
+          {% endfor %}
+        </ul>
+      </li>
       {% endif %}
       {% if user_can_access_menu(user, 'work_orders') %}
       <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
@@ -159,6 +188,7 @@
       }
     }
     bindNavExpandable('nav-equipment', 'nav-eq-open');
+    bindNavExpandable('nav-inspection-logs', 'nav-ilog-open');
     bindNavExpandable('nav-d1', 'nav-d1-open');
   })();
   </script>

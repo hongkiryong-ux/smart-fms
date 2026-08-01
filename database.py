@@ -341,6 +341,36 @@ async def ensure_schema_updates() -> None:
         )
         await _exec(
             """
+            CREATE TABLE IF NOT EXISTS inspection_log_buildings (
+                id SERIAL PRIMARY KEY,
+                building_id INTEGER NOT NULL UNIQUE REFERENCES buildings(id),
+                created_at TIMESTAMP WITHOUT TIME ZONE
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_inspection_log_buildings_building_id ON inspection_log_buildings (building_id)"
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS inspection_log_files (
+                id SERIAL PRIMARY KEY,
+                building_id INTEGER NOT NULL REFERENCES buildings(id),
+                title VARCHAR(200) NOT NULL,
+                original_name VARCHAR(300),
+                stored_name VARCHAR(300) NOT NULL,
+                content_type VARCHAR(100),
+                file_data BYTEA,
+                uploaded_by VARCHAR(100),
+                created_at TIMESTAMP WITHOUT TIME ZONE
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_inspection_log_files_building_id ON inspection_log_files (building_id)"
+        )
+        await _exec(
+            """
             CREATE TABLE IF NOT EXISTS equipment_change_logs (
                 id SERIAL PRIMARY KEY,
                 equipment_id INTEGER NOT NULL REFERENCES equipment(id),
@@ -436,6 +466,30 @@ async def ensure_schema_updates() -> None:
                 stored_name VARCHAR(300) NOT NULL,
                 content_type VARCHAR(100),
                 file_data BLOB,
+                created_at DATETIME
+            )
+            """
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS inspection_log_buildings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                building_id INTEGER NOT NULL UNIQUE,
+                created_at DATETIME
+            )
+            """
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS inspection_log_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                building_id INTEGER NOT NULL,
+                title VARCHAR(200) NOT NULL,
+                original_name VARCHAR(300),
+                stored_name VARCHAR(300) NOT NULL,
+                content_type VARCHAR(100),
+                file_data BLOB,
+                uploaded_by VARCHAR(100),
                 created_at DATETIME
             )
             """

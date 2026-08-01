@@ -1025,6 +1025,55 @@ body {
   padding-bottom: 0.35rem;
   border-bottom: 1px solid var(--border, #e5e7eb);
 }
+.ilog-add-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+.ilog-add-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 260px;
+  flex: 1 1 280px;
+}
+.ilog-add-form label span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ilog-add-form select {
+  min-height: 2.2rem;
+}
+.ilog-building-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem 0.95rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--bld-accent, var(--primary));
+  border-radius: 10px;
+  min-height: 88px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.ilog-building-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-decoration: none;
+  color: var(--text);
+  flex: 1;
+}
+.ilog-building-link:hover strong {
+  color: var(--primary, #003876);
+  text-decoration: underline;
+}
+.ilog-remove-form {
+  margin: 0;
+  align-self: flex-start;
+}
 
 .eq-building-card {
   display: flex;

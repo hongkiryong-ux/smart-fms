@@ -60,6 +60,8 @@ from models import (
     EquipmentTemplate,
     EquipmentType,
     Floor,
+    InspectionLogBuilding,
+    InspectionLogFile,
     MaintenanceRecord,
     MaterialItem,
     MaterialGroup,
@@ -5441,6 +5443,430 @@ async def _record_pm_inspection(
     db.add(insp)
     _pm_advance_schedule(schedule, _today_kst())
     return insp, wo
+
+
+# ── 점검일지 ──────────────────────────────────────────────────────────
+
+
+async def _ensure_inspection_log_tables() -> None:
+    from sqlalchemy import text
+
+    url = (os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_INTERNAL_URL") or "").lower()
+    is_pg = "postgresql" in url or "postgres" in url
+    async with engine.begin() as conn:
+        if is_pg:
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS inspection_log_buildings (
+                        id SERIAL PRIMARY KEY,
+                        building_id INTEGER NOT NULL UNIQUE REFERENCES buildings(id),
+                        created_at TIMESTAMP WITHOUT TIME ZONE
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS inspection_log_files (
+                        id SERIAL PRIMARY KEY,
+                        building_id INTEGER NOT NULL REFERENCES buildings(id),
+                        title VARCHAR(200) NOT NULL,
+                        original_name VARCHAR(300),
+                        stored_name VARCHAR(300) NOT NULL,
+                        content_type VARCHAR(100),
+                        file_data BYTEA,
+                        uploaded_by VARCHAR(100),
+                        created_at TIMESTAMP WITHOUT TIME ZONE
+                    )
+                    """
+                )
+            )
+        else:
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS inspection_log_buildings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        building_id INTEGER NOT NULL UNIQUE,
+                        created_at DATETIME
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS inspection_log_files (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        building_id INTEGER NOT NULL,
+                        title VARCHAR(200) NOT NULL,
+                        original_name VARCHAR(300),
+                        stored_name VARCHAR(300) NOT NULL,
+                        content_type VARCHAR(100),
+                        file_data BLOB,
+                        uploaded_by VARCHAR(100),
+                        created_at DATETIME
+                    )
+                    """
+                )
+            )
+
+
+def _inspection_log_excel_ok(filename: str) -> bool:
+    name = (filename or "").lower()
+    return name.endswith((".xls", ".xlsx", ".xlsm"))
+
+
+async def _load_inspection_log_bytes(
+    doc: InspectionLogFile,
+    building_id: int,
+    db: AsyncSession,
+) -> bytes | None:
+    data = doc.file_data
+    if data:
+        return bytes(data)
+    file_path = (
+        Path("static")
+        / "uploads"
+        / "buildings"
+        / str(building_id)
+        / "inspection_logs"
+        / doc.stored_name
+    )
+    if file_path.is_file():
+        raw = file_path.read_bytes()
+        if raw:
+            doc.file_data = raw
+            await db.commit()
+            return raw
+    return None
+
+
+@app.get("/admin/inspection-logs")
+async def inspection_logs_page(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        await _ensure_inspection_log_tables()
+    except Exception as e:
+        print(f"[inspection_logs] ensure tables: {e}", flush=True)
+
+    selected_rows = (
+        await db.execute(
+            select(InspectionLogBuilding, Building)
+            .join(Building, Building.id == InspectionLogBuilding.building_id)
+            .where(Building.is_active == True)  # noqa: E712
+            .options(selectinload(Building.site))
+            .order_by(InspectionLogBuilding.id.desc())
+        )
+    ).all()
+    selected_buildings = _sort_buildings([b for _, b in selected_rows])
+    selected_ids = {b.id for b in selected_buildings}
+
+    all_buildings = _sort_buildings(
+        list(
+            (
+                await db.execute(
+                    select(Building)
+                    .where(Building.is_active == True)  # noqa: E712
+                    .options(selectinload(Building.site))
+                )
+            ).scalars().all()
+        )
+    )
+    available_buildings = [b for b in all_buildings if b.id not in selected_ids]
+    building_groups = group_buildings_by_site(selected_buildings)
+
+    return templates.TemplateResponse(
+        request,
+        "inspection_logs.html",
+        {
+            "user": user,
+            "selected_buildings": selected_buildings,
+            "building_groups": building_groups,
+            "available_buildings": available_buildings,
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs/buildings")
+async def inspection_logs_add_building(
+    building_id: int = Form(...),
+    user: User = Depends(require_can_create),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    try:
+        await _ensure_inspection_log_tables()
+    except Exception:
+        pass
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        return RedirectResponse(
+            "/admin/inspection-logs?error=" + quote("건물을 찾을 수 없습니다."),
+            status_code=303,
+        )
+    exists = (
+        await db.execute(
+            select(InspectionLogBuilding).where(
+                InspectionLogBuilding.building_id == building_id
+            )
+        )
+    ).scalar_one_or_none()
+    if exists:
+        return RedirectResponse(
+            "/admin/inspection-logs?message=" + quote("이미 등록된 건물입니다."),
+            status_code=303,
+        )
+    db.add(InspectionLogBuilding(building_id=building_id))
+    await db.commit()
+    return RedirectResponse(
+        "/admin/inspection-logs?message="
+        + quote(f"「{building.name}」 건물이 추가되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs/buildings/{building_id}/remove")
+async def inspection_logs_remove_building(
+    building_id: int,
+    user: User = Depends(require_can_delete),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    row = (
+        await db.execute(
+            select(InspectionLogBuilding).where(
+                InspectionLogBuilding.building_id == building_id
+            )
+        )
+    ).scalar_one_or_none()
+    if row:
+        await db.delete(row)
+        await db.commit()
+    return RedirectResponse(
+        "/admin/inspection-logs?message=" + quote("건물 등록이 해제되었습니다."),
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs/{building_id}")
+async def inspection_log_building_detail(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        await _ensure_inspection_log_tables()
+    except Exception:
+        pass
+
+    registered = (
+        await db.execute(
+            select(InspectionLogBuilding).where(
+                InspectionLogBuilding.building_id == building_id
+            )
+        )
+    ).scalar_one_or_none()
+    if not registered:
+        from urllib.parse import quote
+
+        return RedirectResponse(
+            "/admin/inspection-logs?error="
+            + quote("점검일지에 등록되지 않은 건물입니다. 먼저 건물을 추가하세요."),
+            status_code=303,
+        )
+
+    building = (
+        await db.execute(
+            select(Building)
+            .where(Building.id == building_id, Building.is_active == True)  # noqa: E712
+            .options(selectinload(Building.site))
+        )
+    ).scalar_one_or_none()
+    if not building:
+        raise HTTPException(404, detail="건물을 찾을 수 없습니다.")
+
+    files = (
+        await db.execute(
+            select(InspectionLogFile)
+            .where(InspectionLogFile.building_id == building_id)
+            .order_by(InspectionLogFile.id.desc())
+        )
+    ).scalars().all()
+
+    return templates.TemplateResponse(
+        request,
+        "inspection_log_detail.html",
+        {
+            "user": user,
+            "building": building,
+            "files": files,
+            "upload_max_mb": UPLOAD_MAX_FILE_MB,
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs/{building_id}/upload")
+async def inspection_log_upload(
+    building_id: int,
+    request: Request,
+    title: str = Form(""),
+    user: User = Depends(require_can_create),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    import uuid
+
+    try:
+        await _ensure_inspection_log_tables()
+    except Exception:
+        pass
+
+    registered = (
+        await db.execute(
+            select(InspectionLogBuilding).where(
+                InspectionLogBuilding.building_id == building_id
+            )
+        )
+    ).scalar_one_or_none()
+    building = await db.get(Building, building_id)
+    if not registered or not building or not building.is_active:
+        return RedirectResponse(
+            "/admin/inspection-logs?error=" + quote("등록된 건물이 아닙니다."),
+            status_code=303,
+        )
+
+    form = await request.form()
+    uploads = form.getlist("files") if hasattr(form, "getlist") else []
+    if not uploads:
+        one = form.get("file")
+        uploads = [one] if one else []
+
+    saved = 0
+    errors: list[str] = []
+    for item in uploads[:UPLOAD_MAX_FILES_PER_REQUEST]:
+        if not hasattr(item, "filename") or not item.filename:
+            continue
+        fname = item.filename
+        if not _inspection_log_excel_ok(fname):
+            errors.append(f"{fname}: 엑셀 파일만 업로드 가능합니다.")
+            continue
+        raw = await item.read()
+        if not raw:
+            errors.append(f"{fname}: 빈 파일입니다.")
+            continue
+        if len(raw) > UPLOAD_MAX_FILE_BYTES:
+            errors.append(f"{fname}: {UPLOAD_MAX_FILE_MB}MB 초과")
+            continue
+        ext = Path(fname).suffix.lower() or ".xlsx"
+        stored = f"{uuid.uuid4().hex}{ext}"
+        display_title = (title or "").strip() or Path(fname).stem
+        db.add(
+            InspectionLogFile(
+                building_id=building_id,
+                title=display_title[:200],
+                original_name=fname[:300],
+                stored_name=stored,
+                content_type=getattr(item, "content_type", None) or "",
+                file_data=raw,
+                uploaded_by=user.name or user.username,
+            )
+        )
+        saved += 1
+
+    if saved:
+        await db.commit()
+    if saved and not errors:
+        msg = f"엑셀 파일 {saved}개가 업로드되었습니다."
+        return RedirectResponse(
+            f"/admin/inspection-logs/{building_id}?message=" + quote(msg),
+            status_code=303,
+        )
+    if saved and errors:
+        msg = f"{saved}개 저장, 일부 실패: " + "; ".join(errors[:3])
+        return RedirectResponse(
+            f"/admin/inspection-logs/{building_id}?message=" + quote(msg),
+            status_code=303,
+        )
+    err = errors[0] if errors else "업로드할 엑셀 파일을 선택하세요."
+    return RedirectResponse(
+        f"/admin/inspection-logs/{building_id}?error=" + quote(err),
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs/{building_id}/files/{file_id}/file")
+async def inspection_log_file_download(
+    building_id: int,
+    file_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    doc = await db.get(InspectionLogFile, file_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+    data = await _load_inspection_log_bytes(doc, building_id, db)
+    if not data:
+        raise HTTPException(404, detail="파일 데이터가 없습니다. 다시 업로드해 주세요.")
+
+    filename = doc.original_name or doc.stored_name or "inspection.xlsx"
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii") or "inspection.xlsx"
+    ct = (doc.content_type or "").strip()
+    name = filename.lower()
+    if name.endswith(".xlsx"):
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif name.endswith(".xlsm"):
+        media = "application/vnd.ms-excel.sheet.macroEnabled.12"
+    elif name.endswith(".xls"):
+        media = "application/vnd.ms-excel"
+    else:
+        media = ct or "application/octet-stream"
+
+    return Response(
+        content=data,
+        media_type=media,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+            ),
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
+@app.post("/admin/inspection-logs/{building_id}/files/{file_id}/delete")
+async def inspection_log_file_delete(
+    building_id: int,
+    file_id: int,
+    user: User = Depends(require_can_delete),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    doc = await db.get(InspectionLogFile, file_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404)
+    await db.delete(doc)
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/inspection-logs/{building_id}?message=" + quote("파일이 삭제되었습니다."),
+        status_code=303,
+    )
 
 
 @app.get("/admin/pm")

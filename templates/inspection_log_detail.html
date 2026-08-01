@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}점검일지 · {{ building.name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div class="breadcrumb-nav">
+    <a href="/admin/inspection-logs">점검일지</a>
+    <span>›</span>
+    <strong>{{ building.name }}</strong>
+  </div>
+  <h1>{{ building.name }} 점검일지</h1>
+  <p>
+    {% if building.site %}{{ building.site.name }} · {% endif %}
+    <code>{{ building.code }}</code>
+    · 엑셀 파일(.xls, .xlsx, .xlsm) 업로드
+  </p>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+{% if user_can_create(user) %}
+<section class="card">
+  <h2>엑셀 업로드</h2>
+  <form method="post"
+        action="/admin/inspection-logs/{{ building.id }}/upload"
+        enctype="multipart/form-data"
+        class="form-stack">
+    <label>제목 (선택)</label>
+    <input type="text" name="title" placeholder="비우면 파일명 사용" />
+    <label>엑셀 파일 (최대 {{ upload_max_mb }}MB, 동시 여러 개 가능)</label>
+    <input type="file" name="files" accept=".xls,.xlsx,.xlsm,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple required />
+    <button type="submit" class="btn btn-primary">업로드</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card card-wide">
+  <h2>업로드된 파일 <small class="text-muted">({{ files|length }})</small></h2>
+  {% if files %}
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>제목</th>
+          <th>파일명</th>
+          <th>업로드</th>
+          <th>일시</th>
+          <th>다운로드</th>
+          {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td>{{ f.title }}</td>
+          <td>{{ f.original_name or f.stored_name }}</td>
+          <td>{{ f.uploaded_by or '-' }}</td>
+          <td class="wo-date">{{ fmt_kst(f.created_at) }}</td>
+          <td>
+            <a class="btn btn-sm btn-secondary" href="{{ f.url }}">다운로드</a>
+          </td>
+          {% if user_can_delete(user) %}
+          <td>
+            <form method="post"
+                  action="/admin/inspection-logs/{{ building.id }}/files/{{ f.id }}/delete"
+                  class="inline-form"
+                  onsubmit="return confirm('이 파일을 삭제할까요?');">
+              <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">업로드된 엑셀 파일이 없습니다.</p>
+  {% endif %}
+</section>
+
+<p><a href="/admin/inspection-logs">&larr; 점검일지 건물 목록</a></p>
+{% endblock %}

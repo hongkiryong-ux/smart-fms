@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db
-from models import Building, Partner, User, UserRole
+from models import Building, InspectionLogBuilding, Partner, User, UserRole
 
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PW = os.environ.get("ADMIN_PW", "password123")
@@ -112,6 +112,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("sites", "사업장/건물"),
     ("equipment", "설비관리"),
     ("pm", "점검(PM)"),
+    ("inspection_logs", "점검일지"),
     ("work_orders", "정비관리"),
     ("d1", "D-1 작업"),
     ("risk_assessment", "위험성평가"),
@@ -129,6 +130,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/sites", "sites"),
     ("/admin/buildings", "sites"),
     ("/admin/equipment", "equipment"),
+    ("/admin/inspection-logs", "inspection_logs"),
     ("/admin/pm", "pm"),
     ("/admin/work-orders", "work_orders"),
     ("/admin/d1", "d1"),
@@ -142,6 +144,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("sites", "/admin/sites"),
     ("equipment", "/admin/equipment"),
     ("pm", "/admin/pm"),
+    ("inspection_logs", "/admin/inspection-logs"),
     ("work_orders", "/admin/work-orders"),
     ("d1", "/admin/d1"),
     ("risk_assessment", "/admin/risk-assessment"),
@@ -157,7 +160,7 @@ def default_menu_access(role: UserRole) -> list[str]:
         return list(MENU_KEYS)
     denied = {"users"}
     if role in (UserRole.partner, UserRole.external):
-        denied |= {"equipment", "pm"}
+        denied |= {"equipment", "pm", "inspection_logs"}
     return [k for k in MENU_KEYS if k not in denied]
 
 
@@ -225,6 +228,7 @@ async def get_current_user(
     if not user_id:
         request.state.nav_buildings = []
         request.state.nav_building_groups = []
+        request.state.nav_inspection_log_buildings = []
         request.state.nav_partners = []
         return None
     result = await db.execute(
@@ -238,6 +242,7 @@ async def get_current_user(
     if not hasattr(request.state, "nav_buildings"):
         request.state.nav_buildings = []
         request.state.nav_building_groups = []
+        request.state.nav_inspection_log_buildings = []
         request.state.nav_partners = []
         if user:
             try:
@@ -259,6 +264,30 @@ async def get_current_user(
                 request.state.nav_buildings = []
                 request.state.nav_building_groups = []
             try:
+                log_rows = (
+                    await db.execute(
+                        select(InspectionLogBuilding, Building)
+                        .join(Building, Building.id == InspectionLogBuilding.building_id)
+                        .where(Building.is_active == True)  # noqa: E712
+                        .options(selectinload(Building.site))
+                    )
+                ).all()
+                log_buildings = [b for _, b in log_rows]
+                request.state.nav_inspection_log_buildings = [
+                    {
+                        "id": b.id,
+                        "name": b.name or "",
+                        "code": getattr(b, "code", "") or "",
+                        "site_name": (b.site.name if b.site else "") or "",
+                    }
+                    for b in sorted(
+                        log_buildings,
+                        key=lambda x: nav_building_sort_key(getattr(x, "name", None)),
+                    )
+                ]
+            except Exception:
+                request.state.nav_inspection_log_buildings = []
+            try:
                 partners = (
                     await db.execute(
                         select(Partner)
@@ -274,6 +303,8 @@ async def get_current_user(
                 request.state.nav_partners = []
     if not hasattr(request.state, "nav_building_groups"):
         request.state.nav_building_groups = []
+    if not hasattr(request.state, "nav_inspection_log_buildings"):
+        request.state.nav_inspection_log_buildings = []
     if not hasattr(request.state, "nav_partners"):
         request.state.nav_partners = []
     return user
