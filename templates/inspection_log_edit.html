@@ -13,6 +13,12 @@
     <strong>{{ doc.title }}</strong>
   </div>
   <h1 class="ilog-edit-doc-title">{{ doc.title }}</h1>
+  {% if onlyoffice_available %}
+  <p class="ilog-oo-switch">
+    <a class="btn btn-primary btn-sm" href="{{ onlyoffice_edit_url }}">OnlyOffice로 열기</a>
+    <span class="text-muted">엑셀에 가까운 편집·수식은 OnlyOffice를 권장합니다.</span>
+  </p>
+  {% endif %}
 
   <div class="ilog-excel-chrome">
     <div class="ilog-toolbar" id="ilog-toolbar" role="toolbar" aria-label="엑셀 도구 모음">

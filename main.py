@@ -48,6 +48,7 @@ from auth import (
 )
 from database import AsyncSessionLocal, Base, engine, get_db, ensure_schema_updates
 from init_data import seed_if_empty
+import onlyoffice as oo
 from models import (
     Building,
     BuildingDrawing,
@@ -5544,6 +5545,51 @@ async def _load_inspection_log_bytes(
     return None
 
 
+async def _persist_inspection_log_bytes(
+    doc: InspectionLogFile,
+    raw: bytes,
+    *,
+    uploaded_by: str | None = None,
+) -> None:
+    """점검일지 바이너리를 DB에 저장 (OnlyOffice/간단편집기 공용)."""
+    orig = doc.original_name or doc.stored_name or "inspection.xlsx"
+    stem = Path(orig).stem or "inspection"
+    # OnlyOffice 저장본은 보통 xlsx
+    lower = (orig or "").lower()
+    if lower.endswith((".xlsx", ".xlsm", ".xls")):
+        new_name = orig[:300]
+        if lower.endswith(".xls") and not lower.endswith(".xlsx") and not lower.endswith(".xlsm"):
+            new_name = f"{stem}.xlsx"[:300]
+            doc.content_type = (
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        elif lower.endswith(".xlsx"):
+            doc.content_type = (
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        elif lower.endswith(".xlsm"):
+            doc.content_type = "application/vnd.ms-excel.sheet.macroEnabled.12"
+    else:
+        new_name = f"{stem}.xlsx"[:300]
+        doc.content_type = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    doc.file_data = raw
+    doc.original_name = new_name
+    if uploaded_by:
+        doc.uploaded_by = uploaded_by
+
+
+def _inspection_media_type(filename: str, content_type: str | None = None) -> str:
+    name = (filename or "").lower()
+    if name.endswith(".xlsx"):
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if name.endswith(".xlsm"):
+        return "application/vnd.ms-excel.sheet.macroEnabled.12"
+    if name.endswith(".xls"):
+        return "application/vnd.ms-excel"
+    return (content_type or "").strip() or "application/octet-stream"
+
 @app.get("/admin/inspection-logs")
 async def inspection_logs_page(
     request: Request,
@@ -5826,16 +5872,7 @@ async def inspection_log_file_download(
 
     filename = doc.original_name or doc.stored_name or "inspection.xlsx"
     ascii_name = filename.encode("ascii", "ignore").decode("ascii") or "inspection.xlsx"
-    ct = (doc.content_type or "").strip()
-    name = filename.lower()
-    if name.endswith(".xlsx"):
-        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    elif name.endswith(".xlsm"):
-        media = "application/vnd.ms-excel.sheet.macroEnabled.12"
-    elif name.endswith(".xls"):
-        media = "application/vnd.ms-excel"
-    else:
-        media = ct or "application/octet-stream"
+    media = _inspection_media_type(filename, doc.content_type)
 
     return Response(
         content=data,
@@ -5856,7 +5893,11 @@ async def inspection_log_file_edit(
     request: Request,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
+    editor: str | None = Query(None),
 ):
+    """점검일지 편집. OnlyOffice 설정 시 Docs 편집기, ?editor=legacy 로 간단 편집기."""
+    import json as _json
+
     registered = (
         await db.execute(
             select(InspectionLogBuilding).where(
@@ -5875,6 +5916,55 @@ async def inspection_log_file_edit(
     if not registered or not building or not doc or doc.building_id != building_id:
         raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
 
+    can_save = can_edit(user)
+    file_url = f"/admin/inspection-logs/{building_id}/files/{file_id}/file"
+    legacy_url = (
+        f"/admin/inspection-logs/{building_id}/files/{file_id}/edit?editor=legacy"
+    )
+    use_legacy = (editor or "").lower() in ("legacy", "simple", "js")
+    want_oo = oo.onlyoffice_enabled() and not use_legacy
+
+    if want_oo:
+        oo_error = None
+        editor_config = None
+        data = await _load_inspection_log_bytes(doc, building_id, db)
+        if not data:
+            oo_error = "파일 데이터가 없습니다. 다시 업로드해 주세요."
+        else:
+            try:
+                editor_config = oo.build_editor_config(
+                    request=request,
+                    building_id=building_id,
+                    file_id=file_id,
+                    filename=doc.original_name or doc.stored_name or "inspection.xlsx",
+                    title=doc.title or doc.original_name or "점검일지",
+                    file_bytes=data,
+                    user_id=user.id,
+                    user_name=user.name or user.username or f"user-{user.id}",
+                    can_edit=can_save,
+                )
+            except Exception as e:
+                oo_error = f"OnlyOffice 설정 생성 실패: {e}"
+
+        return templates.TemplateResponse(
+            request,
+            "inspection_log_onlyoffice.html",
+            {
+                "user": user,
+                "building": building,
+                "doc": doc,
+                "file_url": file_url,
+                "legacy_edit_url": legacy_url,
+                "can_edit": can_save,
+                "oo_enabled": True,
+                "oo_error": oo_error,
+                "onlyoffice_api_js": f"{oo.onlyoffice_url()}/web-apps/apps/api/documents/api.js",
+                "editor_config_json": _json.dumps(
+                    editor_config or {}, ensure_ascii=False
+                ),
+            },
+        )
+
     return templates.TemplateResponse(
         request,
         "inspection_log_edit.html",
@@ -5882,11 +5972,117 @@ async def inspection_log_file_edit(
             "user": user,
             "building": building,
             "doc": doc,
-            "can_save": can_edit(user),
-            "file_url": f"/admin/inspection-logs/{building_id}/files/{file_id}/file",
+            "file_url": file_url,
             "save_url": f"/admin/inspection-logs/{building_id}/files/{file_id}/save",
+            "can_save": can_save,
+            "onlyoffice_available": oo.onlyoffice_enabled(),
+            "onlyoffice_edit_url": (
+                f"/admin/inspection-logs/{building_id}/files/{file_id}/edit"
+            ),
         },
     )
+
+
+@app.get("/oo/inspection-logs/{building_id}/files/{file_id}/content")
+async def onlyoffice_file_content(
+    building_id: int,
+    file_id: int,
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """OnlyOffice Document Server가 문서를 내려받는 URL (세션 쿠키 불필요)."""
+    from urllib.parse import quote
+
+    try:
+        oo.verify_access_token(
+            token, building_id=building_id, file_id=file_id, purpose="content"
+        )
+    except ValueError as e:
+        raise HTTPException(403, detail=str(e)) from e
+
+    doc = await db.get(InspectionLogFile, file_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+    data = await _load_inspection_log_bytes(doc, building_id, db)
+    if not data:
+        raise HTTPException(404, detail="파일 데이터가 없습니다.")
+
+    filename = doc.original_name or doc.stored_name or "inspection.xlsx"
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii") or "inspection.xlsx"
+    return Response(
+        content=data,
+        media_type=_inspection_media_type(filename, doc.content_type),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/oo/inspection-logs/{building_id}/files/{file_id}/callback")
+async def onlyoffice_file_callback(
+    building_id: int,
+    file_id: int,
+    request: Request,
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """OnlyOffice 저장 콜백. status 2/6 일 때 서버에 파일 반영."""
+    import requests as _requests
+
+    try:
+        payload_tok = oo.verify_access_token(
+            token, building_id=building_id, file_id=file_id, purpose="callback"
+        )
+    except ValueError as e:
+        raise HTTPException(403, detail=str(e)) from e
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    try:
+        oo.verify_callback_jwt(request.headers.get("Authorization"), body)
+    except ValueError as e:
+        if oo.jwt_enabled():
+            raise HTTPException(403, detail=str(e)) from e
+
+    status = int(body.get("status") or 0)
+    if status in (2, 6):
+        if not payload_tok.get("edit"):
+            return JSONResponse({"error": 1})
+        url = (body.get("url") or "").strip()
+        if not url:
+            return JSONResponse({"error": 1})
+        doc = await db.get(InspectionLogFile, file_id)
+        if not doc or doc.building_id != building_id:
+            return JSONResponse({"error": 1})
+        try:
+            resp = _requests.get(url, timeout=120)
+            resp.raise_for_status()
+            raw = resp.content
+        except Exception as e:
+            print(f"[onlyoffice] download save failed: {e}", flush=True)
+            return JSONResponse({"error": 1})
+        if not raw:
+            return JSONResponse({"error": 1})
+        if len(raw) > UPLOAD_MAX_FILE_BYTES:
+            print("[onlyoffice] file too large", flush=True)
+            return JSONResponse({"error": 1})
+        await _persist_inspection_log_bytes(
+            doc,
+            raw,
+            uploaded_by=f"onlyoffice:{payload_tok.get('uid') or ''}",
+        )
+        await db.commit()
+        print(
+            f"[onlyoffice] saved building={building_id} file={file_id} bytes={len(raw)} status={status}",
+            flush=True,
+        )
+    return JSONResponse({"error": 0})
 
 
 @app.post("/admin/inspection-logs/{building_id}/files/{file_id}/save")
@@ -5925,17 +6121,11 @@ async def inspection_log_file_save(
             400, detail=f"파일이 너무 큽니다. (최대 {UPLOAD_MAX_FILE_MB}MB)"
         )
 
-    # 저장은 xlsx로 통일 (편집기 출력 형식)
-    orig = doc.original_name or doc.stored_name or "inspection.xlsx"
-    stem = Path(orig).stem or "inspection"
-    new_name = f"{stem}.xlsx"
-    doc.file_data = raw
-    doc.original_name = new_name[:300]
-    doc.content_type = (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    await _persist_inspection_log_bytes(
+        doc, raw, uploaded_by=user.name or user.username
     )
-    doc.uploaded_by = user.name or user.username
     await db.commit()
+    new_name = doc.original_name or "inspection.xlsx"
     return JSONResponse(
         {
             "ok": True,

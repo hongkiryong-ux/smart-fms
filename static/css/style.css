@@ -3663,3 +3663,18 @@ body.wo-col-resizing {
 
 
 
+
+/* OnlyOffice 점검일지 편집 */
+.ilog-oo-header { margin-bottom: 0.5rem; }
+.ilog-oo-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.ilog-oo-title-row h1 { margin: 0.2rem 0; font-size: 1.15rem; }
+.ilog-oo-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ilog-oo-card { padding: 0; overflow: hidden; min-height: 70vh; }
+.ilog-oo-frame { width: 100%; height: min(78vh, 900px); background: #f3f3f3; }
+.ilog-oo-switch { margin: 0.35rem 0 0.65rem; display: flex; gap: 0.55rem; align-items: center; flex-wrap: wrap; }

@@ -1,0 +1,31 @@
+# OnlyOffice Docs Community (무료) — 로컬/서버 자체 호스팅
+# 사용법:
+#   docker compose -f docker-compose.onlyoffice.yml up -d
+# 브라우저: http://localhost:8080  (Document Server)
+# FMS .env 예시:
+#   ONLYOFFICE_URL=http://localhost:8080
+#   ONLYOFFICE_JWT_SECRET=smart-fms-onlyoffice-jwt-secret-change-me
+#   ONLYOFFICE_JWT_ENABLED=true
+#   PUBLIC_BASE_URL=http://127.0.0.1:8000
+#   ONLYOFFICE_INTERNAL_FILE_URL=http://host.docker.internal:8000
+
+services:
+  onlyoffice-documentserver:
+    image: onlyoffice/documentserver:8.2
+    container_name: smart-fms-onlyoffice
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: "smart-fms-onlyoffice-jwt-secret-change-me"
+      JWT_HEADER: Authorization
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+    # Community Edition: 동시 연결 약 20개 제한
+    # 메모리 권장 4GB+
+
+volumes:
+  onlyoffice_data:
+  onlyoffice_logs:

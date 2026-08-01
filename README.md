@@ -48,9 +48,22 @@ run-dev.bat        # 서버 시작
 venv\Scripts\python.exe qr_generate.py
 ```
 
+## 점검일지 · OnlyOffice (권장)
+
+엑셀을 서버에 두고 OnlyOffice Community(무료)로 편집·저장할 수 있습니다.
+
+```powershell
+docker compose -f docker-compose.onlyoffice.yml up -d
+```
+
+상세 설정: [docs/ONLYOFFICE.md](docs/ONLYOFFICE.md)
+
+`ONLYOFFICE_URL` 미설정 시 기존 브라우저 간단 편집기를 사용합니다.
+
 ## 기술 스택
 
 - FastAPI + SQLAlchemy (async)
 - PostgreSQL (운영) / SQLite (로컬)
 - Jinja2 + PWA
+- OnlyOffice Docs Community (선택, 점검일지 엑셀 편집)
 - Render
