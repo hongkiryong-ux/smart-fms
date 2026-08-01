@@ -94,7 +94,7 @@
       <button type="button" class="ilog-fx-ok" id="ilog-fx-ok" title="확정 (Enter)" {% if not can_save %}disabled{% endif %}>확인</button>
       <button type="button" class="ilog-fx-cancel" id="ilog-fx-cancel" title="취소 (Esc)" {% if not can_save %}disabled{% endif %}>취소</button>
     </div>
-    <div id="ilog-pick-hint" class="ilog-pick-hint" hidden>수식 입력 모드: 셀을 클릭하면 참조가 들어갑니다. Enter로 확정, Esc로 취소</div>
+    <div id="ilog-pick-hint" class="ilog-pick-hint" hidden>수식 입력 중: 셀 클릭으로 참조 · 하단 다른 시트 탭에서 시트 간 참조 · Enter 확정 · Esc 취소</div>
     <div id="ilog-toast" class="ilog-toast" hidden></div>
   </div>
 </header>
@@ -683,8 +683,10 @@
 
   function updatePickHint() {
     if (!pickHint) return;
-    pickHint.hidden = !pick.on;
-    document.body.classList.toggle('ilog-formula-picking', !!pick.on);
+    var on = false;
+    try { on = isPickMode(); } catch (e) { on = !!pick.on; }
+    pickHint.hidden = !on;
+    document.body.classList.toggle('ilog-formula-picking', !!on);
   }
 
   function exitPickMode() {
