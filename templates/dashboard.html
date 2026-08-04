@@ -1,187 +1,179 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<header class="page-header dash-header">
-  <div>
-    <h1>운영 Dashboard</h1>
-    <p>KST 기준 실시간 집계 · <span id="dash-as-of">{{ kpi.as_of }}</span> · 30초마다 자동 갱신</p>
+<div class="dash-board">
+  <header class="dash-top">
+    <div class="dash-top-left">
+      <h1>운영 Dashboard</h1>
+      <span class="dash-live"><i></i> LIVE</span>
+    </div>
+    <div class="dash-top-meta">
+      <span>KST <strong id="dash-as-of">{{ kpi.as_of }}</strong></span>
+      <span class="dash-dot">·</span>
+      <span>30초 자동갱신</span>
+    </div>
+  </header>
+
+  <div class="dash-rows">
+    {# 1 #}
+    <section class="dash-row">
+      <div class="dash-row-aside">
+        <span class="dash-row-idx">01</span>
+        <div>
+          <h2>사업장 현황</h2>
+          <a class="dash-link" href="/admin/sites">상세 보기</a>
+        </div>
+      </div>
+      <div class="dash-row-metrics">
+        <a class="dm" href="/admin/sites">
+          <span class="dm-label">사업장</span>
+          <span class="dm-value" id="kpi-sites">{{ kpi.sites }}</span>
+        </a>
+        <a class="dm" href="/admin/sites">
+          <span class="dm-label">건물</span>
+          <span class="dm-value" id="kpi-buildings">{{ kpi.buildings }}</span>
+        </a>
+        <a class="dm" href="/admin/equipment">
+          <span class="dm-label">설비</span>
+          <span class="dm-value" id="kpi-equipment">{{ kpi.equipment }}</span>
+        </a>
+      </div>
+    </section>
+
+    {# 2 #}
+    <section class="dash-row">
+      <div class="dash-row-aside">
+        <span class="dash-row-idx">02</span>
+        <div>
+          <h2>점검 현황</h2>
+          <a class="dash-link" href="/admin/pm">예방정비</a>
+        </div>
+      </div>
+      <div class="dash-row-metrics">
+        <div class="dm">
+          <span class="dm-label">금일 점검계획</span>
+          <span class="dm-value" id="kpi-pm-today-plan">{{ kpi.pm_today_plan }}</span>
+        </div>
+        <div class="dm dm-ok">
+          <span class="dm-label">금일 완료</span>
+          <span class="dm-value" id="kpi-pm-today-done">{{ kpi.pm_today_done }}</span>
+        </div>
+        <div class="dm">
+          <span class="dm-label">전일 점검 실적</span>
+          <span class="dm-value" id="kpi-pm-yesterday-done">{{ kpi.pm_yesterday_done }}</span>
+        </div>
+        <div class="dm dm-alert">
+          <span class="dm-label">지연</span>
+          <span class="dm-value" id="kpi-pm-overdue">{{ kpi.pm_overdue }}</span>
+        </div>
+      </div>
+    </section>
+
+    {# 3 #}
+    <section class="dash-row">
+      <div class="dash-row-aside">
+        <span class="dash-row-idx">03</span>
+        <div>
+          <h2>정비관리 현황</h2>
+          <a class="dash-link" href="/admin/work-orders">정비관리</a>
+        </div>
+      </div>
+      <div class="dash-row-metrics">
+        <a class="dm" href="/admin/work-orders?status=received">
+          <span class="dm-label">정비 의뢰</span>
+          <span class="dm-value" id="kpi-wo-request">{{ kpi.wo_request }}</span>
+        </a>
+        <a class="dm dm-accent" href="/admin/work-orders?status=in_progress">
+          <span class="dm-label">정비 진행</span>
+          <span class="dm-value" id="kpi-wo-progress">{{ kpi.wo_progress }}</span>
+        </a>
+        <a class="dm dm-ok" href="/admin/work-orders?status=completed">
+          <span class="dm-label">정비 완료</span>
+          <span class="dm-value" id="kpi-wo-done">{{ kpi.wo_done }}</span>
+        </a>
+        <div class="dm dm-alert">
+          <span class="dm-label">긴급 미완료</span>
+          <span class="dm-value" id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span>
+        </div>
+      </div>
+    </section>
+
+    {# 4 #}
+    <section class="dash-row">
+      <div class="dash-row-aside">
+        <span class="dash-row-idx">04</span>
+        <div>
+          <h2>D-1 작업 현황</h2>
+          <a class="dash-link" href="/admin/d1">D-1 보드</a>
+        </div>
+      </div>
+      <div class="dash-row-metrics">
+        <a class="dm" href="/admin/d1?board=today">
+          <span class="dm-label">금일 계획</span>
+          <span class="dm-value" id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span>
+        </a>
+        <a class="dm dm-ok" href="/admin/d1?board=completed">
+          <span class="dm-label">금일 완료</span>
+          <span class="dm-value" id="kpi-d1-done">{{ kpi.d1_today_done }}</span>
+        </a>
+        <a class="dm dm-alert" href="/admin/d1?board=today">
+          <span class="dm-label">금일 미완료</span>
+          <span class="dm-value" id="kpi-d1-incomplete">{{ kpi.d1_today_incomplete }}</span>
+        </a>
+      </div>
+    </section>
+
+    {# 5 #}
+    <section class="dash-row dash-row-energy">
+      <div class="dash-row-aside">
+        <span class="dash-row-idx">05</span>
+        <div>
+          <h2>에너지 사용현황</h2>
+          <span class="dash-badge-demo" id="energy-demo-badge"{% if not kpi.energy.is_demo %} hidden{% endif %}>예시 · 점검일지 연동 예정</span>
+        </div>
+      </div>
+      <div class="dash-energy-body">
+        <div class="dash-row-metrics dash-energy-metrics">
+          <div class="dm">
+            <span class="dm-label">전력 · 한전</span>
+            <span class="dm-value dm-val-sm" id="nrg-kepco">{{ kpi.energy.power.today.kepco }}</span>
+            <span class="dm-unit">{{ kpi.energy.power.unit }}</span>
+          </div>
+          <div class="dm">
+            <span class="dm-label">전력 · 수전</span>
+            <span class="dm-value dm-val-sm" id="nrg-receive">{{ kpi.energy.power.today.receive }}</span>
+            <span class="dm-unit">{{ kpi.energy.power.unit }}</span>
+          </div>
+          <div class="dm">
+            <span class="dm-label">전력 · 압연</span>
+            <span class="dm-value dm-val-sm" id="nrg-rolling">{{ kpi.energy.power.today.rolling }}</span>
+            <span class="dm-unit">{{ kpi.energy.power.unit }}</span>
+          </div>
+          <div class="dm">
+            <span class="dm-label">중온</span>
+            <span class="dm-value dm-val-sm" id="nrg-medium">{{ kpi.energy.medium_temp.today }}</span>
+            <span class="dm-unit">{{ kpi.energy.medium_temp.unit }}</span>
+          </div>
+          <div class="dm">
+            <span class="dm-label">급수</span>
+            <span class="dm-value dm-val-sm" id="nrg-water">{{ kpi.energy.water.today }}</span>
+            <span class="dm-unit">{{ kpi.energy.water.unit }}</span>
+          </div>
+        </div>
+        <div class="dash-energy-charts">
+          <div class="dash-chart-box">
+            <div class="dash-chart-title">전력 7일</div>
+            <div class="dash-chart-canvas"><canvas id="chart-power"></canvas></div>
+          </div>
+          <div class="dash-chart-box">
+            <div class="dash-chart-title">중온 · 급수 7일</div>
+            <div class="dash-chart-canvas"><canvas id="chart-utility"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
-</header>
-
-<div class="dash-sections">
-  {# 1. 사업장 현황 #}
-  <section class="card dash-panel">
-    <div class="dash-panel-head">
-      <h2>사업장 현황</h2>
-      <a class="dash-link" href="/admin/sites">상세</a>
-    </div>
-    <div class="dash-kpi-row">
-      <a class="dash-kpi" href="/admin/sites">
-        <span class="kpi-label">사업장</span>
-        <span class="kpi-value" id="kpi-sites">{{ kpi.sites }}</span>
-      </a>
-      <a class="dash-kpi" href="/admin/sites">
-        <span class="kpi-label">건물</span>
-        <span class="kpi-value" id="kpi-buildings">{{ kpi.buildings }}</span>
-      </a>
-      <a class="dash-kpi" href="/admin/equipment">
-        <span class="kpi-label">설비</span>
-        <span class="kpi-value" id="kpi-equipment">{{ kpi.equipment }}</span>
-      </a>
-    </div>
-  </section>
-
-  {# 2. 점검 현황 #}
-  <section class="card dash-panel">
-    <div class="dash-panel-head">
-      <h2>점검 현황</h2>
-      <a class="dash-link" href="/admin/pm">예방정비</a>
-    </div>
-    <div class="dash-kpi-row">
-      <div class="dash-kpi">
-        <span class="kpi-label">금일 점검계획</span>
-        <span class="kpi-value" id="kpi-pm-today-plan">{{ kpi.pm_today_plan }}</span>
-      </div>
-      <div class="dash-kpi highlight">
-        <span class="kpi-label">금일 완료</span>
-        <span class="kpi-value" id="kpi-pm-today-done">{{ kpi.pm_today_done }}</span>
-      </div>
-      <div class="dash-kpi">
-        <span class="kpi-label">전일 점검 실적</span>
-        <span class="kpi-value" id="kpi-pm-yesterday-done">{{ kpi.pm_yesterday_done }}</span>
-      </div>
-      <div class="dash-kpi warn">
-        <span class="kpi-label">지연</span>
-        <span class="kpi-value" id="kpi-pm-overdue">{{ kpi.pm_overdue }}</span>
-      </div>
-    </div>
-  </section>
-
-  {# 3. 정비관리 현황 #}
-  <section class="card dash-panel">
-    <div class="dash-panel-head">
-      <h2>정비관리 현황</h2>
-      <a class="dash-link" href="/admin/work-orders">정비관리</a>
-    </div>
-    <div class="dash-kpi-row">
-      <a class="dash-kpi" href="/admin/work-orders?status=received">
-        <span class="kpi-label">정비 의뢰</span>
-        <span class="kpi-value" id="kpi-wo-request">{{ kpi.wo_request }}</span>
-      </a>
-      <a class="dash-kpi highlight" href="/admin/work-orders?status=in_progress">
-        <span class="kpi-label">정비 진행</span>
-        <span class="kpi-value" id="kpi-wo-progress">{{ kpi.wo_progress }}</span>
-      </a>
-      <a class="dash-kpi" href="/admin/work-orders?status=completed">
-        <span class="kpi-label">정비 완료</span>
-        <span class="kpi-value" id="kpi-wo-done">{{ kpi.wo_done }}</span>
-      </a>
-      <div class="dash-kpi warn">
-        <span class="kpi-label">긴급(미완료)</span>
-        <span class="kpi-value" id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span>
-      </div>
-    </div>
-  </section>
-
-  {# 4. D-1 작업 현황 #}
-  <section class="card dash-panel">
-    <div class="dash-panel-head">
-      <h2>D-1 작업 현황</h2>
-      <a class="dash-link" href="/admin/d1">D-1 보드</a>
-    </div>
-    <div class="dash-kpi-row">
-      <a class="dash-kpi" href="/admin/d1?board=today">
-        <span class="kpi-label">금일 계획</span>
-        <span class="kpi-value" id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span>
-      </a>
-      <a class="dash-kpi highlight" href="/admin/d1?board=completed">
-        <span class="kpi-label">금일 완료</span>
-        <span class="kpi-value" id="kpi-d1-done">{{ kpi.d1_today_done }}</span>
-      </a>
-      <a class="dash-kpi warn" href="/admin/d1?board=today">
-        <span class="kpi-label">금일 미완료</span>
-        <span class="kpi-value" id="kpi-d1-incomplete">{{ kpi.d1_today_incomplete }}</span>
-      </a>
-    </div>
-  </section>
-
-  {# 5. 에너지 사용현황 (예시) #}
-  <section class="card dash-panel dash-panel-wide">
-    <div class="dash-panel-head">
-      <h2>에너지 사용현황</h2>
-      <span class="dash-badge-demo" id="energy-demo-badge">{% if kpi.energy.is_demo %}예시{% endif %}</span>
-    </div>
-    <p class="text-muted dash-energy-note" id="energy-note">{{ kpi.energy.note }}</p>
-    <div class="dash-energy-today">
-      <div class="dash-energy-chip">
-        <span class="kpi-label">전력 · 한전</span>
-        <span class="kpi-value sm" id="nrg-kepco">{{ kpi.energy.power.today.kepco }}</span>
-        <span class="kpi-unit">{{ kpi.energy.power.unit }}</span>
-      </div>
-      <div class="dash-energy-chip">
-        <span class="kpi-label">전력 · 수전</span>
-        <span class="kpi-value sm" id="nrg-receive">{{ kpi.energy.power.today.receive }}</span>
-        <span class="kpi-unit">{{ kpi.energy.power.unit }}</span>
-      </div>
-      <div class="dash-energy-chip">
-        <span class="kpi-label">전력 · 압연</span>
-        <span class="kpi-value sm" id="nrg-rolling">{{ kpi.energy.power.today.rolling }}</span>
-        <span class="kpi-unit">{{ kpi.energy.power.unit }}</span>
-      </div>
-      <div class="dash-energy-chip">
-        <span class="kpi-label">중온</span>
-        <span class="kpi-value sm" id="nrg-medium">{{ kpi.energy.medium_temp.today }}</span>
-        <span class="kpi-unit">{{ kpi.energy.medium_temp.unit }}</span>
-      </div>
-      <div class="dash-energy-chip">
-        <span class="kpi-label">급수</span>
-        <span class="kpi-value sm" id="nrg-water">{{ kpi.energy.water.today }}</span>
-        <span class="kpi-unit">{{ kpi.energy.water.unit }}</span>
-      </div>
-    </div>
-    <div class="dash-energy-charts">
-      <div class="dash-chart-box">
-        <h3>전력 (한전 / 수전 / 압연) · 최근 7일</h3>
-        <canvas id="chart-power" height="120"></canvas>
-      </div>
-      <div class="dash-chart-box">
-        <h3>중온 · 급수 · 최근 7일</h3>
-        <canvas id="chart-utility" height="120"></canvas>
-      </div>
-    </div>
-  </section>
-</div>
-
-<div class="dash-grid-2">
-  <section class="card">
-    <div class="dash-panel-head">
-      <h2>최근 작업</h2>
-      <a class="dash-link" href="/admin/work-orders">더보기</a>
-    </div>
-    {% for wo in recent_wo %}
-    <div class="list-item">
-      <a href="/admin/work-orders/{{ wo.id }}">{{ wo.title }}</a>
-      <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
-    </div>
-    {% else %}
-    <p class="empty">작업 없음</p>
-    {% endfor %}
-  </section>
-
-  <section class="card">
-    <div class="dash-panel-head">
-      <h2>점검 예정</h2>
-      <a class="dash-link" href="/admin/pm">더보기</a>
-    </div>
-    {% for pm in upcoming_pm %}
-    <div class="list-item">
-      <span>{{ pm.title }}</span>
-      <span class="text-muted">{{ pm.next_due or '미정' }}</span>
-    </div>
-    {% else %}
-    <p class="empty">예정 없음</p>
-    {% endfor %}
-  </section>
+  <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -218,10 +210,28 @@
     return {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      animation: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { boxWidth: 8, boxHeight: 8, font: { size: 10 }, padding: 8, color: '#64748b' }
+        },
+        tooltip: { mode: 'index', intersect: false }
+      },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-        y: { beginAtZero: false, ticks: { font: { size: 10 } } }
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 9 }, color: '#94a3b8', maxRotation: 0 }
+        },
+        y: {
+          beginAtZero: false,
+          grid: { color: 'rgba(148,163,184,0.18)' },
+          ticks: { font: { size: 9 }, color: '#94a3b8', maxTicksLimit: 4 }
+        }
+      },
+      elements: {
+        point: { radius: 0, hoverRadius: 3 },
+        line: { borderWidth: 2 }
       }
     };
   }
@@ -247,9 +257,9 @@
       data: {
         labels: labels,
         datasets: [
-          { label: '한전', data: p.kepco || [], borderColor: '#003876', backgroundColor: 'rgba(0,56,118,0.08)', tension: 0.3, fill: true },
-          { label: '수전', data: p.receive || [], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.06)', tension: 0.3, fill: true },
-          { label: '압연', data: p.rolling || [], borderColor: '#e31937', backgroundColor: 'rgba(227,25,55,0.06)', tension: 0.3, fill: true }
+          { label: '한전', data: p.kepco || [], borderColor: '#003876', backgroundColor: 'rgba(0,56,118,0.10)', tension: 0.35, fill: true },
+          { label: '수전', data: p.receive || [], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', tension: 0.35, fill: true },
+          { label: '압연', data: p.rolling || [], borderColor: '#c81e1e', backgroundColor: 'rgba(200,30,30,0.06)', tension: 0.35, fill: true }
         ]
       },
       options: chartDefaults()
@@ -259,8 +269,8 @@
       data: {
         labels: labels,
         datasets: [
-          { label: '중온 (' + (m.unit || '') + ')', data: m.values || [], backgroundColor: 'rgba(0,86,179,0.65)' },
-          { label: '급수 (' + (w.unit || '') + ')', data: w.values || [], backgroundColor: 'rgba(14,165,233,0.55)' }
+          { label: '중온', data: m.values || [], backgroundColor: 'rgba(0,56,118,0.72)', borderRadius: 2, barPercentage: 0.7 },
+          { label: '급수', data: w.values || [], backgroundColor: 'rgba(14,165,233,0.55)', borderRadius: 2, barPercentage: 0.7 }
         ]
       },
       options: chartDefaults()

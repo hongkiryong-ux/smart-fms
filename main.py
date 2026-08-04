@@ -1594,31 +1594,12 @@ async def dashboard(
 ):
     kpi = await _compute_dashboard_kpi(db)
 
-    recent_wo = (
-        await db.execute(
-            select(WorkOrder)
-            .where(WorkOrder.is_active == True)  # noqa: E712
-            .order_by(WorkOrder.created_at.desc())
-            .limit(5)
-        )
-    ).scalars().all()
-    upcoming_pm = (
-        await db.execute(
-            select(PMSchedule)
-            .where(PMSchedule.is_active == True)  # noqa: E712
-            .order_by(PMSchedule.next_due.asc())
-            .limit(5)
-        )
-    ).scalars().all()
-
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "user": user,
             "kpi": kpi,
-            "recent_wo": recent_wo,
-            "upcoming_pm": upcoming_pm,
         },
     )
 
