@@ -377,12 +377,154 @@ body {
   color: var(--primary);
 }
 
+.kpi-value.sm { font-size: 1.35rem; }
+
+.kpi-unit {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-left: 0.2rem;
+}
+
+/* Dashboard sections */
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.dash-sections {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.dash-panel {
+  margin-bottom: 0;
+}
+
+.dash-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.dash-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.dash-panel-head h2 {
+  margin: 0;
+}
+
+.dash-link {
+  font-size: 0.82rem;
+  color: var(--primary-light);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dash-link:hover { text-decoration: underline; }
+
+.dash-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem;
+}
+
+.dash-kpi {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  border-left: 4px solid var(--primary-light);
+  min-height: 4.5rem;
+}
+
+a.dash-kpi:hover {
+  border-color: #c7d2fe;
+  background: #f1f5f9;
+}
+
+.dash-kpi.highlight { border-left-color: #2563eb; }
+.dash-kpi.warn { border-left-color: var(--accent); }
+
+.dash-badge-demo {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}
+
+.dash-energy-note {
+  margin: -0.35rem 0 0.9rem;
+  font-size: 0.85rem;
+}
+
+.dash-energy-today {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.dash-energy-chip {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+}
+
+.dash-energy-charts {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1rem;
+}
+
+.dash-chart-box {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem 0.5rem;
+  min-height: 220px;
+}
+
+.dash-chart-box h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.dash-chart-box canvas {
+  width: 100% !important;
+  max-height: 180px;
+}
+
 /* Dashboard 최근작업/점검예정 균등 배열 */
 .dash-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
   margin-bottom: 1rem;
+}
+
+@media (max-width: 960px) {
+  .dash-sections,
+  .dash-energy-charts,
+  .dash-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .dash-panel-wide { grid-column: auto; }
 }
 
 /* Cards & Grid */

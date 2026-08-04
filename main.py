@@ -1369,25 +1369,89 @@ async def users_delete(
 
 # ── Dashboard ─────────────────────────────────────────────────────────
 
+_WO_OPEN = (
+    WorkOrderStatus.received,
+    WorkOrderStatus.assigned,
+    WorkOrderStatus.in_progress,
+)
+_WO_DONE = (
+    WorkOrderStatus.completed,
+    WorkOrderStatus.verified,
+    WorkOrderStatus.closed,
+)
+_WO_REQUEST = (WorkOrderStatus.received, WorkOrderStatus.assigned)
 
-@app.get("/admin/dashboard")
-async def dashboard(
-    request: Request,
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    # 활성 사업장/건물/설비만 실시간 집계 (추가·삭제 시 자동 반영)
-    site_count = (
-        await db.execute(select(func.count(Site.id)).where(Site.is_active == True))
+
+def _kst_day_naive_utc_range(day: date) -> tuple[datetime, datetime]:
+    """KST 하루를 naive UTC datetime 구간으로 변환 (completed_at 비교용)."""
+    start_kst = datetime(day.year, day.month, day.day, tzinfo=KST)
+    start = start_kst.astimezone(timezone.utc).replace(tzinfo=None)
+    end = start + timedelta(days=1)
+    return start, end
+
+
+def _demo_energy_payload(today: date | None = None) -> dict:
+    """에너지 사용현황 예시 데이터 (점검일지 연동 전 데모)."""
+    import random
+
+    day = today or _today_kst()
+    rng = random.Random(int(day.strftime("%Y%m%d")))
+    labels = [(day - timedelta(days=i)).strftime("%m/%d") for i in range(6, -1, -1)]
+
+    def series(base: float, variance: float) -> list[float]:
+        return [round(base + rng.uniform(-variance, variance), 1) for _ in labels]
+
+    kepco = series(8200, 450)
+    receive = series(6100, 380)
+    rolling = series(2400, 220)
+    medium = series(185, 18)  # 중온 (t/h 예시)
+    water = series(920, 70)  # 급수 (m³ 예시)
+    return {
+        "is_demo": True,
+        "note": "예시 데이터입니다. 추후 점검일지와 연동하여 자동 집계·그래프화합니다.",
+        "as_of": day.isoformat(),
+        "labels": labels,
+        "power": {
+            "unit": "kWh",
+            "kepco": kepco,
+            "receive": receive,
+            "rolling": rolling,
+            "today": {
+                "kepco": kepco[-1],
+                "receive": receive[-1],
+                "rolling": rolling[-1],
+            },
+        },
+        "medium_temp": {
+            "unit": "t/h",
+            "values": medium,
+            "today": medium[-1],
+        },
+        "water": {
+            "unit": "m³",
+            "values": water,
+            "today": water[-1],
+        },
+    }
+
+
+async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
+    """대시보드 전 구역 KPI (KST 기준, 활성 데이터 연동)."""
+    today = _today_kst()
+    yesterday = today - timedelta(days=1)
+    today_start, today_end = _kst_day_naive_utc_range(today)
+
+    sites = (
+        await db.execute(select(func.count(Site.id)).where(Site.is_active == True))  # noqa: E712
     ).scalar() or 0
-    building_count = (
+    buildings = (
         await db.execute(
             select(func.count(Building.id))
             .join(Site, Building.site_id == Site.id)
-            .where(Building.is_active == True, Site.is_active == True)
+            .where(Building.is_active == True, Site.is_active == True)  # noqa: E712
         )
     ).scalar() or 0
-    equipment_count = (
+    equipment = (
         await db.execute(
             select(func.count(Equipment.id))
             .join(Zone, Equipment.zone_id == Zone.id)
@@ -1395,80 +1459,145 @@ async def dashboard(
             .join(Building, Floor.building_id == Building.id)
             .join(Site, Building.site_id == Site.id)
             .where(
-                Equipment.is_active == True,
-                Building.is_active == True,
-                Site.is_active == True,
+                Equipment.is_active == True,  # noqa: E712
+                Building.is_active == True,  # noqa: E712
+                Site.is_active == True,  # noqa: E712
             )
         )
     ).scalar() or 0
-    wo_total = (
+
+    # 점검: 금일 계획(next_due==today) / 금일 완료(last_done==today) / 전일 실적
+    pm_today_plan = (
         await db.execute(
-            select(func.count(WorkOrder.id)).where(WorkOrder.is_active == True)
+            select(func.count(PMSchedule.id)).where(
+                PMSchedule.is_active == True,  # noqa: E712
+                PMSchedule.next_due == today,
+            )
+        )
+    ).scalar() or 0
+    pm_today_done = (
+        await db.execute(
+            select(func.count(PMSchedule.id)).where(
+                PMSchedule.is_active == True,  # noqa: E712
+                PMSchedule.last_done == today,
+            )
+        )
+    ).scalar() or 0
+    pm_yesterday_done = (
+        await db.execute(
+            select(func.count(PMSchedule.id)).where(
+                PMSchedule.is_active == True,  # noqa: E712
+                PMSchedule.last_done == yesterday,
+            )
+        )
+    ).scalar() or 0
+    pm_overdue = (
+        await db.execute(
+            select(func.count(PMSchedule.id)).where(
+                PMSchedule.is_active == True,  # noqa: E712
+                PMSchedule.next_due.is_not(None),
+                PMSchedule.next_due < today,
+            )
+        )
+    ).scalar() or 0
+
+    # 정비관리: 의뢰 / 진행 / 완료 (누적 활성)
+    wo_request = (
+        await db.execute(
+            select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,  # noqa: E712
+                WorkOrder.status.in_(_WO_REQUEST),
+            )
         )
     ).scalar() or 0
     wo_progress = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,
-                WorkOrder.status.in_(
-                    [WorkOrderStatus.received, WorkOrderStatus.assigned, WorkOrderStatus.in_progress]
-                ),
+                WorkOrder.is_active == True,  # noqa: E712
+                WorkOrder.status == WorkOrderStatus.in_progress,
             )
         )
     ).scalar() or 0
     wo_done = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,
-                WorkOrder.status.in_(
-                    [
-                        WorkOrderStatus.completed,
-                        WorkOrderStatus.verified,
-                        WorkOrderStatus.closed,
-                    ]
-                ),
+                WorkOrder.is_active == True,  # noqa: E712
+                WorkOrder.status.in_(_WO_DONE),
             )
         )
     ).scalar() or 0
     wo_urgent = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,
+                WorkOrder.is_active == True,  # noqa: E712
                 WorkOrder.priority == "high",
-                WorkOrder.status.in_(
-                    [
-                        WorkOrderStatus.received,
-                        WorkOrderStatus.assigned,
-                        WorkOrderStatus.in_progress,
-                    ]
+                WorkOrder.status.in_(_WO_OPEN),
+            )
+        )
+    ).scalar() or 0
+
+    # D-1 (메뉴와 동일: WorkOrder.scheduled_date)
+    d1_today_incomplete = (
+        await db.execute(
+            select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,  # noqa: E712
+                WorkOrder.status.in_(_WO_OPEN),
+                WorkOrder.scheduled_date == today,
+            )
+        )
+    ).scalar() or 0
+    d1_today_done = (
+        await db.execute(
+            select(func.count(WorkOrder.id)).where(
+                WorkOrder.is_active == True,  # noqa: E712
+                WorkOrder.status.in_(_WO_DONE),
+                (
+                    (WorkOrder.scheduled_date == today)
+                    | (
+                        WorkOrder.completed_at.is_not(None)
+                        & (WorkOrder.completed_at >= today_start)
+                        & (WorkOrder.completed_at < today_end)
+                    )
                 ),
             )
         )
     ).scalar() or 0
-    pm_due = (
-        await db.execute(
-            select(func.count(PMSchedule.id)).where(
-                PMSchedule.next_due <= date.today(), PMSchedule.is_active == True
-            )
-        )
-    ).scalar() or 0
-    consumable_due = (
-        await db.execute(
-            select(func.count(Consumable.id)).where(
-                Consumable.next_replace <= date.today()
-            )
-        )
-    ).scalar() or 0
-    d1_tomorrow = (
-        await db.execute(
-            select(func.count(D1Plan.id)).where(D1Plan.work_date == date.today())
-        )
-    ).scalar() or 0
+    d1_today_plan = int(d1_today_incomplete) + int(d1_today_done)
+
+    energy = _demo_energy_payload(today)
+
+    return {
+        "as_of": today.isoformat(),
+        "sites": int(sites),
+        "buildings": int(buildings),
+        "equipment": int(equipment),
+        "pm_today_plan": int(pm_today_plan),
+        "pm_today_done": int(pm_today_done),
+        "pm_yesterday_done": int(pm_yesterday_done),
+        "pm_overdue": int(pm_overdue),
+        "wo_request": int(wo_request),
+        "wo_progress": int(wo_progress),
+        "wo_done": int(wo_done),
+        "wo_urgent": int(wo_urgent),
+        "d1_today_plan": int(d1_today_plan),
+        "d1_today_done": int(d1_today_done),
+        "d1_today_incomplete": int(d1_today_incomplete),
+        "energy": energy,
+    }
+
+
+@app.get("/admin/dashboard")
+async def dashboard(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    kpi = await _compute_dashboard_kpi(db)
 
     recent_wo = (
         await db.execute(
             select(WorkOrder)
-            .where(WorkOrder.is_active == True)
+            .where(WorkOrder.is_active == True)  # noqa: E712
             .order_by(WorkOrder.created_at.desc())
             .limit(5)
         )
@@ -1476,7 +1605,7 @@ async def dashboard(
     upcoming_pm = (
         await db.execute(
             select(PMSchedule)
-            .where(PMSchedule.is_active == True)
+            .where(PMSchedule.is_active == True)  # noqa: E712
             .order_by(PMSchedule.next_due.asc())
             .limit(5)
         )
@@ -1487,18 +1616,7 @@ async def dashboard(
         "dashboard.html",
         {
             "user": user,
-            "kpi": {
-                "sites": site_count,
-                "buildings": building_count,
-                "equipment": equipment_count,
-                "wo_total": wo_total,
-                "wo_progress": wo_progress,
-                "wo_done": wo_done,
-                "wo_urgent": wo_urgent,
-                "pm_due": pm_due,
-                "consumable_due": consumable_due,
-                "d1_today": d1_tomorrow,
-            },
+            "kpi": kpi,
             "recent_wo": recent_wo,
             "upcoming_pm": upcoming_pm,
         },
@@ -1510,87 +1628,10 @@ async def dashboard_kpi(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    """대시보드 KPI 숫자를 JSON으로 반환 (자동 갱신용)."""
+    """대시보드 KPI JSON (자동 갱신)."""
     from fastapi.responses import JSONResponse
 
-    site_count = (
-        await db.execute(select(func.count(Site.id)).where(Site.is_active == True))
-    ).scalar() or 0
-    building_count = (
-        await db.execute(
-            select(func.count(Building.id))
-            .join(Site, Building.site_id == Site.id)
-            .where(Building.is_active == True, Site.is_active == True)
-        )
-    ).scalar() or 0
-    equipment_count = (
-        await db.execute(
-            select(func.count(Equipment.id))
-            .join(Zone, Equipment.zone_id == Zone.id)
-            .join(Floor, Zone.floor_id == Floor.id)
-            .join(Building, Floor.building_id == Building.id)
-            .join(Site, Building.site_id == Site.id)
-            .where(
-                Equipment.is_active == True,
-                Building.is_active == True,
-                Site.is_active == True,
-            )
-        )
-    ).scalar() or 0
-    wo_progress = (
-        await db.execute(
-            select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,
-                WorkOrder.status.in_(
-                    [WorkOrderStatus.received, WorkOrderStatus.assigned, WorkOrderStatus.in_progress]
-                ),
-            )
-        )
-    ).scalar() or 0
-    wo_done = (
-        await db.execute(
-            select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,
-                WorkOrder.status.in_(
-                    [WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed]
-                ),
-            )
-        )
-    ).scalar() or 0
-    wo_urgent = (
-        await db.execute(
-            select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,
-                WorkOrder.priority == "high",
-                WorkOrder.status.in_(
-                    [WorkOrderStatus.received, WorkOrderStatus.assigned, WorkOrderStatus.in_progress]
-                ),
-            )
-        )
-    ).scalar() or 0
-    pm_due = (
-        await db.execute(
-            select(func.count(PMSchedule.id)).where(
-                PMSchedule.next_due <= date.today(), PMSchedule.is_active == True
-            )
-        )
-    ).scalar() or 0
-    d1_today = (
-        await db.execute(
-            select(func.count(D1Plan.id)).where(D1Plan.work_date == date.today())
-        )
-    ).scalar() or 0
-
-    return JSONResponse({
-        "sites": site_count,
-        "buildings": building_count,
-        "equipment": equipment_count,
-        "wo_progress": wo_progress,
-        "wo_done": wo_done,
-        "wo_urgent": wo_urgent,
-        "pm_due": pm_due,
-        "d1_today": d1_today,
-    })
+    return JSONResponse(await _compute_dashboard_kpi(db))
 
 
 # ── Sites & Hierarchy ─────────────────────────────────────────────────

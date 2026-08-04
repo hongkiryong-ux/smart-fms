@@ -1,49 +1,163 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<header class="page-header">
-  <h1>운영 Dashboard</h1>
-  <p>활성 사업장·건물·설비 기준 실시간 집계 (등록/삭제 시 자동 반영)</p>
+<header class="page-header dash-header">
+  <div>
+    <h1>운영 Dashboard</h1>
+    <p>KST 기준 실시간 집계 · <span id="dash-as-of">{{ kpi.as_of }}</span> · 30초마다 자동 갱신</p>
+  </div>
 </header>
 
-<section class="kpi-grid">
-  <div class="kpi-card">
-    <span class="kpi-label">사업장</span>
-    <span class="kpi-value" id="kpi-sites">{{ kpi.sites }}</span>
-  </div>
-  <div class="kpi-card">
-    <span class="kpi-label">건물</span>
-    <span class="kpi-value" id="kpi-buildings">{{ kpi.buildings }}</span>
-  </div>
-  <div class="kpi-card">
-    <span class="kpi-label">설비</span>
-    <span class="kpi-value" id="kpi-equipment">{{ kpi.equipment }}</span>
-  </div>
-  <div class="kpi-card highlight">
-    <span class="kpi-label">작업 진행</span>
-    <span class="kpi-value" id="kpi-wo-progress">{{ kpi.wo_progress }}</span>
-  </div>
-  <div class="kpi-card">
-    <span class="kpi-label">작업 완료</span>
-    <span class="kpi-value" id="kpi-wo-done">{{ kpi.wo_done }}</span>
-  </div>
-  <div class="kpi-card warn">
-    <span class="kpi-label">긴급 작업</span>
-    <span class="kpi-value" id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span>
-  </div>
-  <div class="kpi-card warn">
-    <span class="kpi-label">점검 지연</span>
-    <span class="kpi-value" id="kpi-pm-due">{{ kpi.pm_due }}</span>
-  </div>
-  <div class="kpi-card">
-    <span class="kpi-label">오늘 D-1</span>
-    <span class="kpi-value" id="kpi-d1-today">{{ kpi.d1_today }}</span>
-  </div>
-</section>
+<div class="dash-sections">
+  {# 1. 사업장 현황 #}
+  <section class="card dash-panel">
+    <div class="dash-panel-head">
+      <h2>사업장 현황</h2>
+      <a class="dash-link" href="/admin/sites">상세</a>
+    </div>
+    <div class="dash-kpi-row">
+      <a class="dash-kpi" href="/admin/sites">
+        <span class="kpi-label">사업장</span>
+        <span class="kpi-value" id="kpi-sites">{{ kpi.sites }}</span>
+      </a>
+      <a class="dash-kpi" href="/admin/sites">
+        <span class="kpi-label">건물</span>
+        <span class="kpi-value" id="kpi-buildings">{{ kpi.buildings }}</span>
+      </a>
+      <a class="dash-kpi" href="/admin/equipment">
+        <span class="kpi-label">설비</span>
+        <span class="kpi-value" id="kpi-equipment">{{ kpi.equipment }}</span>
+      </a>
+    </div>
+  </section>
+
+  {# 2. 점검 현황 #}
+  <section class="card dash-panel">
+    <div class="dash-panel-head">
+      <h2>점검 현황</h2>
+      <a class="dash-link" href="/admin/pm">예방정비</a>
+    </div>
+    <div class="dash-kpi-row">
+      <div class="dash-kpi">
+        <span class="kpi-label">금일 점검계획</span>
+        <span class="kpi-value" id="kpi-pm-today-plan">{{ kpi.pm_today_plan }}</span>
+      </div>
+      <div class="dash-kpi highlight">
+        <span class="kpi-label">금일 완료</span>
+        <span class="kpi-value" id="kpi-pm-today-done">{{ kpi.pm_today_done }}</span>
+      </div>
+      <div class="dash-kpi">
+        <span class="kpi-label">전일 점검 실적</span>
+        <span class="kpi-value" id="kpi-pm-yesterday-done">{{ kpi.pm_yesterday_done }}</span>
+      </div>
+      <div class="dash-kpi warn">
+        <span class="kpi-label">지연</span>
+        <span class="kpi-value" id="kpi-pm-overdue">{{ kpi.pm_overdue }}</span>
+      </div>
+    </div>
+  </section>
+
+  {# 3. 정비관리 현황 #}
+  <section class="card dash-panel">
+    <div class="dash-panel-head">
+      <h2>정비관리 현황</h2>
+      <a class="dash-link" href="/admin/work-orders">정비관리</a>
+    </div>
+    <div class="dash-kpi-row">
+      <a class="dash-kpi" href="/admin/work-orders?status=received">
+        <span class="kpi-label">정비 의뢰</span>
+        <span class="kpi-value" id="kpi-wo-request">{{ kpi.wo_request }}</span>
+      </a>
+      <a class="dash-kpi highlight" href="/admin/work-orders?status=in_progress">
+        <span class="kpi-label">정비 진행</span>
+        <span class="kpi-value" id="kpi-wo-progress">{{ kpi.wo_progress }}</span>
+      </a>
+      <a class="dash-kpi" href="/admin/work-orders?status=completed">
+        <span class="kpi-label">정비 완료</span>
+        <span class="kpi-value" id="kpi-wo-done">{{ kpi.wo_done }}</span>
+      </a>
+      <div class="dash-kpi warn">
+        <span class="kpi-label">긴급(미완료)</span>
+        <span class="kpi-value" id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span>
+      </div>
+    </div>
+  </section>
+
+  {# 4. D-1 작업 현황 #}
+  <section class="card dash-panel">
+    <div class="dash-panel-head">
+      <h2>D-1 작업 현황</h2>
+      <a class="dash-link" href="/admin/d1">D-1 보드</a>
+    </div>
+    <div class="dash-kpi-row">
+      <a class="dash-kpi" href="/admin/d1?board=today">
+        <span class="kpi-label">금일 계획</span>
+        <span class="kpi-value" id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span>
+      </a>
+      <a class="dash-kpi highlight" href="/admin/d1?board=completed">
+        <span class="kpi-label">금일 완료</span>
+        <span class="kpi-value" id="kpi-d1-done">{{ kpi.d1_today_done }}</span>
+      </a>
+      <a class="dash-kpi warn" href="/admin/d1?board=today">
+        <span class="kpi-label">금일 미완료</span>
+        <span class="kpi-value" id="kpi-d1-incomplete">{{ kpi.d1_today_incomplete }}</span>
+      </a>
+    </div>
+  </section>
+
+  {# 5. 에너지 사용현황 (예시) #}
+  <section class="card dash-panel dash-panel-wide">
+    <div class="dash-panel-head">
+      <h2>에너지 사용현황</h2>
+      <span class="dash-badge-demo" id="energy-demo-badge">{% if kpi.energy.is_demo %}예시{% endif %}</span>
+    </div>
+    <p class="text-muted dash-energy-note" id="energy-note">{{ kpi.energy.note }}</p>
+    <div class="dash-energy-today">
+      <div class="dash-energy-chip">
+        <span class="kpi-label">전력 · 한전</span>
+        <span class="kpi-value sm" id="nrg-kepco">{{ kpi.energy.power.today.kepco }}</span>
+        <span class="kpi-unit">{{ kpi.energy.power.unit }}</span>
+      </div>
+      <div class="dash-energy-chip">
+        <span class="kpi-label">전력 · 수전</span>
+        <span class="kpi-value sm" id="nrg-receive">{{ kpi.energy.power.today.receive }}</span>
+        <span class="kpi-unit">{{ kpi.energy.power.unit }}</span>
+      </div>
+      <div class="dash-energy-chip">
+        <span class="kpi-label">전력 · 압연</span>
+        <span class="kpi-value sm" id="nrg-rolling">{{ kpi.energy.power.today.rolling }}</span>
+        <span class="kpi-unit">{{ kpi.energy.power.unit }}</span>
+      </div>
+      <div class="dash-energy-chip">
+        <span class="kpi-label">중온</span>
+        <span class="kpi-value sm" id="nrg-medium">{{ kpi.energy.medium_temp.today }}</span>
+        <span class="kpi-unit">{{ kpi.energy.medium_temp.unit }}</span>
+      </div>
+      <div class="dash-energy-chip">
+        <span class="kpi-label">급수</span>
+        <span class="kpi-value sm" id="nrg-water">{{ kpi.energy.water.today }}</span>
+        <span class="kpi-unit">{{ kpi.energy.water.unit }}</span>
+      </div>
+    </div>
+    <div class="dash-energy-charts">
+      <div class="dash-chart-box">
+        <h3>전력 (한전 / 수전 / 압연) · 최근 7일</h3>
+        <canvas id="chart-power" height="120"></canvas>
+      </div>
+      <div class="dash-chart-box">
+        <h3>중온 · 급수 · 최근 7일</h3>
+        <canvas id="chart-utility" height="120"></canvas>
+      </div>
+    </div>
+  </section>
+</div>
 
 <div class="dash-grid-2">
   <section class="card">
-    <h2>최근 작업</h2>
+    <div class="dash-panel-head">
+      <h2>최근 작업</h2>
+      <a class="dash-link" href="/admin/work-orders">더보기</a>
+    </div>
     {% for wo in recent_wo %}
     <div class="list-item">
       <a href="/admin/work-orders/{{ wo.id }}">{{ wo.title }}</a>
@@ -55,7 +169,10 @@
   </section>
 
   <section class="card">
-    <h2>점검 예정</h2>
+    <div class="dash-panel-head">
+      <h2>점검 예정</h2>
+      <a class="dash-link" href="/admin/pm">더보기</a>
+    </div>
     {% for pm in upcoming_pm %}
     <div class="list-item">
       <span>{{ pm.title }}</span>
@@ -67,31 +184,122 @@
   </section>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 (function () {
   var INTERVAL = 30000;
+  var energyInit = {{ kpi.energy | tojson }};
+  var powerChart = null;
+  var utilityChart = null;
+
+  var NUM_IDS = {
+    'kpi-sites': 'sites',
+    'kpi-buildings': 'buildings',
+    'kpi-equipment': 'equipment',
+    'kpi-pm-today-plan': 'pm_today_plan',
+    'kpi-pm-today-done': 'pm_today_done',
+    'kpi-pm-yesterday-done': 'pm_yesterday_done',
+    'kpi-pm-overdue': 'pm_overdue',
+    'kpi-wo-request': 'wo_request',
+    'kpi-wo-progress': 'wo_progress',
+    'kpi-wo-done': 'wo_done',
+    'kpi-wo-urgent': 'wo_urgent',
+    'kpi-d1-plan': 'd1_today_plan',
+    'kpi-d1-done': 'd1_today_done',
+    'kpi-d1-incomplete': 'd1_today_incomplete'
+  };
+
+  function setText(id, val) {
+    var el = document.getElementById(id);
+    if (el && val !== undefined && val !== null) el.textContent = val;
+  }
+
+  function chartDefaults() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { beginAtZero: false, ticks: { font: { size: 10 } } }
+      }
+    };
+  }
+
+  function renderEnergyCharts(energy) {
+    if (!energy || typeof Chart === 'undefined') return;
+    var labels = energy.labels || [];
+    var p = energy.power || {};
+    var m = energy.medium_temp || {};
+    var w = energy.water || {};
+
+    setText('nrg-kepco', (p.today || {}).kepco);
+    setText('nrg-receive', (p.today || {}).receive);
+    setText('nrg-rolling', (p.today || {}).rolling);
+    setText('nrg-medium', m.today);
+    setText('nrg-water', w.today);
+    setText('energy-note', energy.note || '');
+    var badge = document.getElementById('energy-demo-badge');
+    if (badge) badge.hidden = !energy.is_demo;
+
+    var powerCfg = {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: '한전', data: p.kepco || [], borderColor: '#003876', backgroundColor: 'rgba(0,56,118,0.08)', tension: 0.3, fill: true },
+          { label: '수전', data: p.receive || [], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.06)', tension: 0.3, fill: true },
+          { label: '압연', data: p.rolling || [], borderColor: '#e31937', backgroundColor: 'rgba(227,25,55,0.06)', tension: 0.3, fill: true }
+        ]
+      },
+      options: chartDefaults()
+    };
+    var utilCfg = {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: '중온 (' + (m.unit || '') + ')', data: m.values || [], backgroundColor: 'rgba(0,86,179,0.65)' },
+          { label: '급수 (' + (w.unit || '') + ')', data: w.values || [], backgroundColor: 'rgba(14,165,233,0.55)' }
+        ]
+      },
+      options: chartDefaults()
+    };
+
+    var pc = document.getElementById('chart-power');
+    var uc = document.getElementById('chart-utility');
+    if (!pc || !uc) return;
+    if (powerChart) {
+      powerChart.data = powerCfg.data;
+      powerChart.update('none');
+    } else {
+      powerChart = new Chart(pc, powerCfg);
+    }
+    if (utilityChart) {
+      utilityChart.data = utilCfg.data;
+      utilityChart.update('none');
+    } else {
+      utilityChart = new Chart(uc, utilCfg);
+    }
+  }
+
+  function applyKpi(data) {
+    if (!data) return;
+    Object.keys(NUM_IDS).forEach(function (id) {
+      setText(id, data[NUM_IDS[id]]);
+    });
+    if (data.as_of) setText('dash-as-of', data.as_of);
+    if (data.energy) renderEnergyCharts(data.energy);
+  }
+
   function refreshKpi() {
-    fetch('/admin/dashboard/kpi')
+    fetch('/admin/dashboard/kpi', { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        if (!data) return;
-        var map = {
-          'kpi-sites':       data.sites,
-          'kpi-buildings':   data.buildings,
-          'kpi-equipment':   data.equipment,
-          'kpi-wo-progress': data.wo_progress,
-          'kpi-wo-done':     data.wo_done,
-          'kpi-wo-urgent':   data.wo_urgent,
-          'kpi-pm-due':      data.pm_due,
-          'kpi-d1-today':    data.d1_today,
-        };
-        Object.keys(map).forEach(function (id) {
-          var el = document.getElementById(id);
-          if (el && map[id] !== undefined) el.textContent = map[id];
-        });
-      })
+      .then(applyKpi)
       .catch(function () {});
   }
+
+  renderEnergyCharts(energyInit);
   setInterval(refreshKpi, INTERVAL);
 })();
 </script>
