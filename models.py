@@ -165,6 +165,7 @@ class BuildingDrawing(Base):
     content_type = Column(String(100), nullable=True)
     # Render 등에서 디스크가 휘발성이라 DB에도 본문 보관
     file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)  # bytes
     created_at = Column(DateTime, default=datetime.utcnow)
 
     building = relationship("Building", back_populates="drawings")
@@ -173,6 +174,14 @@ class BuildingDrawing(Base):
     @property
     def url(self) -> str:
         return f"/admin/buildings/{self.building_id}/drawings/{self.id}/file"
+
+    @property
+    def size_bytes(self) -> int | None:
+        if self.file_size is not None:
+            return int(self.file_size)
+        if self.file_data is not None:
+            return len(self.file_data)
+        return None
 
     @property
     def is_image(self) -> bool:
@@ -201,6 +210,7 @@ class BuildingStandard(Base):
     stored_name = Column(String(300), nullable=False)
     content_type = Column(String(100), nullable=True)
     file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)  # bytes
     created_at = Column(DateTime, default=datetime.utcnow)
 
     building = relationship("Building", back_populates="standards")
@@ -208,6 +218,14 @@ class BuildingStandard(Base):
     @property
     def url(self) -> str:
         return f"/admin/buildings/{self.building_id}/standards/{self.id}/file"
+
+    @property
+    def size_bytes(self) -> int | None:
+        if self.file_size is not None:
+            return int(self.file_size)
+        if self.file_data is not None:
+            return len(self.file_data)
+        return None
 
     @property
     def is_pdf(self) -> bool:
@@ -242,6 +260,7 @@ class InspectionLogFile(Base):
     stored_name = Column(String(300), nullable=False)
     content_type = Column(String(100), nullable=True)
     file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)  # bytes
     uploaded_by = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     # 마지막 편집 위치 {sheet, sheetIndex, cell, x, y}
@@ -252,6 +271,14 @@ class InspectionLogFile(Base):
     @property
     def url(self) -> str:
         return f"/admin/inspection-logs/{self.building_id}/files/{self.id}/file"
+
+    @property
+    def size_bytes(self) -> int | None:
+        if self.file_size is not None:
+            return int(self.file_size)
+        if self.file_data is not None:
+            return len(self.file_data)
+        return None
 
 
 class Floor(Base):

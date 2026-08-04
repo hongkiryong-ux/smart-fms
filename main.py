@@ -122,6 +122,48 @@ def _fmt_kst_date(dt: datetime | date | None) -> str:
     return dt.strftime("%Y-%m-%d")
 
 
+def _fmt_file_size(n: int | None) -> str:
+    """바이트 수를 B / KB / MB로 표시."""
+    if n is None:
+        return "-"
+    try:
+        n = int(n)
+    except (TypeError, ValueError):
+        return "-"
+    if n < 0:
+        return "-"
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        kb = n / 1024
+        return f"{kb:.1f} KB" if kb < 10 else f"{int(round(kb))} KB"
+    mb = n / (1024 * 1024)
+    return f"{mb:.2f} MB" if mb < 10 else f"{mb:.1f} MB"
+
+
+def _sync_attachment_file_size(obj) -> bool:
+    """file_size가 비어 있으면 file_data 길이로 채운다. 변경 시 True."""
+    if getattr(obj, "file_size", None) is not None:
+        return False
+    data = getattr(obj, "file_data", None)
+    if data is None:
+        return False
+    obj.file_size = len(data)
+    return True
+
+
+async def _backfill_attachment_sizes(db: AsyncSession, items) -> None:
+    dirty = False
+    for obj in items or []:
+        if _sync_attachment_file_size(obj):
+            dirty = True
+    if dirty:
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+
+
 async def _load_change_logs_by_eq(
     db: AsyncSession, eq_ids: list[int], per_eq: int = 20
 ) -> dict[int, list]:
@@ -730,6 +772,7 @@ templates.env.globals["upload_max_files"] = UPLOAD_MAX_FILES_PER_REQUEST
 templates.env.globals.update(
     fmt_kst=_fmt_kst,
     fmt_kst_date=_fmt_kst_date,
+    fmt_file_size=_fmt_file_size,
     role_labels=ROLE_LABELS,
     wo_status_label=_status_label,
     wo_process_step=_wo_process_step,
@@ -1684,6 +1727,8 @@ async def building_detail(
         except Exception:
             pass
         standards = []
+    await _backfill_attachment_sizes(db, drawings)
+    await _backfill_attachment_sizes(db, standards)
     active_floors = sorted(
         [f for f in (building.floors or []) if getattr(f, "is_active", True)],
         key=lambda f: (f.level or 0, f.name or "", f.id),
@@ -1763,6 +1808,7 @@ async def _ensure_building_standards_table() -> None:
             """,
             "CREATE INDEX IF NOT EXISTS ix_building_standards_building_id ON building_standards (building_id)",
             "ALTER TABLE building_standards ADD COLUMN IF NOT EXISTS file_data BYTEA",
+            "ALTER TABLE building_standards ADD COLUMN IF NOT EXISTS file_size INTEGER",
         ]
     else:
         stmts = [
@@ -1778,6 +1824,7 @@ async def _ensure_building_standards_table() -> None:
                 created_at DATETIME
             )
             """,
+            "ALTER TABLE building_standards ADD COLUMN file_size INTEGER",
         ]
     for stmt in stmts:
         try:
@@ -1837,6 +1884,7 @@ async def _load_drawing_bytes(
         raw = file_path.read_bytes()
         if raw:
             drawing.file_data = raw
+            drawing.file_size = len(raw)
             await db.commit()
             return raw
     return None
@@ -1945,6 +1993,7 @@ async def building_drawing_upload(
                     stored_name=stored,
                     content_type=f.content_type or None,
                     file_data=bytes(data),
+                    file_size=len(data),
                 )
             )
             saved += 1
@@ -2089,6 +2138,7 @@ async def _load_standard_bytes(
         raw = file_path.read_bytes()
         if raw:
             doc.file_data = raw
+            doc.file_size = len(raw)
             await db.commit()
             return raw
     return None
@@ -2205,6 +2255,7 @@ async def building_standard_upload(
                     stored_name=stored,
                     content_type=getattr(f, "content_type", None) or None,
                     file_data=bytes(data),
+                    file_size=len(data),
                 )
             )
             saved += 1
@@ -5521,11 +5572,23 @@ async def _ensure_inspection_log_tables() -> None:
                         "ADD COLUMN IF NOT EXISTS last_edit_pos JSONB"
                     )
                 )
+                await conn.execute(
+                    text(
+                        "ALTER TABLE inspection_log_files "
+                        "ADD COLUMN IF NOT EXISTS file_size INTEGER"
+                    )
+                )
             else:
                 await conn.execute(
                     text(
                         "ALTER TABLE inspection_log_files "
                         "ADD COLUMN last_edit_pos TEXT"
+                    )
+                )
+                await conn.execute(
+                    text(
+                        "ALTER TABLE inspection_log_files "
+                        "ADD COLUMN file_size INTEGER"
                     )
                 )
         except Exception:
@@ -5557,6 +5620,7 @@ async def _load_inspection_log_bytes(
         raw = file_path.read_bytes()
         if raw:
             doc.file_data = raw
+            doc.file_size = len(raw)
             await db.commit()
             return raw
     return None
@@ -5592,6 +5656,7 @@ async def _persist_inspection_log_bytes(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     doc.file_data = raw
+    doc.file_size = len(raw)
     doc.original_name = new_name
     if uploaded_by:
         doc.uploaded_by = uploaded_by
@@ -5767,6 +5832,7 @@ async def inspection_log_building_detail(
             .order_by(InspectionLogFile.id.desc())
         )
     ).scalars().all()
+    await _backfill_attachment_sizes(db, files)
 
     return templates.TemplateResponse(
         request,
@@ -5845,6 +5911,7 @@ async def inspection_log_upload(
                 stored_name=stored,
                 content_type=getattr(item, "content_type", None) or "",
                 file_data=raw,
+                file_size=len(raw),
                 uploaded_by=user.name or user.username,
             )
         )

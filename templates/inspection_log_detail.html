@@ -43,6 +43,7 @@
         <tr>
           <th>제목</th>
           <th>파일명</th>
+          <th>크기</th>
           <th>업로드</th>
           <th>일시</th>
           <th>다운로드</th>
@@ -58,6 +59,7 @@
           <td>
             <a class="ilog-file-open" href="/admin/inspection-logs/{{ building.id }}/files/{{ f.id }}/edit">{{ f.original_name or f.stored_name }}</a>
           </td>
+          <td class="wo-date">{{ fmt_file_size(f.size_bytes) }}</td>
           <td>{{ f.uploaded_by or '-' }}</td>
           <td class="wo-date">{{ fmt_kst(f.created_at) }}</td>
           <td>

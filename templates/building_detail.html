@@ -120,6 +120,7 @@
         <span class="text-muted">
           {% if d.floor %}{{ d.floor.name }} · {% else %}건물 공통 · {% endif %}
           {{ d.original_name or d.stored_name }}
+          · {{ fmt_file_size(d.size_bytes) }}
         </span>
         <div class="drawing-actions">
           <a class="btn btn-sm btn-secondary" href="{{ d.url }}?download=1">다운로드</a>
@@ -177,7 +178,7 @@
       </div>
       <div class="drawing-meta">
         <strong>{{ s.title }}</strong>
-        <span class="text-muted">{{ s.original_name or s.stored_name }}</span>
+        <span class="text-muted">{{ s.original_name or s.stored_name }} · {{ fmt_file_size(s.size_bytes) }}</span>
         <div class="drawing-actions">
           <a class="btn btn-sm btn-secondary" href="{{ s.url }}">다운로드</a>
           {% if user_can_delete(user) %}
