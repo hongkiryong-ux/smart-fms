@@ -5874,6 +5874,19 @@ def _facility_redirect(*, board: str = "day_before", message: str = "", error: s
     return RedirectResponse(f"/admin/facility-section{qs}", status_code=303)
 
 
+def _wo_apply_work_permit(wo: WorkOrder, approver: str, now: datetime | None = None) -> None:
+    """시설섹션 작업허가 + 진행상태 자동 '진행' 전환."""
+    ts = now or datetime.utcnow()
+    wo.work_permitted = True
+    wo.work_permitted_by = approver
+    wo.work_permitted_at = ts
+    st = wo.status.value if isinstance(wo.status, WorkOrderStatus) else str(wo.status or "")
+    # 의뢰/배정 단계만 진행으로 승격 (이미 진행·완료 등은 유지)
+    if st in ("received", "assigned"):
+        wo.status = WorkOrderStatus.in_progress
+        wo.completed_at = None
+
+
 @app.post("/admin/facility-section/{wo_id}/permit")
 async def facility_permit_work(
     wo_id: int,
@@ -5896,11 +5909,9 @@ async def facility_permit_work(
         )
     if getattr(wo, "work_permitted", False):
         return _facility_redirect(board=board, message="이미 작업허가된 항목입니다.")
-    wo.work_permitted = True
-    wo.work_permitted_by = _wo_approver_label(user)
-    wo.work_permitted_at = datetime.utcnow()
+    _wo_apply_work_permit(wo, _wo_approver_label(user))
     await db.commit()
-    return _facility_redirect(board=board, message="작업허가 처리되었습니다.")
+    return _facility_redirect(board=board, message="작업허가 처리되었습니다. 진행상태가 '진행'으로 변경되었습니다.")
 
 
 @app.post("/admin/facility-section/permit-bulk")
@@ -5939,13 +5950,11 @@ async def facility_permit_work_bulk(
         ):
             skip += 1
             continue
-        wo.work_permitted = True
-        wo.work_permitted_by = label
-        wo.work_permitted_at = now
+        _wo_apply_work_permit(wo, label, now)
         ok += 1
     await db.commit()
     if ok:
-        msg = f"{ok}건 작업허가"
+        msg = f"{ok}건 작업허가(진행상태 '진행')"
         if skip:
             msg += f" · {skip}건 제외"
         return _facility_redirect(board=board, message=msg)
