@@ -5,8 +5,8 @@
   <h1>정비관리(시설섹션)</h1>
   <p>
     오늘 {{ today }} · 협력사 승인요청 항목 ·
-    <strong>하루전(작업일 {{ tomorrow }})</strong> 선택 후 개별/일괄 승인(작업허가) ·
-    <strong>당일</strong> 작업 현황
+    <strong>하루전(작업일 {{ tomorrow }})</strong> 개별/일괄 승인(작업허가) ·
+    <strong>당일</strong>·<strong>정비예정</strong> 작업 현황
   </p>
 </header>
 
@@ -22,7 +22,7 @@
     <h2>
       시설 작업 목록
       <small class="text-muted">
-        (하루전 {{ day_before_works|length }} · 당일 {{ today_works|length }})
+        (하루전 {{ day_before_works|length }} · 당일 {{ today_works|length }} · 정비예정 {{ scheduled_works|length }})
       </small>
     </h2>
   </div>
@@ -36,9 +36,13 @@
        href="/admin/facility-section?board=today">
       당일 작업 <small>({{ today_works|length }})</small>
     </a>
+    <a class="d1-board-btn{% if board == 'scheduled' %} is-on{% endif %}"
+       href="/admin/facility-section?board=scheduled">
+      정비예정작업 <small>({{ scheduled_works|length }})</small>
+    </a>
     <a class="d1-board-btn{% if board == 'all' %} is-on{% endif %}"
        href="/admin/facility-section?board=all">
-      전체 <small>({{ day_before_works|length + today_works|length }})</small>
+      전체 <small>({{ day_before_works|length + today_works|length + scheduled_works|length }})</small>
     </a>
   </div>
 
@@ -57,18 +61,22 @@
   {% endif %}
 
   {% if board == 'all' %}
-  {% set list_orders = day_before_works + today_works %}
+  {% set list_orders = day_before_works + today_works + scheduled_works %}
   {% elif board == 'day_before' %}
   {% set list_orders = day_before_works %}
+  {% elif board == 'scheduled' %}
+  {% set list_orders = scheduled_works %}
   {% else %}
   {% set list_orders = today_works %}
   {% endif %}
+
+  {% set show_sel = user_can_edit(user) and board in ['day_before', 'all'] %}
 
   <div class="table-scroll">
   <table class="data-table wo-list-table wo-list-compact" id="fac-list-table">
     <thead>
       <tr>
-        {% if user_can_edit(user) and board != 'today' %}
+        {% if show_sel %}
         <th class="wo-sel-col">
           <input type="checkbox" id="fac-select-all" title="하루전 미승인 전체 선택" aria-label="하루전 미승인 전체 선택" />
         </th>
@@ -91,10 +99,11 @@
       {% set st = wo.status.value %}
       {% set is_day_before = wo.scheduled_date == tomorrow %}
       {% set is_today = wo.scheduled_date == today %}
+      {% set is_scheduled = not is_day_before and not is_today %}
       <tr class="{% if wo.work_permitted %}wo-d1-approved{% endif %}{% if is_day_before %} fac-row-day-before{% endif %}"
           data-wo-id="{{ wo.id }}"
           data-day-before="{{ 1 if is_day_before else 0 }}">
-        {% if user_can_edit(user) and board != 'today' %}
+        {% if show_sel %}
         <td class="wo-sel-col">
           {% if is_day_before and not wo.work_permitted %}
           <input type="checkbox"
@@ -113,7 +122,7 @@
         <td>
           {% if is_day_before %}<span class="badge badge-wo">하루전</span>
           {% elif is_today %}<span class="badge badge-urgent">당일</span>
-          {% else %}-{% endif %}
+          {% else %}<span class="badge">정비예정</span>{% endif %}
         </td>
         <td class="wo-eq-cell">
           {% if wo.equipment %}
@@ -181,8 +190,8 @@
             <input type="hidden" name="board" value="{{ board }}" />
             <button type="submit" class="btn btn-sm btn-primary">승인</button>
           </form>
-          {% elif is_today %}
-          <span class="text-muted">{% if wo.work_permitted %}{% set perm_name = wo.work_permitted_by.split(' (')[0] if wo.work_permitted_by else '' %}승인됨{% if perm_name %}/{{ perm_name }}{% endif %}{% else %}미승인{% endif %}</span>
+          {% elif is_today or is_scheduled %}
+          <span class="text-muted">{% if wo.work_permitted %}{% set perm_name = wo.work_permitted_by.split(' (')[0] if wo.work_permitted_by else '' %}승인됨{% if perm_name %}/{{ perm_name }}{% endif %}{% else %}{% if is_today %}미승인{% else %}-{% endif %}{% endif %}</span>
           {% else %}
           <span class="text-muted">-</span>
           {% endif %}
@@ -191,7 +200,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="{% if user_can_edit(user) and board != 'today' %}12{% else %}11{% endif %}" class="empty">
+        <td colspan="{% if show_sel %}12{% else %}11{% endif %}" class="empty">
           표시할 항목이 없습니다.
         </td>
       </tr>

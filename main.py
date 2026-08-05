@@ -5822,11 +5822,11 @@ async def facility_section_list(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    """정비관리(시설섹션): 승인요청된 하루전·당일 작업."""
+    """정비관리(시설섹션): 승인요청된 하루전·당일·정비예정 작업."""
     today = _today_kst()
     tomorrow = today + timedelta(days=1)
     board_key = (board or "day_before").strip().lower()
-    if board_key not in ("day_before", "today", "all"):
+    if board_key not in ("day_before", "today", "scheduled", "all"):
         board_key = "day_before"
 
     open_statuses = [
@@ -5855,6 +5855,9 @@ async def facility_section_list(
 
     day_before = [w for w in rows if w.scheduled_date == tomorrow]
     today_works = [w for w in rows if w.scheduled_date == today]
+    scheduled_works = [
+        w for w in rows if w.scheduled_date not in (today, tomorrow)
+    ]
 
     return templates.TemplateResponse(
         request,
@@ -5866,6 +5869,7 @@ async def facility_section_list(
             "board": board_key,
             "day_before_works": day_before,
             "today_works": today_works,
+            "scheduled_works": scheduled_works,
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
             "partners": (
