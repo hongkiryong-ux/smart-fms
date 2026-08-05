@@ -71,7 +71,7 @@
       <dt>협력사</dt><dd>{{ wo.partner.name if wo.partner else '-' }}</dd>
       <dt>등록</dt><dd>{{ fmt_kst_date(wo.created_at) }}</dd>
       <dt>완료</dt><dd>{{ fmt_kst_date(wo.completed_at) if wo.completed_at else '-' }}</dd>
-      <dt>D-1 승인자</dt>
+      <dt>작업 승인자</dt>
       <dd>
         {% if wo.d1_approved %}
         {{ wo.approved_by or '-' }}

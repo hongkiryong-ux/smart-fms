@@ -20,7 +20,7 @@
         <th>조치내용</th>
         <th>승인자</th>
         <th>저장</th>
-        <th>승인요청</th>
+        <th>작업허가 승인요청</th>
         <th>상세</th>
         {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
       </tr>
@@ -40,9 +40,9 @@
                  form="d1-bulk-req-form"
                  data-sched="d1-sched-{{ wo.id }}"
                  data-partner="d1-partner-{{ wo.id }}"
-                 title="일괄 승인요청" />
+                 title="일괄 작업허가 승인요청" />
           {% elif wo.approval_requested %}
-          <span class="wo-sel-done" title="승인요청됨">✓</span>
+          <span class="wo-sel-done" title="작업허가 승인요청됨">✓</span>
           {% else %}-{% endif %}
         </td>
         <td class="wo-eq-cell">
@@ -150,7 +150,7 @@
             {% endif %}
             <input type="hidden" name="scheduled_date" value="{{ wo.scheduled_date or '' }}" />
             <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
-            <button type="submit" class="btn btn-sm btn-primary">승인요청</button>
+            <button type="submit" class="btn btn-sm btn-primary">작업허가 승인요청</button>
           </form>
           {% else %}-{% endif %}
         </td>
@@ -186,7 +186,7 @@
 {% block content %}
 <header class="page-header">
   <h1>D-1 작업(협력사){% if selected_partner_name %} · {{ selected_partner_name }}{% endif %}</h1>
-  <p>오늘 {{ today }} · 예정일 지정 후 승인요청 → <a href="/admin/facility-section">정비관리(시설섹션)</a>에서 작업허가
+  <p>오늘 {{ today }} · 예정일 지정 후 작업허가 승인요청 → <a href="/admin/facility-section">정비관리(시설섹션)</a>에서 작업허가
     {% if selected_partner_name %}· <strong>{{ selected_partner_name }}</strong> 작업만 표시{% endif %}
   </p>
 </header>
@@ -253,8 +253,8 @@
 {% if user_can_edit(user) %}
 <div class="wo-bulk-bar" id="d1-bulk-bar" hidden>
   <span class="wo-bulk-count">선택 <strong id="d1-bulk-count">0</strong>건</span>
-  <span class="wo-bulk-hint">항목별 예정일·업체를 확인한 뒤 일괄 승인요청하세요</span>
-  <button type="submit" form="d1-bulk-req-form" class="btn btn-sm btn-primary">선택 항목 일괄 승인요청</button>
+  <span class="wo-bulk-hint">항목별 예정일·업체를 확인한 뒤 일괄 작업허가 승인요청하세요</span>
+  <button type="submit" form="d1-bulk-req-form" class="btn btn-sm btn-primary">선택 항목 일괄 작업허가 승인요청</button>
   <button type="button" class="btn btn-sm btn-secondary" id="d1-bulk-clear">선택 해제</button>
 </div>
 <form id="d1-bulk-req-form" method="post" action="/admin/d1/request-approval-bulk">
@@ -349,7 +349,7 @@
       if (p && hp) hp.value = p.value || '0';
       if (!hs || !hs.value) {
         e.preventDefault();
-        alert('예정일을 지정한 뒤 승인요청하세요.');
+        alert('예정일을 지정한 뒤 작업허가 승인요청하세요.');
       }
     });
   });
@@ -398,7 +398,7 @@
       var selected = rowChecks().filter(function (c) { return c.checked; });
       if (!selected.length) {
         e.preventDefault();
-        alert('승인요청할 항목을 선택하세요.');
+        alert('작업허가 승인요청할 항목을 선택하세요.');
         return;
       }
       Array.prototype.slice.call(bulkForm.querySelectorAll('[data-bulk="1"]')).forEach(function (el) {
@@ -422,7 +422,7 @@
       });
       if (noDate === selected.length) {
         e.preventDefault();
-        alert('선택한 항목에 예정일이 없습니다. 예정일을 지정한 뒤 승인요청하세요.');
+        alert('선택한 항목에 예정일이 없습니다. 예정일을 지정한 뒤 작업허가 승인요청하세요.');
         return;
       }
       if (noDate > 0) {

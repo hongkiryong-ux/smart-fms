@@ -635,7 +635,7 @@ def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목�
             "협력사",
             "진행",
             "조치내용",
-            "승인자",
+            "작업 승인자",
             "D-1승인",
             "담당자",
         ]
@@ -4623,7 +4623,7 @@ async def work_order_request_approval(
             d1_partner_id=d1_partner_id,
             filter_status=filter_status,
             page=page,
-            error="예정일을 지정한 뒤 승인요청하세요.",
+            error="예정일을 지정한 뒤 작업허가 승인요청하세요.",
         )
     if getattr(wo, "approval_requested", False):
         return _d1_redirect(
@@ -4631,7 +4631,7 @@ async def work_order_request_approval(
             d1_partner_id=d1_partner_id,
             filter_status=filter_status,
             page=page,
-            message="이미 승인요청된 항목입니다.",
+            message="이미 작업허가 승인요청된 항목입니다.",
         )
     wo.approval_requested = True
     wo.approval_requested_by = _wo_approver_label(user)
@@ -4642,7 +4642,7 @@ async def work_order_request_approval(
         d1_partner_id=d1_partner_id,
         filter_status=filter_status,
         page=page,
-        message="승인요청되었습니다. 시설섹션에서 확인됩니다.",
+        message="작업허가 승인요청되었습니다. 시설섹션에서 확인됩니다.",
     )
 
 
@@ -4678,7 +4678,7 @@ async def d1_request_approval_bulk(
             d1_partner_id=d1_partner_id,
             filter_status=filter_status,
             page=page,
-            error="승인요청할 항목을 선택하세요.",
+            error="작업허가 승인요청할 항목을 선택하세요.",
         )
 
     label = _wo_approver_label(user)
@@ -4718,7 +4718,7 @@ async def d1_request_approval_bulk(
     await db.commit()
     parts = []
     if ok:
-        parts.append(f"{ok}건 승인요청")
+        parts.append(f"{ok}건 작업허가 승인요청")
     if no_date:
         parts.append(f"{no_date}건 예정일 미지정 제외")
     if no_partner:
@@ -4738,7 +4738,7 @@ async def d1_request_approval_bulk(
         d1_partner_id=d1_partner_id,
         filter_status=filter_status,
         page=page,
-        error=" · ".join(parts) if parts else "승인요청된 항목이 없습니다.",
+        error=" · ".join(parts) if parts else "작업허가 승인요청된 항목이 없습니다.",
     )
 
 
