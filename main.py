@@ -550,6 +550,44 @@ def _wo_approver_label(user: User) -> str:
     return (name or uname or f"user-{user.id}")[:100]
 
 
+def _wo_apply_d1_approve(wo: WorkOrder, approver: str, now: datetime | None = None) -> None:
+    """정비섹션 D-1 승인 + 협력사 화면 작업허가 승인요청 자동 반영."""
+    ts = now or datetime.utcnow()
+    wo.d1_approved = True
+    wo.approved_by = approver
+    wo.approved_at = ts
+    # D-1(협력사) 「작업허가 승인요청」을 요청완료로 자동 반영
+    if not getattr(wo, "approval_requested", False):
+        wo.approval_requested = True
+        wo.approval_requested_by = approver
+        wo.approval_requested_at = ts
+
+
+def _wo_apply_d1_unapprove(wo: WorkOrder) -> None:
+    """D-1 승인 취소 시 하위 승인요청·작업허가도 함께 해제."""
+    wo.d1_approved = False
+    wo.approved_by = None
+    wo.approved_at = None
+    wo.approval_requested = False
+    wo.approval_requested_by = None
+    wo.approval_requested_at = None
+    wo.work_permitted = False
+    wo.work_permitted_by = None
+    wo.work_permitted_at = None
+
+
+def _wo_sync_approval_request_from_d1(wo: WorkOrder) -> bool:
+    """이미 D-1 승인된 건의 작업허가 승인요청 누락분을 보정. 변경 시 True."""
+    if not getattr(wo, "d1_approved", False):
+        return False
+    if getattr(wo, "approval_requested", False):
+        return False
+    wo.approval_requested = True
+    wo.approval_requested_by = getattr(wo, "approved_by", None) or "정비섹션"
+    wo.approval_requested_at = getattr(wo, "approved_at", None) or datetime.utcnow()
+    return True
+
+
 def _wo_list_redirect_params(
     *,
     q: str = "",
@@ -4157,12 +4195,10 @@ async def work_order_status(
     else:
         wo.partner_id = None
 
-    # 업체 미지정 시 D-1 승인 해제
+    # 업체 미지정 시 D-1 승인·하위 단계 해제
     if not wo.partner_id and getattr(wo, "d1_approved", False):
-        wo.d1_approved = False
-        wo.approved_by = None
-        wo.approved_at = None
-    if not wo.partner_id:
+        _wo_apply_d1_unapprove(wo)
+    elif not wo.partner_id:
         if getattr(wo, "approval_requested", False):
             wo.approval_requested = False
             wo.approval_requested_by = None
@@ -4180,15 +4216,16 @@ async def work_order_status(
             pass
     else:
         wo.scheduled_date = None
-        # 예정일 제거 시 승인요청/작업허가 초기화
-        if getattr(wo, "approval_requested", False):
-            wo.approval_requested = False
-            wo.approval_requested_by = None
-            wo.approval_requested_at = None
+        # 예정일 제거 시 작업허가만 초기화.
+        # 정비섹션 D-1 승인으로 자동 반영된 승인요청은 유지한다.
         if getattr(wo, "work_permitted", False):
             wo.work_permitted = False
             wo.work_permitted_by = None
             wo.work_permitted_at = None
+        if getattr(wo, "approval_requested", False) and not getattr(wo, "d1_approved", False):
+            wo.approval_requested = False
+            wo.approval_requested_by = None
+            wo.approval_requested_at = None
 
     if status == "completed":
         wo.completed_at = datetime.utcnow()
@@ -4295,11 +4332,9 @@ async def work_order_approve_d1(
     if not wo.partner_id:
         return _back(error="업체를 선택한 뒤 승인하세요.")
 
-    wo.d1_approved = True
-    wo.approved_by = _wo_approver_label(user)
-    wo.approved_at = datetime.utcnow()
+    _wo_apply_d1_approve(wo, _wo_approver_label(user))
     await db.commit()
-    return _back(message="D-1 작업으로 승인되었습니다.")
+    return _back(message="D-1 작업으로 승인되었습니다. 작업허가 승인요청이 자동 반영되었습니다.")
 
 
 @app.post("/admin/work-orders/approve-d1-bulk")
@@ -4376,16 +4411,14 @@ async def work_order_approve_d1_bulk(
             no_partner += 1
             continue
 
-        wo.d1_approved = True
-        wo.approved_by = approver
-        wo.approved_at = now
+        _wo_apply_d1_approve(wo, approver, now)
         approved += 1
 
     await db.commit()
 
     parts: list[str] = []
     if approved:
-        parts.append(f"{approved}건 승인")
+        parts.append(f"{approved}건 승인(작업허가 승인요청 자동 반영)")
     if no_partner:
         parts.append(f"{no_partner}건 업체 미지정으로 제외")
     if already:
@@ -4440,14 +4473,13 @@ async def work_order_unapprove_d1(
     wo = await db.get(WorkOrder, wo_id)
     if not wo or not wo.is_active:
         raise HTTPException(404)
-    wo.d1_approved = False
-    wo.approved_by = None
-    wo.approved_at = None
+    _wo_apply_d1_unapprove(wo)
     await db.commit()
 
     if redirect == "detail":
         return RedirectResponse(
-            f"/admin/work-orders/{wo_id}?message=" + quote("D-1 승인이 취소되었습니다."),
+            f"/admin/work-orders/{wo_id}?message="
+            + quote("D-1 승인이 취소되었습니다. 작업허가 승인요청·허가도 해제되었습니다."),
             status_code=303,
         )
     qs = _wo_list_redirect_params(
@@ -4458,7 +4490,7 @@ async def work_order_unapprove_d1(
         date_to=date_to,
         page=page,
         filter_partner_id=filter_partner_id,
-        message="D-1 승인이 취소되었습니다.",
+        message="D-1 승인이 취소되었습니다. 작업허가 승인요청·허가도 해제되었습니다.",
     )
     return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
 
@@ -5396,6 +5428,14 @@ async def d1_list(
             .limit(300)
         )
     ).scalars().unique().all()
+
+    # 기존 D-1 승인 건에 작업허가 승인요청 자동 반영(누락 보정)
+    sync_changed = False
+    for _wo in list(open_works) + list(completed_raw):
+        if _wo_sync_approval_request_from_d1(_wo):
+            sync_changed = True
+    if sync_changed:
+        await db.commit()
 
     def _apply_status(items: list) -> list:
         return [w for w in items if _wo_matches_status_filter(w, status_vals)]

@@ -42,7 +42,7 @@
                  data-partner="d1-partner-{{ wo.id }}"
                  title="일괄 작업허가 승인요청" />
           {% elif wo.approval_requested %}
-          <span class="wo-sel-done" title="작업허가 승인요청됨">✓</span>
+          <span class="wo-sel-done" title="정비섹션 승인으로 작업허가 승인요청 반영됨">✓</span>
           {% else %}-{% endif %}
         </td>
         <td class="wo-eq-cell">
@@ -69,8 +69,8 @@
                  id="d1-sched-{{ wo.id }}"
                  class="wo-sched-input"
                  value="{{ wo.scheduled_date or '' }}"
-                 title="정비 예정일"
-                 {% if wo.approval_requested %}readonly{% endif %} />
+                 title="정비 예정일 (작업허가 전이면 변경 가능)"
+                 {% if wo.work_permitted %}readonly{% endif %} />
         </td>
         <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
         <td>
@@ -133,7 +133,7 @@
         </td>
         <td class="wo-d1-cell">
           {% if wo.approval_requested %}
-          <span class="text-muted" title="{{ wo.approval_requested_by or '' }}">요청완료</span>
+          <span class="badge badge-wo" title="{{ wo.approval_requested_by or '' }}{% if wo.approval_requested_at %} · {{ fmt_kst(wo.approval_requested_at) }}{% endif %}">요청완료</span>
           {% elif user_can_edit(user) %}
           <form method="post"
                 action="/admin/work-orders/{{ wo.id }}/request-approval"
@@ -186,7 +186,8 @@
 {% block content %}
 <header class="page-header">
   <h1>D-1 작업(협력사){% if selected_partner_name %} · {{ selected_partner_name }}{% endif %}</h1>
-  <p>오늘 {{ today }} · 예정일 지정 후 작업허가 승인요청 → <a href="/admin/facility-section">정비관리(시설섹션)</a>에서 작업허가
+  <p>오늘 {{ today }} · 정비섹션 D-1 승인 시 작업허가 승인요청이 자동 반영됩니다. 예정일 지정 후
+    <a href="/admin/facility-section">정비관리(시설섹션)</a>에서 작업허가
     {% if selected_partner_name %}· <strong>{{ selected_partner_name }}</strong> 작업만 표시{% endif %}
   </p>
 </header>
