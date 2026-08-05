@@ -104,7 +104,6 @@
         <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
         <th>정비의뢰자</th>
-        <th>담당자</th>
         <th>등록일</th>
         <th>예정일</th>
         <th>우선순위</th>
@@ -152,15 +151,6 @@
         </td>
         <td class="wo-approver-cell" title="{{ wo.requester_name or wo.assignee_name or '' }}">
           <span class="wo-approver">{{ wo.requester_name or wo.assignee_name or '-' }}</span>
-        </td>
-        <td>
-          <input type="text"
-                 name="assignee_name"
-                 form="wo-form-{{ wo.id }}"
-                 class="wo-action-input"
-                 value="{{ wo.assignee_name or '' }}"
-                 placeholder="담당자"
-                 title="담당자" />
         </td>
         <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
         <td>
