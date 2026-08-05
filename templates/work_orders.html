@@ -268,7 +268,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}16{% else %}15{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}15{% else %}14{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>
