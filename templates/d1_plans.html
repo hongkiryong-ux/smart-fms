@@ -57,9 +57,6 @@
         </td>
         <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
           <span class="wo-req-text">
-            {% if wo.id in today_ids %}<span class="badge badge-wo">정비접수</span> {% endif %}
-            {% if wo.work_permitted %}<span class="badge badge-urgent">승인완료{% if wo.work_permitted_by %}/{{ wo.work_permitted_by.split(' (')[0] }}{% endif %}</span>
-            {% elif wo.approval_requested %}<span class="badge badge-wo">요청완료</span>{% endif %}
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
           </span>
         </td>
