@@ -57,7 +57,7 @@
         </td>
         <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
           <span class="wo-req-text">
-            {% if wo.id in today_ids %}<span class="badge badge-wo">오늘접수</span> {% endif %}
+            {% if wo.id in today_ids %}<span class="badge badge-wo">정비접수</span> {% endif %}
             {% if wo.work_permitted %}<span class="badge badge-urgent">승인완료{% if wo.work_permitted_by %}/{{ wo.work_permitted_by.split(' (')[0] }}{% endif %}</span>
             {% elif wo.approval_requested %}<span class="badge badge-wo">요청완료</span>{% endif %}
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
@@ -214,7 +214,7 @@
        href="{{ board_select_urls.all }}">전체항목 <small>({{ filtered_count }})</small></a>
     {% if filters.partner_id and board_select_urls.receipt %}
     <a class="d1-board-btn{% if filters.board_mode == 'receipt' and not filters.view_partner %} is-on{% endif %}"
-       href="{{ board_select_urls.receipt }}">오늘접수 <small>({{ board_counts.receipt }})</small></a>
+       href="{{ board_select_urls.receipt }}">정비접수 <small>({{ board_counts.receipt }})</small></a>
     {% endif %}
     <a class="d1-board-btn{% if filters.board_mode == 'today' and not filters.view_partner %} is-on{% endif %}"
        href="{{ board_select_urls.today }}">오늘작업 <small>({{ board_counts.today }})</small></a>
@@ -281,7 +281,7 @@
   <div class="d1-partner-groups">
     {% for g in partner_groups %}
     <details class="d1-partner-group" open>
-      <summary>{{ g.name }} <small class="text-muted">({{ g.orders|length }}건{% if g.today_count %} · 오늘접수 {{ g.today_count }}건{% endif %})</small></summary>
+      <summary>{{ g.name }} <small class="text-muted">({{ g.orders|length }}건{% if g.today_count %} · 정비접수 {{ g.today_count }}건{% endif %})</small></summary>
       {{ wo_board_table(g.orders, partners, "항목 없음", filters, today_receipt_ids) }}
     </details>
     {% endfor %}

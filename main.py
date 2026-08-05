@@ -364,7 +364,7 @@ def _d1_resolve_boards(
     *,
     partner_id: int = 0,
 ) -> tuple[list[str], str]:
-    """단일 선택: board 미지정 시 일반=오늘작업, 협력사 선택=오늘접수. board=all 이면 전체항목."""
+    """단일 선택: board 미지정 시 일반=오늘작업, 협력사 선택=정비접수. board=all 이면 전체항목."""
     allow_receipt = bool(partner_id)
     if "board" not in request.query_params:
         if allow_receipt:
@@ -396,7 +396,7 @@ def _d1_board_select_urls(
     status_vals: list[str],
     partner_id: int = 0,
 ) -> dict[str, str]:
-    """작업 구분 단일 선택 URL (전체/오늘접수/오늘/내일/예정/완료)."""
+    """작업 구분 단일 선택 URL (전체/정비접수/오늘/내일/예정/완료)."""
     from urllib.parse import urlencode
 
     keys = ("all",) + (D1_ALL_BOARD_KEYS if partner_id else D1_BOARD_KEYS)
@@ -516,14 +516,34 @@ def _wo_created_date_kst(wo: WorkOrder) -> date | None:
     return None
 
 
+def _wo_approved_date_kst(wo: WorkOrder) -> date | None:
+    """D-1 승인일(KST). 없으면 None."""
+    dt = getattr(wo, "approved_at", None)
+    if dt is None:
+        return None
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(KST).date()
+    if isinstance(dt, date):
+        return dt
+    return None
+
+
 def _wo_is_today_partner_receipt(wo: WorkOrder, today: date | None = None) -> bool:
-    """당일 접수 + 협력사 지정된 정비의뢰."""
+    """정비접수: 정비섹션 D-1 승인으로 협력사에 배정된 당일 접수건."""
     if not getattr(wo, "partner_id", None):
         return False
+    if not getattr(wo, "d1_approved", False):
+        return False
     key = wo.status.value if isinstance(wo.status, WorkOrderStatus) else str(wo.status)
-    if key not in ("received", "assigned"):
+    if key in ("completed", "verified", "closed"):
         return False
     day = today or _today_kst()
+    appr_day = _wo_approved_date_kst(wo)
+    if appr_day is not None:
+        return appr_day == day
+    # 승인시각 없는 과거 데이터 호환: 등록일 기준
     return _wo_created_date_kst(wo) == day
 
 
@@ -5480,7 +5500,7 @@ async def d1_list(
         "completed": completed_works,
     }
     board_titles = {
-        "receipt": "접수된 항목 오늘접수내용",
+        "receipt": "정비접수",
         "today": f"오늘 작업 ({today})",
         "tomorrow": f"내일 작업 ({tomorrow})",
         "scheduled": "정비 예정항목",
