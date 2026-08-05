@@ -21,7 +21,8 @@
     <h2>
       시설 작업 목록
       <small class="text-muted">
-        (하루전 {{ day_before_works|length }} · 당일 {{ today_works|length }} · 정비예정 {{ scheduled_works|length }})
+        (하루전 {{ day_before_works|length }} · 당일 {{ today_works|length }} · 정비예정 {{ scheduled_works|length }}
+        {% if pager %} · 이 목록 {{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %}{% endif %})
       </small>
     </h2>
   </div>
@@ -56,20 +57,13 @@
   </div>
   <form id="fac-bulk-form" method="post" action="/admin/facility-section/permit-bulk">
     <input type="hidden" name="board" value="{{ board }}" />
+    <input type="hidden" name="page" value="{{ pager.page if pager else 1 }}" />
   </form>
   {% endif %}
 
-  {% if board == 'all' %}
-  {% set list_orders = day_before_works + today_works + scheduled_works %}
-  {% elif board == 'day_before' %}
-  {% set list_orders = day_before_works %}
-  {% elif board == 'scheduled' %}
-  {% set list_orders = scheduled_works %}
-  {% else %}
-  {% set list_orders = today_works %}
-  {% endif %}
-
+  {% set list_orders = orders %}
   {% set show_sel = user_can_edit(user) %}
+  {% set page_n = pager.page if pager else 1 %}
 
   <div class="table-scroll">
   <table class="data-table wo-list-table wo-list-compact" id="fac-list-table">
@@ -143,6 +137,7 @@
           <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form" id="fac-form-{{ wo.id }}">
             <input type="hidden" name="redirect" value="facility" />
             <input type="hidden" name="d1_board" value="{{ board }}" />
+            <input type="hidden" name="page" value="{{ page_n }}" />
             <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
             <input type="hidden" name="scheduled_date" value="{{ wo.scheduled_date or '' }}" />
             <div class="wo-step-btns" role="radiogroup" aria-label="진행상태">
@@ -179,11 +174,13 @@
           <form method="post" action="/admin/facility-section/{{ wo.id }}/unpermit" class="inline-form"
                 onsubmit="return confirm('승인을 취소할까요?');">
             <input type="hidden" name="board" value="{{ board }}" />
+            <input type="hidden" name="page" value="{{ page_n }}" />
             <button type="submit" class="btn btn-sm btn-secondary" title="{{ wo.work_permitted_by or '승인됨' }}{% if wo.work_permitted_at %} · {{ fmt_kst(wo.work_permitted_at) }}{% endif %}">승인됨{% if perm_name %}/{{ perm_name }}{% endif %}</button>
           </form>
           {% elif user_can_edit(user) %}
           <form method="post" action="/admin/facility-section/{{ wo.id }}/permit" class="inline-form">
             <input type="hidden" name="board" value="{{ board }}" />
+            <input type="hidden" name="page" value="{{ page_n }}" />
             <button type="submit" class="btn btn-sm btn-primary">승인</button>
           </form>
           {% else %}
@@ -202,6 +199,8 @@
     </tbody>
   </table>
   </div>
+  {% set base_url = '/admin/facility-section' ~ ('?board=' ~ board if board != 'day_before' else '') %}
+  {% include "partials/pager.html" %}
 </section>
 
 <script>

@@ -4286,7 +4286,7 @@ async def work_order_status(
         return RedirectResponse(f"/admin/d1{qs}", status_code=303)
     if redirect == "facility":
         fac_board = (d1_board or "day_before").strip() or "day_before"
-        return _facility_redirect(board=fac_board)
+        return _facility_redirect(board=fac_board, page=page)
     if redirect == "list":
         qs = _wo_list_redirect_params(
             q=q,
@@ -5819,6 +5819,7 @@ def _facility_sql_gate():
 async def facility_section_list(
     request: Request,
     board: str = Query("day_before"),
+    page: int = Query(1),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -5859,6 +5860,18 @@ async def facility_section_list(
         w for w in rows if w.scheduled_date not in (today, tomorrow)
     ]
 
+    if board_key == "all":
+        list_all = day_before + today_works + scheduled_works
+    elif board_key == "day_before":
+        list_all = day_before
+    elif board_key == "scheduled":
+        list_all = scheduled_works
+    else:
+        list_all = today_works
+
+    pager = _paginate(list_all, page)
+    orders = pager["items"]
+
     return templates.TemplateResponse(
         request,
         "facility_section.html",
@@ -5870,6 +5883,8 @@ async def facility_section_list(
             "day_before_works": day_before,
             "today_works": today_works,
             "scheduled_works": scheduled_works,
+            "orders": orders,
+            "pager": pager,
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
             "partners": (
@@ -5883,13 +5898,21 @@ async def facility_section_list(
     )
 
 
-def _facility_redirect(*, board: str = "day_before", message: str = "", error: str = ""):
+def _facility_redirect(
+    *, board: str = "day_before", page: int | str = 1, message: str = "", error: str = ""
+):
     from urllib.parse import urlencode
 
     params: list[tuple[str, str]] = []
     b = (board or "day_before").strip() or "day_before"
     if b != "day_before":
         params.append(("board", b))
+    try:
+        page_n = int(page or 1)
+    except (TypeError, ValueError):
+        page_n = 1
+    if page_n > 1:
+        params.append(("page", str(page_n)))
     if message.strip():
         params.append(("message", message.strip()))
     if error.strip():
@@ -5915,6 +5938,7 @@ def _wo_apply_work_permit(wo: WorkOrder, approver: str, now: datetime | None = N
 async def facility_permit_work(
     wo_id: int,
     board: str = Form("day_before"),
+    page: str = Form("1"),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -5923,18 +5947,23 @@ async def facility_permit_work(
     if not wo or not wo.is_active:
         raise HTTPException(404)
     if not getattr(wo, "approval_requested", False):
-        return _facility_redirect(board=board, error="승인요청된 항목이 아닙니다.")
+        return _facility_redirect(board=board, page=page, error="승인요청된 항목이 아닙니다.")
     if getattr(wo, "work_permitted", False):
-        return _facility_redirect(board=board, message="이미 작업허가된 항목입니다.")
+        return _facility_redirect(board=board, page=page, message="이미 작업허가된 항목입니다.")
     _wo_apply_work_permit(wo, _wo_approver_label(user))
     await db.commit()
-    return _facility_redirect(board=board, message="작업허가 처리되었습니다. 진행상태가 '진행'으로 변경되었습니다.")
+    return _facility_redirect(
+        board=board,
+        page=page,
+        message="작업허가 처리되었습니다. 진행상태가 '진행'으로 변경되었습니다.",
+    )
 
 
 @app.post("/admin/facility-section/permit-bulk")
 async def facility_permit_work_bulk(
     request: Request,
     board: str = Form("day_before"),
+    page: str = Form("1"),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -5948,7 +5977,7 @@ async def facility_permit_work_bulk(
         except (TypeError, ValueError):
             continue
     if not ids:
-        return _facility_redirect(board=board, error="작업허가할 항목을 선택하세요.")
+        return _facility_redirect(board=board, page=page, error="작업허가할 항목을 선택하세요.")
 
     label = _wo_approver_label(user)
     now = datetime.utcnow()
@@ -5971,9 +6000,10 @@ async def facility_permit_work_bulk(
         msg = f"{ok}건 작업허가(진행상태 '진행')"
         if skip:
             msg += f" · {skip}건 제외"
-        return _facility_redirect(board=board, message=msg)
+        return _facility_redirect(board=board, page=page, message=msg)
     return _facility_redirect(
         board=board,
+        page=page,
         error="작업허가할 수 있는 항목이 없습니다.",
     )
 
@@ -5982,6 +6012,7 @@ async def facility_permit_work_bulk(
 async def facility_unpermit_work(
     wo_id: int,
     board: str = Form("day_before"),
+    page: str = Form("1"),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -5993,7 +6024,7 @@ async def facility_unpermit_work(
     wo.work_permitted_by = None
     wo.work_permitted_at = None
     await db.commit()
-    return _facility_redirect(board=board, message="승인이 취소되었습니다.")
+    return _facility_redirect(board=board, page=page, message="승인이 취소되었습니다.")
 
 
 @app.post("/admin/d1")
