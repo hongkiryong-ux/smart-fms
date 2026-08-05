@@ -14,6 +14,13 @@
   {% set eq_path = '/equipment' in request.url.path %}
   {% set ilog_path = '/inspection-logs' in request.url.path %}
   {% set d1_path = request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path or request.url.path.startswith('/admin/d1') %}
+  {% set wo_path = '/work-orders' in request.url.path %}
+  {% set fac_path = '/facility-section' in request.url.path %}
+  {% set maint_path = wo_path or d1_path or fac_path %}
+  {% set can_wo = user_can_access_menu(user, 'work_orders') %}
+  {% set can_d1 = user_can_access_menu(user, 'd1') %}
+  {% set can_fac = user_can_access_menu(user, 'facility_section') %}
+  {% set maint_home = '/admin/work-orders' if can_wo else ('/admin/d1' if can_d1 else '/admin/facility-section') %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
   {% set ilog_path_parts = request.url.path.split('/') %}
@@ -96,37 +103,60 @@
         </ul>
       </li>
       {% endif %}
-      {% if user_can_access_menu(user, 'work_orders') %}
-      <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리(정비섹션)</a></li>
-      {% endif %}
-      {% if user_can_access_menu(user, 'd1') %}
-      <li class="nav-expandable{% if d1_path %} is-open{% endif %}" id="nav-d1">
+      {% if can_wo or can_d1 or can_fac %}
+      <li class="nav-expandable{% if maint_path %} is-open{% endif %}" id="nav-maintenance">
         <div class="nav-parent-row">
-          <a href="/admin/d1"
-             class="nav-parent-link{% if d1_path and not nav_pid %} active{% endif %}">D-1 작업(협력사)</a>
+          <a href="{{ maint_home }}"
+             class="nav-parent-link{% if maint_path %} active{% endif %}">정비관리</a>
           <button type="button"
                   class="nav-toggle"
-                  aria-expanded="{% if d1_path %}true{% else %}false{% endif %}"
-                  aria-controls="nav-d1-sub"
-                  title="업체 목록 펼치기">
+                  aria-expanded="{% if maint_path %}true{% else %}false{% endif %}"
+                  aria-controls="nav-maintenance-sub"
+                  title="정비관리 하위 메뉴 펼치기">
             <span class="nav-toggle-icon" aria-hidden="true">▾</span>
           </button>
         </div>
-        <ul class="nav-sub" id="nav-d1-sub">
-          {% for p in request.state.nav_partners or [] %}
+        <ul class="nav-sub" id="nav-maintenance-sub">
+          {% if can_wo %}
           <li>
-            <a href="/admin/d1?partner_id={{ p.id }}&board=receipt"
-               class="{% if d1_path and nav_pid == p.id|string %}active{% endif %}"
-               title="{{ p.name }}">{{ p.name }}</a>
+            <a href="/admin/work-orders"
+               class="{% if wo_path %}active{% endif %}">정비관리(정비섹션)</a>
           </li>
-          {% else %}
-          <li class="nav-sub-empty">등록된 업체 없음</li>
-          {% endfor %}
+          {% endif %}
+          {% if can_d1 %}
+          <li class="nav-expandable nav-nested{% if d1_path %} is-open{% endif %}" id="nav-d1">
+            <div class="nav-parent-row">
+              <a href="/admin/d1"
+                 class="nav-parent-link{% if d1_path and not nav_pid %} active{% endif %}">D-1 작업(협력사)</a>
+              <button type="button"
+                      class="nav-toggle"
+                      aria-expanded="{% if d1_path %}true{% else %}false{% endif %}"
+                      aria-controls="nav-d1-sub"
+                      title="업체 목록 펼치기">
+                <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+              </button>
+            </div>
+            <ul class="nav-sub" id="nav-d1-sub">
+              {% for p in request.state.nav_partners or [] %}
+              <li>
+                <a href="/admin/d1?partner_id={{ p.id }}&board=receipt"
+                   class="{% if d1_path and nav_pid == p.id|string %}active{% endif %}"
+                   title="{{ p.name }}">{{ p.name }}</a>
+              </li>
+              {% else %}
+              <li class="nav-sub-empty">등록된 업체 없음</li>
+              {% endfor %}
+            </ul>
+          </li>
+          {% endif %}
+          {% if can_fac %}
+          <li>
+            <a href="/admin/facility-section"
+               class="{% if fac_path %}active{% endif %}">정비관리(시설섹션)</a>
+          </li>
+          {% endif %}
         </ul>
       </li>
-      {% endif %}
-      {% if user_can_access_menu(user, 'facility_section') %}
-      <li><a href="/admin/facility-section" class="{% if '/facility-section' in request.url.path %}active{% endif %}">정비관리(시설섹션)</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'risk_assessment') %}
       <li><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
@@ -156,8 +186,8 @@
     function bindNavExpandable(itemId, storageKey) {
       var item = document.getElementById(itemId);
       if (!item) return;
-      var btn = item.querySelector('.nav-toggle');
-      var link = item.querySelector('.nav-parent-link');
+      var btn = item.querySelector(':scope > .nav-parent-row > .nav-toggle');
+      var link = item.querySelector(':scope > .nav-parent-row > .nav-parent-link');
 
       function setOpen(open) {
         item.classList.toggle('is-open', !!open);
@@ -192,6 +222,7 @@
     }
     bindNavExpandable('nav-equipment', 'nav-eq-open');
     bindNavExpandable('nav-inspection-logs', 'nav-ilog-open');
+    bindNavExpandable('nav-maintenance', 'nav-maint-open');
     bindNavExpandable('nav-d1', 'nav-d1-open');
   })();
   </script>

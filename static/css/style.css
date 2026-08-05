@@ -151,6 +151,30 @@ body {
   font-size: 0.76rem;
   color: rgba(158, 182, 204, 0.55);
 }
+.nav-sub > .nav-nested {
+  margin: 0.05rem 0;
+}
+.nav-sub > .nav-nested > .nav-parent-row .nav-parent-link {
+  padding: 0.2rem 0.5rem 0.2rem 1.1rem;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  color: #9eb6cc;
+}
+.nav-sub > .nav-nested > .nav-parent-row .nav-parent-link.active,
+.nav-sub > .nav-nested > .nav-parent-row .nav-parent-link:hover {
+  background: rgba(148, 180, 210, 0.12);
+  color: #eaf3fa;
+}
+.nav-sub > .nav-nested > .nav-parent-row .nav-toggle {
+  flex-basis: 1.85rem;
+  font-size: 0.75rem;
+  color: rgba(158, 182, 204, 0.85);
+}
+.nav-sub > .nav-nested > .nav-sub {
+  margin: 0.1rem 0.35rem 0.3rem 0.7rem;
+  max-height: min(28vh, 220px);
+  background: rgba(0, 0, 0, 0.18);
+}
 .nav-site-group {
   list-style: none;
   margin: 0;
