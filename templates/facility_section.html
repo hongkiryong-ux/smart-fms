@@ -170,10 +170,11 @@
         </td>
         <td class="wo-d1-cell">
           {% if wo.work_permitted %}
+          {% set perm_name = wo.work_permitted_by.split(' (')[0] if wo.work_permitted_by else '' %}
           <form method="post" action="/admin/facility-section/{{ wo.id }}/unpermit" class="inline-form"
                 onsubmit="return confirm('승인을 취소할까요?');">
             <input type="hidden" name="board" value="{{ board }}" />
-            <button type="submit" class="btn btn-sm btn-secondary" title="{{ wo.work_permitted_by or '승인됨' }}">승인됨</button>
+            <button type="submit" class="btn btn-sm btn-secondary" title="{{ wo.work_permitted_by or '승인됨' }}{% if wo.work_permitted_at %} · {{ fmt_kst(wo.work_permitted_at) }}{% endif %}">승인됨{% if perm_name %}/{{ perm_name }}{% endif %}</button>
           </form>
           {% elif is_day_before and user_can_edit(user) %}
           <form method="post" action="/admin/facility-section/{{ wo.id }}/permit" class="inline-form">
@@ -181,7 +182,7 @@
             <button type="submit" class="btn btn-sm btn-primary">승인</button>
           </form>
           {% elif is_today %}
-          <span class="text-muted">{% if wo.work_permitted %}승인됨{% else %}미승인{% endif %}</span>
+          <span class="text-muted">{% if wo.work_permitted %}{% set perm_name = wo.work_permitted_by.split(' (')[0] if wo.work_permitted_by else '' %}승인됨{% if perm_name %}/{{ perm_name }}{% endif %}{% else %}미승인{% endif %}</span>
           {% else %}
           <span class="text-muted">-</span>
           {% endif %}
