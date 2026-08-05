@@ -97,13 +97,13 @@
       </li>
       {% endif %}
       {% if user_can_access_menu(user, 'work_orders') %}
-      <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리</a></li>
+      <li><a href="/admin/work-orders" class="{% if '/work-orders' in request.url.path %}active{% endif %}">정비관리(정비섹션)</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'd1') %}
       <li class="nav-expandable{% if d1_path %} is-open{% endif %}" id="nav-d1">
         <div class="nav-parent-row">
           <a href="/admin/d1"
-             class="nav-parent-link{% if d1_path and not nav_pid %} active{% endif %}">D-1 작업</a>
+             class="nav-parent-link{% if d1_path and not nav_pid %} active{% endif %}">D-1 작업(협력사)</a>
           <button type="button"
                   class="nav-toggle"
                   aria-expanded="{% if d1_path %}true{% else %}false{% endif %}"
