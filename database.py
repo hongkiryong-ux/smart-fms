@@ -189,7 +189,19 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"
         )
         await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS d1_approved BOOLEAN DEFAULT FALSE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS approved_by VARCHAR(100)"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITHOUT TIME ZONE"
+        )
+        await _exec(
             "UPDATE work_orders SET is_active = TRUE WHERE is_active IS NULL"
+        )
+        await _exec(
+            "UPDATE work_orders SET d1_approved = FALSE WHERE d1_approved IS NULL"
         )
         await _exec(
             "ALTER TABLE material_items ADD COLUMN IF NOT EXISTS location VARCHAR(200)"
@@ -402,6 +414,9 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE equipment ADD COLUMN extra_data TEXT",
             "ALTER TABLE work_orders ADD COLUMN scheduled_date DATE",
             "ALTER TABLE work_orders ADD COLUMN is_active BOOLEAN DEFAULT 1",
+            "ALTER TABLE work_orders ADD COLUMN d1_approved BOOLEAN DEFAULT 0",
+            "ALTER TABLE work_orders ADD COLUMN approved_by VARCHAR(100)",
+            "ALTER TABLE work_orders ADD COLUMN approved_at DATETIME",
             "ALTER TABLE material_items ADD COLUMN location TEXT",
             "ALTER TABLE users ADD COLUMN openai_api_key VARCHAR(200)",
             "ALTER TABLE users ADD COLUMN openai_model VARCHAR(80)",

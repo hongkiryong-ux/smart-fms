@@ -527,6 +527,63 @@ def _wo_is_today_partner_receipt(wo: WorkOrder, today: date | None = None) -> bo
     return _wo_created_date_kst(wo) == day
 
 
+def _wo_is_d1_eligible(wo: WorkOrder) -> bool:
+    """업체 지정 + D-1 승인된 정비만 D-1 보드에 표시."""
+    if not getattr(wo, "partner_id", None):
+        return False
+    return bool(getattr(wo, "d1_approved", False))
+
+
+def _wo_d1_sql_gate():
+    """D-1 노출 SQL 조건."""
+    return (
+        WorkOrder.partner_id.is_not(None),
+        WorkOrder.d1_approved.is_(True),
+    )
+
+
+def _wo_approver_label(user: User) -> str:
+    name = (getattr(user, "name", None) or "").strip()
+    uname = (getattr(user, "username", None) or "").strip()
+    if name and uname and name != uname:
+        return f"{name} ({uname})"[:100]
+    return (name or uname or f"user-{user.id}")[:100]
+
+
+def _wo_list_redirect_params(
+    *,
+    q: str = "",
+    filter_status: str = "",
+    filter_priority: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    page: str = "",
+    filter_partner_id: str = "",
+    message: str = "",
+    error: str = "",
+) -> str:
+    from urllib.parse import urlencode
+
+    params = {
+        k: v
+        for k, v in {
+            "q": (q or "").strip(),
+            "status": (filter_status or "").strip(),
+            "priority": (filter_priority or "").strip(),
+            "date_from": (date_from or "").strip(),
+            "date_to": (date_to or "").strip(),
+            "partner_id": (filter_partner_id or "").strip()
+            if (filter_partner_id or "").strip() not in ("", "0")
+            else "",
+            "page": (page or "").strip() if str(page or "").strip() not in ("", "1") else "",
+            "message": (message or "").strip(),
+            "error": (error or "").strip(),
+        }.items()
+        if v
+    }
+    return f"?{urlencode(params)}" if params else ""
+
+
 def _sort_orders_today_receipt_first(orders: list, today: date | None = None) -> list:
     day = today or _today_kst()
 
@@ -578,6 +635,8 @@ def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목�
             "협력사",
             "진행",
             "조치내용",
+            "승인자",
+            "D-1승인",
             "담당자",
         ]
     )
@@ -594,6 +653,8 @@ def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목�
                 wo.partner.name if wo.partner else "미지정",
                 _status_label(wo.status),
                 wo.action or "",
+                getattr(wo, "approved_by", None) or "",
+                "Y" if getattr(wo, "d1_approved", False) else "N",
                 wo.assignee_name or "",
             ]
         )
@@ -1536,13 +1597,15 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
         )
     ).scalar() or 0
 
-    # D-1 (메뉴와 동일: WorkOrder.scheduled_date)
+    # D-1 (업체 지정 + 승인된 WorkOrder만)
+    d1_gate = _wo_d1_sql_gate()
     d1_today_incomplete = (
         await db.execute(
             select(func.count(WorkOrder.id)).where(
                 WorkOrder.is_active == True,  # noqa: E712
                 WorkOrder.status.in_(_WO_OPEN),
                 WorkOrder.scheduled_date == today,
+                *d1_gate,
             )
         )
     ).scalar() or 0
@@ -1551,6 +1614,7 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
             select(func.count(WorkOrder.id)).where(
                 WorkOrder.is_active == True,  # noqa: E712
                 WorkOrder.status.in_(_WO_DONE),
+                *d1_gate,
                 (
                     (WorkOrder.scheduled_date == today)
                     | (
@@ -3869,6 +3933,8 @@ async def work_orders_list(
                 "page": pager["page"],
             },
             "result_count": pager["total"],
+            "flash_message": request.query_params.get("message") or "",
+            "flash_error": request.query_params.get("error") or "",
         },
     )
 
@@ -4038,6 +4104,8 @@ async def work_order_detail(
             "wo": wo,
             "partners": partners,
             "process_step": _wo_process_step(wo.status),
+            "flash_message": request.query_params.get("message") or "",
+            "flash_error": request.query_params.get("error") or "",
         },
     )
 
@@ -4089,6 +4157,12 @@ async def work_order_status(
     else:
         wo.partner_id = None
 
+    # 업체 미지정 시 D-1 승인 해제
+    if not wo.partner_id and getattr(wo, "d1_approved", False):
+        wo.d1_approved = False
+        wo.approved_by = None
+        wo.approved_at = None
+
     # 정비 예정일
     if scheduled_date.strip():
         try:
@@ -4135,24 +4209,119 @@ async def work_order_status(
         qs = f"?{urlencode(params)}" if params else ""
         return RedirectResponse(f"/admin/d1{qs}", status_code=303)
     if redirect == "list":
-        params = {
-            k: v
-            for k, v in {
-                "q": q.strip(),
-                "status": filter_status.strip(),
-                "priority": filter_priority.strip(),
-                "date_from": date_from.strip(),
-                "date_to": date_to.strip(),
-                "partner_id": (filter_partner_id or "").strip()
-                if (filter_partner_id or "").strip() not in ("", "0")
-                else "",
-                "page": page.strip() if str(page).strip() not in ("", "1") else "",
-            }.items()
-            if v
-        }
-        qs = f"?{urlencode(params)}" if params else ""
+        qs = _wo_list_redirect_params(
+            q=q,
+            filter_status=filter_status,
+            filter_priority=filter_priority,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            filter_partner_id=filter_partner_id,
+        )
         return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
     return RedirectResponse(f"/admin/work-orders/{wo_id}", status_code=303)
+
+
+@app.post("/admin/work-orders/{wo_id}/approve-d1")
+async def work_order_approve_d1(
+    wo_id: int,
+    partner_id: int = Form(0),
+    redirect: str = Form("list"),
+    q: str = Form(""),
+    filter_status: str = Form(""),
+    filter_priority: str = Form(""),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
+    page: str = Form(""),
+    filter_partner_id: str = Form(""),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """업체 지정된 정비를 D-1 작업으로 승인 전송."""
+    from urllib.parse import quote, urlencode
+
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+
+    # 폼의 협력사 선택을 먼저 반영 (저장 전 승인해도 적용)
+    if partner_id and partner_id > 0:
+        partner = await db.get(Partner, partner_id)
+        wo.partner_id = partner.id if partner and partner.is_active else None
+
+    def _back(error: str = "", message: str = ""):
+        if redirect == "detail":
+            qs = []
+            if error:
+                qs.append("error=" + quote(error))
+            if message:
+                qs.append("message=" + quote(message))
+            suffix = ("?" + "&".join(qs)) if qs else ""
+            return RedirectResponse(f"/admin/work-orders/{wo_id}{suffix}", status_code=303)
+        qs = _wo_list_redirect_params(
+            q=q,
+            filter_status=filter_status,
+            filter_priority=filter_priority,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            filter_partner_id=filter_partner_id,
+            error=error,
+            message=message,
+        )
+        return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
+
+    if not wo.partner_id:
+        return _back(error="업체를 선택한 뒤 승인하세요.")
+
+    wo.d1_approved = True
+    wo.approved_by = _wo_approver_label(user)
+    wo.approved_at = datetime.utcnow()
+    await db.commit()
+    return _back(message="D-1 작업으로 승인되었습니다.")
+
+
+@app.post("/admin/work-orders/{wo_id}/unapprove-d1")
+async def work_order_unapprove_d1(
+    wo_id: int,
+    redirect: str = Form("list"),
+    q: str = Form(""),
+    filter_status: str = Form(""),
+    filter_priority: str = Form(""),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
+    page: str = Form(""),
+    filter_partner_id: str = Form(""),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """D-1 승인 취소 (보드에서 제거)."""
+    from urllib.parse import quote
+
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+    wo.d1_approved = False
+    wo.approved_by = None
+    wo.approved_at = None
+    await db.commit()
+
+    if redirect == "detail":
+        return RedirectResponse(
+            f"/admin/work-orders/{wo_id}?message=" + quote("D-1 승인이 취소되었습니다."),
+            status_code=303,
+        )
+    qs = _wo_list_redirect_params(
+        q=q,
+        filter_status=filter_status,
+        filter_priority=filter_priority,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        filter_partner_id=filter_partner_id,
+        message="D-1 승인이 취소되었습니다.",
+    )
+    return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
 
 
 @app.post("/admin/work-orders/{wo_id}/delete")
@@ -4843,8 +5012,9 @@ async def d1_list(
         await db.execute(
             select(WorkOrder)
             .where(
-                WorkOrder.is_active == True,
+                WorkOrder.is_active == True,  # noqa: E712
                 WorkOrder.status.in_(open_statuses),
+                *_wo_d1_sql_gate(),
             )
             .options(
                 selectinload(WorkOrder.equipment),
@@ -4862,8 +5032,9 @@ async def d1_list(
         await db.execute(
             select(WorkOrder)
             .where(
-                WorkOrder.is_active == True,
+                WorkOrder.is_active == True,  # noqa: E712
                 WorkOrder.status.in_(done_statuses),
+                *_wo_d1_sql_gate(),
             )
             .options(
                 selectinload(WorkOrder.equipment),
@@ -5142,6 +5313,7 @@ async def d1_export(
             .where(
                 WorkOrder.is_active == True,
                 WorkOrder.status.in_(open_statuses),
+                *_wo_d1_sql_gate(),
             )
             .options(
                 selectinload(WorkOrder.equipment),
@@ -5160,6 +5332,7 @@ async def d1_export(
             .where(
                 WorkOrder.is_active == True,
                 WorkOrder.status.in_(done_statuses),
+                *_wo_d1_sql_gate(),
             )
             .options(
                 selectinload(WorkOrder.equipment),

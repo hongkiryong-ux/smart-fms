@@ -513,6 +513,10 @@ class WorkOrder(Base):
     cost = Column(Float, nullable=True)
     work_hours = Column(Float, nullable=True)
     scheduled_date = Column(Date, nullable=True)  # 정비 예정일
+    # D-1 작업 전송: 업체 지정 + 승인 후에만 노출
+    d1_approved = Column(Boolean, default=False)
+    approved_by = Column(String(100), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)

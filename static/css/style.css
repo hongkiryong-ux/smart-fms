@@ -2969,6 +2969,68 @@ body.wo-col-resizing {
   height: 1.9rem;
   box-sizing: border-box;
 }
+
+.wo-step-btns {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+  vertical-align: middle;
+}
+.wo-step-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.22rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.wo-step-btn input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.wo-step-btn:hover { background: #e2e8f0; }
+.wo-step-btn.is-on {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.wo-step-btns-lg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.wo-step-btns-lg .wo-step-btn {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.85rem;
+}
+.wo-approver-cell {
+  max-width: 7.5rem;
+  font-size: 0.78rem;
+  color: #334155;
+}
+.wo-approver {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.wo-d1-cell {
+  white-space: nowrap;
+}
+tr.wo-d1-approved {
+  background: #f8fbff;
+}
 .wo-sched-input {
   min-width: 0;
   font-variant-numeric: tabular-nums;

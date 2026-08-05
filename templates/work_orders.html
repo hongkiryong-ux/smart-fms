@@ -3,8 +3,15 @@
 {% block content %}
 <header class="page-header">
   <h1>정비관리 (CMMS)</h1>
-  <p>정비의뢰 → 정비진행 → 정비완료 · 예정일 지정 시 D-1에 자동 표시</p>
+  <p>정비의뢰 → 정비진행 → 정비완료 · 업체 지정 후 승인 시 D-1 작업으로 전송</p>
 </header>
+
+{% if flash_error %}
+<div class="alert alert-error">{{ flash_error }}</div>
+{% endif %}
+{% if flash_message %}
+<div class="alert alert-ok">{{ flash_message }}</div>
+{% endif %}
 
 <section class="card">
   <div class="wo-list-head">
@@ -81,14 +88,18 @@
         <th>협력사</th>
         <th>진행</th>
         <th>조치내용</th>
+        <th>승인자</th>
         <th>저장</th>
+        <th>D-1</th>
         <th>상세</th>
         {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
       </tr>
     </thead>
     <tbody>
       {% for wo in orders %}
-      <tr>
+      {% set st = wo.status.value %}
+      {% set step = 1 if st in ['received','assigned'] else (2 if st == 'in_progress' else 3) %}
+      <tr class="{% if wo.d1_approved %}wo-d1-approved{% endif %}">
         <td class="wo-eq-cell">
           {% if wo.equipment %}
           <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
@@ -99,6 +110,7 @@
         </td>
         <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
           <span class="wo-req-text">
+            {% if wo.d1_approved %}<span class="badge badge-wo">D-1</span> {% endif %}
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
           </span>
         </td>
@@ -113,7 +125,11 @@
         </td>
         <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
         <td>
-          <select name="partner_id" form="wo-form-{{ wo.id }}" class="wo-partner-select" title="협력사">
+          <select name="partner_id"
+                  form="wo-form-{{ wo.id }}"
+                  id="wo-partner-{{ wo.id }}"
+                  class="wo-partner-select"
+                  title="협력사">
             <option value="0">미지정</option>
             {% for p in partners %}
             <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
@@ -129,11 +145,20 @@
             <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
             <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
             <input type="hidden" name="page" value="{{ filters.page }}" />
-            <select name="status" class="wo-status-select" form="wo-form-{{ wo.id }}">
-              <option value="received" {% if wo.status.value in ['received','assigned'] %}selected{% endif %}>정비의뢰</option>
-              <option value="in_progress" {% if wo.status.value == 'in_progress' %}selected{% endif %}>정비진행</option>
-              <option value="completed" {% if wo.status.value in ['completed','verified','closed'] %}selected{% endif %}>정비완료</option>
-            </select>
+            <div class="wo-step-btns" role="radiogroup" aria-label="진행상태">
+              <label class="wo-step-btn{% if step == 1 %} is-on{% endif %}">
+                <input type="radio" name="status" value="received" form="wo-form-{{ wo.id }}" {% if step == 1 %}checked{% endif %} />
+                <span>의뢰</span>
+              </label>
+              <label class="wo-step-btn{% if step == 2 %} is-on{% endif %}">
+                <input type="radio" name="status" value="in_progress" form="wo-form-{{ wo.id }}" {% if step == 2 %}checked{% endif %} />
+                <span>진행</span>
+              </label>
+              <label class="wo-step-btn{% if step == 3 %} is-on{% endif %}">
+                <input type="radio" name="status" value="completed" form="wo-form-{{ wo.id }}" {% if step == 3 %}checked{% endif %} />
+                <span>완료</span>
+              </label>
+            </div>
           </form>
         </td>
         <td>
@@ -145,8 +170,45 @@
                  placeholder="조치내용"
                  title="{{ wo.action or '' }}" />
         </td>
+        <td class="wo-approver-cell" title="{{ wo.approved_by or '' }}">
+          {% if wo.d1_approved %}
+          <span class="wo-approver">{{ wo.approved_by or '-' }}</span>
+          {% else %}
+          <span class="text-muted">-</span>
+          {% endif %}
+        </td>
         <td>
           <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
+        </td>
+        <td class="wo-d1-cell">
+          {% if wo.d1_approved %}
+          <form method="post" action="/admin/work-orders/{{ wo.id }}/unapprove-d1" class="inline-form"
+                onsubmit="return confirm('D-1 승인을 취소할까요?');">
+            <input type="hidden" name="redirect" value="list" />
+            <input type="hidden" name="q" value="{{ filters.q }}" />
+            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+            <input type="hidden" name="page" value="{{ filters.page }}" />
+            <button type="submit" class="btn btn-sm btn-secondary" title="승인 취소">승인됨</button>
+          </form>
+          {% else %}
+          <form method="post"
+                action="/admin/work-orders/{{ wo.id }}/approve-d1"
+                class="inline-form wo-approve-form"
+                data-partner-select="wo-partner-{{ wo.id }}">
+            <input type="hidden" name="redirect" value="list" />
+            <input type="hidden" name="q" value="{{ filters.q }}" />
+            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+            <input type="hidden" name="page" value="{{ filters.page }}" />
+            <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
+            <button type="submit" class="btn btn-sm btn-primary">승인</button>
+          </form>
+          {% endif %}
         </td>
         <td>
           <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
@@ -168,7 +230,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}11{% else %}10{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}13{% else %}12{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -249,7 +311,7 @@
     e.preventDefault();
     openDialog(btn.getAttribute('data-open-dialog'));
   });
-  {% if request.query_params.get('open') or request.query_params.get('error') %}
+  {% if request.query_params.get('open') or request.query_params.get('error') in ['eq', 'desc'] %}
   openDialog('wo-create-dialog');
   {% endif %}
 
@@ -270,6 +332,27 @@
     syncExcelHref();
   }
 
+  // 진행 버튼 하이라이트
+  document.querySelectorAll('.wo-step-btns').forEach(function (group) {
+    group.querySelectorAll('input[type="radio"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        group.querySelectorAll('.wo-step-btn').forEach(function (lab) {
+          lab.classList.toggle('is-on', lab.querySelector('input').checked);
+        });
+      });
+    });
+  });
+
+  // 승인 시 현재 선택한 협력사 값을 함께 전송
+  document.querySelectorAll('.wo-approve-form').forEach(function (form) {
+    form.addEventListener('submit', function () {
+      var sid = form.getAttribute('data-partner-select');
+      var sel = sid ? document.getElementById(sid) : null;
+      var hidden = form.querySelector('input[name="partner_id"]');
+      if (sel && hidden) hidden.value = sel.value || '0';
+    });
+  });
+
   var dataEl = document.getElementById('wo-equipment-data');
   var buildingSel = document.getElementById('wo-building');
   var equipSel = document.getElementById('wo-equipment');
@@ -282,13 +365,13 @@
     equipSel.innerHTML = '';
     if (!buildingId) {
       equipSel.disabled = true;
-      equipSel.innerHTML = '<option value=\"\">먼저 건물을 선택하세요</option>';
+      equipSel.innerHTML = '<option value="">먼저 건물을 선택하세요</option>';
       return;
     }
     var list = allEquip.filter(function (e) { return String(e.building_id) === String(buildingId); });
     if (!list.length) {
       equipSel.disabled = true;
-      equipSel.innerHTML = '<option value=\"\">해당 건물에 설비가 없습니다</option>';
+      equipSel.innerHTML = '<option value="">해당 건물에 설비가 없습니다</option>';
       return;
     }
     equipSel.disabled = false;

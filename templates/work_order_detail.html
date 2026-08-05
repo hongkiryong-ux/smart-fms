@@ -5,7 +5,9 @@
   <div class="item-head">
     <div>
       <h1>{{ wo.title }}</h1>
-      <p>#{{ wo.id }} · <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span></p>
+      <p>#{{ wo.id }} · <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
+        {% if wo.d1_approved %} · <span class="badge badge-wo">D-1 승인</span>{% endif %}
+      </p>
     </div>
     <div class="row-actions">
       {% if user_can_delete(user) %}
@@ -18,6 +20,13 @@
     </div>
   </div>
 </header>
+
+{% if flash_error %}
+<div class="alert alert-error">{{ flash_error }}</div>
+{% endif %}
+{% if flash_message %}
+<div class="alert alert-ok">{{ flash_message }}</div>
+{% endif %}
 
 <section class="card process-card">
   <h2>정비 진행 단계</h2>
@@ -62,20 +71,36 @@
       <dt>협력사</dt><dd>{{ wo.partner.name if wo.partner else '-' }}</dd>
       <dt>등록</dt><dd>{{ fmt_kst_date(wo.created_at) }}</dd>
       <dt>완료</dt><dd>{{ fmt_kst_date(wo.completed_at) if wo.completed_at else '-' }}</dd>
+      <dt>D-1 승인자</dt>
+      <dd>
+        {% if wo.d1_approved %}
+        {{ wo.approved_by or '-' }}
+        {% if wo.approved_at %}<span class="text-muted"> · {{ fmt_kst(wo.approved_at) }}</span>{% endif %}
+        {% else %}-{% endif %}
+      </dd>
     </dl>
   </section>
 
   <section class="card">
     <h2>상태 / 조치 내용</h2>
-    <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="form-stack">
+    <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="form-stack" id="wo-detail-form">
       <label>상태</label>
-      <select name="status">
-        <option value="received" {% if process_step == 1 %}selected{% endif %}>정비의뢰</option>
-        <option value="in_progress" {% if process_step == 2 %}selected{% endif %}>정비진행</option>
-        <option value="completed" {% if process_step == 3 %}selected{% endif %}>정비완료</option>
-      </select>
+      <div class="wo-step-btns wo-step-btns-lg" role="radiogroup" aria-label="진행상태">
+        <label class="wo-step-btn{% if process_step == 1 %} is-on{% endif %}">
+          <input type="radio" name="status" value="received" {% if process_step == 1 %}checked{% endif %} />
+          <span>정비의뢰</span>
+        </label>
+        <label class="wo-step-btn{% if process_step == 2 %} is-on{% endif %}">
+          <input type="radio" name="status" value="in_progress" {% if process_step == 2 %}checked{% endif %} />
+          <span>정비진행</span>
+        </label>
+        <label class="wo-step-btn{% if process_step == 3 %} is-on{% endif %}">
+          <input type="radio" name="status" value="completed" {% if process_step == 3 %}checked{% endif %} />
+          <span>정비완료</span>
+        </label>
+      </div>
       <label>협력사</label>
-      <select name="partner_id">
+      <select name="partner_id" id="wo-detail-partner">
         <option value="0">미지정</option>
         {% for p in partners %}
         <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
@@ -89,8 +114,28 @@
       <textarea name="cause" rows="2">{{ wo.cause or '' }}</textarea>
       <label>조치내용</label>
       <textarea name="action" rows="2">{{ wo.action or '' }}</textarea>
-      <button type="submit" class="btn btn-primary">저장</button>
+      <div class="row-actions" style="margin-top:0.75rem;gap:0.5rem;">
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
     </form>
+    <div class="row-actions" style="margin-top:0.75rem;gap:0.5rem;">
+      {% if wo.d1_approved %}
+      <form method="post" action="/admin/work-orders/{{ wo.id }}/unapprove-d1" class="inline-form"
+            onsubmit="return confirm('D-1 승인을 취소할까요?');">
+        <input type="hidden" name="redirect" value="detail" />
+        <button type="submit" class="btn btn-secondary">D-1 승인 취소</button>
+      </form>
+      {% else %}
+      <form method="post" action="/admin/work-orders/{{ wo.id }}/approve-d1" class="inline-form" id="wo-detail-approve">
+        <input type="hidden" name="redirect" value="detail" />
+        <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
+        <button type="submit" class="btn btn-primary">D-1 승인</button>
+      </form>
+      {% endif %}
+    </div>
+    <p class="text-muted" style="margin-top:0.6rem;font-size:0.85rem;">
+      업체를 선택한 뒤 승인하면 D-1 작업 목록으로 전송됩니다.
+    </p>
   </section>
 </div>
 
@@ -99,5 +144,27 @@
   {% if wo.equipment %}
   · <a href="/admin/equipment/{{ wo.equipment.id }}">설비 상세 / 정비이력</a>
   {% endif %}
+  · <a href="/admin/d1">D-1 작업</a>
 </p>
+<script>
+(function () {
+  document.querySelectorAll('.wo-step-btns').forEach(function (group) {
+    group.querySelectorAll('input[type="radio"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        group.querySelectorAll('.wo-step-btn').forEach(function (lab) {
+          lab.classList.toggle('is-on', lab.querySelector('input').checked);
+        });
+      });
+    });
+  });
+  var approve = document.getElementById('wo-detail-approve');
+  var partner = document.getElementById('wo-detail-partner');
+  if (approve && partner) {
+    approve.addEventListener('submit', function () {
+      var hidden = approve.querySelector('input[name="partner_id"]');
+      if (hidden) hidden.value = partner.value || '0';
+    });
+  }
+})();
+</script>
 {% endblock %}
