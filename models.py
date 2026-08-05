@@ -517,6 +517,13 @@ class WorkOrder(Base):
     d1_approved = Column(Boolean, default=False)
     approved_by = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
+    # 협력사 승인요청 → 시설섹션 작업허가
+    approval_requested = Column(Boolean, default=False)
+    approval_requested_by = Column(String(100), nullable=True)
+    approval_requested_at = Column(DateTime, nullable=True)
+    work_permitted = Column(Boolean, default=False)
+    work_permitted_by = Column(String(100), nullable=True)
+    work_permitted_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)

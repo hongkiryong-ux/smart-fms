@@ -4162,6 +4162,15 @@ async def work_order_status(
         wo.d1_approved = False
         wo.approved_by = None
         wo.approved_at = None
+    if not wo.partner_id:
+        if getattr(wo, "approval_requested", False):
+            wo.approval_requested = False
+            wo.approval_requested_by = None
+            wo.approval_requested_at = None
+        if getattr(wo, "work_permitted", False):
+            wo.work_permitted = False
+            wo.work_permitted_by = None
+            wo.work_permitted_at = None
 
     # 정비 예정일
     if scheduled_date.strip():
@@ -4171,6 +4180,15 @@ async def work_order_status(
             pass
     else:
         wo.scheduled_date = None
+        # 예정일 제거 시 승인요청/작업허가 초기화
+        if getattr(wo, "approval_requested", False):
+            wo.approval_requested = False
+            wo.approval_requested_by = None
+            wo.approval_requested_at = None
+        if getattr(wo, "work_permitted", False):
+            wo.work_permitted = False
+            wo.work_permitted_by = None
+            wo.work_permitted_at = None
 
     if status == "completed":
         wo.completed_at = datetime.utcnow()
@@ -4208,6 +4226,9 @@ async def work_order_status(
             params.append(("page", page.strip()))
         qs = f"?{urlencode(params)}" if params else ""
         return RedirectResponse(f"/admin/d1{qs}", status_code=303)
+    if redirect == "facility":
+        fac_board = (d1_board or "day_before").strip() or "day_before"
+        return _facility_redirect(board=fac_board)
     if redirect == "list":
         qs = _wo_list_redirect_params(
             q=q,
@@ -4509,6 +4530,216 @@ async def work_order_delete(
     }
     qs = f"?{urlencode(params)}" if params else ""
     return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
+
+
+def _d1_redirect(
+    *,
+    d1_board: str = "",
+    d1_partner_id: str = "",
+    filter_status: str = "",
+    page: str = "",
+    message: str = "",
+    error: str = "",
+) -> RedirectResponse:
+    from urllib.parse import urlencode
+
+    board_raw = (d1_board or "").strip().lower()
+    has_partner = (d1_partner_id or "").strip() not in ("", "0")
+    if board_raw == "all":
+        params: list[tuple[str, str]] = [("board", "all")]
+    else:
+        board_vals = _parse_d1_boards(
+            [board_raw] if board_raw else [],
+            allow_receipt=has_partner,
+        )
+        default_board = "receipt" if has_partner else "today"
+        params = (
+            [("board", board_vals[0])] if board_vals else [("board", default_board)]
+        )
+    if filter_status.strip():
+        for part in filter_status.split(","):
+            p = part.strip()
+            if p:
+                params.append(("status", p))
+    if has_partner:
+        params.append(("partner_id", (d1_partner_id or "").strip()))
+    if page.strip() and page.strip() not in ("", "1"):
+        params.append(("page", page.strip()))
+    if message.strip():
+        params.append(("message", message.strip()))
+    if error.strip():
+        params.append(("error", error.strip()))
+    qs = f"?{urlencode(params)}" if params else ""
+    return RedirectResponse(f"/admin/d1{qs}", status_code=303)
+
+
+async def _apply_partner_and_schedule_from_form(
+    db: AsyncSession,
+    wo: WorkOrder,
+    *,
+    partner_id: int = 0,
+    scheduled_date: str = "",
+) -> None:
+    if partner_id and partner_id > 0:
+        partner = await db.get(Partner, partner_id)
+        wo.partner_id = partner.id if partner and partner.is_active else None
+    if scheduled_date and scheduled_date.strip():
+        try:
+            wo.scheduled_date = date.fromisoformat(scheduled_date.strip())
+        except ValueError:
+            pass
+
+
+@app.post("/admin/work-orders/{wo_id}/request-approval")
+async def work_order_request_approval(
+    wo_id: int,
+    partner_id: int = Form(0),
+    scheduled_date: str = Form(""),
+    d1_board: str = Form(""),
+    d1_partner_id: str = Form(""),
+    filter_status: str = Form(""),
+    page: str = Form(""),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """D-1(협력사): 예정일 지정 후 시설섹션으로 승인요청."""
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+    await _apply_partner_and_schedule_from_form(
+        db, wo, partner_id=partner_id, scheduled_date=scheduled_date
+    )
+    if not wo.partner_id:
+        return _d1_redirect(
+            d1_board=d1_board,
+            d1_partner_id=d1_partner_id,
+            filter_status=filter_status,
+            page=page,
+            error="업체가 지정되지 않았습니다.",
+        )
+    if not wo.scheduled_date:
+        return _d1_redirect(
+            d1_board=d1_board,
+            d1_partner_id=d1_partner_id,
+            filter_status=filter_status,
+            page=page,
+            error="예정일을 지정한 뒤 승인요청하세요.",
+        )
+    if getattr(wo, "approval_requested", False):
+        return _d1_redirect(
+            d1_board=d1_board,
+            d1_partner_id=d1_partner_id,
+            filter_status=filter_status,
+            page=page,
+            message="이미 승인요청된 항목입니다.",
+        )
+    wo.approval_requested = True
+    wo.approval_requested_by = _wo_approver_label(user)
+    wo.approval_requested_at = datetime.utcnow()
+    await db.commit()
+    return _d1_redirect(
+        d1_board=d1_board,
+        d1_partner_id=d1_partner_id,
+        filter_status=filter_status,
+        page=page,
+        message="승인요청되었습니다. 시설섹션에서 확인됩니다.",
+    )
+
+
+@app.post("/admin/d1/request-approval-bulk")
+async def d1_request_approval_bulk(
+    request: Request,
+    d1_board: str = Form(""),
+    d1_partner_id: str = Form(""),
+    filter_status: str = Form(""),
+    page: str = Form(""),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """D-1(협력사): 선택 항목 일괄 승인요청."""
+    form = await request.form()
+    raw_ids = form.getlist("wo_ids")
+    ids: list[int] = []
+    for raw in raw_ids:
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    seen: set[int] = set()
+    uniq: list[int] = []
+    for i in ids:
+        if i in seen:
+            continue
+        seen.add(i)
+        uniq.append(i)
+    if not uniq:
+        return _d1_redirect(
+            d1_board=d1_board,
+            d1_partner_id=d1_partner_id,
+            filter_status=filter_status,
+            page=page,
+            error="승인요청할 항목을 선택하세요.",
+        )
+
+    label = _wo_approver_label(user)
+    now = datetime.utcnow()
+    ok = 0
+    no_date = 0
+    no_partner = 0
+    already = 0
+
+    for wo_id in uniq:
+        wo = await db.get(WorkOrder, wo_id)
+        if not wo or not wo.is_active:
+            continue
+        sched_raw = str(form.get(f"scheduled_{wo_id}") or "").strip()
+        partner_raw = form.get(f"partner_{wo_id}") or "0"
+        try:
+            pid = int(partner_raw)
+        except (TypeError, ValueError):
+            pid = 0
+        await _apply_partner_and_schedule_from_form(
+            db, wo, partner_id=pid, scheduled_date=sched_raw
+        )
+        if getattr(wo, "approval_requested", False):
+            already += 1
+            continue
+        if not wo.partner_id:
+            no_partner += 1
+            continue
+        if not wo.scheduled_date:
+            no_date += 1
+            continue
+        wo.approval_requested = True
+        wo.approval_requested_by = label
+        wo.approval_requested_at = now
+        ok += 1
+
+    await db.commit()
+    parts = []
+    if ok:
+        parts.append(f"{ok}건 승인요청")
+    if no_date:
+        parts.append(f"{no_date}건 예정일 미지정 제외")
+    if no_partner:
+        parts.append(f"{no_partner}건 업체 미지정 제외")
+    if already:
+        parts.append(f"{already}건 이미 요청됨")
+    if ok:
+        return _d1_redirect(
+            d1_board=d1_board,
+            d1_partner_id=d1_partner_id,
+            filter_status=filter_status,
+            page=page,
+            message=" · ".join(parts),
+        )
+    return _d1_redirect(
+        d1_board=d1_board,
+        d1_partner_id=d1_partner_id,
+        filter_status=filter_status,
+        page=page,
+        error=" · ".join(parts) if parts else "승인요청된 항목이 없습니다.",
+    )
 
 
 @app.post("/admin/work-orders/{wo_id}/advance")
@@ -5391,6 +5622,8 @@ async def d1_list(
                 "page": pager["page"] if pager else 1,
             },
             "partners": partners,
+            "flash_message": request.query_params.get("message") or "",
+            "flash_error": request.query_params.get("error") or "",
         },
     )
 
@@ -5510,6 +5743,175 @@ async def d1_export(
                 orders.append(w)
 
     return _work_orders_excel_response(orders, "D1작업")
+
+
+def _facility_sql_gate():
+    """시설섹션: 승인요청된 항목."""
+    return (
+        WorkOrder.partner_id.is_not(None),
+        WorkOrder.approval_requested.is_(True),
+        WorkOrder.is_active.is_(True),
+    )
+
+
+@app.get("/admin/facility-section")
+async def facility_section_list(
+    request: Request,
+    board: str = Query("day_before"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """정비관리(시설섹션): 승인요청된 하루전·당일 작업."""
+    today = _today_kst()
+    tomorrow = today + timedelta(days=1)
+    board_key = (board or "day_before").strip().lower()
+    if board_key not in ("day_before", "today", "all"):
+        board_key = "day_before"
+
+    open_statuses = [
+        WorkOrderStatus.received,
+        WorkOrderStatus.assigned,
+        WorkOrderStatus.in_progress,
+    ]
+    rows = (
+        await db.execute(
+            select(WorkOrder)
+            .where(
+                WorkOrder.status.in_(open_statuses),
+                *_facility_sql_gate(),
+            )
+            .options(
+                selectinload(WorkOrder.equipment),
+                selectinload(WorkOrder.partner),
+            )
+            .order_by(
+                WorkOrder.scheduled_date.asc().nullslast(),
+                WorkOrder.priority.desc(),
+                WorkOrder.id.asc(),
+            )
+        )
+    ).scalars().unique().all()
+
+    day_before = [w for w in rows if w.scheduled_date == tomorrow]
+    today_works = [w for w in rows if w.scheduled_date == today]
+
+    return templates.TemplateResponse(
+        request,
+        "facility_section.html",
+        {
+            "user": user,
+            "today": today,
+            "tomorrow": tomorrow,
+            "board": board_key,
+            "day_before_works": day_before,
+            "today_works": today_works,
+            "flash_message": request.query_params.get("message") or "",
+            "flash_error": request.query_params.get("error") or "",
+            "partners": (
+                await db.execute(
+                    select(Partner)
+                    .where(Partner.is_active == True)  # noqa: E712
+                    .order_by(Partner.name)
+                )
+            ).scalars().all(),
+        },
+    )
+
+
+def _facility_redirect(*, board: str = "day_before", message: str = "", error: str = ""):
+    from urllib.parse import urlencode
+
+    params: list[tuple[str, str]] = []
+    b = (board or "day_before").strip() or "day_before"
+    if b != "day_before":
+        params.append(("board", b))
+    if message.strip():
+        params.append(("message", message.strip()))
+    if error.strip():
+        params.append(("error", error.strip()))
+    qs = f"?{urlencode(params)}" if params else ""
+    return RedirectResponse(f"/admin/facility-section{qs}", status_code=303)
+
+
+@app.post("/admin/facility-section/{wo_id}/permit")
+async def facility_permit_work(
+    wo_id: int,
+    board: str = Form("day_before"),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """시설섹션: 개별 작업허가 (하루전 항목)."""
+    today = _today_kst()
+    tomorrow = today + timedelta(days=1)
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+    if not getattr(wo, "approval_requested", False):
+        return _facility_redirect(board=board, error="승인요청된 항목이 아닙니다.")
+    if wo.scheduled_date != tomorrow:
+        return _facility_redirect(
+            board=board,
+            error="작업허가는 작업일 하루전 항목만 가능합니다.",
+        )
+    if getattr(wo, "work_permitted", False):
+        return _facility_redirect(board=board, message="이미 작업허가된 항목입니다.")
+    wo.work_permitted = True
+    wo.work_permitted_by = _wo_approver_label(user)
+    wo.work_permitted_at = datetime.utcnow()
+    await db.commit()
+    return _facility_redirect(board=board, message="작업허가 처리되었습니다.")
+
+
+@app.post("/admin/facility-section/permit-bulk")
+async def facility_permit_work_bulk(
+    request: Request,
+    board: str = Form("day_before"),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """시설섹션: 선택 항목 일괄 작업허가."""
+    form = await request.form()
+    today = _today_kst()
+    tomorrow = today + timedelta(days=1)
+    raw_ids = form.getlist("wo_ids")
+    ids: list[int] = []
+    for raw in raw_ids:
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return _facility_redirect(board=board, error="작업허가할 항목을 선택하세요.")
+
+    label = _wo_approver_label(user)
+    now = datetime.utcnow()
+    ok = 0
+    skip = 0
+    for wo_id in ids:
+        wo = await db.get(WorkOrder, wo_id)
+        if (
+            not wo
+            or not wo.is_active
+            or not getattr(wo, "approval_requested", False)
+            or wo.scheduled_date != tomorrow
+            or getattr(wo, "work_permitted", False)
+        ):
+            skip += 1
+            continue
+        wo.work_permitted = True
+        wo.work_permitted_by = label
+        wo.work_permitted_at = now
+        ok += 1
+    await db.commit()
+    if ok:
+        msg = f"{ok}건 작업허가"
+        if skip:
+            msg += f" · {skip}건 제외"
+        return _facility_redirect(board=board, message=msg)
+    return _facility_redirect(
+        board=board,
+        error="작업허가할 수 있는 하루전 항목이 없습니다.",
+    )
 
 
 @app.post("/admin/d1")

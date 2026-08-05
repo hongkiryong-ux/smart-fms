@@ -3031,6 +3031,9 @@ body.wo-col-resizing {
 tr.wo-d1-approved {
   background: #f8fbff;
 }
+tr.wo-req-sent {
+  background: #f8fafc;
+}
 tr.wo-row-selected {
   background: #eff6ff;
 }

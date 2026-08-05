@@ -115,6 +115,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("inspection_logs", "점검일지"),
     ("work_orders", "정비관리(정비섹션)"),
     ("d1", "D-1 작업(협력사)"),
+    ("facility_section", "정비관리(시설섹션)"),
     ("risk_assessment", "위험성평가"),
     ("materials", "자재관리"),
     ("partners", "협력사"),
@@ -133,6 +134,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/inspection-logs", "inspection_logs"),
     ("/admin/pm", "pm"),
     ("/admin/work-orders", "work_orders"),
+    ("/admin/facility-section", "facility_section"),
     ("/admin/d1", "d1"),
     ("/admin/risk-assessment", "risk_assessment"),
     ("/admin/materials", "materials"),
@@ -147,6 +149,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("inspection_logs", "/admin/inspection-logs"),
     ("work_orders", "/admin/work-orders"),
     ("d1", "/admin/d1"),
+    ("facility_section", "/admin/facility-section"),
     ("risk_assessment", "/admin/risk-assessment"),
     ("materials", "/admin/materials?popup=1"),
     ("partners", "/admin/partners"),
@@ -160,7 +163,7 @@ def default_menu_access(role: UserRole) -> list[str]:
         return list(MENU_KEYS)
     denied = {"users"}
     if role in (UserRole.partner, UserRole.external):
-        denied |= {"equipment", "pm", "inspection_logs"}
+        denied |= {"equipment", "pm", "inspection_logs", "facility_section"}
     return [k for k in MENU_KEYS if k not in denied]
 
 
@@ -191,7 +194,18 @@ def effective_menu_access(user: User | None) -> list[str]:
     raw = getattr(user, "menu_access", None)
     if raw is None:
         return default_menu_access(user.role)
-    return normalize_menu_access(raw)
+    keys = normalize_menu_access(raw)
+    # 신규 시설섹션 메뉴: 기존 저장 권한에 d1/정비섹션이 있으면 자동 부여(협력사 제외)
+    if (
+        user.role not in (UserRole.partner, UserRole.external)
+        and "facility_section" not in keys
+        and ("d1" in keys or "work_orders" in keys)
+    ):
+        if "d1" in keys:
+            keys.insert(keys.index("d1") + 1, "facility_section")
+        else:
+            keys.append("facility_section")
+    return keys
 
 
 def can_access_menu(user: User | None, menu_key: str) -> bool:

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}D-1 작업{% endblock %}
+{% block title %}D-1 작업(협력사){% endblock %}
 
 {% macro wo_board_table(orders, partners, empty_msg, filters=None, today_receipt_ids=None) %}
   {% set today_ids = today_receipt_ids or [] %}
@@ -7,6 +7,9 @@
   <table class="data-table wo-list-table wo-list-compact">
     <thead>
       <tr>
+        <th class="wo-sel-col">
+          <input type="checkbox" class="d1-select-all" title="미요청 전체 선택" aria-label="미요청 전체 선택" />
+        </th>
         <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
         <th>등록일</th>
@@ -17,6 +20,7 @@
         <th>조치내용</th>
         <th>승인자</th>
         <th>저장</th>
+        <th>승인요청</th>
         <th>상세</th>
         {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
       </tr>
@@ -25,7 +29,22 @@
       {% for wo in orders %}
       {% set st = wo.status.value %}
       {% set step = 1 if st in ['received','assigned'] else (2 if st == 'in_progress' else 3) %}
-      <tr class="{% if wo.id in today_ids %}wo-today-receipt{% endif %}">
+      <tr class="{% if wo.id in today_ids %}wo-today-receipt{% endif %}{% if wo.approval_requested %} wo-req-sent{% endif %}"
+          data-wo-id="{{ wo.id }}">
+        <td class="wo-sel-col">
+          {% if not wo.approval_requested and user_can_edit(user) %}
+          <input type="checkbox"
+                 class="d1-row-check"
+                 name="wo_ids"
+                 value="{{ wo.id }}"
+                 form="d1-bulk-req-form"
+                 data-sched="d1-sched-{{ wo.id }}"
+                 data-partner="d1-partner-{{ wo.id }}"
+                 title="일괄 승인요청" />
+          {% elif wo.approval_requested %}
+          <span class="wo-sel-done" title="승인요청됨">✓</span>
+          {% else %}-{% endif %}
+        </td>
         <td class="wo-eq-cell">
           {% if wo.equipment %}
           <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
@@ -37,6 +56,8 @@
         <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
           <span class="wo-req-text">
             {% if wo.id in today_ids %}<span class="badge badge-wo">오늘접수</span> {% endif %}
+            {% if wo.approval_requested %}<span class="badge badge-wo">요청완료</span> {% endif %}
+            {% if wo.work_permitted %}<span class="badge badge-urgent">허가</span> {% endif %}
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
           </span>
         </td>
@@ -45,18 +66,28 @@
           <input type="date"
                  name="scheduled_date"
                  form="d1-wo-form-{{ wo.id }}"
+                 id="d1-sched-{{ wo.id }}"
                  class="wo-sched-input"
                  value="{{ wo.scheduled_date or '' }}"
-                 title="정비 예정일" />
+                 title="정비 예정일"
+                 {% if wo.approval_requested %}readonly{% endif %} />
         </td>
         <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
         <td>
-          <select name="partner_id" form="d1-wo-form-{{ wo.id }}" class="wo-partner-select" title="협력사">
+          <select name="partner_id"
+                  form="d1-wo-form-{{ wo.id }}"
+                  id="d1-partner-{{ wo.id }}"
+                  class="wo-partner-select"
+                  title="협력사"
+                  {% if wo.approval_requested %}disabled{% endif %}>
             <option value="0">미지정</option>
             {% for p in partners %}
             <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
             {% endfor %}
           </select>
+          {% if wo.approval_requested %}
+          <input type="hidden" name="partner_id" form="d1-wo-form-{{ wo.id }}" value="{{ wo.partner_id or 0 }}" />
+          {% endif %}
         </td>
         <td>
           <form id="d1-wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
@@ -100,6 +131,29 @@
         <td>
           <button type="submit" form="d1-wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
         </td>
+        <td class="wo-d1-cell">
+          {% if wo.approval_requested %}
+          <span class="text-muted" title="{{ wo.approval_requested_by or '' }}">요청완료</span>
+          {% elif user_can_edit(user) %}
+          <form method="post"
+                action="/admin/work-orders/{{ wo.id }}/request-approval"
+                class="inline-form d1-req-form"
+                data-sched="d1-sched-{{ wo.id }}"
+                data-partner="d1-partner-{{ wo.id }}">
+            {% if filters %}
+            <input type="hidden" name="d1_board" value="{{ filters.board }}" />
+            <input type="hidden" name="page" value="{{ filters.page }}" />
+            <input type="hidden" name="filter_status" value="{{ filters.statuses|join(',') }}" />
+            {% if filters.partner_id %}
+            <input type="hidden" name="d1_partner_id" value="{{ filters.partner_id }}" />
+            {% endif %}
+            {% endif %}
+            <input type="hidden" name="scheduled_date" value="{{ wo.scheduled_date or '' }}" />
+            <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
+            <button type="submit" class="btn btn-sm btn-primary">승인요청</button>
+          </form>
+          {% else %}-{% endif %}
+        </td>
         <td>
           <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
         </td>
@@ -122,7 +176,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}12{% else %}11{% endif %}" class="empty">{{ empty_msg }}</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}14{% else %}13{% endif %}" class="empty">{{ empty_msg }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -131,11 +185,18 @@
 
 {% block content %}
 <header class="page-header">
-  <h1>D-1 작업{% if selected_partner_name %} · {{ selected_partner_name }}{% endif %}</h1>
-  <p>오늘 {{ today }} · 정비관리에서 업체 지정 후 승인된 항목만 표시 · 예정일 기준 당일·익일·예정·완료
+  <h1>D-1 작업(협력사){% if selected_partner_name %} · {{ selected_partner_name }}{% endif %}</h1>
+  <p>오늘 {{ today }} · 예정일 지정 후 승인요청 → <a href="/admin/facility-section">정비관리(시설섹션)</a>에서 작업허가
     {% if selected_partner_name %}· <strong>{{ selected_partner_name }}</strong> 작업만 표시{% endif %}
   </p>
 </header>
+
+{% if flash_error %}
+<div class="alert alert-error">{{ flash_error }}</div>
+{% endif %}
+{% if flash_message %}
+<div class="alert alert-ok">{{ flash_message }}</div>
+{% endif %}
 
 <section class="card d1-filter-card">
   <div class="wo-list-head">
@@ -189,6 +250,23 @@
   </form>
 </section>
 
+{% if user_can_edit(user) %}
+<div class="wo-bulk-bar" id="d1-bulk-bar" hidden>
+  <span class="wo-bulk-count">선택 <strong id="d1-bulk-count">0</strong>건</span>
+  <span class="wo-bulk-hint">항목별 예정일·업체를 확인한 뒤 일괄 승인요청하세요</span>
+  <button type="submit" form="d1-bulk-req-form" class="btn btn-sm btn-primary">선택 항목 일괄 승인요청</button>
+  <button type="button" class="btn btn-sm btn-secondary" id="d1-bulk-clear">선택 해제</button>
+</div>
+<form id="d1-bulk-req-form" method="post" action="/admin/d1/request-approval-bulk">
+  <input type="hidden" name="d1_board" value="{{ filters.board_mode or ('receipt' if filters.partner_id else 'today') }}" />
+  <input type="hidden" name="page" value="{{ filters.page }}" />
+  <input type="hidden" name="filter_status" value="{{ filters.statuses|join(',') }}" />
+  {% if filters.partner_id %}
+  <input type="hidden" name="d1_partner_id" value="{{ filters.partner_id }}" />
+  {% endif %}
+</form>
+{% endif %}
+
 {% if filters.view_partner %}
 <section class="card">
   <div class="wo-list-head">
@@ -207,14 +285,10 @@
   <p class="empty">표시할 정비가 없습니다.</p>
   {% endif %}
 </section>
-{% elif not filters.boards %}
-<section class="card">
-  <p class="empty">작업 구분을 선택하세요.</p>
-</section>
 {% else %}
   {% for section in board_sections %}
-  {% if section.orders or filters.board_mode != 'all' %}
-  <section class="card d1-board-section" id="d1-section-{{ section.key }}">
+  {% if section.orders is defined %}
+  <section class="card d1-board-section">
     <div class="wo-list-head">
       <h2>
         {{ section.title }}
@@ -264,6 +338,101 @@
       });
     });
   });
+
+  document.querySelectorAll('.d1-req-form').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      var s = document.getElementById(f.getAttribute('data-sched'));
+      var p = document.getElementById(f.getAttribute('data-partner'));
+      var hs = f.querySelector('input[name="scheduled_date"]');
+      var hp = f.querySelector('input[name="partner_id"]');
+      if (s && hs) hs.value = s.value || '';
+      if (p && hp) hp.value = p.value || '0';
+      if (!hs || !hs.value) {
+        e.preventDefault();
+        alert('예정일을 지정한 뒤 승인요청하세요.');
+      }
+    });
+  });
+
+  var bulkForm = document.getElementById('d1-bulk-req-form');
+  var bulkBar = document.getElementById('d1-bulk-bar');
+  var bulkCount = document.getElementById('d1-bulk-count');
+  function rowChecks() {
+    return Array.prototype.slice.call(document.querySelectorAll('.d1-row-check'));
+  }
+  function syncBulk() {
+    var checks = rowChecks();
+    var selected = checks.filter(function (c) { return c.checked; });
+    if (bulkCount) bulkCount.textContent = String(selected.length);
+    if (bulkBar) bulkBar.hidden = selected.length === 0;
+    document.querySelectorAll('.d1-select-all').forEach(function (all) {
+      var scope = all.closest('table');
+      var list = scope
+        ? Array.prototype.slice.call(scope.querySelectorAll('.d1-row-check'))
+        : checks;
+      var sel = list.filter(function (c) { return c.checked; });
+      all.checked = list.length > 0 && sel.length === list.length;
+      all.indeterminate = sel.length > 0 && sel.length < list.length;
+    });
+  }
+  document.querySelectorAll('.d1-select-all').forEach(function (all) {
+    all.addEventListener('change', function () {
+      var scope = all.closest('table');
+      var list = scope
+        ? Array.prototype.slice.call(scope.querySelectorAll('.d1-row-check'))
+        : rowChecks();
+      list.forEach(function (c) { c.checked = all.checked; });
+      syncBulk();
+    });
+  });
+  rowChecks().forEach(function (c) { c.addEventListener('change', syncBulk); });
+  var clearBtn = document.getElementById('d1-bulk-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      rowChecks().forEach(function (c) { c.checked = false; });
+      syncBulk();
+    });
+  }
+  if (bulkForm) {
+    bulkForm.addEventListener('submit', function (e) {
+      var selected = rowChecks().filter(function (c) { return c.checked; });
+      if (!selected.length) {
+        e.preventDefault();
+        alert('승인요청할 항목을 선택하세요.');
+        return;
+      }
+      Array.prototype.slice.call(bulkForm.querySelectorAll('[data-bulk="1"]')).forEach(function (el) {
+        el.parentNode.removeChild(el);
+      });
+      var noDate = 0;
+      selected.forEach(function (c) {
+        var s = document.getElementById(c.getAttribute('data-sched'));
+        var p = document.getElementById(c.getAttribute('data-partner'));
+        var sd = s ? (s.value || '') : '';
+        var pd = p ? (p.value || '0') : '0';
+        if (!sd) noDate += 1;
+        [['scheduled_' + c.value, sd], ['partner_' + c.value, pd]].forEach(function (pair) {
+          var inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = pair[0];
+          inp.value = pair[1];
+          inp.setAttribute('data-bulk', '1');
+          bulkForm.appendChild(inp);
+        });
+      });
+      if (noDate === selected.length) {
+        e.preventDefault();
+        alert('선택한 항목에 예정일이 없습니다. 예정일을 지정한 뒤 승인요청하세요.');
+        return;
+      }
+      if (noDate > 0) {
+        if (!confirm('예정일 미지정 ' + noDate + '건은 제외됩니다. 계속할까요?')) {
+          e.preventDefault();
+        }
+      }
+    });
+  }
+  syncBulk();
 })();
 </script>
 <script src="/static/js/wo-col-resize.js"></script>

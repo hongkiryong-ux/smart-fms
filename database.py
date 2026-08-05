@@ -204,6 +204,30 @@ async def ensure_schema_updates() -> None:
             "UPDATE work_orders SET d1_approved = FALSE WHERE d1_approved IS NULL"
         )
         await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS approval_requested BOOLEAN DEFAULT FALSE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS approval_requested_by VARCHAR(100)"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS approval_requested_at TIMESTAMP WITHOUT TIME ZONE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS work_permitted BOOLEAN DEFAULT FALSE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS work_permitted_by VARCHAR(100)"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS work_permitted_at TIMESTAMP WITHOUT TIME ZONE"
+        )
+        await _exec(
+            "UPDATE work_orders SET approval_requested = FALSE WHERE approval_requested IS NULL"
+        )
+        await _exec(
+            "UPDATE work_orders SET work_permitted = FALSE WHERE work_permitted IS NULL"
+        )
+        await _exec(
             "ALTER TABLE material_items ADD COLUMN IF NOT EXISTS location VARCHAR(200)"
         )
         await _exec(
@@ -417,6 +441,12 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN d1_approved BOOLEAN DEFAULT 0",
             "ALTER TABLE work_orders ADD COLUMN approved_by VARCHAR(100)",
             "ALTER TABLE work_orders ADD COLUMN approved_at DATETIME",
+            "ALTER TABLE work_orders ADD COLUMN approval_requested BOOLEAN DEFAULT 0",
+            "ALTER TABLE work_orders ADD COLUMN approval_requested_by VARCHAR(100)",
+            "ALTER TABLE work_orders ADD COLUMN approval_requested_at DATETIME",
+            "ALTER TABLE work_orders ADD COLUMN work_permitted BOOLEAN DEFAULT 0",
+            "ALTER TABLE work_orders ADD COLUMN work_permitted_by VARCHAR(100)",
+            "ALTER TABLE work_orders ADD COLUMN work_permitted_at DATETIME",
             "ALTER TABLE material_items ADD COLUMN location TEXT",
             "ALTER TABLE users ADD COLUMN openai_api_key VARCHAR(200)",
             "ALTER TABLE users ADD COLUMN openai_model VARCHAR(80)",
