@@ -2236,6 +2236,16 @@ button.link-action:hover { text-decoration: underline; }
   color: var(--text);
 }
 .eq-popup-close:hover { background: #e2e8f0; }
+.eq-wo-request-form {
+  flex: 1 1 100%;
+  margin: 0 0 0.5rem;
+  gap: 0.35rem;
+}
+.eq-wo-request-form textarea {
+  width: 100%;
+  min-height: 4rem;
+  resize: vertical;
+}
 .eq-popup-actions {
   display: flex;
   flex-wrap: wrap;

@@ -65,7 +65,7 @@
         <a href="/admin/equipment/{{ wo.equipment.id }}">{{ wo.equipment.code }} — {{ wo.equipment.name }}</a>
         {% else %}-{% endif %}
       </dd>
-      <dt>의뢰내용</dt><dd>{{ wo.description or '-' }}</dd>
+      <dt>정비의뢰 내용</dt><dd>{{ wo.description or '-' }}</dd>
       <dt>정비의뢰자</dt><dd>{{ wo.requester_name or wo.assignee_name or '-' }}</dd>
       <dt>예정일</dt><dd>{{ wo.scheduled_date or '-' }}</dd>
       <dt>담당자</dt><dd>{{ wo.assignee_name or '-' }}</dd>
@@ -111,8 +111,8 @@
       <input type="date" name="scheduled_date" value="{{ wo.scheduled_date or '' }}" />
       <label>담당자</label>
       <input type="text" name="assignee_name" value="{{ wo.assignee_name or '' }}" />
-      <label>원인</label>
-      <textarea name="cause" rows="2">{{ wo.cause or '' }}</textarea>
+      <label>정비의뢰 내용</label>
+      <textarea name="description" rows="3" placeholder="정비의뢰 내용을 입력하세요">{{ wo.description or '' }}</textarea>
       <label>조치내용</label>
       <textarea name="action" rows="2">{{ wo.action or '' }}</textarea>
       <div class="row-actions" style="margin-top:0.75rem;gap:0.5rem;">

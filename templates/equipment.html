@@ -162,9 +162,11 @@
         </div>
 
         <div class="eq-popup-actions">
-          <form method="post" action="/admin/equipment/{{ eq.id }}/maintenance-request" class="inline-form">
+          <form method="post" action="/admin/equipment/{{ eq.id }}/maintenance-request" class="form-stack eq-wo-request-form">
             <input type="hidden" name="title" value="[정비의뢰] {{ eq.code }} {{ eq.name }}" />
-            <button type="submit" class="btn btn-primary">정비의뢰</button>
+            <label>정비의뢰 내용</label>
+            <textarea name="description" rows="3" required placeholder="정비의뢰 내용을 입력하세요"></textarea>
+            <button type="submit" class="btn btn-primary">정비의뢰 접수</button>
           </form>
           <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/export">Excel 내보내기</a>
           <form method="post"

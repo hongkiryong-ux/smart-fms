@@ -3564,10 +3564,16 @@ async def equipment_maintenance_request(
 
     wo_title = title.strip() or f"[정비의뢰] {eq.code} {eq.name}"
     person = _wo_person_label(user)
+    desc = description.strip()
+    if not desc:
+        return RedirectResponse(
+            f"/admin/equipment/{eq_id}?error=wo_desc",
+            status_code=303,
+        )
     wo = WorkOrder(
         title=wo_title,
-        description=description.strip() or f"{eq.category} 설비 정비의뢰",
-        priority=priority,
+        description=desc,
+        priority=priority if priority in ("normal", "high") else "normal",
         assignee_name=assignee_name.strip() or person,
         requester_name=person,
         equipment_id=eq.id,
@@ -4191,6 +4197,7 @@ async def work_order_status(
     action: str = Form(""),
     cause: str = Form(""),
     assignee_name: str | None = Form(None),
+    description: str | None = Form(None),
     partner_id: int = Form(0),
     scheduled_date: str = Form(""),
     redirect: str = Form(""),
@@ -4221,6 +4228,9 @@ async def work_order_status(
     wo.action = action.strip() or None
     if cause.strip():
         wo.cause = cause.strip()
+    # 정비의뢰 내용: 상세 폼에서 전달될 때만 갱신
+    if description is not None:
+        wo.description = description.strip() or None
     # 담당자: 폼에 필드가 있을 때만 갱신 (목록 저장은 필드 없음 → 유지)
     if assignee_name is not None:
         wo.assignee_name = assignee_name.strip() or None

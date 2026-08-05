@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ eq.name }}{% endblock %}
 {% block content %}
+{% if request.query_params.get('error') == 'wo_desc' %}
+<div class="alert alert-error">정비의뢰 내용을 입력하세요.</div>
+{% endif %}
 <header class="page-header">
   <div class="item-head">
     <div>
@@ -8,9 +11,11 @@
       <p><code>{{ eq.code }}</code> · {{ eq.category }}</p>
     </div>
     <div class="row-actions">
-      <form method="post" action="/admin/equipment/{{ eq.id }}/maintenance-request" class="inline-form">
+      <form method="post" action="/admin/equipment/{{ eq.id }}/maintenance-request" class="form-stack eq-wo-request-form" style="min-width:16rem">
         <input type="hidden" name="title" value="[정비의뢰] {{ eq.code }} {{ eq.name }}" />
-        <button type="submit" class="btn btn-sm btn-primary">정비의뢰</button>
+        <label>정비의뢰 내용</label>
+        <textarea name="description" rows="2" required placeholder="정비의뢰 내용을 입력하세요"></textarea>
+        <button type="submit" class="btn btn-sm btn-primary">정비의뢰 접수</button>
       </form>
       <a class="btn btn-sm btn-secondary" href="/admin/equipment/{{ eq.id }}/export">Excel 내보내기</a>
       {% if user_can_edit(user) %}
