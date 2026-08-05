@@ -101,19 +101,19 @@
         <th class="wo-sel-col">
           <input type="checkbox" id="wo-select-all" title="미승인 전체 선택" aria-label="미승인 전체 선택" />
         </th>
-        <th class="wo-eq-col-head wo-col-resizable" data-col="eq">설비</th>
-        <th class="wo-req-col-head">정비의뢰내용</th>
-        <th class="wo-col-resizable wo-col-head-fit" data-col="date">등록일</th>
-        <th class="wo-col-resizable wo-col-head-fit" data-col="sched">예정일</th>
-        <th class="wo-col-resizable wo-col-head-fit" data-col="priority">우선순위</th>
-        <th class="wo-col-resizable wo-col-head-fit" data-col="partner">협력사</th>
-        <th class="wo-prog-col-head">진행</th>
-        <th class="wo-col-resizable wo-col-head-fit" data-col="action">조치내용</th>
-        <th class="wo-col-resizable wo-col-head-fit" data-col="approver">작업 승인자</th>
-        <th class="wo-btn-col-head">저장</th>
-        <th class="wo-btn-col-head">D-1</th>
-        <th class="wo-btn-col-head">상세</th>
-        {% if user_can_delete(user) %}<th class="wo-btn-col-head">삭제</th>{% endif %}
+        <th class="wo-eq-col-head">설비</th>
+        <th>정비의뢰내용</th>
+        <th>등록일</th>
+        <th>예정일</th>
+        <th>우선순위</th>
+        <th>협력사</th>
+        <th>진행</th>
+        <th>조치내용</th>
+        <th>작업 승인자</th>
+        <th>저장</th>
+        <th>D-1</th>
+        <th>상세</th>
+        {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -148,8 +148,8 @@
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
           </span>
         </td>
-        <td class="wo-date wo-col-date">{{ fmt_kst_date(wo.created_at) }}</td>
-        <td class="wo-col-sched">
+        <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
+        <td>
           <input type="date"
                  name="scheduled_date"
                  form="wo-form-{{ wo.id }}"
@@ -157,8 +157,8 @@
                  value="{{ wo.scheduled_date or '' }}"
                  title="정비 예정일" />
         </td>
-        <td class="wo-col-priority">{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
-        <td class="wo-col-partner">
+        <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
+        <td>
           <select name="partner_id"
                   form="wo-form-{{ wo.id }}"
                   id="wo-partner-{{ wo.id }}"
@@ -170,7 +170,7 @@
             {% endfor %}
           </select>
         </td>
-        <td class="wo-col-prog">
+        <td>
           <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
             <input type="hidden" name="redirect" value="list" />
             <input type="hidden" name="q" value="{{ filters.q }}" />
@@ -195,7 +195,7 @@
             </div>
           </form>
         </td>
-        <td class="wo-col-action">
+        <td>
           <input type="text"
                  name="action"
                  form="wo-form-{{ wo.id }}"
@@ -204,14 +204,14 @@
                  placeholder="조치내용"
                  title="{{ wo.action or '' }}" />
         </td>
-        <td class="wo-approver-cell wo-col-approver" title="{{ wo.approved_by or '' }}">
+        <td class="wo-approver-cell" title="{{ wo.approved_by or '' }}">
           {% if wo.d1_approved %}
           <span class="wo-approver">{{ wo.approved_by or '-' }}</span>
           {% else %}
           <span class="text-muted">-</span>
           {% endif %}
         </td>
-        <td class="wo-col-btn">
+        <td>
           <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
         </td>
         <td class="wo-d1-cell">

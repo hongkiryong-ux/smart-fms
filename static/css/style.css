@@ -2839,16 +2839,14 @@ body.users-col-resizing {
 .wo-list-table {
   table-layout: fixed;
 }
-/* 설비: 리사이즈 가능 */
 .wo-list-compact th.wo-eq-col-head,
-.wo-list-compact td.wo-eq-cell {
-  width: var(--wo-col-eq, 140px);
-  min-width: var(--wo-col-eq, 140px);
-  max-width: var(--wo-col-eq, 140px);
+.wo-list-compact td:nth-child(1) {
+  width: var(--wo-eq-col-width, 140px);
+  min-width: var(--wo-eq-col-width, 140px);
+  max-width: var(--wo-eq-col-width, 140px);
   box-sizing: border-box;
 }
-.wo-eq-col-head,
-.wo-col-head-fit {
+.wo-eq-col-head {
   position: relative;
   padding-right: 0.65rem !important;
 }
@@ -2881,70 +2879,26 @@ body.wo-col-resizing {
   cursor: col-resize !important;
   user-select: none !important;
 }
-/* 내용 맞춤(글씨만큼) + CSS 변수로 리사이즈 */
-.wo-list-compact th[data-col="date"],
-.wo-list-compact td.wo-col-date {
-  width: var(--wo-col-date, 1%);
-  min-width: var(--wo-col-date, auto);
-  max-width: var(--wo-col-date, none);
-  box-sizing: border-box;
-}
-.wo-list-compact th[data-col="sched"],
-.wo-list-compact td.wo-col-sched {
-  width: var(--wo-col-sched, 1%);
-  min-width: var(--wo-col-sched, auto);
-  max-width: var(--wo-col-sched, none);
-  box-sizing: border-box;
-}
-.wo-list-compact th[data-col="priority"],
-.wo-list-compact td.wo-col-priority {
-  width: var(--wo-col-priority, 1%);
-  min-width: var(--wo-col-priority, auto);
-  max-width: var(--wo-col-priority, none);
-  box-sizing: border-box;
-}
-.wo-list-compact th[data-col="partner"],
-.wo-list-compact td.wo-col-partner {
-  width: var(--wo-col-partner, 1%);
-  min-width: var(--wo-col-partner, auto);
-  max-width: var(--wo-col-partner, none);
-  box-sizing: border-box;
-}
-.wo-list-compact th[data-col="action"],
-.wo-list-compact td.wo-col-action {
-  width: var(--wo-col-action, 1%);
-  min-width: var(--wo-col-action, 10.5ch);
-  max-width: var(--wo-col-action, none);
-  box-sizing: border-box;
-}
-.wo-list-compact th[data-col="approver"],
-.wo-list-compact td.wo-col-approver {
-  width: var(--wo-col-approver, 1%);
-  min-width: var(--wo-col-approver, auto);
-  max-width: var(--wo-col-approver, none);
-  box-sizing: border-box;
-}
-.wo-list-compact th.wo-prog-col-head,
-.wo-list-compact td.wo-col-prog {
-  width: 1%;
-  white-space: nowrap;
-}
-.wo-list-compact th.wo-btn-col-head,
-.wo-list-compact td.wo-col-btn,
-.wo-list-compact td.wo-d1-cell {
-  width: 1%;
-  white-space: nowrap;
-}
-/* 정비의뢰내용: 남는 폭 사용, 전체 표시(줄바꿈) */
-.wo-list-compact th.wo-req-col-head,
-.wo-list-compact td.wo-req-cell {
-  width: auto;
-  min-width: 8rem;
-  max-width: none;
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal !important;
-}
+.wo-list-compact th:nth-child(2),
+.wo-list-compact td:nth-child(2) { width: 14%; }
+.wo-list-compact th:nth-child(3),
+.wo-list-compact td:nth-child(3) { width: 8%; }
+.wo-list-compact th:nth-child(4),
+.wo-list-compact td:nth-child(4) { width: 10%; }
+.wo-list-compact th:nth-child(5),
+.wo-list-compact td:nth-child(5) { width: 6%; }
+.wo-list-compact th:nth-child(6),
+.wo-list-compact td:nth-child(6) { width: 11%; }
+.wo-list-compact th:nth-child(7),
+.wo-list-compact td:nth-child(7) { width: 10%; }
+.wo-list-compact th:nth-child(8),
+.wo-list-compact td:nth-child(8) { width: 14%; }
+.wo-list-compact th:nth-child(9),
+.wo-list-compact td:nth-child(9) { width: 5%; }
+.wo-list-compact th:nth-child(10),
+.wo-list-compact td:nth-child(10) { width: 4%; }
+.wo-list-compact th:nth-child(11),
+.wo-list-compact td:nth-child(11) { width: 4%; }
 .wo-eq-cell {
   max-width: none;
   white-space: nowrap;
@@ -2983,19 +2937,14 @@ body.wo-col-resizing {
 }
 .wo-req-cell {
   max-width: none;
-  white-space: normal !important;
-  overflow: visible !important;
-  text-overflow: unset !important;
-  word-break: break-word;
-  line-height: 1.35;
+  white-space: nowrap !important;
 }
 .wo-req-text {
   display: block;
   max-width: 100%;
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal;
-  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .wo-date {
   white-space: nowrap;
@@ -3019,16 +2968,6 @@ body.wo-col-resizing {
   background: #fff;
   height: 1.9rem;
   box-sizing: border-box;
-}
-.wo-col-partner .wo-partner-select {
-  min-width: 4.5rem;
-  width: auto;
-  max-width: 100%;
-}
-.wo-col-sched .wo-sched-input {
-  width: auto;
-  min-width: 0;
-  max-width: 100%;
 }
 
 .wo-step-btns {
@@ -3075,7 +3014,7 @@ body.wo-col-resizing {
   font-size: 0.85rem;
 }
 .wo-approver-cell {
-  max-width: none;
+  max-width: 7.5rem;
   font-size: 0.78rem;
   color: #334155;
 }
@@ -3147,7 +3086,7 @@ tr.wo-row-selected {
   display: block;
   width: 100%;
   max-width: 100%;
-  min-width: 10ch;
+  min-width: 0;
   padding: 0.25rem 0.35rem;
   border: 1px solid var(--border);
   border-radius: 6px;
