@@ -5,8 +5,7 @@
   <h1>정비관리(시설섹션)</h1>
   <p>
     오늘 {{ today }} · 협력사 승인요청 항목 ·
-    <strong>하루전(작업일 {{ tomorrow }})</strong> 개별/일괄 승인(작업허가) ·
-    <strong>당일</strong>·<strong>정비예정</strong> 작업 현황
+    <strong>하루전·당일·정비예정</strong> 개별/일괄 승인(작업허가)
   </p>
 </header>
 
@@ -46,10 +45,10 @@
     </a>
   </div>
 
-  {% if user_can_edit(user) and board in ['day_before', 'all'] %}
+  {% if user_can_edit(user) %}
   <div class="wo-bulk-bar" id="fac-bulk-bar" hidden>
     <span class="wo-bulk-count">선택 <strong id="fac-bulk-count">0</strong>건</span>
-    <span class="wo-bulk-hint">하루전 항목을 임의 다중선택한 뒤 일괄승인하세요</span>
+    <span class="wo-bulk-hint">미승인 항목을 다중선택한 뒤 일괄승인하세요</span>
     <button type="submit" form="fac-bulk-form" class="btn btn-sm btn-primary" id="fac-bulk-approve-btn">
       선택 항목 일괄승인
     </button>
@@ -70,7 +69,7 @@
   {% set list_orders = today_works %}
   {% endif %}
 
-  {% set show_sel = user_can_edit(user) and board in ['day_before', 'all'] %}
+  {% set show_sel = user_can_edit(user) %}
 
   <div class="table-scroll">
   <table class="data-table wo-list-table wo-list-compact" id="fac-list-table">
@@ -78,7 +77,7 @@
       <tr>
         {% if show_sel %}
         <th class="wo-sel-col">
-          <input type="checkbox" id="fac-select-all" title="하루전 미승인 전체 선택" aria-label="하루전 미승인 전체 선택" />
+          <input type="checkbox" id="fac-select-all" title="미승인 전체 선택" aria-label="미승인 전체 선택" />
         </th>
         {% endif %}
         <th>구분</th>
@@ -101,21 +100,18 @@
       {% set is_today = wo.scheduled_date == today %}
       {% set is_scheduled = not is_day_before and not is_today %}
       <tr class="{% if wo.work_permitted %}wo-d1-approved{% endif %}{% if is_day_before %} fac-row-day-before{% endif %}"
-          data-wo-id="{{ wo.id }}"
-          data-day-before="{{ 1 if is_day_before else 0 }}">
+          data-wo-id="{{ wo.id }}">
         {% if show_sel %}
         <td class="wo-sel-col">
-          {% if is_day_before and not wo.work_permitted %}
+          {% if not wo.work_permitted %}
           <input type="checkbox"
                  class="fac-row-check"
                  name="wo_ids"
                  value="{{ wo.id }}"
                  form="fac-bulk-form"
                  title="일괄승인 대상" />
-          {% elif is_day_before and wo.work_permitted %}
-          <span class="wo-sel-done" title="이미 승인됨">✓</span>
           {% else %}
-          <span class="text-muted">-</span>
+          <span class="wo-sel-done" title="이미 승인됨">✓</span>
           {% endif %}
         </td>
         {% endif %}
@@ -185,15 +181,13 @@
             <input type="hidden" name="board" value="{{ board }}" />
             <button type="submit" class="btn btn-sm btn-secondary" title="{{ wo.work_permitted_by or '승인됨' }}{% if wo.work_permitted_at %} · {{ fmt_kst(wo.work_permitted_at) }}{% endif %}">승인됨{% if perm_name %}/{{ perm_name }}{% endif %}</button>
           </form>
-          {% elif is_day_before and user_can_edit(user) %}
+          {% elif user_can_edit(user) %}
           <form method="post" action="/admin/facility-section/{{ wo.id }}/permit" class="inline-form">
             <input type="hidden" name="board" value="{{ board }}" />
             <button type="submit" class="btn btn-sm btn-primary">승인</button>
           </form>
-          {% elif is_today or is_scheduled %}
-          <span class="text-muted">{% if wo.work_permitted %}{% set perm_name = wo.work_permitted_by.split(' (')[0] if wo.work_permitted_by else '' %}승인됨{% if perm_name %}/{{ perm_name }}{% endif %}{% else %}{% if is_today %}미승인{% else %}-{% endif %}{% endif %}</span>
           {% else %}
-          <span class="text-muted">-</span>
+          <span class="text-muted">미승인</span>
           {% endif %}
         </td>
         <td><a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a></td>

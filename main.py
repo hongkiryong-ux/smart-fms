@@ -5918,19 +5918,12 @@ async def facility_permit_work(
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
-    """시설섹션: 개별 작업허가 (하루전 항목)."""
-    today = _today_kst()
-    tomorrow = today + timedelta(days=1)
+    """시설섹션: 개별 작업허가 (하루전·당일·정비예정)."""
     wo = await db.get(WorkOrder, wo_id)
     if not wo or not wo.is_active:
         raise HTTPException(404)
     if not getattr(wo, "approval_requested", False):
         return _facility_redirect(board=board, error="승인요청된 항목이 아닙니다.")
-    if wo.scheduled_date != tomorrow:
-        return _facility_redirect(
-            board=board,
-            error="작업허가는 작업일 하루전 항목만 가능합니다.",
-        )
     if getattr(wo, "work_permitted", False):
         return _facility_redirect(board=board, message="이미 작업허가된 항목입니다.")
     _wo_apply_work_permit(wo, _wo_approver_label(user))
@@ -5947,8 +5940,6 @@ async def facility_permit_work_bulk(
 ):
     """시설섹션: 선택 항목 일괄 작업허가."""
     form = await request.form()
-    today = _today_kst()
-    tomorrow = today + timedelta(days=1)
     raw_ids = form.getlist("wo_ids")
     ids: list[int] = []
     for raw in raw_ids:
@@ -5969,7 +5960,6 @@ async def facility_permit_work_bulk(
             not wo
             or not wo.is_active
             or not getattr(wo, "approval_requested", False)
-            or wo.scheduled_date != tomorrow
             or getattr(wo, "work_permitted", False)
         ):
             skip += 1
@@ -5984,7 +5974,7 @@ async def facility_permit_work_bulk(
         return _facility_redirect(board=board, message=msg)
     return _facility_redirect(
         board=board,
-        error="작업허가할 수 있는 하루전 항목이 없습니다.",
+        error="작업허가할 수 있는 항목이 없습니다.",
     )
 
 
