@@ -2839,16 +2839,14 @@ body.users-col-resizing {
 .wo-list-table {
   table-layout: fixed;
 }
+/* 열 너비는 wo-col-resize.js(colgroup)가 제어. 아래는 JS 로드 전 기본 비율 */
 .wo-list-compact th.wo-eq-col-head,
-.wo-list-compact td:nth-child(1) {
-  width: var(--wo-eq-col-width, 140px);
-  min-width: var(--wo-eq-col-width, 140px);
-  max-width: var(--wo-eq-col-width, 140px);
-  box-sizing: border-box;
-}
-.wo-eq-col-head {
+.wo-list-compact td.wo-eq-cell { width: 14%; }
+.wo-list-compact th,
+.wo-list-compact th.wo-col-head {
   position: relative;
   padding-right: 0.65rem !important;
+  box-sizing: border-box;
 }
 .wo-col-resizer {
   position: absolute;
@@ -2879,26 +2877,30 @@ body.wo-col-resizing {
   cursor: col-resize !important;
   user-select: none !important;
 }
-.wo-list-compact th:nth-child(2),
-.wo-list-compact td:nth-child(2) { width: 14%; }
 .wo-list-compact th:nth-child(3),
-.wo-list-compact td:nth-child(3) { width: 8%; }
+.wo-list-compact td:nth-child(3) { width: 16%; } /* 정비의뢰내용 */
 .wo-list-compact th:nth-child(4),
-.wo-list-compact td:nth-child(4) { width: 10%; }
+.wo-list-compact td:nth-child(4) { width: 8%; }
 .wo-list-compact th:nth-child(5),
-.wo-list-compact td:nth-child(5) { width: 6%; }
+.wo-list-compact td:nth-child(5) { width: 9%; }
 .wo-list-compact th:nth-child(6),
-.wo-list-compact td:nth-child(6) { width: 11%; }
+.wo-list-compact td:nth-child(6) { width: 6%; }
 .wo-list-compact th:nth-child(7),
 .wo-list-compact td:nth-child(7) { width: 10%; }
 .wo-list-compact th:nth-child(8),
-.wo-list-compact td:nth-child(8) { width: 14%; }
+.wo-list-compact td:nth-child(8) { width: 10%; }
 .wo-list-compact th:nth-child(9),
-.wo-list-compact td:nth-child(9) { width: 5%; }
+.wo-list-compact td:nth-child(9) { width: 12%; }
 .wo-list-compact th:nth-child(10),
-.wo-list-compact td:nth-child(10) { width: 4%; }
+.wo-list-compact td:nth-child(10) { width: 7%; }
 .wo-list-compact th:nth-child(11),
-.wo-list-compact td:nth-child(11) { width: 4%; }
+.wo-list-compact td:nth-child(11),
+.wo-list-compact th:nth-child(12),
+.wo-list-compact td:nth-child(12),
+.wo-list-compact th:nth-child(13),
+.wo-list-compact td:nth-child(13),
+.wo-list-compact th:nth-child(14),
+.wo-list-compact td:nth-child(14) { width: 4%; }
 .wo-eq-cell {
   max-width: none;
   white-space: nowrap;
