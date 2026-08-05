@@ -5914,6 +5914,24 @@ async def facility_permit_work_bulk(
     )
 
 
+@app.post("/admin/facility-section/{wo_id}/unpermit")
+async def facility_unpermit_work(
+    wo_id: int,
+    board: str = Form("day_before"),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """시설섹션: 작업허가(승인) 취소."""
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+    wo.work_permitted = False
+    wo.work_permitted_by = None
+    wo.work_permitted_at = None
+    await db.commit()
+    return _facility_redirect(board=board, message="승인이 취소되었습니다.")
+
+
 @app.post("/admin/d1")
 async def d1_create(user: User = Depends(require_can_create)):
     """D-1 JSA/TBM 등록 UI 제거 — 목록으로 리다이렉트."""

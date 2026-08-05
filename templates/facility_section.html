@@ -5,7 +5,7 @@
   <h1>정비관리(시설섹션)</h1>
   <p>
     오늘 {{ today }} · 협력사 승인요청 항목 ·
-    <strong>하루전(작업일 {{ tomorrow }})</strong> 작업허가 /
+    <strong>하루전(작업일 {{ tomorrow }})</strong> 선택 후 개별/일괄 승인(작업허가) ·
     <strong>당일</strong> 작업 현황
   </p>
 </header>
@@ -17,8 +17,17 @@
 <div class="alert alert-ok">{{ flash_message }}</div>
 {% endif %}
 
-<section class="card d1-filter-card">
-  <div class="d1-board-btns" role="group" aria-label="시설섹션 보드">
+<section class="card">
+  <div class="wo-list-head">
+    <h2>
+      시설 작업 목록
+      <small class="text-muted">
+        (하루전 {{ day_before_works|length }} · 당일 {{ today_works|length }})
+      </small>
+    </h2>
+  </div>
+
+  <div class="d1-board-btns" role="group" aria-label="시설섹션 보드" style="margin-bottom:0.75rem">
     <a class="d1-board-btn{% if board == 'day_before' %} is-on{% endif %}"
        href="/admin/facility-section?board=day_before">
       하루전 작업 <small>({{ day_before_works|length }})</small>
@@ -32,51 +41,80 @@
       전체 <small>({{ day_before_works|length + today_works|length }})</small>
     </a>
   </div>
-</section>
 
-{% macro facility_table(orders, empty_msg, allow_permit=false, board_key='day_before') %}
-  {% if allow_permit and user_can_edit(user) %}
-  <div class="wo-bulk-bar fac-bulk-bar" hidden data-scope>
-    <span class="wo-bulk-count">선택 <strong class="fac-bulk-count">0</strong>건</span>
-    <span class="wo-bulk-hint">하루전 항목만 일괄 작업허가</span>
-    <button type="submit" class="btn btn-sm btn-primary fac-bulk-submit">선택 항목 일괄 작업허가</button>
-    <button type="button" class="btn btn-sm btn-secondary fac-bulk-clear">선택 해제</button>
+  {% if user_can_edit(user) and board in ['day_before', 'all'] %}
+  <div class="wo-bulk-bar" id="fac-bulk-bar" hidden>
+    <span class="wo-bulk-count">선택 <strong id="fac-bulk-count">0</strong>건</span>
+    <span class="wo-bulk-hint">하루전 항목을 임의 다중선택한 뒤 일괄승인하세요</span>
+    <button type="submit" form="fac-bulk-form" class="btn btn-sm btn-primary" id="fac-bulk-approve-btn">
+      선택 항목 일괄승인
+    </button>
+    <button type="button" class="btn btn-sm btn-secondary" id="fac-bulk-clear">선택 해제</button>
   </div>
+  <form id="fac-bulk-form" method="post" action="/admin/facility-section/permit-bulk">
+    <input type="hidden" name="board" value="{{ board }}" />
+  </form>
   {% endif %}
+
+  {% if board == 'all' %}
+  {% set list_orders = day_before_works + today_works %}
+  {% elif board == 'day_before' %}
+  {% set list_orders = day_before_works %}
+  {% else %}
+  {% set list_orders = today_works %}
+  {% endif %}
+
   <div class="table-scroll">
-  <table class="data-table wo-list-table wo-list-compact">
+  <table class="data-table wo-list-table wo-list-compact" id="fac-list-table">
     <thead>
       <tr>
-        {% if allow_permit and user_can_edit(user) %}
+        {% if user_can_edit(user) and board != 'today' %}
         <th class="wo-sel-col">
-          <input type="checkbox" class="fac-select-all" title="미허가 전체 선택" />
+          <input type="checkbox" id="fac-select-all" title="하루전 미승인 전체 선택" aria-label="하루전 미승인 전체 선택" />
         </th>
         {% endif %}
+        <th>구분</th>
         <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
         <th>예정일</th>
         <th>협력사</th>
-        <th>승인요청</th>
+        <th>승인요청자</th>
         <th>진행</th>
         <th>조치내용</th>
-        {% if allow_permit %}<th>작업허가</th>{% else %}<th>허가상태</th>{% endif %}
+        <th>저장</th>
+        <th>승인</th>
         <th>상세</th>
       </tr>
     </thead>
     <tbody>
-      {% for wo in orders %}
+      {% for wo in list_orders %}
       {% set st = wo.status.value %}
-      <tr class="{% if wo.work_permitted %}wo-d1-approved{% endif %}">
-        {% if allow_permit and user_can_edit(user) %}
+      {% set is_day_before = wo.scheduled_date == tomorrow %}
+      {% set is_today = wo.scheduled_date == today %}
+      <tr class="{% if wo.work_permitted %}wo-d1-approved{% endif %}{% if is_day_before %} fac-row-day-before{% endif %}"
+          data-wo-id="{{ wo.id }}"
+          data-day-before="{{ 1 if is_day_before else 0 }}">
+        {% if user_can_edit(user) and board != 'today' %}
         <td class="wo-sel-col">
-          {% if not wo.work_permitted %}
-          <input type="checkbox" class="fac-row-check" name="wo_ids" value="{{ wo.id }}"
-                 form="fac-bulk-form-{{ board_key }}" title="일괄 작업허가" />
+          {% if is_day_before and not wo.work_permitted %}
+          <input type="checkbox"
+                 class="fac-row-check"
+                 name="wo_ids"
+                 value="{{ wo.id }}"
+                 form="fac-bulk-form"
+                 title="일괄승인 대상" />
+          {% elif is_day_before and wo.work_permitted %}
+          <span class="wo-sel-done" title="이미 승인됨">✓</span>
           {% else %}
-          <span class="wo-sel-done">✓</span>
+          <span class="text-muted">-</span>
           {% endif %}
         </td>
         {% endif %}
+        <td>
+          {% if is_day_before %}<span class="badge badge-wo">하루전</span>
+          {% elif is_today %}<span class="badge badge-urgent">당일</span>
+          {% else %}-{% endif %}
+        </td>
         <td class="wo-eq-cell">
           {% if wo.equipment %}
           <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
@@ -87,7 +125,7 @@
         </td>
         <td class="wo-req-cell" title="{{ wo.description or wo.title }}">
           <span class="wo-req-text">
-            {% if wo.work_permitted %}<span class="badge badge-urgent">허가</span> {% endif %}
+            {% if wo.work_permitted %}<span class="badge badge-urgent">승인</span> {% endif %}
             {{ wo.description or wo.title }}
           </span>
         </td>
@@ -97,12 +135,12 @@
           <span class="wo-approver">{{ wo.approval_requested_by or '-' }}</span>
         </td>
         <td>
-          <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form" id="fac-form-{{ board_key }}-{{ wo.id }}">
+          <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form" id="fac-form-{{ wo.id }}">
             <input type="hidden" name="redirect" value="facility" />
-            <input type="hidden" name="d1_board" value="{{ board_key }}" />
+            <input type="hidden" name="d1_board" value="{{ board }}" />
             <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
             <input type="hidden" name="scheduled_date" value="{{ wo.scheduled_date or '' }}" />
-            <div class="wo-step-btns">
+            <div class="wo-step-btns" role="radiogroup" aria-label="진행상태">
               <label class="wo-step-btn{% if st in ['received','assigned'] %} is-on{% endif %}">
                 <input type="radio" name="status" value="received" {% if st in ['received','assigned'] %}checked{% endif %} />
                 <span>의뢰</span>
@@ -119,58 +157,48 @@
           </form>
         </td>
         <td>
-          <input type="text" name="action" form="fac-form-{{ board_key }}-{{ wo.id }}"
-                 class="wo-action-input" value="{{ wo.action or '' }}" placeholder="조치내용" />
-          <button type="submit" form="fac-form-{{ board_key }}-{{ wo.id }}" class="btn btn-sm btn-secondary" style="margin-top:0.25rem">저장</button>
+          <input type="text"
+                 name="action"
+                 form="fac-form-{{ wo.id }}"
+                 class="wo-action-input"
+                 value="{{ wo.action or '' }}"
+                 placeholder="조치내용"
+                 title="{{ wo.action or '' }}" />
+        </td>
+        <td>
+          <button type="submit" form="fac-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
         </td>
         <td class="wo-d1-cell">
           {% if wo.work_permitted %}
-          <span class="wo-approver" title="{{ wo.work_permitted_by or '' }}">{{ wo.work_permitted_by or '허가됨' }}</span>
-          {% elif allow_permit and user_can_edit(user) %}
-          <form method="post" action="/admin/facility-section/{{ wo.id }}/permit" class="inline-form">
-            <input type="hidden" name="board" value="{{ board_key }}" />
-            <button type="submit" class="btn btn-sm btn-primary">작업허가</button>
+          <form method="post" action="/admin/facility-section/{{ wo.id }}/unpermit" class="inline-form"
+                onsubmit="return confirm('승인을 취소할까요?');">
+            <input type="hidden" name="board" value="{{ board }}" />
+            <button type="submit" class="btn btn-sm btn-secondary" title="{{ wo.work_permitted_by or '승인됨' }}">승인됨</button>
           </form>
+          {% elif is_day_before and user_can_edit(user) %}
+          <form method="post" action="/admin/facility-section/{{ wo.id }}/permit" class="inline-form">
+            <input type="hidden" name="board" value="{{ board }}" />
+            <button type="submit" class="btn btn-sm btn-primary">승인</button>
+          </form>
+          {% elif is_today %}
+          <span class="text-muted">{% if wo.work_permitted %}승인됨{% else %}미승인{% endif %}</span>
           {% else %}
-          <span class="text-muted">미허가</span>
+          <span class="text-muted">-</span>
           {% endif %}
         </td>
         <td><a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="{% if allow_permit and user_can_edit(user) %}10{% else %}9{% endif %}" class="empty">{{ empty_msg }}</td>
+        <td colspan="{% if user_can_edit(user) and board != 'today' %}12{% else %}11{% endif %}" class="empty">
+          표시할 항목이 없습니다.
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
-  {% if allow_permit and user_can_edit(user) %}
-  <form id="fac-bulk-form-{{ board_key }}" method="post" action="/admin/facility-section/permit-bulk">
-    <input type="hidden" name="board" value="{{ board_key }}" />
-  </form>
-  {% endif %}
-{% endmacro %}
-
-{% if board in ['day_before', 'all'] %}
-<section class="card">
-  <div class="wo-list-head">
-    <h2>하루전 작업 <small class="text-muted">(예정일 {{ tomorrow }} · {{ day_before_works|length }}건)</small></h2>
-  </div>
-  <p class="d1-hint">작업일 하루전 승인요청 목록입니다. 일괄 또는 개별 작업허가가 가능합니다.</p>
-  {{ facility_table(day_before_works, "하루전 작업이 없습니다.", true, 'day_before') }}
 </section>
-{% endif %}
-
-{% if board in ['today', 'all'] %}
-<section class="card">
-  <div class="wo-list-head">
-    <h2>당일 작업 <small class="text-muted">(예정일 {{ today }} · {{ today_works|length }}건)</small></h2>
-  </div>
-  <p class="d1-hint">당일 예정 작업 현황입니다. (작업허가는 하루전 보드에서 처리)</p>
-  {{ facility_table(today_works, "당일 작업이 없습니다.", false, 'today') }}
-</section>
-{% endif %}
 
 <script>
 (function () {
@@ -184,54 +212,68 @@
     });
   });
 
-  document.querySelectorAll('.fac-bulk-bar').forEach(function (bar) {
-    var section = bar.closest('section') || document;
-    var checks = function () {
-      return Array.prototype.slice.call(section.querySelectorAll('.fac-row-check'));
-    };
-    var countEl = bar.querySelector('.fac-bulk-count');
-    var all = section.querySelector('.fac-select-all');
-    var submitBtn = bar.querySelector('.fac-bulk-submit');
-    var clearBtn = bar.querySelector('.fac-bulk-clear');
-    var bulkForm = section.querySelector('form[id^="fac-bulk-form-"]');
+  var bulkBar = document.getElementById('fac-bulk-bar');
+  var bulkCount = document.getElementById('fac-bulk-count');
+  var selectAll = document.getElementById('fac-select-all');
+  var bulkForm = document.getElementById('fac-bulk-form');
 
-    function sync() {
-      var list = checks();
-      var sel = list.filter(function (c) { return c.checked; });
-      if (countEl) countEl.textContent = String(sel.length);
-      bar.hidden = sel.length === 0;
-      if (all) {
-        all.checked = list.length > 0 && sel.length === list.length;
-        all.indeterminate = sel.length > 0 && sel.length < list.length;
-      }
+  function rowChecks() {
+    return Array.prototype.slice.call(document.querySelectorAll('.fac-row-check'));
+  }
+
+  function syncBulkBar() {
+    var checks = rowChecks();
+    var selected = checks.filter(function (c) { return c.checked; });
+    var n = selected.length;
+    if (bulkCount) bulkCount.textContent = String(n);
+    if (bulkBar) bulkBar.hidden = n === 0;
+    if (selectAll) {
+      selectAll.checked = checks.length > 0 && selected.length === checks.length;
+      selectAll.indeterminate = selected.length > 0 && selected.length < checks.length;
     }
-    if (all) {
-      all.addEventListener('change', function () {
-        checks().forEach(function (c) { c.checked = all.checked; });
-        sync();
-      });
-    }
-    checks().forEach(function (c) { c.addEventListener('change', sync); });
-    if (clearBtn) {
-      clearBtn.addEventListener('click', function () {
-        checks().forEach(function (c) { c.checked = false; });
-        sync();
-      });
-    }
-    if (submitBtn && bulkForm) {
-      submitBtn.addEventListener('click', function () {
-        var sel = checks().filter(function (c) { return c.checked; });
-        if (!sel.length) {
-          alert('작업허가할 항목을 선택하세요.');
-          return;
-        }
-        if (!confirm(sel.length + '건을 작업허가할까요?')) return;
-        // ensure checkboxes are associated; they use form= attribute
-        bulkForm.requestSubmit ? bulkForm.requestSubmit() : bulkForm.submit();
-      });
-    }
-    sync();
+    checks.forEach(function (c) {
+      var tr = c.closest('tr');
+      if (tr) tr.classList.toggle('wo-row-selected', c.checked);
+    });
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      rowChecks().forEach(function (c) { c.checked = selectAll.checked; });
+      syncBulkBar();
+    });
+  }
+  rowChecks().forEach(function (c) {
+    c.addEventListener('change', syncBulkBar);
   });
+
+  var clearBtn = document.getElementById('fac-bulk-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      rowChecks().forEach(function (c) { c.checked = false; });
+      if (selectAll) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+      }
+      syncBulkBar();
+    });
+  }
+
+  if (bulkForm) {
+    bulkForm.addEventListener('submit', function (e) {
+      var selected = rowChecks().filter(function (c) { return c.checked; });
+      if (!selected.length) {
+        e.preventDefault();
+        alert('승인할 항목을 선택하세요.');
+        return;
+      }
+      if (!confirm(selected.length + '건을 일괄승인(작업허가)할까요?')) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  syncBulkBar();
 })();
 </script>
 <script src="/static/js/wo-col-resize.js"></script>
