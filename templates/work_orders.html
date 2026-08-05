@@ -103,6 +103,8 @@
         </th>
         <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
+        <th>정비의뢰자</th>
+        <th>담당자</th>
         <th>등록일</th>
         <th>예정일</th>
         <th>우선순위</th>
@@ -147,6 +149,18 @@
             {% if wo.d1_approved %}<span class="badge badge-wo">D-1</span> {% endif %}
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
           </span>
+        </td>
+        <td class="wo-approver-cell" title="{{ wo.requester_name or wo.assignee_name or '' }}">
+          <span class="wo-approver">{{ wo.requester_name or wo.assignee_name or '-' }}</span>
+        </td>
+        <td>
+          <input type="text"
+                 name="assignee_name"
+                 form="wo-form-{{ wo.id }}"
+                 class="wo-action-input"
+                 value="{{ wo.assignee_name or '' }}"
+                 placeholder="담당자"
+                 title="담당자" />
         </td>
         <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
         <td>
@@ -264,7 +278,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}14{% else %}13{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}16{% else %}15{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -325,7 +339,7 @@
       </select>
 
       <label>담당자</label>
-      <input type="text" name="assignee_name" placeholder="담당자명" />
+      <input type="text" name="assignee_name" value="{{ default_assignee }}" placeholder="담당자명" />
 
       <button type="submit" class="btn btn-primary">정비의뢰 등록</button>
     </form>

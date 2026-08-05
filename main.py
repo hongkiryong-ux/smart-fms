@@ -562,6 +562,15 @@ def _wo_d1_sql_gate():
     )
 
 
+def _wo_person_label(user: User) -> str:
+    """정비의뢰자·담당자 표시용 이름 (로그인 사용자)."""
+    name = (getattr(user, "name", None) or "").strip()
+    if name:
+        return name[:100]
+    uname = (getattr(user, "username", None) or "").strip()
+    return (uname or f"user-{user.id}")[:100]
+
+
 def _wo_approver_label(user: User) -> str:
     name = (getattr(user, "name", None) or "").strip()
     uname = (getattr(user, "username", None) or "").strip()
@@ -3554,11 +3563,13 @@ async def equipment_maintenance_request(
         site_id = eq.zone.floor.building.site_id
 
     wo_title = title.strip() or f"[정비의뢰] {eq.code} {eq.name}"
+    person = _wo_person_label(user)
     wo = WorkOrder(
         title=wo_title,
         description=description.strip() or f"{eq.category} 설비 정비의뢰",
         priority=priority,
-        assignee_name=assignee_name.strip() or None,
+        assignee_name=assignee_name.strip() or person,
+        requester_name=person,
         equipment_id=eq.id,
         site_id=site_id,
         status=WorkOrderStatus.received,
@@ -3993,6 +4004,7 @@ async def work_orders_list(
                 "page": pager["page"],
             },
             "result_count": pager["total"],
+            "default_assignee": _wo_person_label(user),
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
         },
@@ -4118,11 +4130,13 @@ async def work_order_create(
             partner_fk = partner.id
 
     title = f"[정비의뢰] {eq.code} {eq.name}"
+    person = _wo_person_label(user)
     wo = WorkOrder(
         title=title,
         description=desc,
         priority=priority if priority in ("normal", "high") else "normal",
-        assignee_name=assignee_name.strip() or None,
+        assignee_name=assignee_name.strip() or person,
+        requester_name=person,
         equipment_id=eq.id,
         site_id=site_id,
         partner_id=partner_fk,
@@ -4176,7 +4190,7 @@ async def work_order_status(
     status: str = Form(...),
     action: str = Form(""),
     cause: str = Form(""),
-    assignee_name: str = Form(""),
+    assignee_name: str | None = Form(None),
     partner_id: int = Form(0),
     scheduled_date: str = Form(""),
     redirect: str = Form(""),
@@ -4207,8 +4221,9 @@ async def work_order_status(
     wo.action = action.strip() or None
     if cause.strip():
         wo.cause = cause.strip()
-    if assignee_name.strip():
-        wo.assignee_name = assignee_name.strip()
+    # 담당자: 폼에 필드가 있을 때만 갱신 (목록 저장은 필드 없음 → 유지)
+    if assignee_name is not None:
+        wo.assignee_name = assignee_name.strip() or None
 
     # 협력사 지정/해제
     if partner_id and partner_id > 0:
@@ -6254,6 +6269,7 @@ async def _create_pm_work_order(
         ),
         priority="high" if result == PMResult.fault else "normal",
         assignee_name=inspector_name.strip() or None,
+        requester_name=inspector_name.strip() or None,
         equipment_id=eq.id,
         site_id=site_id,
         status=WorkOrderStatus.received,

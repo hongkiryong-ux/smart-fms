@@ -505,6 +505,7 @@ class WorkOrder(Base):
     status = Column(Enum(WorkOrderStatus), default=WorkOrderStatus.received)
     priority = Column(String(20), default="normal")
     assignee_name = Column(String(100), nullable=True)
+    requester_name = Column(String(100), nullable=True)  # 정비의뢰자
     partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
     work_type = Column(String(100), nullable=True)
     cause = Column(Text, nullable=True)

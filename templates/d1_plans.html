@@ -12,6 +12,7 @@
         </th>
         <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
+        <th>정비의뢰자</th>
         <th>등록일</th>
         <th>예정일</th>
         <th>우선순위</th>
@@ -59,6 +60,9 @@
           <span class="wo-req-text">
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
           </span>
+        </td>
+        <td class="wo-approver-cell" title="{{ wo.requester_name or wo.assignee_name or '' }}">
+          <span class="wo-approver">{{ wo.requester_name or wo.assignee_name or '-' }}</span>
         </td>
         <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
         <td>
@@ -177,7 +181,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}14{% else %}13{% endif %}" class="empty">{{ empty_msg }}</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}15{% else %}14{% endif %}" class="empty">{{ empty_msg }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

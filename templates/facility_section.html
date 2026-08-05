@@ -77,6 +77,7 @@
         <th>구분</th>
         <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
+        <th>정비의뢰자</th>
         <th>예정일</th>
         <th>협력사</th>
         <th>승인요청자</th>
@@ -127,6 +128,9 @@
             {% if wo.work_permitted %}<span class="badge badge-urgent">승인</span> {% endif %}
             {{ wo.description or wo.title }}
           </span>
+        </td>
+        <td class="wo-approver-cell" title="{{ wo.requester_name or wo.assignee_name or '' }}">
+          <span class="wo-approver">{{ wo.requester_name or wo.assignee_name or '-' }}</span>
         </td>
         <td class="wo-date">{{ wo.scheduled_date or '-' }}</td>
         <td>{{ wo.partner.name if wo.partner else '-' }}</td>
@@ -191,7 +195,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="{% if show_sel %}12{% else %}11{% endif %}" class="empty">
+        <td colspan="{% if show_sel %}13{% else %}12{% endif %}" class="empty">
           표시할 항목이 없습니다.
         </td>
       </tr>
