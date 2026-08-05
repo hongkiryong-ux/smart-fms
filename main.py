@@ -551,16 +551,11 @@ def _wo_approver_label(user: User) -> str:
 
 
 def _wo_apply_d1_approve(wo: WorkOrder, approver: str, now: datetime | None = None) -> None:
-    """정비섹션 D-1 승인 + 협력사 화면 작업허가 승인요청 자동 반영."""
+    """정비섹션 D-1 승인 (협력사 작업허가 승인요청은 별도)."""
     ts = now or datetime.utcnow()
     wo.d1_approved = True
     wo.approved_by = approver
     wo.approved_at = ts
-    # D-1(협력사) 「작업허가 승인요청」을 요청완료로 자동 반영
-    if not getattr(wo, "approval_requested", False):
-        wo.approval_requested = True
-        wo.approval_requested_by = approver
-        wo.approval_requested_at = ts
 
 
 def _wo_apply_d1_unapprove(wo: WorkOrder) -> None:
@@ -576,15 +571,22 @@ def _wo_apply_d1_unapprove(wo: WorkOrder) -> None:
     wo.work_permitted_at = None
 
 
-def _wo_sync_approval_request_from_d1(wo: WorkOrder) -> bool:
-    """이미 D-1 승인된 건의 작업허가 승인요청 누락분을 보정. 변경 시 True."""
+def _wo_clear_auto_approval_request(wo: WorkOrder) -> bool:
+    """정비섹션 승인 시 잘못 자동 반영된 작업허가 승인요청을 되돌린다. 변경 시 True."""
     if not getattr(wo, "d1_approved", False):
         return False
-    if getattr(wo, "approval_requested", False):
+    if not getattr(wo, "approval_requested", False):
         return False
-    wo.approval_requested = True
-    wo.approval_requested_by = getattr(wo, "approved_by", None) or "정비섹션"
-    wo.approval_requested_at = getattr(wo, "approved_at", None) or datetime.utcnow()
+    if getattr(wo, "work_permitted", False):
+        return False
+    req_at = getattr(wo, "approval_requested_at", None)
+    appr_at = getattr(wo, "approved_at", None)
+    # 동일 시각으로 함께 세팅된 자동 반영분만 해제
+    if req_at is None or appr_at is None or req_at != appr_at:
+        return False
+    wo.approval_requested = False
+    wo.approval_requested_by = None
+    wo.approval_requested_at = None
     return True
 
 
@@ -4216,16 +4218,15 @@ async def work_order_status(
             pass
     else:
         wo.scheduled_date = None
-        # 예정일 제거 시 작업허가만 초기화.
-        # 정비섹션 D-1 승인으로 자동 반영된 승인요청은 유지한다.
+        # 예정일 제거 시 승인요청/작업허가 초기화
+        if getattr(wo, "approval_requested", False):
+            wo.approval_requested = False
+            wo.approval_requested_by = None
+            wo.approval_requested_at = None
         if getattr(wo, "work_permitted", False):
             wo.work_permitted = False
             wo.work_permitted_by = None
             wo.work_permitted_at = None
-        if getattr(wo, "approval_requested", False) and not getattr(wo, "d1_approved", False):
-            wo.approval_requested = False
-            wo.approval_requested_by = None
-            wo.approval_requested_at = None
 
     if status == "completed":
         wo.completed_at = datetime.utcnow()
@@ -4334,7 +4335,7 @@ async def work_order_approve_d1(
 
     _wo_apply_d1_approve(wo, _wo_approver_label(user))
     await db.commit()
-    return _back(message="D-1 작업으로 승인되었습니다. 작업허가 승인요청이 자동 반영되었습니다.")
+    return _back(message="D-1 작업으로 승인되었습니다.")
 
 
 @app.post("/admin/work-orders/approve-d1-bulk")
@@ -4418,7 +4419,7 @@ async def work_order_approve_d1_bulk(
 
     parts: list[str] = []
     if approved:
-        parts.append(f"{approved}건 승인(작업허가 승인요청 자동 반영)")
+        parts.append(f"{approved}건 승인")
     if no_partner:
         parts.append(f"{no_partner}건 업체 미지정으로 제외")
     if already:
@@ -5429,12 +5430,12 @@ async def d1_list(
         )
     ).scalars().unique().all()
 
-    # 기존 D-1 승인 건에 작업허가 승인요청 자동 반영(누락 보정)
-    sync_changed = False
+    # 이전 잘못된 자동 승인요청 반영분 정리
+    clear_changed = False
     for _wo in list(open_works) + list(completed_raw):
-        if _wo_sync_approval_request_from_d1(_wo):
-            sync_changed = True
-    if sync_changed:
+        if _wo_clear_auto_approval_request(_wo):
+            clear_changed = True
+    if clear_changed:
         await db.commit()
 
     def _apply_status(items: list) -> list:
