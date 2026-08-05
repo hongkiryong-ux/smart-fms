@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-header">
   <h1>정비관리 (CMMS)</h1>
-  <p>정비의뢰 → 정비진행 → 정비완료 · 업체 지정 후 승인 시 D-1 작업으로 전송</p>
+  <p>정비의뢰 → 정비진행 → 정비완료 · 항목별 업체 지정 후 선택 일괄승인(또는 개별 승인)으로 D-1 전송</p>
 </header>
 
 {% if flash_error %}
@@ -76,10 +76,31 @@
     <a class="btn btn-sm btn-secondary" href="/admin/work-orders">초기화</a>
   </form>
 
+  <div class="wo-bulk-bar" id="wo-bulk-bar" hidden>
+    <span class="wo-bulk-count">선택 <strong id="wo-bulk-count">0</strong>건</span>
+    <span class="wo-bulk-hint">항목별 업체를 지정한 뒤 일괄승인하세요</span>
+    <button type="submit" form="wo-bulk-form" class="btn btn-sm btn-primary" id="wo-bulk-approve-btn">
+      선택 항목 일괄승인
+    </button>
+    <button type="button" class="btn btn-sm btn-secondary" id="wo-bulk-clear">선택 해제</button>
+  </div>
+
+  <form id="wo-bulk-form" method="post" action="/admin/work-orders/approve-d1-bulk">
+    <input type="hidden" name="q" value="{{ filters.q }}" />
+    <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+    <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+    <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+    <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+    <input type="hidden" name="page" value="{{ filters.page }}" />
+  </form>
+
   <div class="table-scroll">
   <table class="data-table wo-list-table wo-list-compact">
     <thead>
       <tr>
+        <th class="wo-sel-col">
+          <input type="checkbox" id="wo-select-all" title="미승인 전체 선택" aria-label="미승인 전체 선택" />
+        </th>
         <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
         <th>등록일</th>
@@ -99,7 +120,20 @@
       {% for wo in orders %}
       {% set st = wo.status.value %}
       {% set step = 1 if st in ['received','assigned'] else (2 if st == 'in_progress' else 3) %}
-      <tr class="{% if wo.d1_approved %}wo-d1-approved{% endif %}">
+      <tr class="{% if wo.d1_approved %}wo-d1-approved{% endif %}" data-wo-id="{{ wo.id }}">
+        <td class="wo-sel-col">
+          {% if not wo.d1_approved %}
+          <input type="checkbox"
+                 class="wo-row-check"
+                 name="wo_ids"
+                 value="{{ wo.id }}"
+                 form="wo-bulk-form"
+                 data-partner-select="wo-partner-{{ wo.id }}"
+                 title="일괄승인 대상" />
+          {% else %}
+          <span class="wo-sel-done" title="이미 승인됨">✓</span>
+          {% endif %}
+        </td>
         <td class="wo-eq-cell">
           {% if wo.equipment %}
           <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
@@ -129,7 +163,7 @@
                   form="wo-form-{{ wo.id }}"
                   id="wo-partner-{{ wo.id }}"
                   class="wo-partner-select"
-                  title="협력사">
+                  title="협력사 (항목별 지정 후 일괄승인)">
             <option value="0">미지정</option>
             {% for p in partners %}
             <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
@@ -230,7 +264,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}13{% else %}12{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}14{% else %}13{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -352,6 +386,99 @@
       if (sel && hidden) hidden.value = sel.value || '0';
     });
   });
+
+  // 일괄승인: 선택 + 항목별 업체
+  var bulkForm = document.getElementById('wo-bulk-form');
+  var bulkBar = document.getElementById('wo-bulk-bar');
+  var bulkCount = document.getElementById('wo-bulk-count');
+  var selectAll = document.getElementById('wo-select-all');
+  var rowChecks = function () {
+    return Array.prototype.slice.call(document.querySelectorAll('.wo-row-check'));
+  };
+
+  function syncBulkBar() {
+    var checks = rowChecks();
+    var selected = checks.filter(function (c) { return c.checked; });
+    var n = selected.length;
+    if (bulkCount) bulkCount.textContent = String(n);
+    if (bulkBar) bulkBar.hidden = n === 0;
+    if (selectAll) {
+      selectAll.checked = checks.length > 0 && selected.length === checks.length;
+      selectAll.indeterminate = selected.length > 0 && selected.length < checks.length;
+    }
+    checks.forEach(function (c) {
+      var tr = c.closest('tr');
+      if (tr) tr.classList.toggle('wo-row-selected', c.checked);
+    });
+  }
+
+  function clearPartnerHiddens() {
+    if (!bulkForm) return;
+    Array.prototype.slice.call(bulkForm.querySelectorAll('input[data-bulk-partner="1"]')).forEach(function (el) {
+      el.parentNode.removeChild(el);
+    });
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      rowChecks().forEach(function (c) { c.checked = selectAll.checked; });
+      syncBulkBar();
+    });
+  }
+  rowChecks().forEach(function (c) {
+    c.addEventListener('change', syncBulkBar);
+  });
+  var clearBtn = document.getElementById('wo-bulk-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      rowChecks().forEach(function (c) { c.checked = false; });
+      if (selectAll) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+      }
+      syncBulkBar();
+    });
+  }
+  if (bulkForm) {
+    bulkForm.addEventListener('submit', function (e) {
+      var selected = rowChecks().filter(function (c) { return c.checked; });
+      if (!selected.length) {
+        e.preventDefault();
+        alert('승인할 항목을 선택하세요.');
+        return;
+      }
+      clearPartnerHiddens();
+      var missing = 0;
+      selected.forEach(function (c) {
+        var sid = c.getAttribute('data-partner-select');
+        var sel = sid ? document.getElementById(sid) : null;
+        var pid = sel ? (sel.value || '0') : '0';
+        if (!pid || pid === '0') missing += 1;
+        var inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'partner_' + c.value;
+        inp.value = pid;
+        inp.setAttribute('data-bulk-partner', '1');
+        bulkForm.appendChild(inp);
+      });
+      if (missing === selected.length) {
+        e.preventDefault();
+        alert('선택한 항목에 업체가 없습니다. 항목별로 업체를 지정한 뒤 일괄승인하세요.');
+        clearPartnerHiddens();
+        return;
+      }
+      if (missing > 0) {
+        var ok = confirm(
+          '업체 미지정 ' + missing + '건은 제외되고, 나머지 ' + (selected.length - missing) + '건만 승인됩니다. 계속할까요?'
+        );
+        if (!ok) {
+          e.preventDefault();
+          clearPartnerHiddens();
+        }
+      }
+    });
+  }
+  syncBulkBar();
 
   var dataEl = document.getElementById('wo-equipment-data');
   var buildingSel = document.getElementById('wo-building');

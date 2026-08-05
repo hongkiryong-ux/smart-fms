@@ -4281,6 +4281,124 @@ async def work_order_approve_d1(
     return _back(message="D-1 작업으로 승인되었습니다.")
 
 
+@app.post("/admin/work-orders/approve-d1-bulk")
+async def work_order_approve_d1_bulk(
+    request: Request,
+    q: str = Form(""),
+    filter_status: str = Form(""),
+    filter_priority: str = Form(""),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
+    page: str = Form(""),
+    filter_partner_id: str = Form(""),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """선택한 정비를 일괄 D-1 승인 (업체는 항목별 지정값 사용)."""
+    form = await request.form()
+    raw_ids = form.getlist("wo_ids")
+    ids: list[int] = []
+    for raw in raw_ids:
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    # 중복 제거, 순서 유지
+    seen: set[int] = set()
+    uniq_ids: list[int] = []
+    for i in ids:
+        if i in seen:
+            continue
+        seen.add(i)
+        uniq_ids.append(i)
+
+    if not uniq_ids:
+        qs = _wo_list_redirect_params(
+            q=q,
+            filter_status=filter_status,
+            filter_priority=filter_priority,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            filter_partner_id=filter_partner_id,
+            error="승인할 항목을 선택하세요.",
+        )
+        return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
+
+    approver = _wo_approver_label(user)
+    now = datetime.utcnow()
+    approved = 0
+    already = 0
+    no_partner = 0
+    missing = 0
+
+    for wo_id in uniq_ids:
+        wo = await db.get(WorkOrder, wo_id)
+        if not wo or not wo.is_active:
+            missing += 1
+            continue
+
+        partner_raw = form.get(f"partner_{wo_id}") or form.get(f"partner_id_{wo_id}") or "0"
+        try:
+            partner_id = int(partner_raw)
+        except (TypeError, ValueError):
+            partner_id = 0
+        if partner_id > 0:
+            partner = await db.get(Partner, partner_id)
+            wo.partner_id = partner.id if partner and partner.is_active else None
+        # partner_id==0이면 기존 DB 값 유지 (행에서 미지정으로 바꾼 경우는 0으로 옴)
+
+        if getattr(wo, "d1_approved", False):
+            already += 1
+            continue
+        if not wo.partner_id:
+            no_partner += 1
+            continue
+
+        wo.d1_approved = True
+        wo.approved_by = approver
+        wo.approved_at = now
+        approved += 1
+
+    await db.commit()
+
+    parts: list[str] = []
+    if approved:
+        parts.append(f"{approved}건 승인")
+    if no_partner:
+        parts.append(f"{no_partner}건 업체 미지정으로 제외")
+    if already:
+        parts.append(f"{already}건 이미 승인됨")
+    if missing:
+        parts.append(f"{missing}건 없음")
+
+    if approved and not no_partner and not missing:
+        msg = " · ".join(parts) if parts else "처리되었습니다."
+        err = ""
+    elif approved:
+        msg = " · ".join(parts)
+        err = ""
+    elif no_partner and not already:
+        msg = ""
+        err = "선택한 항목에 업체가 지정되지 않았습니다. 항목별로 업체를 선택한 뒤 다시 승인하세요."
+    else:
+        msg = ""
+        err = " · ".join(parts) if parts else "승인된 항목이 없습니다."
+
+    qs = _wo_list_redirect_params(
+        q=q,
+        filter_status=filter_status,
+        filter_priority=filter_priority,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        filter_partner_id=filter_partner_id,
+        message=msg,
+        error=err,
+    )
+    return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
+
+
 @app.post("/admin/work-orders/{wo_id}/unapprove-d1")
 async def work_order_unapprove_d1(
     wo_id: int,
