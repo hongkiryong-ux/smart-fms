@@ -584,6 +584,28 @@ body {
   color: #64748b;
 }
 
+.dash-server-help {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.dash-server-desc {
+  margin: 0.15rem 0 0;
+  font-size: 0.66rem;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+.dash-server-metric .dash-server-desc {
+  margin: 0.1rem 0 0.15rem;
+}
+
+.dash-server-chip .dash-server-desc {
+  margin-top: 0.2rem;
+}
+
 .dash-server-badge {
   flex-shrink: 0;
   font-size: 0.68rem;

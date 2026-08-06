@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import shutil
 import socket
 import time
@@ -304,16 +303,58 @@ def _overall(levels: list[str]) -> str:
 
 
 async def collect_server_status(db: AsyncSession | None = None) -> dict:
-    disk = _disk_info()
-    mem, cpu = _mem_cpu_info()
-    uptime = _uptime_info()
+    """Render 서버(배포 인스턴스) 상태만 수집. 로컬 PC 정보는 UI에서 제외."""
     meta = _render_meta()
+    uptime = _uptime_info()
     db_st = await _db_status(db)
     net = _network_status()
-    overall = _overall(
-        [disk.get("level") or "unknown", mem.get("level") or "unknown", cpu.get("level") or "unknown", db_st.get("level") or "unknown", net.get("level") or "unknown"]
-    )
+    app = {
+        "status": "ok",
+        "label": "정상",
+        "level": "ok",
+        "desc": "Smart FMS 웹 서비스가 요청에 응답 중인지 확인합니다.",
+    }
+    levels = [app["level"], db_st.get("level") or "unknown", net.get("level") or "unknown"]
+
+    disk = mem = cpu = None
+    if meta.get("is_render"):
+        disk = _disk_info()
+        mem, cpu = _mem_cpu_info()
+        # 프로세스(로컬 PC 체감용) 정보는 제외
+        if isinstance(mem, dict):
+            mem = {k: v for k, v in mem.items() if k != "process_rss_label"}
+            mem["desc"] = "Render 인스턴스 메모리 사용 비율입니다. 높으면 서비스 지연이 날 수 있습니다."
+        if isinstance(disk, dict):
+            disk["desc"] = "Render 서버(컨테이너) 디스크 전체 대비 사용량입니다."
+        if isinstance(cpu, dict):
+            cpu = {
+                "percent": cpu.get("percent"),
+                "count": cpu.get("count"),
+                "level": cpu.get("level"),
+                "desc": "Render 서버 CPU 사용률입니다. 지속 높음이면 점검이 필요합니다.",
+            }
+        levels.extend(
+            [
+                (disk or {}).get("level") or "unknown",
+                (mem or {}).get("level") or "unknown",
+                (cpu or {}).get("level") or "unknown",
+            ]
+        )
+
+    overall = _overall(levels)
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+    db_st = {
+        **db_st,
+        "desc": "데이터베이스 연결 상태입니다. 숫자가 작을수록(ms) 응답이 빠릅니다.",
+    }
+    net = {
+        **net,
+        "desc": "서버에서 외부 네트워크로 나가는 통신이 가능한지 확인합니다.",
+    }
+    uptime = {
+        **uptime,
+        "desc": "이번 Render 인스턴스(웹 프로세스)가 켜진 뒤 경과 시간입니다.",
+    }
     return {
         "as_of": now,
         "overall": overall,
@@ -323,15 +364,25 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
             "critical": "경고",
             "unknown": "확인중",
         }.get(overall, "확인중"),
-        "host": socket.gethostname(),
-        "platform": f"{platform.system()} {platform.release()}",
-        "python": platform.python_version(),
+        "overall_desc": "앱·DB·외부통신"
+        + ("·서버 리소스" if meta.get("is_render") else "")
+        + "을 종합한 상태입니다.",
+        "is_render": bool(meta.get("is_render")),
+        "env_label": "Render 서버" if meta.get("is_render") else "로컬(비서버)",
+        "env_desc": (
+            "Render에 배포된 웹 서버 상태를 표시합니다."
+            if meta.get("is_render")
+            else "현재 PC/로컬 실행입니다. 용량·CPU 등은 Render 배포 환경에서만 표시합니다."
+        ),
         "disk": disk,
         "memory": mem,
         "cpu": cpu,
         "uptime": uptime,
-        "db": db_st,
+        "db": {
+            **db_st,
+            "label": db_st.get("label") or "-",
+        },
         "network": net,
         "render": meta,
-        "app": {"status": "ok", "label": "응답 중", "service": "smart-fms"},
+        "app": app,
     }
