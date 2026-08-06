@@ -571,6 +571,113 @@ def _wo_person_label(user: User) -> str:
     return (uname or f"user-{user.id}")[:100]
 
 
+_PARTNER_RISK_CACHE: dict[str, dict[str, str]] | None = None
+_PARTNER_RISK_MTIME: float | None = None
+
+
+def _partner_risk_xlsx_path() -> Path:
+    env = (os.environ.get("PARTNER_RISK_XLSX") or "").strip()
+    if env:
+        return Path(env)
+    return Path(__file__).resolve().parent / "resources" / "정비관리.xlsx"
+
+
+def _load_partner_risk_catalog(*, force: bool = False) -> dict[str, dict[str, str]]:
+    """시트명=협력사명인 엑셀에서 잠재위험·안전대책·위험도 로드."""
+    global _PARTNER_RISK_CACHE, _PARTNER_RISK_MTIME
+    path = _partner_risk_xlsx_path()
+    if not path.is_file():
+        _PARTNER_RISK_CACHE = {}
+        _PARTNER_RISK_MTIME = None
+        return {}
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return _PARTNER_RISK_CACHE or {}
+    if (
+        not force
+        and _PARTNER_RISK_CACHE is not None
+        and _PARTNER_RISK_MTIME == mtime
+    ):
+        return _PARTNER_RISK_CACHE
+
+    from openpyxl import load_workbook
+
+    catalog: dict[str, dict[str, str]] = {}
+    try:
+        wb = load_workbook(path, data_only=True, read_only=True)
+    except Exception:
+        return _PARTNER_RISK_CACHE or {}
+    try:
+        for sheet_name in wb.sheetnames:
+            key = (sheet_name or "").strip()
+            if not key:
+                continue
+            ws = wb[sheet_name]
+            rows = list(ws.iter_rows(min_row=1, max_row=3, max_col=3, values_only=True))
+            if len(rows) < 2:
+                continue
+            data = rows[1]
+            hazard = str(data[0] or "").strip()
+            safety = str(data[1] or "").strip()
+            grade = str(data[2] or "").strip()
+            if not (hazard or safety or grade):
+                continue
+            catalog[key] = {
+                "hazard_content": hazard,
+                "safety_measures": safety,
+                "risk_grade": grade[:20],
+            }
+            compact = "".join(key.split())
+            if compact and compact != key:
+                catalog.setdefault(compact, catalog[key])
+    finally:
+        wb.close()
+
+    _PARTNER_RISK_CACHE = catalog
+    _PARTNER_RISK_MTIME = mtime
+    return catalog
+
+
+def _partner_risk_for_name(partner_name: str | None) -> dict[str, str] | None:
+    name = (partner_name or "").strip()
+    if not name:
+        return None
+    catalog = _load_partner_risk_catalog()
+    if name in catalog:
+        return catalog[name]
+    compact = "".join(name.split())
+    if compact in catalog:
+        return catalog[compact]
+    for key, val in catalog.items():
+        if key in name or name in key:
+            return val
+    return None
+
+
+def _wo_apply_partner_risk_from_excel(wo: WorkOrder, *, overwrite: bool = False) -> bool:
+    """업체명=시트명 매칭 시 잠재위험·안전대책 자동 반영. 변경 시 True."""
+    partner = getattr(wo, "partner", None)
+    pname = getattr(partner, "name", None) if partner else None
+    risk = _partner_risk_for_name(pname)
+    if not risk:
+        return False
+    changed = False
+    if overwrite or not (getattr(wo, "hazard_content", None) or "").strip():
+        if (wo.hazard_content or "") != risk["hazard_content"]:
+            wo.hazard_content = risk["hazard_content"] or None
+            changed = True
+    if overwrite or not (getattr(wo, "safety_measures", None) or "").strip():
+        if (wo.safety_measures or "") != risk["safety_measures"]:
+            wo.safety_measures = risk["safety_measures"] or None
+            changed = True
+    if overwrite or not (getattr(wo, "risk_grade", None) or "").strip():
+        if (wo.risk_grade or "") != risk["risk_grade"]:
+            wo.risk_grade = risk["risk_grade"] or None
+            changed = True
+    return changed
+
+
 def _wo_approver_label(user: User) -> str:
     name = (getattr(user, "name", None) or "").strip()
     uname = (getattr(user, "username", None) or "").strip()
@@ -5879,6 +5986,14 @@ async def facility_section_list(
         )
     ).scalars().unique().all()
 
+    # 업체명=시트명 매칭 시 엑셀 잠재위험·안전대책 자동 반영
+    risk_changed = False
+    for w in rows:
+        if _wo_apply_partner_risk_from_excel(w):
+            risk_changed = True
+    if risk_changed:
+        await db.commit()
+
     day_before = [w for w in rows if w.scheduled_date == tomorrow]
     today_works = [w for w in rows if w.scheduled_date == today]
     scheduled_works = [
@@ -5896,6 +6011,7 @@ async def facility_section_list(
 
     pager = _paginate(list_all, page)
     orders = pager["items"]
+    risk_xlsx = _partner_risk_xlsx_path()
 
     return templates.TemplateResponse(
         request,
@@ -5910,6 +6026,7 @@ async def facility_section_list(
             "scheduled_works": scheduled_works,
             "orders": orders,
             "pager": pager,
+            "partner_risk_file": risk_xlsx.name if risk_xlsx.is_file() else "",
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
             "partners": (
@@ -5964,17 +6081,47 @@ async def facility_permit_work(
     wo_id: int,
     board: str = Form("day_before"),
     page: str = Form("1"),
+    hazard_content: str = Form(""),
+    safety_measures: str = Form(""),
+    risk_grade: str = Form(""),
+    risk_confirmed: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
-    """시설섹션: 개별 작업허가 (하루전·당일·정비예정)."""
-    wo = await db.get(WorkOrder, wo_id)
+    """시설섹션: 개별 작업허가 (잠재위험·안전대책 확인/수정 후)."""
+    wo = (
+        await db.execute(
+            select(WorkOrder)
+            .where(WorkOrder.id == wo_id)
+            .options(selectinload(WorkOrder.partner))
+        )
+    ).scalar_one_or_none()
     if not wo or not wo.is_active:
         raise HTTPException(404)
     if not getattr(wo, "approval_requested", False):
         return _facility_redirect(board=board, page=page, error="승인요청된 항목이 아닙니다.")
     if getattr(wo, "work_permitted", False):
         return _facility_redirect(board=board, page=page, message="이미 작업허가된 항목입니다.")
+    if (risk_confirmed or "").strip() not in ("1", "true", "yes", "on"):
+        return _facility_redirect(
+            board=board,
+            page=page,
+            error="잠재위험 및 안전대책을 확인·수정한 뒤 승인해 주세요.",
+        )
+
+    _wo_apply_partner_risk_from_excel(wo)
+    wo.hazard_content = hazard_content.strip() or wo.hazard_content
+    wo.safety_measures = safety_measures.strip() or wo.safety_measures
+    wo.risk_grade = (risk_grade.strip() or wo.risk_grade or None)
+    if wo.risk_grade:
+        wo.risk_grade = wo.risk_grade[:20]
+    if not (wo.hazard_content or "").strip() or not (wo.safety_measures or "").strip():
+        return _facility_redirect(
+            board=board,
+            page=page,
+            error="잠재위험 내용과 안전작업 대책을 입력한 뒤 승인해 주세요.",
+        )
+
     _wo_apply_work_permit(wo, _wo_approver_label(user))
     await db.commit()
     return _facility_redirect(
@@ -5989,10 +6136,11 @@ async def facility_permit_work_bulk(
     request: Request,
     board: str = Form("day_before"),
     page: str = Form("1"),
+    risk_confirmed: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
-    """시설섹션: 선택 항목 일괄 작업허가."""
+    """시설섹션: 선택 항목 일괄 작업허가 (엑셀 매칭 내용 확인 후)."""
     form = await request.form()
     raw_ids = form.getlist("wo_ids")
     ids: list[int] = []
@@ -6003,19 +6151,44 @@ async def facility_permit_work_bulk(
             continue
     if not ids:
         return _facility_redirect(board=board, page=page, error="작업허가할 항목을 선택하세요.")
+    if (risk_confirmed or "").strip() not in ("1", "true", "yes", "on"):
+        return _facility_redirect(
+            board=board,
+            page=page,
+            error="일괄승인 전 잠재위험 및 안전대책 확인이 필요합니다.",
+        )
 
     label = _wo_approver_label(user)
     now = datetime.utcnow()
     ok = 0
     skip = 0
     for wo_id in ids:
-        wo = await db.get(WorkOrder, wo_id)
+        wo = (
+            await db.execute(
+                select(WorkOrder)
+                .where(WorkOrder.id == wo_id)
+                .options(selectinload(WorkOrder.partner))
+            )
+        ).scalar_one_or_none()
         if (
             not wo
             or not wo.is_active
             or not getattr(wo, "approval_requested", False)
             or getattr(wo, "work_permitted", False)
         ):
+            skip += 1
+            continue
+        _wo_apply_partner_risk_from_excel(wo)
+        h = (form.get(f"hazard_{wo_id}") or "").strip()
+        s = (form.get(f"safety_{wo_id}") or "").strip()
+        g = (form.get(f"grade_{wo_id}") or "").strip()
+        if h:
+            wo.hazard_content = h
+        if s:
+            wo.safety_measures = s
+        if g:
+            wo.risk_grade = g[:20]
+        if not (wo.hazard_content or "").strip() or not (wo.safety_measures or "").strip():
             skip += 1
             continue
         _wo_apply_work_permit(wo, label, now)
@@ -6029,7 +6202,7 @@ async def facility_permit_work_bulk(
     return _facility_redirect(
         board=board,
         page=page,
-        error="작업허가할 수 있는 항목이 없습니다.",
+        error="작업허가할 수 있는 항목이 없습니다. 잠재위험·안전대책을 확인하세요.",
     )
 
 

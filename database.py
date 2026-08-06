@@ -231,6 +231,15 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS requester_name VARCHAR(100)"
         )
         await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS hazard_content TEXT"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS safety_measures TEXT"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS risk_grade VARCHAR(20)"
+        )
+        await _exec(
             "ALTER TABLE material_items ADD COLUMN IF NOT EXISTS location VARCHAR(200)"
         )
         await _exec(
@@ -451,6 +460,9 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN work_permitted_by VARCHAR(100)",
             "ALTER TABLE work_orders ADD COLUMN work_permitted_at DATETIME",
             "ALTER TABLE work_orders ADD COLUMN requester_name VARCHAR(100)",
+            "ALTER TABLE work_orders ADD COLUMN hazard_content TEXT",
+            "ALTER TABLE work_orders ADD COLUMN safety_measures TEXT",
+            "ALTER TABLE work_orders ADD COLUMN risk_grade VARCHAR(20)",
             "ALTER TABLE material_items ADD COLUMN location TEXT",
             "ALTER TABLE users ADD COLUMN openai_api_key VARCHAR(200)",
             "ALTER TABLE users ADD COLUMN openai_model VARCHAR(80)",

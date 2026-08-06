@@ -525,6 +525,10 @@ class WorkOrder(Base):
     work_permitted = Column(Boolean, default=False)
     work_permitted_by = Column(String(100), nullable=True)
     work_permitted_at = Column(DateTime, nullable=True)
+    # 협력사별 엑셀(시트명=업체명) 잠재위험·안전대책
+    hazard_content = Column(Text, nullable=True)
+    safety_measures = Column(Text, nullable=True)
+    risk_grade = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
