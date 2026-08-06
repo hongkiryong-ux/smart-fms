@@ -49,13 +49,13 @@
     </a>
     <ul class="nav-menu">
       {% if user_can_access_menu(user, 'dashboard') %}
-      <li><a href="/admin/dashboard" class="{% if request.url.path == '/admin/dashboard' %}active{% endif %}">Dashboard</a></li>
+      <li class="nav-pc-only"><a href="/admin/dashboard" class="{% if request.url.path == '/admin/dashboard' %}active{% endif %}">Dashboard</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'sites') %}
-      <li><a href="/admin/sites" class="{% if '/sites' in request.url.path or '/buildings' in request.url.path %}active{% endif %}">사업장/건물</a></li>
+      <li class="nav-pc-only"><a href="/admin/sites" class="{% if '/sites' in request.url.path or '/buildings' in request.url.path %}active{% endif %}">사업장/건물</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'equipment') %}
-      <li class="nav-expandable{% if eq_path %} is-open{% endif %}" id="nav-equipment">
+      <li class="nav-expandable nav-pc-only{% if eq_path %} is-open{% endif %}" id="nav-equipment">
         <div class="nav-parent-row">
           <a href="/admin/equipment"
              class="nav-parent-link{% if eq_path and not nav_bid %} active{% endif %}">설비관리</a>
@@ -88,10 +88,10 @@
       </li>
       {% endif %}
       {% if user_can_access_menu(user, 'pm') %}
-      <li><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
+      <li class="nav-pc-only"><a href="/admin/pm" class="{% if '/pm' in request.url.path %}active{% endif %}">점검(PM)</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'inspection_logs') %}
-      <li class="nav-expandable{% if ilog_path %} is-open{% endif %}" id="nav-inspection-logs">
+      <li class="nav-expandable nav-pc-only{% if ilog_path %} is-open{% endif %}" id="nav-inspection-logs">
         <div class="nav-parent-row">
           <a href="/admin/inspection-logs"
              class="nav-parent-link{% if ilog_path and not ilog_bid %} active{% endif %}">점검일지</a>
@@ -117,7 +117,7 @@
       </li>
       {% endif %}
       {% if can_wo or can_d1 or can_fac %}
-      <li class="nav-expandable{% if maint_path %} is-open{% endif %}" id="nav-maintenance">
+      <li class="nav-expandable nav-maint-root{% if maint_path %} is-open{% endif %}" id="nav-maintenance">
         <div class="nav-parent-row">
           <a href="{{ maint_home }}"
              class="nav-parent-link{% if maint_path %} active{% endif %}">정비관리</a>
@@ -172,22 +172,22 @@
       </li>
       {% endif %}
       {% if user_can_access_menu(user, 'risk_assessment') %}
-      <li><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
+      <li class="nav-pc-only"><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'materials') %}
-      <li>
+      <li class="nav-pc-only">
         <a href="/admin/materials?popup=1"
            class="{% if '/materials' in request.url.path %}active{% endif %}"
            onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;">자재관리</a>
       </li>
       {% endif %}
       {% if user_can_access_menu(user, 'partners') %}
-      <li><a href="/admin/partners" class="{% if '/partners' in request.url.path %}active{% endif %}">협력사</a></li>
+      <li class="nav-pc-only"><a href="/admin/partners" class="{% if '/partners' in request.url.path %}active{% endif %}">협력사</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'users') %}
-      <li><a href="/admin/users" class="{% if '/admin/users' in request.url.path %}active{% endif %}">계정관리</a></li>
+      <li class="nav-pc-only"><a href="/admin/users" class="{% if '/admin/users' in request.url.path %}active{% endif %}">계정관리</a></li>
       {% endif %}
-      <li><a href="/admin/account" class="{% if request.url.path == '/admin/account' %}active{% endif %}">내 계정</a></li>
+      <li class="nav-pc-only"><a href="/admin/account" class="{% if request.url.path == '/admin/account' %}active{% endif %}">내 계정</a></li>
     </ul>
     <div class="sidebar-footer">
       <span>{{ user.name }} ({{ role_labels.get(user.role, user.role.value) }})</span>
@@ -196,7 +196,8 @@
   </nav>
   <script>
   (function () {
-    function bindNavExpandable(itemId, storageKey) {
+    function bindNavExpandable(itemId, storageKey, opts) {
+      opts = opts || {};
       var item = document.getElementById(itemId);
       if (!item) return;
       var btn = item.querySelector(':scope > .nav-parent-row > .nav-toggle');
@@ -222,6 +223,12 @@
       }
       if (link) {
         link.addEventListener('click', function (e) {
+          /* 모바일 정비관리: 누르면 하위 펼침만 (페이지 이동 없음) */
+          if (opts.mobileToggleOnly && window.matchMedia('(max-width: 900px)').matches) {
+            e.preventDefault();
+            setOpen(!item.classList.contains('is-open'));
+            return;
+          }
           // 펼쳐진 상태에서 메인 메뉴 클릭 → 닫기 (페이지 이동 없음)
           if (item.classList.contains('is-open')) {
             e.preventDefault();
@@ -232,10 +239,11 @@
           setOpen(true);
         });
       }
+      item._navSetOpen = setOpen;
     }
     bindNavExpandable('nav-equipment', 'nav-eq-open');
     bindNavExpandable('nav-inspection-logs', 'nav-ilog-open');
-    bindNavExpandable('nav-maintenance', 'nav-maint-open');
+    bindNavExpandable('nav-maintenance', 'nav-maint-open', { mobileToggleOnly: true });
     bindNavExpandable('nav-d1', 'nav-d1-open');
 
     /* 모바일: 사이드 메뉴 열기/닫기 */
@@ -244,6 +252,7 @@
       var backdrop = document.getElementById('nav-backdrop');
       var openBtn = document.getElementById('nav-open-btn');
       var closeBtn = document.getElementById('nav-close-btn');
+      var maint = document.getElementById('nav-maintenance');
       if (!sidebar) return;
 
       function isMobileNav() {
@@ -255,6 +264,10 @@
         sidebar.classList.toggle('is-open', !!open);
         if (backdrop) backdrop.hidden = !open;
         if (openBtn) openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        /* 메뉴 열면 정비관리 하위가 바로 보이게 */
+        if (open && isMobileNav() && maint && typeof maint._navSetOpen === 'function') {
+          maint._navSetOpen(true);
+        }
       }
 
       if (openBtn) openBtn.addEventListener('click', function () { setNavOpen(true); });
@@ -265,10 +278,9 @@
         if (!isMobileNav()) return;
         var a = e.target.closest('a[href]');
         if (!a) return;
-        /* 하위 메뉴 펼침용 부모 링크는 유지, 일반 메뉴 이동 시 닫기 */
-        if (!a.classList.contains('nav-parent-link')) {
-          setNavOpen(false);
-        }
+        /* 펼침용 부모 링크는 닫지 않음 */
+        if (a.classList.contains('nav-parent-link')) return;
+        setNavOpen(false);
       });
 
       window.addEventListener('resize', function () {
