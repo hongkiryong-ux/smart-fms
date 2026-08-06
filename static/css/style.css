@@ -505,7 +505,7 @@ body {
 
 .dash-row {
   display: grid;
-  grid-template-columns: 168px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 168px minmax(0, 1fr);
   gap: 0.75rem;
   align-items: stretch;
   background: #fff;
@@ -517,14 +517,30 @@ body {
   min-height: 0;
 }
 
-/* 수량 표시는 중앙 좌측만 · 중앙 우측은 공란 */
-.dash-row:not(.dash-row-energy) .dash-row-metrics {
-  grid-column: 2;
+/* 01~04: 수량 = 중앙 좌측만, 우측 공란 */
+.dash-row-kpi .dash-row-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.55rem;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.dash-row-kpi .dash-row-metrics {
+  grid-column: 1;
+  width: 100%;
   max-width: 100%;
 }
 
+.dash-row-blank {
+  grid-column: 2;
+  min-width: 0;
+  min-height: 0;
+  pointer-events: none;
+}
+
 .dash-row-energy {
-  grid-template-columns: 168px 1fr;
   flex: 1.85 1 0;
 }
 
@@ -699,10 +715,7 @@ a.dm:hover {
 }
 
 @media (max-width: 1100px) {
-  .dash-row:not(.dash-row-energy) {
-    grid-template-columns: 140px minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .dash-row-energy {
+  .dash-row {
     grid-template-columns: 140px 1fr;
   }
   .dash-energy-body {
@@ -719,13 +732,14 @@ a.dm:hover {
     overflow: auto;
     padding: 1rem;
   }
-  .dash-row,
-  .dash-row:not(.dash-row-energy),
-  .dash-row-energy {
+  .dash-row {
     grid-template-columns: 1fr;
   }
-  .dash-row:not(.dash-row-energy) .dash-row-metrics {
-    grid-column: auto;
+  .dash-row-kpi .dash-row-body {
+    grid-template-columns: 1fr;
+  }
+  .dash-row-blank {
+    display: none;
   }
   .dash-row-aside {
     border-right: 0;
