@@ -705,7 +705,32 @@ body {
   background: linear-gradient(90deg, #b91c1c, #ef4444);
 }
 
-.dash-server-free { color: #94a3b8; }
+.dash-server-disk-top {
+  list-style: none;
+  margin: 0.35rem 0 0.25rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+.dash-server-disk-top li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  color: #475569;
+}
+.dash-server-disk-top strong {
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.dash-server-host-ref {
+  margin-top: 0.25rem;
+  padding-top: 0.3rem;
+  border-top: 1px dashed #e2e8f0;
+  color: #94a3b8;
+  font-size: 0.66rem;
+}
 
 .dash-server-grid {
   display: grid;

@@ -6,6 +6,7 @@ import shutil
 import socket
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 try:
     from zoneinfo import ZoneInfo
@@ -57,7 +58,117 @@ def _level(pct: float | None) -> str:
     return "ok"
 
 
-def _disk_info() -> dict:
+def _dir_size(path: Path, *, max_files: int = 80000) -> int:
+    total = 0
+    n = 0
+    try:
+        if path.is_file():
+            return int(path.stat().st_size)
+        if not path.is_dir():
+            return 0
+        for f in path.rglob("*"):
+            if not f.is_file():
+                continue
+            try:
+                total += int(f.stat().st_size)
+            except OSError:
+                continue
+            n += 1
+            if n >= max_files:
+                break
+    except OSError:
+        return total
+    return total
+
+
+def _app_paths() -> list[tuple[str, Path]]:
+    """앱 실사용 집계 대상 (Render 프로젝트 루트 기준)."""
+    cwd = Path.cwd().resolve()
+    # Render 기본 경로 우선
+    render_src = Path("/opt/render/project/src")
+    root = render_src if render_src.is_dir() else cwd
+    names = [
+        ("코드/설정", root),
+        ("업로드 파일", root / "static" / "uploads"),
+        ("static", root / "static"),
+        ("resources", root / "resources"),
+        ("data", root / "data"),
+        ("risk_assessment", root / "risk_assessment"),
+        ("임시/캐시", root / "__pycache__"),
+    ]
+    # 중복 제거(코드/설정은 루트 전체라 개별 폴더와 겹침 → 루트는 총합용으로만)
+    return [(label, p) for label, p in names if p.exists()]
+
+
+def _app_disk_breakdown() -> dict:
+    """Smart FMS가 실제로 쓰는 디스크만 집계 (호스트 공유 디스크와 구분)."""
+    cwd = Path.cwd().resolve()
+    render_src = Path("/opt/render/project/src")
+    root = render_src if render_src.is_dir() else cwd
+
+    skip_names = {".git", ".venv", "venv", "node_modules"}
+    top: list[dict] = []
+    app_total = 0
+    try:
+        for child in sorted(root.iterdir(), key=lambda p: p.name.lower()):
+            if child.name in skip_names:
+                continue
+            size = _dir_size(child)
+            if size <= 0:
+                continue
+            app_total += size
+            top.append(
+                {
+                    "name": child.name + ("/" if child.is_dir() else ""),
+                    "bytes": size,
+                    "label": _bytes_label(size),
+                }
+            )
+    except OSError:
+        app_total = _dir_size(root)
+        top = []
+
+    # 업로드만 별도 강조
+    uploads = root / "static" / "uploads"
+    uploads_bytes = _dir_size(uploads) if uploads.exists() else 0
+    top.sort(key=lambda x: x["bytes"], reverse=True)
+    top = top[:8]
+
+    # 영구 디스크 마운트(있을 때만)
+    persistent = None
+    for env_key in ("RENDER_DISK_PATH", "DISK_MOUNT_PATH"):
+        mp = (os.environ.get(env_key) or "").strip()
+        if mp and Path(mp).exists():
+            try:
+                u = shutil.disk_usage(mp)
+                persistent = {
+                    "path": mp,
+                    "total": u.total,
+                    "used": u.used,
+                    "free": u.free,
+                    "total_label": _bytes_label(u.total),
+                    "used_label": _bytes_label(u.used),
+                    "free_label": _bytes_label(u.free),
+                    "percent": _pct(u.used, u.total),
+                }
+            except OSError:
+                persistent = None
+            break
+
+    return {
+        "root": str(root),
+        "total_bytes": app_total,
+        "total_label": _bytes_label(app_total),
+        "uploads_bytes": uploads_bytes,
+        "uploads_label": _bytes_label(uploads_bytes),
+        "top": top,
+        "persistent": persistent,
+        "desc": "Smart FMS 앱 폴더가 실제로 차지한 용량입니다. (공유 호스트 디스크와 별개)",
+    }
+
+
+def _host_disk_info() -> dict:
+    """컨테이너/호스트 루트 파일시스템 — 공유 인프라 참고값."""
     path = "C:\\" if os.name == "nt" else "/"
     try:
         u = shutil.disk_usage(path)
@@ -72,7 +183,8 @@ def _disk_info() -> dict:
             "used_label": _bytes_label(used),
             "free_label": _bytes_label(free),
             "percent": pct,
-            "level": _level(pct),
+            "level": "ok",  # 공유 FS라 경보에 쓰지 않음
+            "desc": "Render 공유 루트 디스크 참고값입니다. OS·다른 컨테이너와 합쳐진 수치라 Smart FMS 점유가 아닙니다.",
         }
     except OSError:
         return {
@@ -85,7 +197,31 @@ def _disk_info() -> dict:
             "free_label": "-",
             "percent": None,
             "level": "unknown",
+            "desc": "호스트 디스크 정보를 읽지 못했습니다.",
         }
+
+
+def _disk_info() -> dict:
+    """대시보드용: 앱 실사용 + 호스트 참고."""
+    app = _app_disk_breakdown()
+    host = _host_disk_info()
+    # 표시용 percent는 앱/호스트 비교가 아니라 앱 크기를 읽기 쉽게 고정 표기
+    return {
+        "mode": "app_vs_host",
+        "app": app,
+        "host": host,
+        # 하위 호환(옛 UI 필드): 앱 실사용을 메인으로
+        "path": app.get("root") or host.get("path"),
+        "total": host.get("total"),
+        "used": app.get("total_bytes"),
+        "free": host.get("free"),
+        "total_label": app.get("total_label"),
+        "used_label": app.get("total_label"),
+        "free_label": host.get("free_label"),
+        "percent": None,
+        "level": "ok",
+        "desc": app.get("desc"),
+    }
 
 
 def _mem_cpu_info() -> tuple[dict, dict]:
@@ -324,8 +460,6 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
         if isinstance(mem, dict):
             mem = {k: v for k, v in mem.items() if k != "process_rss_label"}
             mem["desc"] = "Render 인스턴스 메모리 사용 비율입니다. 높으면 서비스 지연이 날 수 있습니다."
-        if isinstance(disk, dict):
-            disk["desc"] = "Render 서버(컨테이너) 디스크 전체 대비 사용량입니다."
         if isinstance(cpu, dict):
             cpu = {
                 "percent": cpu.get("percent"),
@@ -333,9 +467,14 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
                 "level": cpu.get("level"),
                 "desc": "Render 서버 CPU 사용률입니다. 지속 높음이면 점검이 필요합니다.",
             }
+        if isinstance(disk, dict):
+            disk["desc"] = (
+                "메인 숫자는 Smart FMS 앱 실사용량입니다. "
+                "수백 GB 사용/여유는 Render 공유 호스트 디스크 참고값이며 앱 점유가 아닙니다."
+            )
+        # 디스크 공유 FS 수치는 overall 경보에서 제외 (메모리·CPU만)
         levels.extend(
             [
-                (disk or {}).get("level") or "unknown",
                 (mem or {}).get("level") or "unknown",
                 (cpu or {}).get("level") or "unknown",
             ]

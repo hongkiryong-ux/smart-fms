@@ -154,15 +154,23 @@
       <div class="dash-server-bars" id="srv-resource-block"{% if not server.is_render %} hidden{% endif %}>
         <div class="dash-server-metric" data-key="disk">
           <div class="dash-server-metric-top">
-            <span>서버 디스크</span>
-            <strong id="srv-disk-pct">{% if server.disk %}{{ server.disk.percent if server.disk.percent is not none else '-' }}%{% else %}-{% endif %}</strong>
+            <span>앱 실사용 용량</span>
+            <strong id="srv-disk-used">{% if server.disk and server.disk.app %}{{ server.disk.app.total_label }}{% elif server.disk %}{{ server.disk.used_label }}{% else %}-{% endif %}</strong>
           </div>
-          <p class="dash-server-desc">서버 저장공간 전체 대비 사용량입니다.</p>
-          <div class="dash-server-bar"><i id="srv-disk-bar" style="width:{% if server.disk %}{{ server.disk.percent or 0 }}{% else %}0{% endif %}%"></i></div>
-          <div class="dash-server-metric-foot">
-            <span>사용 <span id="srv-disk-used">{% if server.disk %}{{ server.disk.used_label }}{% else %}-{% endif %}</span></span>
-            <span>/ 전체 <span id="srv-disk-total">{% if server.disk %}{{ server.disk.total_label }}{% else %}-{% endif %}</span></span>
-            <span class="dash-server-free">여유 <span id="srv-disk-free">{% if server.disk %}{{ server.disk.free_label }}{% else %}-{% endif %}</span></span>
+          <p class="dash-server-desc" id="srv-disk-desc">
+            Smart FMS가 실제로 차지한 용량입니다. (386G·315G 같은 수치는 공유 호스트 참고값이며 앱 점유가 아닙니다)
+          </p>
+          <ul class="dash-server-disk-top" id="srv-disk-top">
+            {% if server.disk and server.disk.app and server.disk.app.top %}
+              {% for item in server.disk.app.top %}
+              <li><span>{{ item.name }}</span><strong>{{ item.label }}</strong></li>
+              {% endfor %}
+            {% endif %}
+          </ul>
+          <div class="dash-server-metric-foot dash-server-host-ref">
+            <span>참고(공유 호스트)</span>
+            <span>사용 <span id="srv-disk-host-used">{% if server.disk and server.disk.host %}{{ server.disk.host.used_label }}{% else %}-{% endif %}</span></span>
+            <span>여유 <span id="srv-disk-host-free">{% if server.disk and server.disk.host %}{{ server.disk.host.free_label }}{% else %}-{% endif %}</span></span>
           </div>
         </div>
 
@@ -441,11 +449,26 @@
     var app = data.app || {};
 
     if (data.is_render) {
-      setText('srv-disk-pct', (disk.percent != null ? disk.percent : '-') + '%');
-      setBar('srv-disk-bar', disk.percent);
-      setText('srv-disk-used', disk.used_label || '-');
-      setText('srv-disk-total', disk.total_label || '-');
-      setText('srv-disk-free', disk.free_label || '-');
+      var appDisk = disk.app || {};
+      var hostDisk = disk.host || {};
+      setText('srv-disk-used', appDisk.total_label || disk.used_label || '-');
+      setText('srv-disk-desc', disk.desc || '');
+      setText('srv-disk-host-used', hostDisk.used_label || '-');
+      setText('srv-disk-host-free', hostDisk.free_label || '-');
+      var topEl = document.getElementById('srv-disk-top');
+      if (topEl) {
+        topEl.innerHTML = '';
+        (appDisk.top || []).forEach(function (item) {
+          var li = document.createElement('li');
+          var sp = document.createElement('span');
+          sp.textContent = item.name || '';
+          var st = document.createElement('strong');
+          st.textContent = item.label || '';
+          li.appendChild(sp);
+          li.appendChild(st);
+          topEl.appendChild(li);
+        });
+      }
 
       setText('srv-mem-pct', (mem.percent != null ? mem.percent : '-') + '%');
       setBar('srv-mem-bar', mem.percent);
