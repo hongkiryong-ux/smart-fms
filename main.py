@@ -6012,6 +6012,18 @@ async def facility_section_list(
     pager = _paginate(list_all, page)
     orders = pager["items"]
     risk_xlsx = _partner_risk_xlsx_path()
+    risk_catalog = _load_partner_risk_catalog()
+    # 승인 모달용: 행별 잠재위험·안전대책 (빈 값은 엑셀 카탈로그로 보강)
+    fac_risk_by_wo: dict[str, dict[str, str]] = {}
+    for w in orders:
+        pname = w.partner.name if getattr(w, "partner", None) else ""
+        excel = _partner_risk_for_name(pname) or {}
+        fac_risk_by_wo[str(w.id)] = {
+            "partner": pname or "",
+            "hazard": (w.hazard_content or excel.get("hazard_content") or "").strip(),
+            "safety": (w.safety_measures or excel.get("safety_measures") or "").strip(),
+            "grade": (w.risk_grade or excel.get("risk_grade") or "").strip(),
+        }
 
     return templates.TemplateResponse(
         request,
@@ -6027,6 +6039,8 @@ async def facility_section_list(
             "orders": orders,
             "pager": pager,
             "partner_risk_file": risk_xlsx.name if risk_xlsx.is_file() else "",
+            "fac_risk_by_wo": fac_risk_by_wo,
+            "partner_risk_catalog": risk_catalog,
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
             "partners": (

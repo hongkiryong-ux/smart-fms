@@ -4368,7 +4368,8 @@ tr.wo-row-selected {
   color: #334155;
 }
 .fac-risk-s { color: #475569; }
-.fac-risk-dialog { width: min(640px, calc(100vw - 1.5rem)); }
+.fac-risk-dialog { width: min(720px, calc(100vw - 1.5rem)); max-height: min(92vh, 920px); }
+.fac-risk-dialog .fac-risk-body { max-height: min(78vh, 780px); overflow: auto; }
 .fac-risk-form .eq-dialog-top {
   display: flex;
   justify-content: space-between;
@@ -4396,7 +4397,12 @@ tr.wo-row-selected {
   font-size: 0.88rem;
   background: #fff;
 }
-.fac-risk-body textarea { resize: vertical; min-height: 4.5rem; }
+.fac-risk-body textarea {
+  resize: vertical;
+  min-height: 7.5rem;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
 .fac-risk-actions {
   display: flex;
   justify-content: flex-end;

@@ -186,26 +186,19 @@
           {% elif user_can_edit(user) %}
           <button type="button"
                   class="btn btn-sm btn-primary fac-permit-open"
-                  data-wo-id="{{ wo.id }}"
-                  data-partner={{ (wo.partner.name if wo.partner else '')|tojson }}
-                  data-hazard={{ (wo.hazard_content or '')|tojson }}
-                  data-safety={{ (wo.safety_measures or '')|tojson }}
-                  data-grade={{ (wo.risk_grade or '')|tojson }}>승인</button>
+                  data-wo-id="{{ wo.id }}">승인</button>
           {% else %}
           <span class="text-muted">미승인</span>
           {% endif %}
         </td>
         <td><a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
-        <td class="fac-risk-cell"
-            data-wo-id="{{ wo.id }}"
-            data-hazard={{ (wo.hazard_content or '')|tojson }}
-            data-safety={{ (wo.safety_measures or '')|tojson }}
-            data-grade={{ (wo.risk_grade or '')|tojson }}>
-          {% if wo.hazard_content or wo.safety_measures %}
-          <div class="fac-risk-preview" title="잠재위험 / 안전대책 (호버로 전체 확인)">
-            {% if wo.risk_grade %}<span class="badge fac-risk-grade">{{ wo.risk_grade }}</span>{% endif %}
-            <div class="fac-risk-h">{{ wo.hazard_content }}</div>
-            <div class="fac-risk-s">{{ wo.safety_measures }}</div>
+        {% set risk_row = fac_risk_by_wo.get(wo.id|string) if fac_risk_by_wo else none %}
+        <td class="fac-risk-cell" data-wo-id="{{ wo.id }}">
+          {% if risk_row and (risk_row.hazard or risk_row.safety) %}
+          <div class="fac-risk-preview" title="잠재위험 / 안전대책">
+            {% if risk_row.grade %}<span class="badge fac-risk-grade">{{ risk_row.grade }}</span>{% endif %}
+            <div class="fac-risk-h">{{ risk_row.hazard }}</div>
+            <div class="fac-risk-s">{{ risk_row.safety }}</div>
           </div>
           {% else %}
           <span class="text-muted" title="시트명과 협력사명이 일치하는 엑셀 행이 없습니다">-</span>
@@ -244,9 +237,11 @@
         <input type="hidden" name="risk_confirmed" value="1" />
         <label class="fac-risk-label">협력사 <span id="fac-risk-partner">-</span></label>
         <label class="fac-risk-label" for="fac-risk-hazard">잠재위험 내용</label>
-        <textarea id="fac-risk-hazard" name="hazard_content" rows="5" required></textarea>
+        <textarea id="fac-risk-hazard" name="hazard_content" rows="8" required
+                  placeholder="엑셀(시트명=협력사명) 잠재위험 내용"></textarea>
         <label class="fac-risk-label" for="fac-risk-safety">안전작업 대책</label>
-        <textarea id="fac-risk-safety" name="safety_measures" rows="5" required></textarea>
+        <textarea id="fac-risk-safety" name="safety_measures" rows="8" required
+                  placeholder="엑셀(시트명=협력사명) 안전작업 대책"></textarea>
         <label class="fac-risk-label" for="fac-risk-grade">위험도</label>
         <input id="fac-risk-grade" name="risk_grade" type="text" maxlength="20" />
       </div>
@@ -265,6 +260,7 @@
 </dialog>
 {% endif %}
 
+<script id="fac-risk-data" type="application/json">{{ fac_risk_by_wo|default({})|tojson }}</script>
 <script>
 (function () {
   document.querySelectorAll('.wo-step-btns').forEach(function (group) {
@@ -280,7 +276,6 @@
   var bulkBar = document.getElementById('fac-bulk-bar');
   var bulkCount = document.getElementById('fac-bulk-count');
   var selectAll = document.getElementById('fac-select-all');
-  var bulkForm = document.getElementById('fac-bulk-form');
   var dialog = document.getElementById('fac-risk-dialog');
   var riskForm = document.getElementById('fac-risk-form');
   var singleBox = document.getElementById('fac-risk-single-fields');
@@ -291,6 +286,26 @@
   var hazardEl = document.getElementById('fac-risk-hazard');
   var safetyEl = document.getElementById('fac-risk-safety');
   var gradeEl = document.getElementById('fac-risk-grade');
+
+  var riskByWo = {};
+  try {
+    var riskDataEl = document.getElementById('fac-risk-data');
+    if (riskDataEl && riskDataEl.textContent) {
+      riskByWo = JSON.parse(riskDataEl.textContent) || {};
+    }
+  } catch (err) {
+    riskByWo = {};
+  }
+
+  function riskForWo(woId) {
+    var row = riskByWo[String(woId)] || {};
+    return {
+      partner: row.partner || '',
+      hazard: row.hazard || '',
+      safety: row.safety || '',
+      grade: row.grade || ''
+    };
+  }
 
   function rowChecks() {
     return Array.prototype.slice.call(document.querySelectorAll('.fac-row-check'));
@@ -343,24 +358,14 @@
   if (closeBtn) closeBtn.addEventListener('click', closeRiskDialog);
   if (cancelBtn) cancelBtn.addEventListener('click', closeRiskDialog);
 
-  function riskFromRow(woId) {
-    var cell = document.querySelector('.fac-risk-cell[data-wo-id="' + woId + '"]');
-    if (!cell) return { hazard: '', safety: '', grade: '' };
-    return {
-      hazard: cell.getAttribute('data-hazard') || '',
-      safety: cell.getAttribute('data-safety') || '',
-      grade: cell.getAttribute('data-grade') || ''
-    };
-  }
-
   function openSinglePermit(btn) {
     if (!dialog || !riskForm || !singleBox || !bulkBox) return;
     var woId = btn.getAttribute('data-wo-id');
+    var risk = riskForWo(woId);
     riskForm.action = '/admin/facility-section/' + woId + '/permit';
     riskForm.method = 'post';
     singleBox.hidden = false;
     bulkBox.hidden = true;
-    // disable bulk inputs so they are not submitted
     Array.prototype.forEach.call(bulkBox.querySelectorAll('input,textarea'), function (el) {
       el.disabled = true;
     });
@@ -368,11 +373,15 @@
       el.disabled = false;
     });
     if (titleEl) titleEl.textContent = '잠재위험 및 안전대책 확인 후 승인';
-    if (partnerEl) partnerEl.textContent = btn.getAttribute('data-partner') || '-';
-    if (hazardEl) hazardEl.value = btn.getAttribute('data-hazard') || '';
-    if (safetyEl) safetyEl.value = btn.getAttribute('data-safety') || '';
-    if (gradeEl) gradeEl.value = btn.getAttribute('data-grade') || '';
+    if (partnerEl) partnerEl.textContent = risk.partner || '-';
+    if (hazardEl) hazardEl.value = risk.hazard || '';
+    if (safetyEl) safetyEl.value = risk.safety || '';
+    if (gradeEl) gradeEl.value = risk.grade || '';
     dialog.showModal();
+    if (hazardEl) {
+      hazardEl.focus();
+      hazardEl.setSelectionRange(0, 0);
+    }
   }
 
   document.querySelectorAll('.fac-permit-open').forEach(function (btn) {
@@ -403,15 +412,7 @@
         bulkList.innerHTML = '';
         selected.forEach(function (chk) {
           var woId = chk.value;
-          var tr = chk.closest('tr');
-          var partner = '';
-          if (tr) {
-            var tds = tr.querySelectorAll('td');
-            // 협력사 열: 선택열 있으면 6번째(0=sel), 없으면 5번째
-            var partnerIdx = {{ 6 if show_sel else 5 }};
-            if (tds[partnerIdx]) partner = (tds[partnerIdx].textContent || '').trim();
-          }
-          var risk = riskFromRow(woId);
+          var risk = riskForWo(woId);
           var block = document.createElement('div');
           block.className = 'fac-risk-bulk-item';
           var head = document.createElement('div');
@@ -420,7 +421,7 @@
           strong.textContent = '#' + woId;
           var pname = document.createElement('span');
           pname.className = 'text-muted';
-          pname.textContent = ' ' + (partner || '-');
+          pname.textContent = ' ' + (risk.partner || '-');
           head.appendChild(strong);
           head.appendChild(pname);
           var idInput = document.createElement('input');
@@ -438,12 +439,11 @@
             ta.value = val || '';
             block.appendChild(lab);
             block.appendChild(ta);
-            return ta;
           }
           block.appendChild(idInput);
           block.appendChild(head);
-          labeledArea('잠재위험 내용', 'hazard_' + woId, 3, risk.hazard);
-          labeledArea('안전작업 대책', 'safety_' + woId, 3, risk.safety);
+          labeledArea('잠재위험 내용', 'hazard_' + woId, 6, risk.hazard);
+          labeledArea('안전작업 대책', 'safety_' + woId, 6, risk.safety);
           var gLab = document.createElement('label');
           gLab.className = 'fac-risk-label';
           gLab.textContent = '위험도';
