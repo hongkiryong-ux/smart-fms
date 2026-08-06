@@ -796,6 +796,7 @@ def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목�
     from urllib.parse import quote
 
     from openpyxl import Workbook
+    from openpyxl.styles import Alignment
 
     wb = Workbook()
     ws = wb.active
@@ -814,8 +815,13 @@ def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목�
             "작업 승인자",
             "D-1승인",
             "담당자",
+            "잠재위험 내용",
+            "안전작업 대책",
+            "위험등급",
+            "작업허가",
         ]
     )
+    wrap = Alignment(wrap_text=True, vertical="top")
     for wo in orders:
         eq = wo.equipment
         ws.append(
@@ -832,8 +838,18 @@ def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목�
                 getattr(wo, "approved_by", None) or "",
                 "Y" if getattr(wo, "d1_approved", False) else "N",
                 wo.assignee_name or "",
+                getattr(wo, "hazard_content", None) or "",
+                getattr(wo, "safety_measures", None) or "",
+                getattr(wo, "risk_grade", None) or "",
+                "Y" if getattr(wo, "work_permitted", False) else "N",
             ]
         )
+        r = ws.max_row
+        ws.cell(row=r, column=13).alignment = wrap
+        ws.cell(row=r, column=14).alignment = wrap
+    ws.column_dimensions["M"].width = 36
+    ws.column_dimensions["N"].width = 36
+    ws.column_dimensions["O"].width = 10
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)

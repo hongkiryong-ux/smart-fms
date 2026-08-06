@@ -22,6 +22,8 @@
         <th>승인자</th>
         <th>저장</th>
         <th>작업허가 승인요청</th>
+        <th class="fac-risk-col-head">잠재위험·안전대책</th>
+        <th>위험등급</th>
         <th>상세</th>
         {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
       </tr>
@@ -159,6 +161,23 @@
           </form>
           {% else %}-{% endif %}
         </td>
+        <td class="fac-risk-cell">
+          {% if wo.hazard_content or wo.safety_measures %}
+          <div class="fac-risk-preview" title="잠재위험 / 안전대책">
+            <div class="fac-risk-h">{{ wo.hazard_content or '' }}</div>
+            <div class="fac-risk-s">{{ wo.safety_measures or '' }}</div>
+          </div>
+          {% else %}
+          <span class="text-muted">-</span>
+          {% endif %}
+        </td>
+        <td class="fac-risk-grade-cell">
+          {% if wo.risk_grade %}
+          <span class="badge fac-risk-grade">{{ wo.risk_grade }}</span>
+          {% else %}
+          <span class="text-muted">-</span>
+          {% endif %}
+        </td>
         <td>
           <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
         </td>
@@ -181,7 +200,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}15{% else %}14{% endif %}" class="empty">{{ empty_msg }}</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}17{% else %}16{% endif %}" class="empty">{{ empty_msg }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
