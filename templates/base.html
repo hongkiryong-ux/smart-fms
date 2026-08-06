@@ -25,7 +25,20 @@
   {% set nav_pid = request.query_params.get('partner_id') %}
   {% set ilog_path_parts = request.url.path.split('/') %}
   {% set ilog_bid = ilog_path_parts[3] if ilog_path and ilog_path_parts|length > 3 and ilog_path_parts[3].isdigit() else none %}
-  <nav class="sidebar">
+  <header class="mobile-topbar" aria-label="모바일 상단">
+    <button type="button" class="mobile-nav-btn" id="nav-open-btn" aria-controls="app-sidebar" aria-expanded="false" title="메뉴 열기">
+      <span aria-hidden="true">☰</span>
+      <span class="sr-only">메뉴</span>
+    </button>
+    <a href="/admin/dashboard" class="mobile-topbar-brand">Smart FMS</a>
+    <a href="/admin/logout" class="mobile-topbar-logout">로그아웃</a>
+  </header>
+  <div class="nav-backdrop" id="nav-backdrop" hidden></div>
+  <nav class="sidebar" id="app-sidebar">
+    <div class="sidebar-mobile-head">
+      <span class="sidebar-mobile-title">메뉴</span>
+      <button type="button" class="sidebar-close-mobile" id="nav-close-btn" aria-label="메뉴 닫기">&times;</button>
+    </div>
     <a href="/admin/dashboard" class="sidebar-brand">
       <strong>Smart FMS</strong>
       <img class="sidebar-brand-logo"
@@ -224,6 +237,44 @@
     bindNavExpandable('nav-inspection-logs', 'nav-ilog-open');
     bindNavExpandable('nav-maintenance', 'nav-maint-open');
     bindNavExpandable('nav-d1', 'nav-d1-open');
+
+    /* 모바일: 사이드 메뉴 열기/닫기 */
+    (function () {
+      var sidebar = document.getElementById('app-sidebar');
+      var backdrop = document.getElementById('nav-backdrop');
+      var openBtn = document.getElementById('nav-open-btn');
+      var closeBtn = document.getElementById('nav-close-btn');
+      if (!sidebar) return;
+
+      function isMobileNav() {
+        return window.matchMedia('(max-width: 900px)').matches;
+      }
+
+      function setNavOpen(open) {
+        document.body.classList.toggle('nav-open', !!open);
+        sidebar.classList.toggle('is-open', !!open);
+        if (backdrop) backdrop.hidden = !open;
+        if (openBtn) openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+
+      if (openBtn) openBtn.addEventListener('click', function () { setNavOpen(true); });
+      if (closeBtn) closeBtn.addEventListener('click', function () { setNavOpen(false); });
+      if (backdrop) backdrop.addEventListener('click', function () { setNavOpen(false); });
+
+      sidebar.addEventListener('click', function (e) {
+        if (!isMobileNav()) return;
+        var a = e.target.closest('a[href]');
+        if (!a) return;
+        /* 하위 메뉴 펼침용 부모 링크는 유지, 일반 메뉴 이동 시 닫기 */
+        if (!a.classList.contains('nav-parent-link')) {
+          setNavOpen(false);
+        }
+      });
+
+      window.addEventListener('resize', function () {
+        if (!isMobileNav()) setNavOpen(false);
+      });
+    })();
   })();
   </script>
   {% endif %}
