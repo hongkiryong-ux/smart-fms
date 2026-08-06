@@ -49,6 +49,7 @@ from auth import (
 from database import AsyncSessionLocal, Base, engine, get_db, ensure_schema_updates
 from init_data import seed_if_empty
 import onlyoffice as oo
+from server_status import collect_server_status
 from models import (
     Building,
     BuildingDrawing,
@@ -1849,6 +1850,7 @@ async def dashboard(
     db: AsyncSession = Depends(get_db),
 ):
     kpi = await _compute_dashboard_kpi(db)
+    server = await collect_server_status(db)
 
     return templates.TemplateResponse(
         request,
@@ -1856,6 +1858,7 @@ async def dashboard(
         {
             "user": user,
             "kpi": kpi,
+            "server": server,
         },
     )
 
@@ -1866,9 +1869,16 @@ async def dashboard_kpi(
     db: AsyncSession = Depends(get_db),
 ):
     """대시보드 KPI JSON (자동 갱신)."""
-    from fastapi.responses import JSONResponse
-
     return JSONResponse(await _compute_dashboard_kpi(db))
+
+
+@app.get("/admin/dashboard/server-status")
+async def dashboard_server_status(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """Render/호스트 서버 리소스·통신 상태 JSON."""
+    return JSONResponse(await collect_server_status(db))
 
 
 # ── Sites & Hierarchy ─────────────────────────────────────────────────
