@@ -14,7 +14,17 @@ from sqlalchemy import String, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from auth import can_access_menu, can_create, can_delete, can_edit, effective_menu_access, require_login, MENU_ITEMS, ROLE_LABELS
+from auth import (
+    can_access_equipment_pm,
+    can_access_menu,
+    can_create,
+    can_delete,
+    can_edit,
+    effective_menu_access,
+    require_login,
+    MENU_ITEMS,
+    ROLE_LABELS,
+)
 from database import AsyncSessionLocal, get_db
 from streetlamp.models import Lamp, MaintenanceRequest, RequestStatus, RequestType
 from streetlamp.reporting import RequestStatusLabel, RequestTypeLabel, build_xlsx_bytes, run_daily_report_pipeline
@@ -39,11 +49,13 @@ templates.env.globals["user_can_create"] = can_create
 templates.env.globals["user_can_edit"] = can_edit
 templates.env.globals["user_can_delete"] = can_delete
 templates.env.globals["user_can_access_menu"] = can_access_menu
+templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
 templates.env.globals["user_menu_access"] = effective_menu_access
 templates.env.globals["menu_items"] = MENU_ITEMS
 templates.env.globals["role_labels"] = ROLE_LABELS
 templates.env.globals["fmt_kst"] = _fmt_kst
 templates.env.globals["fmt_kst_date"] = lambda value: _fmt_kst(value, "%Y-%m-%d")
+templates.env.globals["fmt_file_size"] = lambda n: "" if n is None else str(n)
 
 
 def admin_paths() -> dict[str, str]:
@@ -69,6 +81,11 @@ def _ctx(request: Request, user, **kwargs) -> dict:
     return {"request": request, "user": user, "is_guest": not can_edit(user), **admin_paths(), **kwargs}
 
 
+def _render(request: Request, name: str, context: dict, status_code: int = 200):
+    """Starlette 1.x: TemplateResponse(request, name, context)."""
+    return templates.TemplateResponse(request, name, context, status_code=status_code)
+
+
 async def _lamp(db: AsyncSession, code: str) -> Lamp | None:
     result = await db.execute(select(Lamp).where(Lamp.code == code.strip()))
     lamp = result.scalar_one_or_none()
@@ -89,8 +106,8 @@ async def lamp_detail(request: Request, lamp_code: str, db: AsyncSession = Depen
     lamp = await _lamp(db, lamp_code)
     if not lamp:
         raise HTTPException(404, "가로등을 찾을 수 없습니다.")
-    return templates.TemplateResponse("streetlamp/lamp_detail.html", {
-        "request": request, "lamp": lamp, "lamp_code": lamp_code, "request_types": RequestType,
+    return _render(request, "streetlamp/lamp_detail.html", {
+        "lamp": lamp, "lamp_code": lamp_code, "request_types": RequestType,
     })
 
 
@@ -111,8 +128,8 @@ async def create_request(
     except ValueError:
         error = error or "정비 유형을 선택해 주세요."
     if error:
-        return templates.TemplateResponse("streetlamp/lamp_detail.html", {
-            "request": request, "lamp": lamp, "lamp_code": lamp_code, "request_types": RequestType,
+        return _render(request, "streetlamp/lamp_detail.html", {
+            "lamp": lamp, "lamp_code": lamp_code, "request_types": RequestType,
             "form_error": error, "name_input": name, "phone_input": phone,
             "request_type_input": request_type, "content_input": content,
         }, status_code=422)
@@ -124,14 +141,14 @@ async def create_request(
     await send_new_request_sms_alert(db, req_id=row.id, lamp_id=lamp.id, lamp_code=lamp.code,
                                      name=row.name, phone=row.phone, request_type=row.request_type,
                                      content=row.content or "")
-    return templates.TemplateResponse("streetlamp/request_submitted.html",
-                                      {"request": request, "lamp_id": lamp.code or lamp.id})
+    return _render(request, "streetlamp/request_submitted.html",
+                   {"lamp_id": lamp.code or lamp.id})
 
 
 @router.get("/status")
 async def status_form(request: Request):
-    return templates.TemplateResponse("streetlamp/status_check.html", {
-        "request": request, "results": [], "name_input": "", "phone_input": "",
+    return _render(request, "streetlamp/status_check.html", {
+        "results": [], "name_input": "", "phone_input": "",
         "RequestStatusLabel": RequestStatusLabel, "RequestTypeLabel": RequestTypeLabel,
     })
 
@@ -152,8 +169,8 @@ async def status_check(request: Request, name: str = Form(""), phone: str = Form
                                   .order_by(MaintenanceRequest.created_at.desc()))
         rows = list(result.scalars())
         error = "" if rows else "일치하는 접수 내역이 없습니다."
-    return templates.TemplateResponse("streetlamp/status_check.html", {
-        "request": request, "results": rows, "error": error, "name_input": name, "phone_input": phone,
+    return _render(request, "streetlamp/status_check.html", {
+        "results": rows, "error": error, "name_input": name, "phone_input": phone,
         "RequestStatusLabel": RequestStatusLabel, "RequestTypeLabel": RequestTypeLabel,
     })
 
@@ -183,9 +200,12 @@ def _filters(**values) -> tuple[list, dict[str, str]]:
 
 
 async def _admin_requests_select(db: AsyncSession, clauses: list) -> list[MaintenanceRequest]:
-    result = await db.execute(select(MaintenanceRequest).outerjoin(Lamp).where(*clauses)
-                              .options(selectinload(MaintenanceRequest.lamp))
-                              .order_by(MaintenanceRequest.created_at.desc()))
+    q = select(MaintenanceRequest).outerjoin(Lamp)
+    if clauses:
+        q = q.where(*clauses)
+    result = await db.execute(
+        q.options(selectinload(MaintenanceRequest.lamp)).order_by(MaintenanceRequest.created_at.desc())
+    )
     return list(result.scalars().unique())
 
 
@@ -197,10 +217,13 @@ async def admin_requests(request: Request, date_from: str = "", date_to: str = "
     _check_access(user)
     clauses, values = _filters(date_from=date_from, date_to=date_to, lamp_id=lamp_id, request_type=request_type,
                                name=name, phone=phone, content=content, q=q, filter_status=filter_status)
-    return templates.TemplateResponse("streetlamp/admin_requests.html", _ctx(
+    return _render(request, "streetlamp/admin_requests.html", _ctx(
         request, user, requests_list=await _admin_requests_select(db, clauses), RequestType=RequestType,
         RequestStatus=RequestStatus, RequestTypeLabel=RequestTypeLabel, RequestStatusLabel=RequestStatusLabel,
-        export_qs=urlencode({k: v for k, v in values.items() if v}), **values))
+        export_qs=urlencode({k: v for k, v in values.items() if v}),
+        request_type_filter=values.get("request_type", ""),
+        status_filter=values.get("filter_status", ""),
+        **values))
 
 
 @router.post("/admin/streetlamp/requests")
@@ -240,7 +263,7 @@ async def admin_export(date_from: str = "", date_to: str = "", lamp_id: str = ""
 
 
 async def _settings_page(request: Request, user, db: AsyncSession, saved=False, notice=""):
-    return templates.TemplateResponse("streetlamp/admin_settings.html", _ctx(
+    return _render(request, "streetlamp/admin_settings.html", _ctx(
         request, user, settings=await get_all_settings_map(db), saved=saved, notice=notice,
         public_base_url=os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/") or os.environ.get("RENDER_EXTERNAL_URL", "").strip().rstrip("/"),
         cron_secret_set=bool(os.environ.get("CRON_SECRET", "").strip())))
