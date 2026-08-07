@@ -47,12 +47,16 @@ templates.env.globals["fmt_kst_date"] = lambda value: _fmt_kst(value, "%Y-%m-%d"
 
 
 def admin_paths() -> dict[str, str]:
+    """가로등 관리 경로 — 인증은 Smart FMS /admin/login 계정만 사용."""
     base = "/admin/streetlamp"
     return {
-        "path_requests_list": f"{base}/requests", "path_requests_export": f"{base}/requests/export",
-        "path_requests_remove": f"{base}/requests/delete", "path_settings": f"{base}/settings",
+        "path_requests_list": f"{base}/requests",
+        "path_requests_export": f"{base}/requests/export",
+        "path_requests_remove": f"{base}/requests/delete",
+        "path_settings": f"{base}/settings",
         "path_settings_test_email": f"{base}/settings/test-email",
-        "path_settings_test_sms": f"{base}/settings/test-sms", "path_logout": "/admin/logout",
+        "path_settings_test_sms": f"{base}/settings/test-sms",
+        "path_logout": "/admin/logout",
     }
 
 

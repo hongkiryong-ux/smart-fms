@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -87,6 +88,18 @@ KST = ZoneInfo("Asia/Seoul")
 UPLOAD_MAX_FILE_MB = 20
 UPLOAD_MAX_FILE_BYTES = UPLOAD_MAX_FILE_MB * 1024 * 1024
 UPLOAD_MAX_FILES_PER_REQUEST = 10
+
+
+def _safe_login_next(raw: str | None) -> str | None:
+    """로그인 후 복귀 URL — 내부 /admin 경로만 허용 (오픈 리다이렉트 방지)."""
+    value = (raw or "").strip()
+    if not value.startswith("/") or value.startswith("//"):
+        return None
+    if not value.startswith("/admin"):
+        return None
+    if value.startswith("/admin/login") or value.startswith("/admin/logout"):
+        return None
+    return value
 
 
 def _today_kst() -> date:
@@ -1112,13 +1125,19 @@ app.include_router(streetlamp_router)
 
 @app.exception_handler(HTTPException)
 async def _http_exception_handler(request: Request, exc: HTTPException):
-    # 미로그인 → 로그인 페이지로 이동
+    # 미로그인 → Smart FMS 로그인으로 이동 (원래 경로 next 로 복귀)
     if exc.status_code in (401, 303) and (
         exc.detail == "login_required"
         or (exc.headers or {}).get("Location") == "/admin/login"
         or (exc.headers or {}).get("X-Redirect") == "/admin/login"
     ):
-        return RedirectResponse("/admin/login", status_code=303)
+        next_url = _safe_login_next(request.url.path)
+        if next_url and request.url.query:
+            next_url = f"{next_url}?{request.url.query}"
+        login = "/admin/login"
+        if next_url:
+            login = f"{login}?next={quote(next_url)}"
+        return RedirectResponse(login, status_code=303)
     return await http_exception_handler(request, exc)
 
 
@@ -1164,14 +1183,16 @@ async def health():
 
 @app.get("/admin/login")
 async def admin_login_page(request: Request, user: User | None = Depends(get_current_user)):
+    next_url = _safe_login_next(request.query_params.get("next"))
     if user:
-        return RedirectResponse(home_path_for_user(user), status_code=303)
+        return RedirectResponse(next_url or home_path_for_user(user), status_code=303)
     return templates.TemplateResponse(
         request,
         "login.html",
         {
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
+            "next": next_url or "",
         },
     )
 
@@ -1181,16 +1202,24 @@ async def admin_login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    next: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
+    next_url = _safe_login_next(next) or _safe_login_next(request.query_params.get("next"))
     result = await db.execute(select(User).where(User.username == username.strip()))
     user = result.scalar_one_or_none()
     if not user or not user.is_active or not verify_password(password, user.password_hash):
-        return RedirectResponse("/admin/login?error=1", status_code=303)
+        qs = "error=1"
+        if next_url:
+            qs += f"&next={quote(next_url)}"
+        return RedirectResponse(f"/admin/login?{qs}", status_code=303)
     if not getattr(user, "is_approved", True):
-        return RedirectResponse("/admin/login?error=pending", status_code=303)
+        qs = "error=pending"
+        if next_url:
+            qs += f"&next={quote(next_url)}"
+        return RedirectResponse(f"/admin/login?{qs}", status_code=303)
     request.session["user_id"] = user.id
-    return RedirectResponse(home_path_for_user(user), status_code=303)
+    return RedirectResponse(next_url or home_path_for_user(user), status_code=303)
 
 
 @app.get("/admin/logout")
