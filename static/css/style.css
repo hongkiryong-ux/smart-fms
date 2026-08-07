@@ -724,13 +724,14 @@ body {
   color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
-.dash-server-host-ref {
-  margin-top: 0.25rem;
-  padding-top: 0.3rem;
-  border-top: 1px dashed #e2e8f0;
-  color: #94a3b8;
-  font-size: 0.66rem;
+.dash-server-metric[data-key="db-storage"][data-level="warn"] .dash-server-bar i,
+.dash-server-metric[data-key="db-storage"][data-level="critical"] .dash-server-bar i {
+  background: linear-gradient(90deg, #b45309, #f59e0b);
 }
+.dash-server-metric[data-key="db-storage"][data-level="critical"] .dash-server-bar i {
+  background: linear-gradient(90deg, #b91c1c, #ef4444);
+}
+.dash-server-free { color: #64748b; }
 
 .dash-server-grid {
   display: grid;

@@ -154,11 +154,11 @@
       <div class="dash-server-bars" id="srv-resource-block"{% if not server.is_render %} hidden{% endif %}>
         <div class="dash-server-metric" data-key="disk">
           <div class="dash-server-metric-top">
-            <span>앱 실사용 용량</span>
+            <span>웹 서버 · 앱 파일</span>
             <strong id="srv-disk-used">{% if server.disk and server.disk.app %}{{ server.disk.app.total_label }}{% elif server.disk %}{{ server.disk.used_label }}{% else %}-{% endif %}</strong>
           </div>
           <p class="dash-server-desc" id="srv-disk-desc">
-            Smart FMS가 실제로 차지한 용량입니다. (386G·315G 같은 수치는 공유 호스트 참고값이며 앱 점유가 아닙니다)
+            웹 서버에 있는 프로그램·업로드 파일 용량입니다. 업무 입력 자료는 아래 DB를 보세요.
           </p>
           <ul class="dash-server-disk-top" id="srv-disk-top">
             {% if server.disk and server.disk.app and server.disk.app.top %}
@@ -167,19 +167,14 @@
               {% endfor %}
             {% endif %}
           </ul>
-          <div class="dash-server-metric-foot dash-server-host-ref">
-            <span>참고(공유 호스트)</span>
-            <span>사용 <span id="srv-disk-host-used">{% if server.disk and server.disk.host %}{{ server.disk.host.used_label }}{% else %}-{% endif %}</span></span>
-            <span>여유 <span id="srv-disk-host-free">{% if server.disk and server.disk.host %}{{ server.disk.host.free_label }}{% else %}-{% endif %}</span></span>
-          </div>
         </div>
 
         <div class="dash-server-metric" data-key="memory">
           <div class="dash-server-metric-top">
-            <span>서버 메모리</span>
+            <span>웹 서버 메모리</span>
             <strong id="srv-mem-pct">{% if server.memory %}{{ server.memory.percent if server.memory.percent is not none else '-' }}%{% else %}-{% endif %}</strong>
           </div>
-          <p class="dash-server-desc">서버 RAM 사용 비율입니다. 높으면 지연이 생길 수 있습니다.</p>
+          <p class="dash-server-desc">웹 서버 RAM 사용 비율입니다. 높으면 화면 응답이 느려질 수 있습니다.</p>
           <div class="dash-server-bar"><i id="srv-mem-bar" style="width:{% if server.memory %}{{ server.memory.percent or 0 }}{% else %}0{% endif %}%"></i></div>
           <div class="dash-server-metric-foot">
             <span>사용 <span id="srv-mem-used">{% if server.memory %}{{ server.memory.used_label }}{% else %}-{% endif %}</span></span>
@@ -189,14 +184,40 @@
 
         <div class="dash-server-metric" data-key="cpu">
           <div class="dash-server-metric-top">
-            <span>서버 CPU</span>
+            <span>웹 서버 CPU</span>
             <strong id="srv-cpu-pct">{% if server.cpu %}{{ server.cpu.percent if server.cpu.percent is not none else '-' }}%{% else %}-{% endif %}</strong>
           </div>
-          <p class="dash-server-desc">서버 연산 부하입니다. 오랫동안 높으면 점검이 필요합니다.</p>
+          <p class="dash-server-desc">웹 서버 연산 부하입니다.</p>
           <div class="dash-server-bar"><i id="srv-cpu-bar" style="width:{% if server.cpu %}{{ server.cpu.percent or 0 }}{% else %}0{% endif %}%"></i></div>
           <div class="dash-server-metric-foot">
             <span>코어 <span id="srv-cpu-count">{% if server.cpu %}{{ server.cpu.count }}{% else %}-{% endif %}</span></span>
           </div>
+        </div>
+      </div>
+
+      {% set st = server.db.storage if server.db and server.db.storage else none %}
+      <div class="dash-server-bars" id="srv-db-block">
+        <div class="dash-server-metric" data-key="db-storage" data-level="{{ st.level if st and st.level else 'unknown' }}">
+          <div class="dash-server-metric-top">
+            <span>DB 저장용량 (업무 자료)</span>
+            <strong id="srv-db-pct">{% if st and st.percent is not none %}{{ st.percent }}%{% else %}-{% endif %}</strong>
+          </div>
+          <p class="dash-server-desc" id="srv-db-storage-desc">
+            {% if st and st.desc %}{{ st.desc }}{% else %}웹에서 작성한 자료가 저장되는 Postgres/DB 용량입니다.{% endif %}
+          </p>
+          <div class="dash-server-bar"><i id="srv-db-bar" style="width:{% if st and st.percent is not none %}{{ st.percent }}{% else %}0{% endif %}%"></i></div>
+          <div class="dash-server-metric-foot">
+            <span>사용 <span id="srv-db-used">{% if st %}{{ st.used_label }}{% else %}-{% endif %}</span></span>
+            <span>/ 할당 <span id="srv-db-quota">{% if st %}{{ st.quota_label }}{% else %}-{% endif %}</span></span>
+            <span class="dash-server-free">여유 <span id="srv-db-free">{% if st %}{{ st.free_label }}{% else %}-{% endif %}</span></span>
+          </div>
+          <ul class="dash-server-disk-top" id="srv-db-top">
+            {% if st and st.top %}
+              {% for item in st.top %}
+              <li><span>{{ item.name }}</span><strong>{{ item.label }}</strong></li>
+              {% endfor %}
+            {% endif %}
+          </ul>
         </div>
       </div>
 
@@ -209,7 +230,7 @@
         <div class="dash-server-chip" id="srv-db-chip" data-level="{{ server.db.level }}">
           <span class="chip-label">DB 통신</span>
           <strong id="srv-db">{{ server.db.label }}{% if server.db.latency_ms is not none %} · {{ server.db.latency_ms }}ms{% endif %}</strong>
-          <p class="dash-server-desc">서버↔데이터베이스 연결 상태입니다.</p>
+          <p class="dash-server-desc">웹 서버↔DB 연결 상태입니다.</p>
         </div>
         <div class="dash-server-chip" id="srv-net-chip" data-level="{{ server.network.level }}">
           <span class="chip-label">외부 통신</span>
@@ -219,12 +240,12 @@
         <div class="dash-server-chip" id="srv-up-chip" data-level="ok">
           <span class="chip-label">가동시간</span>
           <strong id="srv-uptime">{{ server.uptime.label }}</strong>
-          <p class="dash-server-desc">이번 서버 인스턴스가 켜진 뒤 지난 시간입니다.</p>
+          <p class="dash-server-desc">이번 웹 서버 인스턴스가 켜진 뒤 지난 시간입니다.</p>
         </div>
       </div>
 
       <div class="dash-server-foot">
-        <span id="srv-db-dialect">DB 종류: {{ server.db.dialect }}</span>
+        <span id="srv-db-dialect">DB: {{ server.db.dialect }}{% if st and st.db_name %} · {{ st.db_name }}{% endif %}</span>
         <span>30초 자동갱신</span>
       </div>
     </aside>
@@ -450,11 +471,8 @@
 
     if (data.is_render) {
       var appDisk = disk.app || {};
-      var hostDisk = disk.host || {};
       setText('srv-disk-used', appDisk.total_label || disk.used_label || '-');
       setText('srv-disk-desc', disk.desc || '');
-      setText('srv-disk-host-used', hostDisk.used_label || '-');
-      setText('srv-disk-host-free', hostDisk.free_label || '-');
       var topEl = document.getElementById('srv-disk-top');
       if (topEl) {
         topEl.innerHTML = '';
@@ -480,6 +498,30 @@
       setText('srv-cpu-count', cpu.count != null ? cpu.count : '-');
     }
 
+    var storage = db.storage || {};
+    setText('srv-db-pct', (storage.percent != null ? storage.percent : '-') + '%');
+    setBar('srv-db-bar', storage.percent);
+    setText('srv-db-used', storage.used_label || '-');
+    setText('srv-db-quota', storage.quota_label || '-');
+    setText('srv-db-free', storage.free_label || '-');
+    setText('srv-db-storage-desc', storage.desc || '');
+    var dbMetric = document.querySelector('.dash-server-metric[data-key="db-storage"]');
+    setLevel(dbMetric, storage.level);
+    var dbTop = document.getElementById('srv-db-top');
+    if (dbTop) {
+      dbTop.innerHTML = '';
+      (storage.top || []).forEach(function (item) {
+        var li = document.createElement('li');
+        var sp = document.createElement('span');
+        sp.textContent = item.name || '';
+        var st = document.createElement('strong');
+        st.textContent = item.label || '';
+        li.appendChild(sp);
+        li.appendChild(st);
+        dbTop.appendChild(li);
+      });
+    }
+
     setText('srv-app', app.label || '-');
     setLevel(document.getElementById('srv-app-chip'), app.level || 'ok');
     setText(
@@ -493,7 +535,10 @@
     );
     setLevel(document.getElementById('srv-net-chip'), net.level);
     setText('srv-uptime', up.label || '-');
-    setText('srv-db-dialect', 'DB 종류: ' + (db.dialect || '-'));
+    setText(
+      'srv-db-dialect',
+      'DB: ' + (db.dialect || '-') + (storage.db_name ? ' · ' + storage.db_name : '')
+    );
   }
 
   function refreshKpi() {

@@ -360,6 +360,110 @@ def _render_meta() -> dict:
     }
 
 
+def _db_storage_quota_bytes() -> int | None:
+    """Render DB 할당 용량(바이트). 환경변수 RENDER_DB_STORAGE_GB 우선."""
+    raw = (os.environ.get("RENDER_DB_STORAGE_GB") or "").strip()
+    if raw:
+        try:
+            gb = float(raw)
+            if gb > 0:
+                return int(gb * 1024**3)
+        except ValueError:
+            pass
+    # render.yaml plan: starter → Legacy Starter 1GB
+    if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
+        return int(1 * 1024**3)
+    return None
+
+
+async def _db_storage_info(db: AsyncSession, dialect: str) -> dict:
+    """DB 실제 사용량·여유(플랜 할당 기준)."""
+    used = None
+    db_name = "-"
+    top: list[dict] = []
+    try:
+        if dialect.startswith("postgresql"):
+            row = (await db.execute(text("SELECT current_database(), pg_database_size(current_database())"))).one()
+            db_name = str(row[0] or "-")
+            used = int(row[1] or 0)
+            try:
+                rows = (
+                    await db.execute(
+                        text(
+                            """
+                            SELECT c.relname::text AS name,
+                                   pg_total_relation_size(c.oid) AS bytes
+                            FROM pg_class c
+                            JOIN pg_namespace n ON n.oid = c.relnamespace
+                            WHERE c.relkind = 'r'
+                              AND n.nspname = 'public'
+                            ORDER BY bytes DESC
+                            LIMIT 5
+                            """
+                        )
+                    )
+                ).all()
+                top = [
+                    {
+                        "name": str(r[0]),
+                        "bytes": int(r[1] or 0),
+                        "label": _bytes_label(int(r[1] or 0)),
+                    }
+                    for r in rows
+                    if r and r[0]
+                ]
+            except Exception:
+                top = []
+        elif dialect.startswith("sqlite"):
+            # SQLite: DB 파일 크기
+            try:
+                url = str(db.bind.url) if db.bind is not None else ""
+            except Exception:
+                url = ""
+            path = None
+            if ":///" in url:
+                path = Path(url.split("///", 1)[-1])
+            if path and path.is_file():
+                used = int(path.stat().st_size)
+                db_name = path.name
+            else:
+                # fallback pragma page_count
+                try:
+                    pc = (await db.execute(text("PRAGMA page_count"))).scalar()
+                    ps = (await db.execute(text("PRAGMA page_size"))).scalar()
+                    if pc is not None and ps is not None:
+                        used = int(pc) * int(ps)
+                        db_name = "sqlite"
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    quota = _db_storage_quota_bytes()
+    free = None
+    pct = None
+    if used is not None and quota:
+        free = max(0, quota - used)
+        pct = _pct(used, quota)
+    return {
+        "db_name": db_name,
+        "used": used,
+        "used_label": _bytes_label(used) if used is not None else "-",
+        "quota": quota,
+        "quota_label": _bytes_label(quota) if quota else "-",
+        "free": free,
+        "free_label": _bytes_label(free) if free is not None else "-",
+        "percent": pct,
+        "level": _level(pct) if pct is not None else "unknown",
+        "top": top,
+        "desc": (
+            "웹에서 작성한 자료가 저장되는 DB 용량입니다. "
+            "여유 = 할당 용량 − 사용량"
+            + (f" (할당 {_bytes_label(quota)})" if quota else " (할당 용량 미설정: RENDER_DB_STORAGE_GB)")
+        ),
+    }
+
+
 async def _db_status(db: AsyncSession | None) -> dict:
     if db is None:
         return {
@@ -368,6 +472,15 @@ async def _db_status(db: AsyncSession | None) -> dict:
             "latency_ms": None,
             "dialect": "-",
             "level": "unknown",
+            "storage": {
+                "used_label": "-",
+                "free_label": "-",
+                "quota_label": "-",
+                "percent": None,
+                "level": "unknown",
+                "top": [],
+                "desc": "DB에 연결되지 않았습니다.",
+            },
         }
     dialect = "-"
     try:
@@ -383,12 +496,17 @@ async def _db_status(db: AsyncSession | None) -> dict:
             level = "critical"
         elif ms >= 200:
             level = "warn"
+        storage = await _db_storage_info(db, dialect)
+        # 통신 + 용량 중 더 나쁜 쪽
+        overall_db = _overall([level, storage.get("level") or "unknown"])
         return {
             "ok": True,
             "label": "정상",
             "latency_ms": ms,
             "dialect": dialect,
-            "level": level,
+            "level": overall_db,
+            "comm_level": level,
+            "storage": storage,
         }
     except Exception as exc:
         ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -399,6 +517,16 @@ async def _db_status(db: AsyncSession | None) -> dict:
             "dialect": dialect,
             "error": str(exc)[:120],
             "level": "critical",
+            "comm_level": "critical",
+            "storage": {
+                "used_label": "-",
+                "free_label": "-",
+                "quota_label": "-",
+                "percent": None,
+                "level": "critical",
+                "top": [],
+                "desc": "DB 연결 오류로 용량을 확인할 수 없습니다.",
+            },
         }
 
 
@@ -459,26 +587,30 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
         # 프로세스(로컬 PC 체감용) 정보는 제외
         if isinstance(mem, dict):
             mem = {k: v for k, v in mem.items() if k != "process_rss_label"}
-            mem["desc"] = "Render 인스턴스 메모리 사용 비율입니다. 높으면 서비스 지연이 날 수 있습니다."
+            mem["desc"] = "Render 웹 서버 메모리 사용 비율입니다. 높으면 서비스 지연이 날 수 있습니다."
         if isinstance(cpu, dict):
             cpu = {
                 "percent": cpu.get("percent"),
                 "count": cpu.get("count"),
                 "level": cpu.get("level"),
-                "desc": "Render 서버 CPU 사용률입니다. 지속 높음이면 점검이 필요합니다.",
+                "desc": "Render 웹 서버 CPU 사용률입니다. 지속 높음이면 점검이 필요합니다.",
             }
         if isinstance(disk, dict):
             disk["desc"] = (
-                "메인 숫자는 Smart FMS 앱 실사용량입니다. "
-                "수백 GB 사용/여유는 Render 공유 호스트 디스크 참고값이며 앱 점유가 아닙니다."
+                "웹 서버(앱 파일) 실사용량입니다. "
+                "업무 자료 용량은 아래 DB 저장용량을 보세요."
             )
-        # 디스크 공유 FS 수치는 overall 경보에서 제외 (메모리·CPU만)
         levels.extend(
             [
                 (mem or {}).get("level") or "unknown",
                 (cpu or {}).get("level") or "unknown",
             ]
         )
+
+    # 로컬에서도 웹 디스크·메모리는 숨기고, DB 용량은 표시
+    if not meta.get("is_render"):
+        # 로컬 SQLite 등도 용량 확인 가능
+        pass
 
     overall = _overall(levels)
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
@@ -503,17 +635,14 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
             "critical": "경고",
             "unknown": "확인중",
         }.get(overall, "확인중"),
-        "overall_desc": "앱·DB·외부통신"
-        + ("·서버 리소스" if meta.get("is_render") else "")
-        + "을 종합한 상태입니다.",
+        "overall_desc": "웹 서버·DB 통신/용량·외부통신을 종합한 상태입니다.",
         "is_render": bool(meta.get("is_render")),
         "env_label": "Render 서버" if meta.get("is_render") else "로컬(비서버)",
         "env_desc": (
-            "Render에 배포된 웹 서버 상태를 표시합니다."
+            "Render 웹 서버와 Postgres DB 상태를 표시합니다."
             if meta.get("is_render")
-            else "현재 PC/로컬 실행입니다. 용량·CPU 등은 Render 배포 환경에서만 표시합니다."
-        ),
-        "disk": disk,
+            else "로컬 실행입니다. DB 용량은 표시되며, 웹 서버 리소스는 Render에서만 표시합니다."
+        ),        "disk": disk,
         "memory": mem,
         "cpu": cpu,
         "uptime": uptime,

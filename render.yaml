@@ -23,11 +23,12 @@ services:
         fromDatabase:
           name: smart-fms-db
           property: connectionString
+      - key: RENDER_DB_STORAGE_GB
+        value: "1"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
-        value: gpt-4o-mini
-
+        value: "gpt-4o-mini"
 databases:
   - name: smart-fms-db
     plan: starter
