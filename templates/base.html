@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
   <link rel="stylesheet" href="/static/css/style.css?v=20260807db1" />
+  {% block head_extra %}{% endblock %}
 </head>
 <body>
   {% set is_popup = request.query_params.get('popup') == '1' %}
@@ -16,11 +17,14 @@
   {% set d1_path = request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path or request.url.path.startswith('/admin/d1') %}
   {% set wo_path = '/work-orders' in request.url.path %}
   {% set fac_path = '/facility-section' in request.url.path %}
+  {% set sl_path = '/admin/streetlamp' in request.url.path %}
   {% set maint_path = wo_path or d1_path or fac_path %}
   {% set can_wo = user_can_access_menu(user, 'work_orders') %}
   {% set can_d1 = user_can_access_menu(user, 'd1') %}
   {% set can_fac = user_can_access_menu(user, 'facility_section') %}
+  {% set can_sl = user_can_access_menu(user, 'streetlamp') %}
   {% set maint_home = '/admin/work-orders' if can_wo else ('/admin/d1' if can_d1 else '/admin/facility-section') %}
+  {% set sl_home = '/admin/streetlamp/requests' %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
   {% set ilog_path_parts = request.url.path.split('/') %}
@@ -171,6 +175,36 @@
         </ul>
       </li>
       {% endif %}
+      {% if can_sl %}
+      <li class="nav-expandable{% if sl_path %} is-open{% endif %}" id="nav-streetlamp">
+        <div class="nav-parent-row">
+          <a href="{{ sl_home }}"
+             class="nav-parent-link{% if sl_path %} active{% endif %}">가로등</a>
+          <button type="button"
+                  class="nav-toggle"
+                  aria-expanded="{% if sl_path %}true{% else %}false{% endif %}"
+                  aria-controls="nav-streetlamp-sub"
+                  title="가로등 하위 메뉴 펼치기">
+            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <ul class="nav-sub" id="nav-streetlamp-sub">
+          <li>
+            <a href="/admin/streetlamp/requests"
+               class="{% if '/admin/streetlamp/requests' in request.url.path %}active{% endif %}">정비의뢰 목록</a>
+          </li>
+          {% if user_can_edit(user) %}
+          <li>
+            <a href="/admin/streetlamp/settings"
+               class="{% if '/admin/streetlamp/settings' in request.url.path %}active{% endif %}">가로등 설정</a>
+          </li>
+          {% endif %}
+          <li>
+            <a href="/status" target="_blank" rel="noopener">진행상황 확인(시민)</a>
+          </li>
+        </ul>
+      </li>
+      {% endif %}
       {% if user_can_access_menu(user, 'risk_assessment') %}
       <li class="nav-pc-only"><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
       {% endif %}
@@ -245,6 +279,7 @@
     bindNavExpandable('nav-inspection-logs', 'nav-ilog-open');
     bindNavExpandable('nav-maintenance', 'nav-maint-open', { mobileToggleOnly: true });
     bindNavExpandable('nav-d1', 'nav-d1-open');
+    bindNavExpandable('nav-streetlamp', 'nav-streetlamp-open');
 
     /* 모바일: 사이드 메뉴 열기/닫기 */
     (function () {

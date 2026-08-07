@@ -116,6 +116,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("work_orders", "정비접수/승인(정비섹션)"),
     ("d1", "정비 List(D-1)/협력사"),
     ("facility_section", "작업허가/승인(시설섹션)"),
+    ("streetlamp", "가로등"),
     ("risk_assessment", "위험성평가"),
     ("materials", "자재관리"),
     ("partners", "협력사"),
@@ -135,6 +136,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/pm", "pm"),
     ("/admin/work-orders", "work_orders"),
     ("/admin/facility-section", "facility_section"),
+    ("/admin/streetlamp", "streetlamp"),
     ("/admin/d1", "d1"),
     ("/admin/risk-assessment", "risk_assessment"),
     ("/admin/materials", "materials"),
@@ -150,6 +152,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("work_orders", "/admin/work-orders"),
     ("d1", "/admin/d1"),
     ("facility_section", "/admin/facility-section"),
+    ("streetlamp", "/admin/streetlamp/requests"),
     ("risk_assessment", "/admin/risk-assessment"),
     ("materials", "/admin/materials?popup=1"),
     ("partners", "/admin/partners"),
@@ -163,7 +166,7 @@ def default_menu_access(role: UserRole) -> list[str]:
         return list(MENU_KEYS)
     denied = {"users"}
     if role in (UserRole.partner, UserRole.external):
-        denied |= {"equipment", "pm", "inspection_logs", "facility_section"}
+        denied |= {"equipment", "pm", "inspection_logs", "facility_section", "streetlamp"}
     return [k for k in MENU_KEYS if k not in denied]
 
 
@@ -195,7 +198,7 @@ def effective_menu_access(user: User | None) -> list[str]:
     if raw is None:
         return default_menu_access(user.role)
     keys = normalize_menu_access(raw)
-    # 신규 시설섹션 메뉴: 기존 저장 권한에 d1/정비섹션이 있으면 자동 부여(협력사 제외)
+    # 신규 메뉴 자동 부여 (저장된 권한에 없을 때)
     if (
         user.role not in (UserRole.partner, UserRole.external)
         and "facility_section" not in keys
@@ -205,6 +208,12 @@ def effective_menu_access(user: User | None) -> list[str]:
             keys.insert(keys.index("d1") + 1, "facility_section")
         else:
             keys.append("facility_section")
+    if (
+        user.role not in (UserRole.partner, UserRole.external)
+        and "streetlamp" not in keys
+        and ("work_orders" in keys or "d1" in keys or "facility_section" in keys)
+    ):
+        keys.append("streetlamp")
     return keys
 
 

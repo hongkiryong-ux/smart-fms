@@ -14,7 +14,7 @@ from sqlalchemy import String, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from auth import can_access_menu, can_edit, require_login
+from auth import can_access_menu, can_create, can_delete, can_edit, effective_menu_access, require_login, MENU_ITEMS, ROLE_LABELS
 from database import AsyncSessionLocal, get_db
 from streetlamp.models import Lamp, MaintenanceRequest, RequestStatus, RequestType
 from streetlamp.reporting import RequestStatusLabel, RequestTypeLabel, build_xlsx_bytes, run_daily_report_pipeline
@@ -35,6 +35,15 @@ def _fmt_kst(value: datetime | None, fmt: str = "%Y-%m-%d %H:%M") -> str:
 templates.env.filters["fmt_kst"] = _fmt_kst
 templates.env.filters["fmt_kst_date"] = lambda value: _fmt_kst(value, "%Y-%m-%d")
 templates.env.filters["urlencode_path"] = lambda value: quote(str(value), safe="")
+templates.env.globals["user_can_create"] = can_create
+templates.env.globals["user_can_edit"] = can_edit
+templates.env.globals["user_can_delete"] = can_delete
+templates.env.globals["user_can_access_menu"] = can_access_menu
+templates.env.globals["user_menu_access"] = effective_menu_access
+templates.env.globals["menu_items"] = MENU_ITEMS
+templates.env.globals["role_labels"] = ROLE_LABELS
+templates.env.globals["fmt_kst"] = _fmt_kst
+templates.env.globals["fmt_kst_date"] = lambda value: _fmt_kst(value, "%Y-%m-%d")
 
 
 def admin_paths() -> dict[str, str]:

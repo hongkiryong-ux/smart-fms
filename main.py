@@ -909,6 +909,9 @@ async def _startup_db_init() -> None:
     import os as _os
 
     _os.environ.setdefault("LAW_WEB_SEARCH", "0")
+    # 가로등 모델을 metadata에 등록 (create_all 전에 필요)
+    import streetlamp.models  # noqa: F401
+
     last_err: Exception | None = None
     for attempt in range(1, 6):
         try:
@@ -920,6 +923,16 @@ async def _startup_db_init() -> None:
                 from excel_import import backfill_all_building_default_categories
 
                 await backfill_all_building_default_categories(session)
+                from streetlamp.settings_service import ensure_default_settings
+
+                await ensure_default_settings(session)
+                await session.commit()
+            try:
+                from streetlamp.import_lamps_from_csv import import_lamps_if_needed
+
+                await import_lamps_if_needed()
+            except Exception as e:
+                print(f"[startup] streetlamp lamp import skipped: {e}", flush=True)
             print(f"[startup] DB ready (attempt {attempt})", flush=True)
             return
         except Exception as e:
@@ -943,9 +956,66 @@ async def lifespan(app: FastAPI):
 
     _os.environ.setdefault("LAW_WEB_SEARCH", "0")
     init_task = asyncio.create_task(_startup_db_init())
+
+    scheduler = None
+    keep_task = None
     try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from streetlamp.jobs import reschedule_daily_report_job
+
+        scheduler = AsyncIOScheduler(timezone=KST)
+        app.state.scheduler = scheduler
+        # DB 준비가 끝난 뒤 스케줄 등록 (최대 30초 대기)
+        for _ in range(30):
+            if init_task.done():
+                break
+            await asyncio.sleep(1)
+        try:
+            await reschedule_daily_report_job(scheduler)
+            scheduler.start()
+        except Exception as e:
+            print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
+
+        async def _keep_alive_worker() -> None:
+            import httpx
+            from streetlamp.jobs import public_base_url_for_ping
+            from streetlamp.settings_service import get_setting as _sl_get
+
+            while True:
+                async with AsyncSessionLocal() as session:
+                    try:
+                        mins = int((await _sl_get(session, "keep_alive_minutes") or "0").strip() or "0")
+                    except ValueError:
+                        mins = 0
+                if mins <= 0:
+                    await asyncio.sleep(600)
+                    continue
+                await asyncio.sleep(max(60, mins * 60))
+                base = public_base_url_for_ping()
+                if not base:
+                    await asyncio.sleep(120)
+                    continue
+                try:
+                    async with httpx.AsyncClient(timeout=25.0) as client:
+                        await client.get(f"{base}/health")
+                except Exception:
+                    pass
+
+        keep_task = asyncio.create_task(_keep_alive_worker())
+        app.state.keep_alive_task = keep_task
         yield
     finally:
+        if keep_task is not None:
+            keep_task.cancel()
+            try:
+                await keep_task
+            except asyncio.CancelledError:
+                pass
+        if scheduler is not None:
+            try:
+                scheduler.shutdown(wait=False)
+            except Exception:
+                pass
         if not init_task.done():
             init_task.cancel()
             try:
@@ -1034,6 +1104,10 @@ templates.env.globals.update(
     pm_freq_label=_pm_freq_label,
     pm_result_label=_pm_result_label,
 )
+
+from streetlamp.router import router as streetlamp_router
+
+app.include_router(streetlamp_router)
 
 
 @app.exception_handler(HTTPException)
