@@ -1,0 +1,223 @@
+{% extends "streetlamp/base.html" %}
+
+{% block content %}
+<section class="card">
+  {% if request.query_params.get('flash') == 'nosuchrequest' %}
+  <p class="flash-error" role="alert">
+    해당 접수 건을 찾을 수 없습니다. 검색 조건을 바꾼 뒤 목록을 새로고침하고 다시 시도해 주세요.
+    (여러 서버·SQLite 사용 시 DB가 서로 다를 수 있습니다. 가능하면 PostgreSQL을 사용하세요.)
+  </p>
+  {% endif %}
+  {% if request.query_params.get('flash') == 'saved' %}
+  <p class="flash-success" role="status">저장되었습니다.</p>
+  {% endif %}
+  {% if request.query_params.get('flash') == 'guest_restricted' %}
+  <p class="flash-error" role="alert">게스트 계정은 해당 기능(설정·삭제)을 사용할 수 없습니다.</p>
+  {% endif %}
+  <div class="admin-header">
+    <h2>정비 의뢰 목록</h2>
+    <div style="display:flex; gap:0.5rem;">
+      {% if not is_guest %}
+      <a href="{{ path_settings }}" class="btn-secondary">설정</a>
+      {% endif %}
+      <a href="{{ path_logout }}" class="btn-secondary">로그아웃</a>
+    </div>
+  </div>
+
+  <form method="get" action="{{ path_requests_list }}" class="form admin-filter-form">
+    <fieldset class="filter-fieldset">
+      <legend>접수 기간 (KST 기준)</legend>
+      <div class="filter-row">
+        <label>
+          시작일
+          <input type="date" name="date_from" value="{{ date_from }}" />
+        </label>
+        <label>
+          종료일
+          <input type="date" name="date_to" value="{{ date_to }}" />
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="filter-fieldset">
+      <legend>세부 조건</legend>
+      <div class="filter-row">
+        <label>
+          가로등 코드
+          <input type="text" name="lamp_id" value="{{ lamp_id }}" placeholder="예: GL-1, 명-1" />
+        </label>
+        <label>
+          정비 유형
+          <select name="request_type">
+            <option value="" {% if not request_type_filter %}selected{% endif %}>전체</option>
+            <option value="{{ RequestType.outage.value }}" {% if request_type_filter == RequestType.outage.value %}selected{% endif %}>불점등</option>
+            <option value="{{ RequestType.globe_broken.value }}" {% if request_type_filter == RequestType.globe_broken.value %}selected{% endif %}>글로브 파손</option>
+            <option value="{{ RequestType.fall_risk.value }}" {% if request_type_filter == RequestType.fall_risk.value %}selected{% endif %}>전도 위험</option>
+            <option value="{{ RequestType.low_brightness.value }}" {% if request_type_filter == RequestType.low_brightness.value %}selected{% endif %}>밝기 불량</option>
+            <option value="{{ RequestType.other.value }}" {% if request_type_filter == RequestType.other.value %}selected{% endif %}>기타</option>
+          </select>
+        </label>
+        <label>
+          이름 (부분 검색)
+          <input type="text" name="name" value="{{ name }}" placeholder="예: 홍길동" />
+        </label>
+      </div>
+      <div class="filter-row">
+        <label>
+          전화번호 (부분 검색)
+          <input type="text" name="phone" value="{{ phone }}" placeholder="예: 010" />
+        </label>
+        <label class="filter-grow">
+          내용 (부분 검색)
+          <input type="text" name="content" value="{{ content }}" placeholder="상세 내용 키워드" />
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="filter-fieldset">
+      <legend>통합 검색 · 상태</legend>
+      <label class="filter-grow">
+        통합 검색 (이름·전화·내용·가로등 No 문자열, OR)
+        <input type="text" name="q" value="{{ q }}" placeholder="예: 홍길동, 010, 12" />
+      </label>
+
+      <div class="filter-row">
+        <label>
+          처리 상태
+          <select name="filter_status">
+            <option value="" {% if not status_filter %}selected{% endif %}>전체 (접수·처리중·완료 모두)</option>
+            <option value="{{ RequestStatus.received.value }}" {% if status_filter == RequestStatus.received.value %}selected{% endif %}>접수</option>
+            <option value="{{ RequestStatus.in_progress.value }}" {% if status_filter == RequestStatus.in_progress.value %}selected{% endif %}>처리중</option>
+            <option value="{{ RequestStatus.done.value }}" {% if status_filter == RequestStatus.done.value %}selected{% endif %}>완료</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="filter-actions">
+      <button type="submit" class="btn-primary" style="width:auto;">검색 적용</button>
+      <a class="btn-secondary" href="{{ path_requests_list }}">조건 초기화</a>
+      <a class="btn-secondary" href="{{ path_requests_export }}{% if export_qs %}?{{ export_qs }}{% endif %}">엑셀 다운로드 (현재 조건)</a>
+    </div>
+  </form>
+
+  {% if requests_list|length == 0 %}
+    <p>조건에 맞는 정비 의뢰가 없습니다.</p>
+  {% else %}
+    <div class="admin-table-wrap">
+    <table class="table admin-requests-table">
+      <colgroup>
+        <col class="cg-datetime" />
+        <col class="cg-datetime" />
+        <col class="cg-narrow" />
+        <col class="cg-name" />
+        <col class="cg-phone" />
+        <col class="cg-type" />
+        <col class="cg-content" />
+        <col class="cg-work" />
+        {% if not is_guest %}
+        <col class="cg-action" />
+        {% endif %}
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="col-datetime">접수일</th>
+          <th class="col-datetime">완료일</th>
+          <th class="col-narrow">가로등</th>
+          <th class="col-name">이름</th>
+          <th class="col-phone">전화</th>
+          <th class="col-type">유형</th>
+          <th class="col-content">내용</th>
+          <th class="col-work-combined">작업비고</th>
+          {% if not is_guest %}
+          <th class="col-action">삭제</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in requests_list %}
+        <tr id="admin-req-{{ r.id }}">
+          <td class="col-datetime nowrap">{{ r.created_at | fmt_kst_date }}</td>
+          <td class="col-datetime nowrap">
+            {% if r.status == RequestStatus.done and r.completed_at %}
+              {{ r.completed_at | fmt_kst_date }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="col-narrow">{{ r.lamp.code if r.lamp and r.lamp.code else r.lamp_id }}</td>
+          <td class="col-name ellipsis" title="{{ r.name }}">{{ r.name }}</td>
+          <td class="col-phone nowrap">{{ r.phone }}</td>
+          <td class="col-type nowrap" title="{{ RequestTypeLabel[r.request_type.value] }}">{{ RequestTypeLabel[r.request_type.value] }}</td>
+          <td class="col-content" title="{{ r.content or '' }}">{{ r.content or "" }}</td>
+          <td class="col-work-combined status-memo-combined">
+            <form method="post" action="{{ path_requests_list }}" class="status-memo-form" enctype="application/x-www-form-urlencoded">
+              <input type="hidden" name="mr_id" value="{{ r.id }}" />
+              <div class="status-memo-stack">
+                <div class="status-memo-controls-row">
+                  <select name="mr_status" class="mr-status-select" aria-label="처리 상태 (접수·처리중·완료)">
+                    <option value="{{ RequestStatus.received.value }}" {% if r.status == RequestStatus.received %}selected{% endif %}>접수</option>
+                    <option value="{{ RequestStatus.in_progress.value }}" {% if r.status == RequestStatus.in_progress %}selected{% endif %}>처리중</option>
+                    <option value="{{ RequestStatus.done.value }}" {% if r.status == RequestStatus.done %}selected{% endif %}>완료</option>
+                  </select>
+                  <button type="submit" class="btn-small">변경</button>
+                </div>
+                <textarea name="mr_work_memo" class="work-memo-textarea" rows="2" placeholder="작업·비고 입력 후 변경 저장">{{ r.work_memo or "" }}</textarea>
+              </div>
+            </form>
+          </td>
+          {% if not is_guest %}
+          <td class="col-action">
+            <form action="{{ path_requests_remove }}" method="post" class="inline-form" onsubmit="return confirm('이 접수 건을 삭제할까요? 삭제 후에는 복구할 수 없습니다.');">
+              <input type="hidden" name="mr_id" value="{{ r.id }}" />
+              <button type="submit" class="btn-small btn-danger">삭제</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  {% endif %}
+</section>
+<script>
+(function () {
+  var KEY_ID = "admin_req_scroll_id";
+  var KEY_Y = "admin_req_scroll_y";
+  document.addEventListener("DOMContentLoaded", function () {
+    var rid = sessionStorage.getItem(KEY_ID);
+    var sy = sessionStorage.getItem(KEY_Y);
+    sessionStorage.removeItem(KEY_ID);
+    sessionStorage.removeItem(KEY_Y);
+    function restore() {
+      if (rid) {
+        var row = document.getElementById("admin-req-" + rid);
+        if (row) {
+          row.scrollIntoView({ block: "center", behavior: "auto" });
+          try {
+            var ta = row.querySelector("textarea[name='mr_work_memo']");
+            if (ta) ta.focus({ preventScroll: true });
+          } catch (e) {}
+          return;
+        }
+      }
+      if (sy !== null && sy !== "") {
+        var y = parseInt(sy, 10);
+        if (!isNaN(y)) window.scrollTo(0, y);
+      }
+    }
+    requestAnimationFrame(function () {
+      requestAnimationFrame(restore);
+    });
+  });
+  document.querySelectorAll("form.status-memo-form").forEach(function (form) {
+    form.addEventListener("submit", function () {
+      var hid = form.querySelector('input[name="mr_id"]');
+      if (hid && hid.value) sessionStorage.setItem(KEY_ID, hid.value);
+      sessionStorage.setItem(KEY_Y, String(window.scrollY));
+    });
+  });
+})();
+</script>
+{% endblock %}

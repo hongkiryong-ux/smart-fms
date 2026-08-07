@@ -1,0 +1,48 @@
+{% extends "streetlamp/base.html" %}
+
+{% block content %}
+<section class="card">
+  <h2>가로등 정보</h2>
+  <p><strong>가로등 No:</strong> {{ lamp_code or lamp.code or lamp.id }}</p>
+  {% if lamp.description %}
+    <p><strong>설명:</strong> {{ lamp.description }}</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>정비 의뢰</h2>
+  <form action="/lamp/{{ (lamp_code or lamp.code or lamp.id) | urlencode_path }}/request" method="post" class="form">
+    {% if form_error %}
+      <p class="flash-error" role="alert">{{ form_error }}</p>
+    {% endif %}
+
+    <label>
+      이름 (선택·익명)
+      <input type="text" name="name" placeholder="비우면 익명으로 접수됩니다" value="{{ name_input or '' }}" />
+    </label>
+
+    <label>
+      전화번호 (필수:끝 4자리)
+      <input type="tel" name="phone" required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="예: 4567" value="{{ phone_input or '' }}" />
+    </label>
+
+    <label>
+      정비 유형 (필수)
+      <select name="request_type" required>
+        <option value="{{ request_types.outage.value }}" {% if request_type_input == request_types.outage.value %}selected{% endif %}>불점등</option>
+        <option value="{{ request_types.globe_broken.value }}" {% if request_type_input == request_types.globe_broken.value %}selected{% endif %}>글로브 파손</option>
+        <option value="{{ request_types.fall_risk.value }}" {% if request_type_input == request_types.fall_risk.value %}selected{% endif %}>전도 위험</option>
+        <option value="{{ request_types.low_brightness.value }}" {% if request_type_input == request_types.low_brightness.value %}selected{% endif %}>밝기 불량</option>
+        <option value="{{ request_types.other.value }}" {% if request_type_input == request_types.other.value %}selected{% endif %}>기타</option>
+      </select>
+    </label>
+
+    <label>
+      상세 내용 (선택)
+      <textarea name="content" rows="3" placeholder="추가로 설명하고 싶은 내용이 있으면 적어주세요.">{{ content_input or '' }}</textarea>
+    </label>
+
+    <button type="submit" class="btn-primary">정비 의뢰 보내기</button>
+  </form>
+</section>
+{% endblock %}

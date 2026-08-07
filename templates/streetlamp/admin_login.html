@@ -1,0 +1,21 @@
+{% extends "streetlamp/base.html" %}
+
+{% block content %}
+<section class="card">
+  <h2>관리자 로그인</h2>
+  {% if error %}
+    <p class="error">{{ error }}</p>
+  {% endif %}
+  <form action="{{ path_login }}" method="post" class="form">
+    <label>
+      아이디
+      <input type="text" name="admin_id" required />
+    </label>
+    <label>
+      비밀번호
+      <input type="password" name="admin_pw" required />
+    </label>
+    <button type="submit" class="btn-primary">로그인</button>
+  </form>
+</section>
+{% endblock %}

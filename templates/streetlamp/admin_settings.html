@@ -1,0 +1,152 @@
+{% extends "streetlamp/base.html" %}
+
+{% block content %}
+<section class="card">
+  <div class="admin-header">
+    <h2>자동 메일 · 깨우기 설정</h2>
+    <div style="display:flex; gap:0.5rem;">
+      <a href="{{ path_requests_list }}" class="btn-secondary">목록으로</a>
+      <a href="{{ path_logout }}" class="btn-secondary">로그아웃</a>
+    </div>
+  </div>
+
+  {% if saved %}
+    <p class="success-msg">저장되었습니다.</p>
+  {% endif %}
+  {% if notice %}
+    <p class="notice-msg">{{ notice }}</p>
+  {% endif %}
+
+  <form method="post" action="{{ path_settings }}" class="form admin-filter-form">
+    <fieldset class="filter-fieldset">
+      <legend>신규 접수 SMS 알림 (Solapi)</legend>
+      <p class="help-text">
+        QR로 정비 의뢰가 <strong>새로 접수</strong>되면 아래 번호로 문자가 발송됩니다.
+        Solapi 가입: <a href="https://console.solapi.com" target="_blank" rel="noopener">console.solapi.com</a>
+        (계정 예: hongkiryong@gmail.com)
+      </p>
+      <label>
+        담당자 전화번호 (콤마로 여러 명)
+        <input type="text" name="alert_sms_phones" value="{{ settings.alert_sms_phones }}" placeholder="01071704563" />
+      </label>
+      <label class="filter-checkbox">
+        <input type="checkbox" name="alert_sms_enabled" value="1" {% if settings.alert_sms_enabled in ['1','true','on','yes'] %}checked{% endif %} />
+        신규 접수 시 SMS 알림 사용
+      </label>
+      <p class="help-text">
+        Render → Environment 에 API 키를 넣으세요 (비밀번호는 Git에 올리지 마세요).<br />
+        <code>SOLAPI_API_KEY</code> · <code>SOLAPI_API_SECRET</code> (Solapi 콘솔 → API Key)<br />
+        <code>SOLAPI_SENDER</code> = Solapi에 <strong>등록한 발신번호</strong> (예: 01071704563, 하이픈 없이)
+      </p>
+    </fieldset>
+
+    <fieldset class="filter-fieldset">
+      <legend>일일 요약 메일 (최근 48시간 접수)</legend>
+      <label>
+        받는 메일 주소
+        <input type="email" name="report_email" value="{{ settings.report_email }}" required />
+      </label>
+      <p class="help-text">
+        테스트 메일·일일 요약은 <strong>이 주소로만</strong> 전송됩니다. (SMTP의 발신 <code>SMTP_FROM</code>과는 별개입니다.)
+        발신용 Gmail과 같은 주소로 받으려면 여기에도 그 주소를 넣고 저장하세요.
+      </p>
+      <div class="filter-row">
+        <label>
+          발송 시각 (KST) — 시
+          <input type="number" name="report_hour_kst" min="0" max="23" value="{{ settings.report_hour_kst }}" />
+        </label>
+        <label>
+          발송 시각 (KST) — 분
+          <input type="number" name="report_minute_kst" min="0" max="59" value="{{ settings.report_minute_kst }}" />
+        </label>
+      </div>
+      <label class="filter-checkbox">
+        <input type="checkbox" name="use_internal_daily_scheduler" value="1" {% if settings.use_internal_daily_scheduler in ['1','true','on','yes'] %}checked{% endif %} />
+        서버 안에서 매일 스케줄 실행 (서버가 잠들면 실행 안 될 수 있음 · 아래 외부 Cron 권장)
+      </label>
+    </fieldset>
+
+    <fieldset class="filter-fieldset">
+      <legend>Render 무료 ‘수면’ 최소 깨우기 (self-ping)</legend>
+      <p class="help-text">
+        무료 Web Service는 약 <strong>15분</strong> 무벙이면 잠듭니다.
+        <strong>0</strong> 이면 깨우기 비활성(추천: 트래픽 최소).
+        필요 시에만 <strong>13~14분</strong> 등으로 설정하세요. 요청이 많아지면 무료 한도에 더 빨리 닿을 수 있습니다.
+      </p>
+      <label>
+        깨우기 간격 (분, 0=끔)
+        <input type="number" name="keep_alive_minutes" min="0" max="1440" value="{{ settings.keep_alive_minutes }}" />
+      </label>
+      <p class="help-text">
+        깨우기 URL: <code>{{ public_base_url or '(PUBLIC_BASE_URL 또는 RENDER_EXTERNAL_URL 미설정)' }}/health</code>
+      </p>
+    </fieldset>
+
+    <fieldset class="filter-fieldset">
+      <legend>외부 Cron으로 메일 발송 (수면 중에도 하루 1번 가능)</legend>
+      <p class="help-text">
+        Render 대시보드 → Environment → <code>CRON_SECRET</code> 에 임의의 긴 문자열을 넣으세요.
+        아래 URL을 cron-job.org 등에서 <strong>하루 1회</strong> 호출하면, 그 시점에 서버가 깨어나며 메일이 발송됩니다.
+      </p>
+      {% if cron_secret_set and public_base_url %}
+        <p><code>{{ public_base_url }}/cron/daily-report?secret=(CRON_SECRET과 동일)</code></p>
+      {% elif not cron_secret_set %}
+        <p class="error">CRON_SECRET 이 비어 있으면 위 URL은 사용할 수 없습니다.</p>
+      {% else %}
+        <p class="error">PUBLIC_BASE_URL 또는 RENDER_EXTERNAL_URL 을 설정하면 전체 URL이 표시됩니다.</p>
+      {% endif %}
+    </fieldset>
+
+    <fieldset class="filter-fieldset">
+      <legend>Resend (Render에서 SMTP 타임아웃일 때 권장)</legend>
+      <p class="help-text">
+        Render 무료 플랜 등에서 <code>smtp.gmail.com</code> 로 나가는 <strong>SMTP가 막히거나 계속 타임아웃</strong>이면,
+        <a href="https://resend.com" target="_blank" rel="noopener">resend.com</a> 에서 API 키를 발급하고 Environment에
+        <code>RESEND_API_KEY=re_...</code> 를 넣습니다(HTTPS, 포트 443).
+        <strong>발신:</strong> <code>RESEND_FROM</code> 을 비우면 기본 <code>onboarding@resend.dev</code>만 사용합니다.
+        (<code>@gmail.com</code> 은 Resend에서 발신 주소로 쓸 수 없습니다. 도메인을 Resend에 등록·검증한 뒤 <code>noreply@내도메인</code> 을 <code>RESEND_FROM</code>에 넣으세요.)
+        고급: 검증된 발신만 <code>SMTP_FROM</code>과 같게 쓰려면 <code>RESEND_USE_SMTP_FROM=true</code>.
+        테스트는 Resend 정책에 맞는 <strong>받는 주소</strong>로 하세요.
+      </p>
+    </fieldset>
+
+    <fieldset class="filter-fieldset">
+      <legend>SMTP (Resend 미사용 시)</legend>
+      <p class="help-text">
+        Render → Environment 예:
+        <code>SMTP_HOST</code>=<code>smtp.gmail.com</code>,
+        <code>SMTP_PORT</code>=<code>587</code>(또는 타임아웃 시 <code>465</code>),
+        <code>SMTP_USER</code>, <code>SMTP_PASSWORD</code>(앱 비밀번호),
+        <code>SMTP_FROM</code>, <code>SMTP_USE_TLS</code>=true ·
+        선택: <code>SMTP_TIMEOUT</code>=120(초),
+        587이 안 되면 <code>SMTP_PORT</code>=<code>465</code> + <code>SMTP_USE_SSL</code>=true (Gmail SMTPS)
+      </p>
+      <p class="help-text">회사 메일은 보안 정책상 발송이 막힐 수 있습니다. 그 경우 SMTP 대신 다른 서비스 검토가 필요합니다.</p>
+    </fieldset>
+
+    <div class="filter-actions">
+      <button type="submit" class="btn-primary" style="width:auto;">설정 저장</button>
+    </div>
+  </form>
+
+  <form method="post" action="{{ path_settings_test_email }}" style="margin-top:1rem;">
+    <button type="submit" class="btn-secondary">지금 테스트 메일 보내기 (48시간 접수 요약)</button>
+  </form>
+  <form method="post" action="{{ path_settings_test_sms }}" style="margin-top:0.75rem;">
+    <button type="submit" class="btn-secondary">지금 SMS 테스트 보내기</button>
+  </form>
+  <p class="help-text" style="margin-top:0.5rem;">
+    발송 성공 시 위 회색 안내에 <strong>수신 주소</strong>가 표시됩니다. 메일이 없으면 그 주소의 스팸함을 확인하고,
+    Render <strong>Logs</strong>에서 Resend 사용 시 <code>[resend] ok</code>, SMTP 사용 시 <code>[smtp] sendmail ok</code>,
+    SMS 사용 시 <code>[solapi] ok</code> 로그를 확인하세요.
+  </p>
+</section>
+
+<style>
+  .help-text { font-size: 0.9rem; color: #444; margin: 0.35rem 0 0.75rem; line-height: 1.5; }
+  .help-text code { font-size: 0.85rem; }
+  .success-msg { color: #1565c0; font-weight: 600; }
+  .notice-msg { color: #333; background: #f5f5f5; padding: 0.75rem; border-radius: 0.35rem; white-space: pre-wrap; }
+  .error { color: #c62828; }
+</style>
+{% endblock %}

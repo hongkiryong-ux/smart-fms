@@ -1,0 +1,437 @@
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: #f5f5f5;
+}
+
+.header {
+  background-color: #1976d2;
+  color: white;
+  padding: 1rem;
+  text-align: center;
+}
+
+.header-nav {
+  margin: 0.5rem 0 0;
+}
+
+.header-nav a {
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.95rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.header-nav a:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.hint {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+}
+
+.status-item {
+  border-top: 1px solid #eee;
+  padding: 0.85rem 0;
+}
+
+.status-item:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.status-item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.status-item-id {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-received {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.status-in_progress {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.status-done {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-item-meta {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.95rem;
+}
+
+.status-item-meta li {
+  margin: 0.25rem 0;
+}
+
+.status-item-meta span {
+  display: inline-block;
+  min-width: 4.5rem;
+  color: #888;
+}
+
+.main {
+  padding: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.main:has(.admin-requests-table) {
+  max-width: min(1240px, 98vw);
+}
+
+.footer {
+  text-align: center;
+  padding: 0.5rem;
+  color: #777;
+  font-size: 0.8rem;
+}
+
+.card {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.form label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.form input,
+.form select,
+.form textarea {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 0.25rem;
+  font-size: 1rem;
+}
+
+.btn-primary {
+  display: inline-block;
+  width: 100%;
+  padding: 0.75rem;
+  background-color: #1976d2;
+  color: white;
+  text-align: center;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background-color: #125ca0;
+}
+
+.btn-secondary {
+  padding: 0.5rem 0.75rem;
+  background-color: #eee;
+  color: #333;
+  border-radius: 0.25rem;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.btn-small {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.btn-danger {
+  background-color: #c62828;
+  color: #fff;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background-color: #9a1e1e;
+}
+
+.error {
+  color: red;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+}
+
+.table th {
+  background-color: #f0f0f0;
+}
+
+.flash-error {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #664d03;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.flash-success {
+  background: #e8f5e9;
+  border: 1px solid #81c784;
+  color: #1b5e20;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.35rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+/* 관리자 정비 목록: 한 화면에 최대한 당기기 + 필요 시만 가로 스크롤 */
+.admin-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table.admin-requests-table {
+  width: 100%;
+  min-width: 1040px;
+  table-layout: fixed;
+  font-size: 0.82rem;
+}
+
+.admin-requests-table col.cg-datetime {
+  width: 6.5rem;
+}
+
+.admin-requests-table col.cg-narrow {
+  width: 3.5rem;
+}
+
+.admin-requests-table col.cg-name {
+  width: 4.5rem;
+}
+
+/* 전화: 010-1234-5678 / 02-1234-5678 등 한 줄 전체 표시 */
+.admin-requests-table col.cg-phone {
+  width: 11.5rem;
+}
+
+/* 유형: 글로브 파손 등 한글 라벨 전체 표시 */
+.admin-requests-table col.cg-type {
+  width: 8.5rem;
+}
+
+.admin-requests-table col.cg-content {
+  width: auto;
+}
+
+.admin-requests-table col.cg-work {
+  width: 14rem;
+}
+
+.admin-requests-table col.cg-action {
+  width: 3.5rem;
+}
+
+.table.admin-requests-table th,
+.table.admin-requests-table td {
+  padding: 0.3rem 0.35rem;
+  vertical-align: middle;
+}
+
+.table.admin-requests-table td.nowrap,
+.table.admin-requests-table .nowrap {
+  white-space: nowrap;
+}
+
+.table.admin-requests-table td.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table.admin-requests-table .col-narrow {
+  width: 3rem;
+}
+
+.table.admin-requests-table .col-datetime {
+  white-space: nowrap;
+}
+
+/* 이름: 짧게 유지 (긴 이름은 말줄임) */
+.table.admin-requests-table .col-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 전화·유형: 고정 너비, 줄바꿈·말줄임 없음 */
+.table.admin-requests-table .col-phone,
+.table.admin-requests-table .col-type {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: keep-all;
+}
+
+/* 민원인 작성 내용: 넓게 + 여러 줄 표시 */
+.table.admin-requests-table .col-content {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
+  vertical-align: top;
+  overflow: visible;
+}
+
+/* 접수/처리중/완료 + 비고 입력 한 열 */
+.table.admin-requests-table .col-work-combined {
+  vertical-align: top;
+  overflow: visible;
+}
+
+.table.admin-requests-table .col-action {
+  width: 3.5rem;
+  text-align: center;
+}
+
+.status-memo-combined {
+  vertical-align: top;
+}
+
+.status-memo-form {
+  margin: 0;
+}
+
+/* 작업비고: 위 = 접수/처리중/완료 + 변경, 아래 = 비고 입력 */
+.status-memo-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: stretch;
+  max-width: 100%;
+}
+
+.work-memo-textarea {
+  font: inherit;
+  resize: vertical;
+  width: 100%;
+  min-height: 2rem;
+  max-height: 4.5rem;
+  box-sizing: border-box;
+  line-height: 1.25;
+  font-size: 0.8rem;
+}
+
+.status-memo-controls-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.mr-status-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.admin-filter-form .filter-fieldset {
+  border: 1px solid #ddd;
+  border-radius: 0.35rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-filter-form legend {
+  padding: 0 0.35rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.admin-filter-form .filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.admin-filter-form .filter-row label {
+  flex: 1 1 140px;
+  min-width: 120px;
+  margin-bottom: 0;
+}
+
+.admin-filter-form .filter-grow {
+  flex: 2 1 220px;
+}
+
+.admin-filter-form .filter-checkbox {
+  flex: 2 1 280px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-filter-form .filter-checkbox input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.admin-filter-form .filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
