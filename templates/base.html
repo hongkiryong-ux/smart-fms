@@ -191,7 +191,10 @@
         <ul class="nav-sub" id="nav-streetlamp-sub">
           <li>
             <a href="/admin/streetlamp/requests"
-               class="{% if '/admin/streetlamp/requests' in request.url.path %}active{% endif %}">정비의뢰 목록</a>
+               class="{% if '/admin/streetlamp/requests' in request.url.path and '/qr' not in request.url.path %}active{% endif %}">정비의뢰 목록</a>
+          </li>
+          <li>
+            <a href="/admin/streetlamp/qr-zip">전체 QR 받기</a>
           </li>
           {% if user_can_edit(user) %}
           <li>

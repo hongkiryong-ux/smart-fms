@@ -65,6 +65,7 @@ def admin_paths() -> dict[str, str]:
         "path_requests_list": f"{base}/requests",
         "path_requests_export": f"{base}/requests/export",
         "path_requests_remove": f"{base}/requests/delete",
+        "path_qr_zip": f"{base}/qr-zip",
         "path_settings": f"{base}/settings",
         "path_settings_test_email": f"{base}/settings/test-email",
         "path_settings_test_sms": f"{base}/settings/test-sms",
@@ -260,6 +261,34 @@ async def admin_export(date_from: str = "", date_to: str = "", lamp_id: str = ""
     payload, filename = build_xlsx_bytes(await _admin_requests_select(db, clauses))
     return StreamingResponse(BytesIO(payload), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/admin/streetlamp/qr-zip")
+async def admin_qr_zip(request: Request, user=Depends(require_login), db: AsyncSession = Depends(get_db)):
+    """등록된 가로등 전체 QR PNG를 ZIP으로 다운로드."""
+    _check_access(user)
+    await _auto_import()
+    from streetlamp.qr_generate import build_qr_zip_bytes
+
+    result = await db.execute(select(Lamp).order_by(Lamp.code, Lamp.id))
+    lamps = list(result.scalars().all())
+    codes: list[str] = []
+    for lamp in lamps:
+        code = (lamp.code or "").strip() or str(lamp.id)
+        codes.append(code)
+    if not codes:
+        raise HTTPException(404, "등록된 가로등이 없습니다. 먼저 가로등 데이터를 이관하거나 CSV를 임포트하세요.")
+    try:
+        payload = build_qr_zip_bytes(codes, request)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    stamp = datetime.now(KST).strftime("%Y%m%d")
+    filename = quote(f"streetlamp_QR_all_{stamp}.zip")
+    return StreamingResponse(
+        BytesIO(payload),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
 
 
 async def _settings_page(request: Request, user, db: AsyncSession, saved=False, notice=""):

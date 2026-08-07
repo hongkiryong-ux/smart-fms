@@ -23,8 +23,9 @@
   {% endif %}
   <div class="admin-header">
     <h2>정비 의뢰 목록</h2>
-    <div style="display:flex; gap:0.5rem;">
-    {% if not is_guest %}
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+      <a href="{{ path_qr_zip }}" class="btn-secondary">전체 QR ZIP</a>
+      {% if not is_guest %}
       <a href="{{ path_settings }}" class="btn-secondary">설정</a>
       {% endif %}
     </div>
