@@ -21,9 +21,27 @@
   {% if saved %}
     <p class="success-msg">저장되었습니다.</p>
   {% endif %}
+  {% if request.query_params.get('flash') == 'lamps_imported' %}
+    <p class="success-msg" role="status">
+      가로등 어드레스 등록 완료
+      (신규 {{ request.query_params.get('added', '0') }}건
+      {% if request.query_params.get('rebuilt') %} · 엑셀 재생성 {{ request.query_params.get('rebuilt') }}셀{% endif %}).
+    </p>
+  {% endif %}
   {% if notice %}
     <p class="notice-msg">{{ notice }}</p>
   {% endif %}
+
+  <fieldset class="filter-fieldset" style="margin-bottom:1rem;">
+    <legend>가로등 어드레스(엑셀 셀) 등록</legend>
+    <p class="help-text">
+      배포본 <code>data/streetlamp/가로등 adress.xlsx</code> 시트의 <strong>모든 셀 값</strong>을 가로등 코드로 등록합니다.
+      (현재 약 1,157개) 위치(location)에는 같은 코드가 들어갑니다.
+    </p>
+    <form method="post" action="{{ path_import_lamps }}">
+      <button type="submit" class="btn-primary" style="width:auto;">엑셀/CSV 전체 어드레스 등록</button>
+    </form>
+  </fieldset>
 
   <form method="post" action="{{ path_settings }}" class="form admin-filter-form">
     <fieldset class="filter-fieldset">

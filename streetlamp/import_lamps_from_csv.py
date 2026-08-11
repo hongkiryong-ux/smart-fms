@@ -1,4 +1,6 @@
-# import_lamps_from_csv.py — data/lamp_codes.csv → DB lamps 테이블
+# import_lamps_from_csv.py — data/streetlamp/lamp_codes.csv → DB lamps
+from __future__ import annotations
+
 import asyncio
 import csv
 import os
@@ -7,10 +9,11 @@ from pathlib import Path
 from sqlalchemy import func, select, text
 
 from database import AsyncSessionLocal, Base, ensure_schema_updates, engine
-import streetlamp.models  # noqa: F401 - Base metadata에 가로등 모델 등록
+import streetlamp.models  # noqa: F401
 from streetlamp.models import Lamp
 
 CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "streetlamp" / "lamp_codes.csv"
+XLSX_PATH = Path(__file__).resolve().parent.parent / "data" / "streetlamp" / "가로등 adress.xlsx"
 
 
 def _is_postgres() -> bool:
@@ -23,7 +26,6 @@ def _is_postgres() -> bool:
 
 
 async def _sync_lamps_id_sequence(session) -> None:
-    """init_lamps 등이 id를 직접 넣은 뒤 시퀀스가 뒤처질 때 충돌 방지."""
     if not _is_postgres():
         return
     await session.execute(
@@ -36,103 +38,168 @@ async def _sync_lamps_id_sequence(session) -> None:
     )
 
 
-async def import_lamps() -> int:
+def load_rows_from_csv() -> list[dict[str, str]]:
     if not CSV_PATH.is_file():
-        raise FileNotFoundError(
-            f"{CSV_PATH} 없음. 먼저 scripts/build_lamp_codes_csv.py 를 실행하세요."
-        )
+        raise FileNotFoundError(f"{CSV_PATH} 없음")
+    rows: list[dict[str, str]] = []
+    with CSV_PATH.open(encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            code = (row.get("code") or "").strip()
+            if not code:
+                continue
+            prefix = (row.get("group_prefix") or code.rsplit("-", 1)[0]).strip()
+            location = (row.get("location") or code).strip() or code
+            rows.append({"code": code, "group_prefix": prefix, "location": location})
+    return rows
+
+
+def rebuild_csv_from_xlsx(xlsx_path: Path | None = None) -> int:
+    """엑셀 시트 모든 비어 있지 않은 셀 → lamp_codes.csv."""
+    from openpyxl import load_workbook
+
+    path = xlsx_path or XLSX_PATH
+    if not path.is_file():
+        raise FileNotFoundError(f"엑셀 없음: {path}")
+
+    wb = load_workbook(path, data_only=True)
+    ws = wb.active
+    codes: list[str] = []
+    seen: set[str] = set()
+    for row in ws.iter_rows(values_only=True):
+        for value in row:
+            if value is None:
+                continue
+            code = str(value).strip()
+            if not code or code in seen:
+                continue
+            seen.add(code)
+            codes.append(code)
+
+    CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with CSV_PATH.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["code", "group_prefix", "location"])
+        writer.writeheader()
+        for code in codes:
+            prefix = code.rsplit("-", 1)[0] if "-" in code else code
+            writer.writerow({"code": code, "group_prefix": prefix, "location": code})
+    return len(codes)
+
+
+async def import_lamps(*, replace_all: bool = False) -> int:
+    """CSV의 모든 코드를 lamps 에 등록/갱신. 반환: 신규 추가 건수."""
+    if not CSV_PATH.is_file() and XLSX_PATH.is_file():
+        rebuild_csv_from_xlsx()
+    rows = load_rows_from_csv()
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await ensure_schema_updates()
 
-    rows: list[dict[str, str]] = []
-    with CSV_PATH.open(encoding="utf-8-sig", newline="") as f:
-        for row in csv.DictReader(f):
-            code = (row.get("code") or "").strip()
-            if code:
-                rows.append(row)
-
     added = 0
+    updated = 0
     async with AsyncSessionLocal() as session:
         await _sync_lamps_id_sequence(session)
 
-        existing_codes: set[str] = set(
-            await session.scalars(select(Lamp.code).where(Lamp.code.isnot(None)))
-        )
+        if replace_all:
+            # 의뢰 FK 가 있으면 함께 비움
+            from streetlamp.models import MaintenanceRequest
+
+            await session.execute(MaintenanceRequest.__table__.delete())
+            await session.execute(Lamp.__table__.delete())
+            await session.commit()
+
+        existing_by_code: dict[str, Lamp] = {
+            lamp.code: lamp
+            for lamp in (
+                await session.scalars(select(Lamp).where(Lamp.code.isnot(None)))
+            ).all()
+            if lamp.code
+        }
 
         for row in rows:
-            code = row["code"].strip()
-            prefix = (row.get("group_prefix") or code.rsplit("-", 1)[0]).strip()
-            location = f"가로등 {code}"
-
-            if code in existing_codes:
-                result = await session.execute(select(Lamp).where(Lamp.code == code))
-                existing = result.scalar_one_or_none()
-                if existing and existing.location != location:
+            code = row["code"]
+            location = row["location"]
+            prefix = row["group_prefix"]
+            description = f"구역 {prefix}" if prefix else None
+            existing = existing_by_code.get(code)
+            if existing:
+                changed = False
+                if existing.location != location:
                     existing.location = location
+                    changed = True
+                if (existing.description or "") != (description or ""):
+                    existing.description = description
+                    changed = True
+                if changed:
+                    updated += 1
                 continue
 
-            session.add(
-                Lamp(
-                    code=code,
-                    location=location,
-                    description=f"구역 {prefix}" if prefix else None,
-                )
-            )
-            existing_codes.add(code)
+            lamp = Lamp(code=code, location=location, description=description)
+            session.add(lamp)
+            existing_by_code[code] = lamp
             added += 1
-
-        # 기존 숫자 id 1~100 → code 문자열 백필 (하위 호환)
-        for num in range(1, 101):
-            code_s = str(num)
-            result = await session.execute(select(Lamp).where(Lamp.id == num))
-            lamp = result.scalar_one_or_none()
-            if lamp and not lamp.code:
-                lamp.code = code_s
-                existing_codes.add(code_s)
 
         await _sync_lamps_id_sequence(session)
         await session.commit()
 
+    print(
+        f"[lamp-import] csv={len(rows)} added={added} updated={updated}",
+        flush=True,
+    )
     return added
 
 
 async def import_lamps_if_needed() -> int:
-    """CSV에 있는 코드가 DB에 없을 때만 import (기동마다 전체 스캔 방지)."""
+    """CSV 대비 누락 코드가 있으면 전체 upsert (기동 시)."""
     if not CSV_PATH.is_file():
-        print(f"[lamp-import] skip: no CSV at {CSV_PATH}", flush=True)
-        return 0
+        if XLSX_PATH.is_file():
+            n = rebuild_csv_from_xlsx()
+            print(f"[lamp-import] rebuilt CSV from xlsx: {n}", flush=True)
+        else:
+            print(f"[lamp-import] skip: no CSV at {CSV_PATH}", flush=True)
+            return 0
 
-    expected = 0
-    with CSV_PATH.open(encoding="utf-8-sig", newline="") as f:
-        for row in csv.DictReader(f):
-            if (row.get("code") or "").strip():
-                expected += 1
-    if expected <= 0:
+    rows = load_rows_from_csv()
+    if not rows:
         return 0
+    expected = {r["code"] for r in rows}
 
     async with AsyncSessionLocal() as session:
-        gl1 = await session.scalar(select(Lamp).where(Lamp.code == "GL-1"))
-        if gl1 is not None:
-            print("[lamp-import] skip: GL-1 already in DB", flush=True)
-            return 0
-
-        n = await session.scalar(
+        existing = set(
+            await session.scalars(select(Lamp.code).where(Lamp.code.isnot(None)))
+        )
+        missing = expected - existing
+        db_n = await session.scalar(
             select(func.count()).select_from(Lamp).where(Lamp.code.isnot(None))
         )
-        if (n or 0) >= expected:
-            print(
-                f"[lamp-import] skip: DB has {n} coded lamps (>={expected})",
-                flush=True,
-            )
-            return 0
 
-    added = await import_lamps()
-    print(f"[lamp-import] done: {added} new lamps (expected {expected})", flush=True)
-    return added
+    force = os.environ.get("STREETLAMP_SYNC_LAMPS", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if not force and not missing and (db_n or 0) >= len(expected):
+        print(
+            f"[lamp-import] skip: DB has {db_n} codes, csv={len(expected)}",
+            flush=True,
+        )
+        return 0
+
+    if missing:
+        print(f"[lamp-import] missing {len(missing)} codes → sync", flush=True)
+    return await import_lamps(replace_all=False)
 
 
 if __name__ == "__main__":
-    n = asyncio.run(import_lamps())
-    print(f"완료. 새로 등록된 가로등: {n}개 (CSV: {CSV_PATH})")
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--from-xlsx", action="store_true", help="엑셀에서 CSV 재생성")
+    parser.add_argument("--replace", action="store_true", help="기존 lamps/의뢰 삭제 후 재등록")
+    args = parser.parse_args()
+    if args.from_xlsx:
+        count = rebuild_csv_from_xlsx()
+        print(f"엑셀→CSV {count}건: {CSV_PATH}")
+    n = asyncio.run(import_lamps(replace_all=args.replace))
+    print(f"완료. 신규 {n}건 (CSV: {CSV_PATH})")

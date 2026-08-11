@@ -66,6 +66,7 @@ def admin_paths() -> dict[str, str]:
         "path_requests_export": f"{base}/requests/export",
         "path_requests_remove": f"{base}/requests/delete",
         "path_qr_zip": f"{base}/qr-zip",
+        "path_import_lamps": f"{base}/import-lamps",
         "path_settings": f"{base}/settings",
         "path_settings_test_email": f"{base}/settings/test-email",
         "path_settings_test_sms": f"{base}/settings/test-sms",
@@ -291,6 +292,26 @@ async def admin_qr_zip(request: Request, user=Depends(require_login), db: AsyncS
     )
 
 
+@router.post("/admin/streetlamp/import-lamps")
+async def admin_import_lamps(user=Depends(require_login), db: AsyncSession = Depends(get_db)):
+    """엑셀/CSV의 가로등 어드레스(셀 코드)를 DB에 등록·갱신."""
+    _check_access(user)
+    if not can_edit(user):
+        raise HTTPException(403, "등록 권한이 없습니다.")
+    from streetlamp.import_lamps_from_csv import import_lamps, rebuild_csv_from_xlsx
+
+    rebuilt = 0
+    try:
+        rebuilt = rebuild_csv_from_xlsx()
+    except FileNotFoundError:
+        pass
+    added = await import_lamps(replace_all=False)
+    return RedirectResponse(
+        f"{admin_paths()['path_settings']}?flash=lamps_imported&added={added}&rebuilt={rebuilt}",
+        status_code=303,
+    )
+
+
 async def _settings_page(request: Request, user, db: AsyncSession, saved=False, notice=""):
     return _render(request, "streetlamp/admin_settings.html", _ctx(
         request, user, settings=await get_all_settings_map(db), saved=saved, notice=notice,
@@ -353,7 +374,13 @@ async def cron_daily_report(secret: str = Query(...)):
 
 
 @router.get("/cron/streetlamp/import-lamps")
-async def cron_import_lamps(secret: str = Query(...)):
+async def cron_import_lamps(secret: str = Query(...), replace: int = Query(0)):
     _cron_secret(secret)
-    from streetlamp.import_lamps_from_csv import import_lamps
-    return {"ok": True, "added": await import_lamps()}
+    from streetlamp.import_lamps_from_csv import import_lamps, rebuild_csv_from_xlsx
+
+    try:
+        rebuild_csv_from_xlsx()
+    except FileNotFoundError:
+        pass
+    added = await import_lamps(replace_all=bool(replace))
+    return {"ok": True, "added": added}
