@@ -21,11 +21,16 @@
   {% if saved %}
     <p class="success-msg">저장되었습니다.</p>
   {% endif %}
+  {% if request.query_params.get('flash') == 'lamps_import_started' %}
+    <p class="success-msg" role="status">가로등 어드레스 등록을 백그라운드에서 시작했습니다. 아래에서 진행 상태를 확인하세요.</p>
+  {% endif %}
+  {% if request.query_params.get('flash') == 'lamps_import_busy' %}
+    <p class="notice-msg" role="status">이미 등록 작업이 진행 중입니다. 잠시만 기다려 주세요.</p>
+  {% endif %}
   {% if request.query_params.get('flash') == 'lamps_imported' %}
     <p class="success-msg" role="status">
       가로등 어드레스 등록 완료
-      (신규 {{ request.query_params.get('added', '0') }}건
-      {% if request.query_params.get('rebuilt') %} · 엑셀 재생성 {{ request.query_params.get('rebuilt') }}셀{% endif %}).
+      (신규 {{ request.query_params.get('added', '0') }}건).
     </p>
   {% endif %}
   {% if notice %}
@@ -35,13 +40,53 @@
   <fieldset class="filter-fieldset" style="margin-bottom:1rem;">
     <legend>가로등 어드레스(엑셀 셀) 등록</legend>
     <p class="help-text">
-      배포본 <code>data/streetlamp/가로등 adress.xlsx</code> 시트의 <strong>모든 셀 값</strong>을 가로등 코드로 등록합니다.
-      (현재 약 1,157개) 위치(location)에는 같은 코드가 들어갑니다.
+      배포본 CSV(<code>data/streetlamp/lamp_codes.csv</code>, 약 1,157개)를 DB에 등록합니다.
+      버튼은 즉시 응답하고, 등록은 백그라운드에서 진행됩니다(사이트 멈춤 방지).
     </p>
-    <form method="post" action="{{ path_import_lamps }}">
-      <button type="submit" class="btn-primary" style="width:auto;">엑셀/CSV 전체 어드레스 등록</button>
+    <div id="lamp-import-status" class="notice-msg" style="margin-bottom:0.75rem;"
+         data-running="{{ '1' if import_status and import_status.running else '0' }}">
+      {% if import_status and import_status.running %}
+        진행 중: {{ import_status.message }}
+      {% elif import_status and import_status.error %}
+        오류: {{ import_status.error }}
+      {% elif import_status and import_status.message %}
+        최근 결과: {{ import_status.message }}
+      {% else %}
+        아직 실행한 적 없음
+      {% endif %}
+    </div>
+    <form method="post" action="{{ path_import_lamps }}" id="lamp-import-form">
+      <button type="submit" class="btn-primary" style="width:auto;"
+              {% if import_status and import_status.running %}disabled{% endif %}>
+        엑셀/CSV 전체 어드레스 등록
+      </button>
     </form>
   </fieldset>
+  <script>
+  (function () {
+    var box = document.getElementById('lamp-import-status');
+    if (!box) return;
+    var running = box.getAttribute('data-running') === '1'
+      || (location.search.indexOf('lamps_import_started') >= 0);
+    if (!running) return;
+    var timer = setInterval(function () {
+      fetch('/admin/streetlamp/import-lamps/status', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (s) {
+          if (s.running) {
+            box.textContent = '진행 중: ' + (s.message || '');
+            return;
+          }
+          clearInterval(timer);
+          if (s.error) box.textContent = '오류: ' + s.error;
+          else box.textContent = '최근 결과: ' + (s.message || '완료');
+          var btn = document.querySelector('#lamp-import-form button');
+          if (btn) btn.disabled = false;
+        })
+        .catch(function () {});
+    }, 2000);
+  })();
+  </script>
 
   <form method="post" action="{{ path_settings }}" class="form admin-filter-form">
     <fieldset class="filter-fieldset">

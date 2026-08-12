@@ -346,28 +346,42 @@ async def admin_qr_page(request: Request, user=Depends(require_login), db: Async
 
 
 @router.post("/admin/streetlamp/import-lamps")
-async def admin_import_lamps(user=Depends(require_login), db: AsyncSession = Depends(get_db)):
-    """엑셀/CSV의 가로등 어드레스(셀 코드)를 DB에 등록·갱신."""
+async def admin_import_lamps(request: Request, user=Depends(require_login)):
+    """엑셀/CSV 어드레스 등록 — 백그라운드로 실행하고 즉시 설정 화면으로 복귀."""
+    import asyncio
+
     _check_access(user)
     if not can_edit(user):
         raise HTTPException(403, "등록 권한이 없습니다.")
-    from streetlamp.import_lamps_from_csv import import_lamps, rebuild_csv_from_xlsx
+    from streetlamp.import_lamps_from_csv import get_import_status, run_import_job
 
-    rebuilt = 0
-    try:
-        rebuilt = rebuild_csv_from_xlsx()
-    except FileNotFoundError:
-        pass
-    added = await import_lamps(replace_all=False)
+    status = get_import_status()
+    if status.get("running"):
+        return RedirectResponse(
+            f"{admin_paths()['path_settings']}?flash=lamps_import_busy",
+            status_code=303,
+        )
+    asyncio.create_task(run_import_job(replace_all=False))
     return RedirectResponse(
-        f"{admin_paths()['path_settings']}?flash=lamps_imported&added={added}&rebuilt={rebuilt}",
+        f"{admin_paths()['path_settings']}?flash=lamps_import_started",
         status_code=303,
     )
 
 
-async def _settings_page(request: Request, user, db: AsyncSession, saved=False, notice=""):
+@router.get("/admin/streetlamp/import-lamps/status")
+async def admin_import_lamps_status(user=Depends(require_login)):
+    _check_access(user)
+    from streetlamp.import_lamps_from_csv import get_import_status
+
+    return get_import_status()
+
+
+async def _settings_page(request: Request, user, db: AsyncSession, saved=False, notice="", import_status=None):
+    from streetlamp.import_lamps_from_csv import get_import_status
+
     return _render(request, "streetlamp/admin_settings.html", _ctx(
         request, user, settings=await get_all_settings_map(db), saved=saved, notice=notice,
+        import_status=import_status if import_status is not None else get_import_status(),
         public_base_url=os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/") or os.environ.get("RENDER_EXTERNAL_URL", "").strip().rstrip("/"),
         cron_secret_set=bool(os.environ.get("CRON_SECRET", "").strip())))
 
@@ -431,9 +445,10 @@ async def cron_import_lamps(secret: str = Query(...), replace: int = Query(0)):
     _cron_secret(secret)
     from streetlamp.import_lamps_from_csv import import_lamps, rebuild_csv_from_xlsx
 
+    csv_path = None
     try:
-        rebuild_csv_from_xlsx()
+        _, csv_path = rebuild_csv_from_xlsx()
     except FileNotFoundError:
         pass
-    added = await import_lamps(replace_all=bool(replace))
+    added = await import_lamps(replace_all=bool(replace), csv_path=csv_path)
     return {"ok": True, "added": added}
