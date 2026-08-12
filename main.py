@@ -946,6 +946,26 @@ async def _startup_db_init() -> None:
                 await import_lamps_if_needed()
             except Exception as e:
                 print(f"[startup] streetlamp lamp import skipped: {e}", flush=True)
+            try:
+                import asyncio as _asyncio
+
+                from sqlalchemy import select as _select
+
+                from streetlamp.models import Lamp as _Lamp
+                from streetlamp.qr_generate import get_or_build_qr_zip
+
+                async with AsyncSessionLocal() as _session:
+                    _codes = [
+                        (row.code or "").strip() or str(row.id)
+                        for row in (
+                            await _session.scalars(_select(_Lamp).order_by(_Lamp.code, _Lamp.id))
+                        ).all()
+                    ]
+                if _codes:
+                    await _asyncio.to_thread(get_or_build_qr_zip, _codes, None, prefix="")
+                    print(f"[startup] streetlamp QR zip warmed ({len(_codes)})", flush=True)
+            except Exception as e:
+                print(f"[startup] streetlamp QR zip warm skipped: {e}", flush=True)
             print(f"[startup] DB ready (attempt {attempt})", flush=True)
             return
         except Exception as e:

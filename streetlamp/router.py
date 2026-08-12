@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import date, datetime, time, timezone
 from io import BytesIO
 from urllib.parse import quote, urlencode
@@ -66,6 +67,7 @@ def admin_paths() -> dict[str, str]:
         "path_requests_export": f"{base}/requests/export",
         "path_requests_remove": f"{base}/requests/delete",
         "path_qr_zip": f"{base}/qr-zip",
+        "path_qr_page": f"{base}/qr",
         "path_import_lamps": f"{base}/import-lamps",
         "path_settings": f"{base}/settings",
         "path_settings_test_email": f"{base}/settings/test-email",
@@ -265,30 +267,81 @@ async def admin_export(date_from: str = "", date_to: str = "", lamp_id: str = ""
 
 
 @router.get("/admin/streetlamp/qr-zip")
-async def admin_qr_zip(request: Request, user=Depends(require_login), db: AsyncSession = Depends(get_db)):
-    """등록된 가로등 전체 QR PNG를 ZIP으로 다운로드."""
+async def admin_qr_zip(
+    request: Request,
+    prefix: str = "",
+    user=Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """등록된 가로등 QR PNG ZIP 다운로드 (캐시·경량 생성, 접두어 분할 지원)."""
+    import asyncio
+    from pathlib import Path as _Path
+
+    from fastapi.responses import FileResponse
+
+    from streetlamp.qr_generate import get_or_build_qr_zip
+
     _check_access(user)
-    await _auto_import()
-    from streetlamp.qr_generate import build_qr_zip_bytes
+    # 대량 QR 생성 전 자동 임포트는 하지 않음(타임아웃 방지)
 
     result = await db.execute(select(Lamp).order_by(Lamp.code, Lamp.id))
     lamps = list(result.scalars().all())
+    prefix = (prefix or "").strip()
     codes: list[str] = []
     for lamp in lamps:
         code = (lamp.code or "").strip() or str(lamp.id)
+        if prefix:
+            pfx = code.rsplit("-", 1)[0] if "-" in code else code
+            if pfx != prefix:
+                continue
         codes.append(code)
     if not codes:
-        raise HTTPException(404, "등록된 가로등이 없습니다. 먼저 가로등 데이터를 이관하거나 CSV를 임포트하세요.")
+        raise HTTPException(
+            404,
+            "등록된 가로등이 없습니다." if not prefix else f"접두어 '{prefix}' 가로등이 없습니다.",
+        )
+
     try:
-        payload = build_qr_zip_bytes(codes, request)
+        zip_path = await asyncio.to_thread(get_or_build_qr_zip, codes, request, prefix=prefix)
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
+
     stamp = datetime.now(KST).strftime("%Y%m%d")
-    filename = quote(f"streetlamp_QR_all_{stamp}.zip")
-    return StreamingResponse(
-        BytesIO(payload),
+    if prefix:
+        safe_prefix = re.sub(r"[^\w가-힣.\-]+", "_", prefix)[:40]
+        download_name = f"streetlamp_QR_{safe_prefix}_{stamp}.zip"
+    else:
+        download_name = f"streetlamp_QR_all_{stamp}.zip"
+    return FileResponse(
+        path=_Path(zip_path),
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+        filename=download_name,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(download_name)}"},
+    )
+
+
+@router.get("/admin/streetlamp/qr")
+async def admin_qr_page(request: Request, user=Depends(require_login), db: AsyncSession = Depends(get_db)):
+    """전체/구역별 QR ZIP 받기 안내 페이지."""
+    _check_access(user)
+    result = await db.execute(select(Lamp).order_by(Lamp.code, Lamp.id))
+    lamps = list(result.scalars().all())
+    groups: dict[str, int] = {}
+    for lamp in lamps:
+        code = (lamp.code or "").strip() or str(lamp.id)
+        pfx = code.rsplit("-", 1)[0] if "-" in code else code
+        groups[pfx] = groups.get(pfx, 0) + 1
+    group_list = sorted(groups.items(), key=lambda x: (-x[1], x[0]))
+    return _render(
+        request,
+        "streetlamp/admin_qr.html",
+        _ctx(
+            request,
+            user,
+            lamp_count=len(lamps),
+            groups=group_list,
+            path_qr_zip=admin_paths()["path_qr_zip"],
+        ),
     )
 
 
