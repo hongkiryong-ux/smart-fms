@@ -38,6 +38,44 @@
   {% endif %}
 
   <fieldset class="filter-fieldset" style="margin-bottom:1rem;">
+    <legend>가로등 1건 추가</legend>
+    <p class="help-text">
+      현재 DB 등록 <strong>{{ lamp_count or 0 }}</strong>건.
+      코드만 입력해도 등록됩니다(위치를 비우면 코드와 동일).
+    </p>
+    {% if request.query_params.get('flash') == 'lamp_added' %}
+    <p class="success-msg" role="status">
+      가로등 <code>{{ request.query_params.get('code', '') }}</code> 을(를) 추가했습니다.
+    </p>
+    {% endif %}
+    {% if request.query_params.get('flash') == 'lamp_duplicate' %}
+    <p class="flash-error" role="alert">
+      이미 등록된 코드입니다: <code>{{ request.query_params.get('code', '') }}</code>
+    </p>
+    {% endif %}
+    {% if request.query_params.get('flash') == 'lamp_add_empty' %}
+    <p class="flash-error" role="alert">가로등 코드를 입력해 주세요.</p>
+    {% endif %}
+    {% if request.query_params.get('flash') == 'lamp_add_too_long' %}
+    <p class="flash-error" role="alert">코드는 64자 이하여야 합니다.</p>
+    {% endif %}
+    <form method="post" action="{{ path_add_lamp }}" class="admin-filter-form" style="margin-bottom:0;">
+      <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end;">
+        <label style="flex:1; min-width:8rem;">
+          코드 <span style="color:var(--danger,#c00);">*</span>
+          <input type="text" name="code" maxlength="64" required placeholder="예: 999-1"
+                 value="{{ request.query_params.get('code', '') if request.query_params.get('flash') == 'lamp_duplicate' else '' }}" />
+        </label>
+        <label style="flex:2; min-width:12rem;">
+          위치 (선택)
+          <input type="text" name="location" maxlength="255" placeholder="비우면 코드와 동일" />
+        </label>
+        <button type="submit" class="btn-primary" style="width:auto; margin-bottom:0;">1건 추가</button>
+      </div>
+    </form>
+  </fieldset>
+
+  <fieldset class="filter-fieldset" style="margin-bottom:1rem;">
     <legend>가로등 어드레스(엑셀/CSV) 등록</legend>
     <p class="help-text">
       <strong>엑셀(.xlsx, .xls)</strong>: 시트의 <strong>모든 셀 값</strong>을 가로등 코드로 등록합니다

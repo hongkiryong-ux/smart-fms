@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import String, and_, or_, select
+from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -69,6 +69,7 @@ def admin_paths() -> dict[str, str]:
         "path_qr_zip": f"{base}/qr-zip",
         "path_qr_page": f"{base}/qr",
         "path_import_lamps": f"{base}/import-lamps",
+        "path_add_lamp": f"{base}/lamps",
         "path_settings": f"{base}/settings",
         "path_settings_test_email": f"{base}/settings/test-email",
         "path_settings_test_sms": f"{base}/settings/test-sms",
@@ -413,12 +414,65 @@ async def admin_import_lamps_status(user=Depends(require_login)):
     return get_import_status()
 
 
+@router.post("/admin/streetlamp/lamps")
+async def admin_add_lamp(
+    code: str = Form(""),
+    location: str = Form(""),
+    user=Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """가로등 1건 추가."""
+    from streetlamp.import_lamps_from_csv import _ensure_lamps_table, _row
+
+    _check_access(user)
+    if not can_edit(user):
+        raise HTTPException(403, "등록 권한이 없습니다.")
+
+    settings_url = admin_paths()["path_settings"]
+    code = code.strip()
+    if not code:
+        return RedirectResponse(f"{settings_url}?flash=lamp_add_empty", status_code=303)
+    if len(code) > 64:
+        return RedirectResponse(f"{settings_url}?flash=lamp_add_too_long", status_code=303)
+
+    try:
+        row = _row(code, location.strip() or None)
+    except ValueError:
+        return RedirectResponse(f"{settings_url}?flash=lamp_add_empty", status_code=303)
+
+    await _ensure_lamps_table()
+    existing = await db.scalar(select(Lamp).where(Lamp.code == row["code"]))
+    if existing:
+        return RedirectResponse(
+            f"{settings_url}?flash=lamp_duplicate&code={quote(row['code'])}",
+            status_code=303,
+        )
+
+    prefix = row["group_prefix"]
+    lamp = Lamp(
+        code=row["code"],
+        location=row["location"],
+        description=f"구역 {prefix}" if prefix else None,
+    )
+    db.add(lamp)
+    await db.commit()
+    return RedirectResponse(
+        f"{settings_url}?flash=lamp_added&code={quote(row['code'])}",
+        status_code=303,
+    )
+
+
 async def _settings_page(request: Request, user, db: AsyncSession, saved=False, notice="", import_status=None):
     from streetlamp.import_lamps_from_csv import get_import_status
+
+    lamp_count = await db.scalar(
+        select(func.count()).select_from(Lamp).where(Lamp.code.isnot(None))
+    ) or 0
 
     return _render(request, "streetlamp/admin_settings.html", _ctx(
         request, user, settings=await get_all_settings_map(db), saved=saved, notice=notice,
         import_status=import_status if import_status is not None else get_import_status(),
+        lamp_count=lamp_count,
         public_base_url=os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/") or os.environ.get("RENDER_EXTERNAL_URL", "").strip().rstrip("/"),
         cron_secret_set=bool(os.environ.get("CRON_SECRET", "").strip())))
 
