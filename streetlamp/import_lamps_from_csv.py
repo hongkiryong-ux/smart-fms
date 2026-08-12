@@ -1,8 +1,9 @@
-# import_lamps_from_csv.py — data/streetlamp/lamp_codes.csv → DB lamps
+# import_lamps_from_csv.py — 업로드/CSV/엑셀 → DB lamps
 from __future__ import annotations
 
 import asyncio
 import csv
+import io
 import os
 import tempfile
 from pathlib import Path
@@ -15,6 +16,7 @@ from streetlamp.models import Lamp
 
 CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "streetlamp" / "lamp_codes.csv"
 XLSX_PATH = Path(__file__).resolve().parent.parent / "data" / "streetlamp" / "가로등 adress.xlsx"
+UPLOAD_MAX_BYTES = 15 * 1024 * 1024
 
 # 백그라운드 작업 상태 (프로세스 단위)
 _import_lock = asyncio.Lock()
@@ -23,13 +25,147 @@ _import_status: dict[str, object] = {
     "message": "",
     "added": 0,
     "updated": 0,
+    "removed": 0,
     "total": 0,
+    "source": "",
     "error": "",
 }
 
 
 def get_import_status() -> dict[str, object]:
     return dict(_import_status)
+
+
+def _row(code: str, location: str | None = None, prefix: str | None = None) -> dict[str, str]:
+    code = (code or "").strip()
+    if not code:
+        raise ValueError("empty code")
+    pfx = (prefix or code.rsplit("-", 1)[0] if "-" in code else code).strip()
+    loc = (location or code).strip() or code
+    return {"code": code, "group_prefix": pfx, "location": loc}
+
+
+def _dedupe_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for row in rows:
+        code = row["code"]
+        if code in seen:
+            continue
+        seen.add(code)
+        out.append(row)
+    return out
+
+
+def parse_rows_from_csv_bytes(raw: bytes) -> list[dict[str, str]]:
+    text_data = raw.decode("utf-8-sig", errors="replace")
+    if not text_data.strip():
+        return []
+    sample = text_data[:4096]
+    try:
+        dialect = csv.Sniffer().has_header(sample)
+    except csv.Error:
+        dialect = False
+    reader = csv.reader(io.StringIO(text_data))
+    rows_iter = list(reader)
+    if not rows_iter:
+        return []
+    header = [str(c or "").strip().lower() for c in rows_iter[0]]
+    code_keys = {"code", "코드", "가로등코드", "lamp_code"}
+    loc_keys = {"location", "address", "addr", "위치", "주소", "어드레스"}
+    prefix_keys = {"group_prefix", "prefix", "구역", "그룹"}
+    has_code_header = any(h in code_keys for h in header)
+    if (dialect or has_code_header) and has_code_header:
+        idx = {h: i for i, h in enumerate(header)}
+        code_i = next((idx[k] for k in code_keys if k in idx), None)
+        loc_i = next((idx[k] for k in loc_keys if k in idx), None)
+        pfx_i = next((idx[k] for k in prefix_keys if k in idx), None)
+        if code_i is None:
+            raise ValueError("CSV 헤더에 code(코드) 열이 필요합니다.")
+        out: list[dict[str, str]] = []
+        for line in rows_iter[1:]:
+            if code_i >= len(line):
+                continue
+            code = str(line[code_i] or "").strip()
+            if not code:
+                continue
+            loc = str(line[loc_i] or "").strip() if loc_i is not None and loc_i < len(line) else ""
+            pfx = str(line[pfx_i] or "").strip() if pfx_i is not None and pfx_i < len(line) else ""
+            out.append(_row(code, loc or None, pfx or None))
+        return _dedupe_rows(out)
+    # 헤더 없음: 모든 셀 값을 코드로
+    out = []
+    for line in rows_iter:
+        for cell in line:
+            s = str(cell or "").strip()
+            if s and s.lower() not in code_keys:
+                out.append(_row(s))
+    return _dedupe_rows(out)
+
+
+def parse_rows_from_xlsx_bytes(raw: bytes) -> list[dict[str, str]]:
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
+    ws = wb.active
+    out: list[dict[str, str]] = []
+    for row in ws.iter_rows(values_only=True):
+        for value in row:
+            if value is None:
+                continue
+            s = str(value).strip()
+            if s:
+                out.append(_row(s))
+    wb.close()
+    return _dedupe_rows(out)
+
+
+def parse_rows_from_xls_bytes(raw: bytes) -> list[dict[str, str]]:
+    import xlrd
+
+    book = xlrd.open_workbook(file_contents=raw)
+    sheet = book.sheet_by_index(0)
+    out: list[dict[str, str]] = []
+    for r in range(sheet.nrows):
+        for c in range(sheet.ncols):
+            val = sheet.cell_value(r, c)
+            if val is None or val == "":
+                continue
+            s = str(val).strip()
+            if s.endswith(".0") and s[:-2].isdigit():
+                s = s[:-2]
+            if s:
+                out.append(_row(s))
+    return _dedupe_rows(out)
+
+
+def parse_upload_to_rows(content: bytes, filename: str) -> list[dict[str, str]]:
+    if len(content) > UPLOAD_MAX_BYTES:
+        raise ValueError(f"파일 크기는 {UPLOAD_MAX_BYTES // (1024 * 1024)}MB 이하여야 합니다.")
+    name = (filename or "").lower()
+    if name.endswith(".csv"):
+        rows = parse_rows_from_csv_bytes(content)
+    elif name.endswith(".xlsx"):
+        rows = parse_rows_from_xlsx_bytes(content)
+    elif name.endswith(".xls"):
+        rows = parse_rows_from_xls_bytes(content)
+    else:
+        raise ValueError("xlsx, xls, csv 파일만 업로드할 수 있습니다.")
+    if not rows:
+        raise ValueError("파일에서 가로등 코드를 찾지 못했습니다.")
+    return rows
+
+
+def save_rows_as_csv(rows: list[dict[str, str]], path: Path | None = None) -> Path:
+    out = path or CSV_PATH
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        _write_csv(out, rows)
+        return out
+    except OSError:
+        tmp = Path(tempfile.gettempdir()) / "smart_fms_lamp_codes.csv"
+        _write_csv(tmp, rows)
+        return tmp
 
 
 def _is_postgres() -> bool:
@@ -116,48 +252,60 @@ def rebuild_csv_from_xlsx(xlsx_path: Path | None = None) -> tuple[int, Path]:
 
     wb = load_workbook(path, data_only=True)
     ws = wb.active
-    codes: list[str] = []
+    rows: list[dict[str, str]] = []
     seen: set[str] = set()
-    for row in ws.iter_rows(values_only=True):
-        for value in row:
+    for line in ws.iter_rows(values_only=True):
+        for value in line:
             if value is None:
                 continue
             code = str(value).strip()
             if not code or code in seen:
                 continue
             seen.add(code)
-            codes.append(code)
+            rows.append(_row(code))
 
     out = CSV_PATH
     try:
         out.parent.mkdir(parents=True, exist_ok=True)
-        _write_csv(out, codes)
+        _write_csv(out, rows)
     except OSError:
         out = Path(tempfile.gettempdir()) / "smart_fms_lamp_codes.csv"
-        _write_csv(out, codes)
-    return len(codes), out
+        _write_csv(out, rows)
+    return len(rows), out
 
 
-def _write_csv(path: Path, codes: list[str]) -> None:
+def _write_csv(path: Path, rows: list[dict[str, str]]) -> None:
     with path.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["code", "group_prefix", "location"])
         writer.writeheader()
-        for code in codes:
-            prefix = code.rsplit("-", 1)[0] if "-" in code else code
-            writer.writerow({"code": code, "group_prefix": prefix, "location": code})
+        for row in rows:
+            writer.writerow(
+                {
+                    "code": row["code"],
+                    "group_prefix": row["group_prefix"],
+                    "location": row["location"],
+                }
+            )
 
 
-async def import_lamps(*, replace_all: bool = False, csv_path: Path | None = None) -> int:
-    """CSV의 모든 코드를 lamps 에 등록/갱신. 반환: 신규 추가 건수."""
-    path = csv_path or CSV_PATH
-    if not path.is_file() and XLSX_PATH.is_file():
-        _, path = rebuild_csv_from_xlsx()
-    rows = load_rows_from_csv(path)
+async def import_lamps(
+    *,
+    replace_all: bool = False,
+    csv_path: Path | None = None,
+    rows: list[dict[str, str]] | None = None,
+) -> int:
+    """가로등 목록 등록/갱신. 반환: 신규 추가 건수."""
+    if rows is None:
+        path = csv_path or CSV_PATH
+        if not path.is_file() and XLSX_PATH.is_file():
+            _, path = rebuild_csv_from_xlsx()
+        rows = load_rows_from_csv(path)
 
     await _ensure_lamps_table()
 
     added = 0
     updated = 0
+    removed = 0
     async with AsyncSessionLocal() as session:
         await _sync_lamps_id_sequence(session)
 
@@ -175,6 +323,31 @@ async def import_lamps(*, replace_all: bool = False, csv_path: Path | None = Non
             ).all()
             if lamp.code
         }
+
+        incoming_codes = {r["code"] for r in rows}
+
+        if not replace_all:
+            # 파일에 없는 코드는 삭제 (업로드 파일 = 최신 목록)
+            stale = [lamp for code, lamp in existing_by_code.items() if code not in incoming_codes]
+            if stale:
+                from streetlamp.models import MaintenanceRequest
+
+                stale_ids = [l.id for l in stale]
+                if stale_ids:
+                    await session.execute(
+                        MaintenanceRequest.__table__.delete().where(
+                            MaintenanceRequest.lamp_id.in_(stale_ids)
+                        )
+                    )
+                for lamp in stale:
+                    await session.delete(lamp)
+                    removed += 1
+                await session.commit()
+                existing_by_code = {
+                    code: lamp
+                    for code, lamp in existing_by_code.items()
+                    if code in incoming_codes
+                }
 
         batch_new: list[Lamp] = []
         for row in rows:
@@ -199,7 +372,6 @@ async def import_lamps(*, replace_all: bool = False, csv_path: Path | None = Non
             batch_new.append(lamp)
             existing_by_code[code] = lamp
             added += 1
-            # 배치 커밋으로 락·메모리 완화
             if len(batch_new) >= 200:
                 session.add_all(batch_new)
                 await session.commit()
@@ -210,22 +382,30 @@ async def import_lamps(*, replace_all: bool = False, csv_path: Path | None = Non
         await _sync_lamps_id_sequence(session)
         await session.commit()
 
+    mode = "전체 교체" if replace_all else "파일 기준 동기화"
     _import_status.update(
         {
             "added": added,
             "updated": updated,
+            "removed": removed,
             "total": len(rows),
-            "message": f"완료: 신규 {added} · 갱신 {updated} · 전체 {len(rows)}",
+            "message": f"완료({mode}): 신규 {added} · 갱신 {updated} · 삭제 {removed} · 파일 {len(rows)}건",
         }
     )
     print(
-        f"[lamp-import] csv={len(rows)} added={added} updated={updated}",
+        f"[lamp-import] rows={len(rows)} added={added} updated={updated} removed={removed}",
         flush=True,
     )
     return added
 
 
-async def run_import_job(*, replace_all: bool = False) -> None:
+async def run_import_job(
+    *,
+    replace_all: bool = False,
+    upload_bytes: bytes | None = None,
+    upload_name: str = "",
+    use_bundled: bool = False,
+) -> None:
     """웹 버튼용 백그라운드 임포트."""
     if _import_lock.locked():
         return
@@ -236,20 +416,35 @@ async def run_import_job(*, replace_all: bool = False) -> None:
                 "message": "가로등 어드레스 등록 중…",
                 "added": 0,
                 "updated": 0,
+                "removed": 0,
                 "total": 0,
+                "source": upload_name or ("bundled" if use_bundled else ""),
                 "error": "",
             }
         )
         try:
-            csv_path = CSV_PATH
-            rebuilt = 0
-            try:
-                rebuilt, csv_path = rebuild_csv_from_xlsx()
-                _import_status["message"] = f"CSV 준비 {rebuilt}건 → DB 등록 중…"
-            except FileNotFoundError:
-                if not CSV_PATH.is_file():
-                    raise
-            await import_lamps(replace_all=replace_all, csv_path=csv_path)
+            rows: list[dict[str, str]] | None = None
+            if upload_bytes:
+                _import_status["message"] = f"파일 분석 중… ({upload_name})"
+                rows = await asyncio.to_thread(parse_upload_to_rows, upload_bytes, upload_name)
+                _import_status["message"] = f"{len(rows)}건 → DB 등록 중…"
+                try:
+                    save_rows_as_csv(rows)
+                except Exception:
+                    pass
+            elif use_bundled:
+                csv_path = CSV_PATH
+                try:
+                    _, csv_path = rebuild_csv_from_xlsx()
+                except FileNotFoundError:
+                    if not CSV_PATH.is_file():
+                        raise
+                rows = load_rows_from_csv(csv_path)
+                _import_status["message"] = f"배포본 {len(rows)}건 → DB 등록 중…"
+            else:
+                raise ValueError("업로드 파일을 선택해 주세요.")
+
+            await import_lamps(replace_all=replace_all, rows=rows)
         except Exception as exc:
             _import_status.update(
                 {

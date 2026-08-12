@@ -38,10 +38,14 @@
   {% endif %}
 
   <fieldset class="filter-fieldset" style="margin-bottom:1rem;">
-    <legend>가로등 어드레스(엑셀 셀) 등록</legend>
+    <legend>가로등 어드레스(엑셀/CSV) 등록</legend>
     <p class="help-text">
-      배포본 CSV(<code>data/streetlamp/lamp_codes.csv</code>, 약 1,157개)를 DB에 등록합니다.
-      버튼은 즉시 응답하고, 등록은 백그라운드에서 진행됩니다(사이트 멈춤 방지).
+      <strong>엑셀(.xlsx, .xls)</strong>: 시트의 <strong>모든 셀 값</strong>을 가로등 코드로 등록합니다
+      (예: <code>가로등 adress.xlsx</code> 형식).<br />
+      <strong>CSV</strong>: <code>code</code>(또는 코드) 열이 있으면 주소·코드 열을 사용하고,
+      없으면 모든 셀 값을 코드로 읽습니다.<br />
+      기본 동작은 <strong>파일 기준 동기화</strong>입니다 — 파일에 있는 코드는 추가·갱신,
+      파일에 <strong>없는</strong> 기존 가로등은 DB에서 삭제됩니다.
     </p>
     <div id="lamp-import-status" class="notice-msg" style="margin-bottom:0.75rem;"
          data-running="{{ '1' if import_status and import_status.running else '0' }}">
@@ -55,12 +59,36 @@
         아직 실행한 적 없음
       {% endif %}
     </div>
-    <form method="post" action="{{ path_import_lamps }}" id="lamp-import-form">
+    {% if request.query_params.get('flash') == 'lamps_import_no_file' %}
+    <p class="flash-error" role="alert">파일을 선택해 주세요. (xlsx, xls, csv)</p>
+    {% endif %}
+    {% if request.query_params.get('flash') == 'lamps_import_too_large' %}
+    <p class="flash-error" role="alert">파일이 너무 큽니다. 15MB 이하만 업로드할 수 있습니다.</p>
+    {% endif %}
+    <form method="post" action="{{ path_import_lamps }}" id="lamp-import-form" enctype="multipart/form-data">
+      <label style="display:block; margin-bottom:0.75rem;">
+        엑셀/CSV 파일
+        <input type="file" name="file" accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" required />
+      </label>
+      <label class="filter-checkbox" style="display:block; margin-bottom:0.75rem;">
+        <input type="checkbox" name="replace_all" value="1" />
+        전체 교체 (기존 가로등·정비의뢰 전부 삭제 후 파일만 등록)
+      </label>
       <button type="submit" class="btn-primary" style="width:auto;"
               {% if import_status and import_status.running %}disabled{% endif %}>
-        엑셀/CSV 전체 어드레스 등록
+        선택한 파일로 등록
       </button>
     </form>
+    <div class="help-text" style="margin-top:0.75rem;">
+      서버에 포함된 배포본 CSV만 다시 넣으려면:
+      <form method="post" action="{{ path_import_lamps }}" style="display:inline;">
+        <input type="hidden" name="use_bundled" value="1" />
+        <button type="submit" class="btn-secondary" style="width:auto; padding:0.35rem 0.75rem;"
+                {% if import_status and import_status.running %}disabled{% endif %}>
+          배포본 CSV 동기화
+        </button>
+      </form>
+    </div>
   </fieldset>
   <script>
   (function () {

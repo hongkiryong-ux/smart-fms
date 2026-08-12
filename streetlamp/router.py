@@ -8,7 +8,7 @@ from io import BytesIO
 from urllib.parse import quote, urlencode
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import String, and_, or_, select
@@ -346,22 +346,59 @@ async def admin_qr_page(request: Request, user=Depends(require_login), db: Async
 
 
 @router.post("/admin/streetlamp/import-lamps")
-async def admin_import_lamps(request: Request, user=Depends(require_login)):
-    """엑셀/CSV 어드레스 등록 — 백그라운드로 실행하고 즉시 설정 화면으로 복귀."""
+async def admin_import_lamps(
+    request: Request,
+    file: UploadFile | None = File(None),
+    use_bundled: str | None = Form(None),
+    replace_all: str | None = Form(None),
+    user=Depends(require_login),
+):
+    """업로드 엑셀/CSV → DB 등록 (백그라운드)."""
     import asyncio
+
+    from streetlamp.import_lamps_from_csv import UPLOAD_MAX_BYTES, get_import_status, run_import_job
 
     _check_access(user)
     if not can_edit(user):
         raise HTTPException(403, "등록 권한이 없습니다.")
-    from streetlamp.import_lamps_from_csv import get_import_status, run_import_job
-
-    status = get_import_status()
-    if status.get("running"):
+    if get_import_status().get("running"):
         return RedirectResponse(
             f"{admin_paths()['path_settings']}?flash=lamps_import_busy",
             status_code=303,
         )
-    asyncio.create_task(run_import_job(replace_all=False))
+
+    bundled = use_bundled and use_bundled.strip().lower() in ("1", "true", "on", "yes")
+    do_replace = replace_all and replace_all.strip().lower() in ("1", "true", "on", "yes")
+
+    upload_bytes: bytes | None = None
+    upload_name = ""
+    if file and file.filename:
+        upload_bytes = await file.read()
+        upload_name = file.filename
+        if not upload_bytes:
+            return RedirectResponse(
+                f"{admin_paths()['path_settings']}?flash=lamps_import_no_file",
+                status_code=303,
+            )
+        if len(upload_bytes) > UPLOAD_MAX_BYTES:
+            return RedirectResponse(
+                f"{admin_paths()['path_settings']}?flash=lamps_import_too_large",
+                status_code=303,
+            )
+    elif not bundled:
+        return RedirectResponse(
+            f"{admin_paths()['path_settings']}?flash=lamps_import_no_file",
+            status_code=303,
+        )
+
+    asyncio.create_task(
+        run_import_job(
+            replace_all=do_replace,
+            upload_bytes=upload_bytes,
+            upload_name=upload_name,
+            use_bundled=bundled,
+        )
+    )
     return RedirectResponse(
         f"{admin_paths()['path_settings']}?flash=lamps_import_started",
         status_code=303,
