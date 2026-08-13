@@ -1,0 +1,66 @@
+<div class="dash-bento">
+  <div class="dash-bento-hero">
+    {% for b in buildings[:4] %}
+    <a class="dash-bento-place{% if loop.first %} is-lead{% endif %}" href="/admin/equipment?building_id={{ b.id }}">
+      <div class="dash-g-photo tone-{{ loop.index0 % 6 }}">
+        {% if b.photo_url %}
+        <img src="{{ b.photo_url }}" alt="{{ b.name }}" />
+        {% else %}
+        <div class="dash-g-ph">
+          <span class="dash-g-ph-mark" aria-hidden="true"></span>
+        </div>
+        {% endif %}
+      </div>
+      <span class="dash-bento-place-name">{{ b.name }}</span>
+    </a>
+    {% else %}
+    <a class="dash-bento-place is-lead" href="/admin/sites">
+      <div class="dash-g-photo tone-0"><div class="dash-g-ph"><span class="dash-g-ph-mark"></span></div></div>
+      <span class="dash-bento-place-name">건물 등록</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <aside class="dash-bento-side">
+    <div class="dash-bento-tiles">
+      <a class="dash-bento-tile" href="/admin/pm">
+        <span>금일 점검</span>
+        <strong id="kpi-pm-today-plan">{{ kpi.pm_today_plan }}</strong>
+        <em>완료 <span id="kpi-pm-today-done">{{ kpi.pm_today_done }}</span></em>
+      </a>
+      <a class="dash-bento-tile" href="/admin/work-orders">
+        <span>정비 진행</span>
+        <strong id="kpi-wo-progress">{{ kpi.wo_progress }}</strong>
+        <em>의뢰 <span id="kpi-wo-request">{{ kpi.wo_request }}</span></em>
+      </a>
+      <a class="dash-bento-tile is-alert" href="/admin/work-orders">
+        <span>긴급 미완료</span>
+        <strong id="kpi-wo-urgent">{{ kpi.wo_urgent }}</strong>
+        <em>지연 점검 <span id="kpi-pm-overdue">{{ kpi.pm_overdue }}</span></em>
+      </a>
+      <a class="dash-bento-tile" href="/admin/d1">
+        <span>D-1 금일</span>
+        <strong id="kpi-d1-plan">{{ kpi.d1_today_plan }}</strong>
+        <em>미완료 <span id="kpi-d1-incomplete">{{ kpi.d1_today_incomplete }}</span></em>
+      </a>
+    </div>
+  </aside>
+
+  <section class="dash-bento-energy">
+    <div class="dash-bento-energy-head">
+      <h2>에너지 사용현황</h2>
+      <span class="dash-badge-demo" id="energy-demo-badge"{% if not kpi.energy.is_demo %} hidden{% endif %}>예시 · 점검일지 연동 예정</span>
+    </div>
+    <div class="dash-energy-charts dash-bento-charts">
+      <div class="dash-chart-box">
+        <div class="dash-chart-title">전력 7일</div>
+        <div class="dash-chart-canvas"><canvas id="chart-power"></canvas></div>
+      </div>
+      <div class="dash-chart-box">
+        <div class="dash-chart-title">중온 · 급수 7일</div>
+        <div class="dash-chart-canvas"><canvas id="chart-utility"></canvas></div>
+      </div>
+    </div>
+    <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
+  </section>
+</div>

@@ -80,6 +80,7 @@ from models import (
     WorkOrder,
     WorkOrderStatus,
     Zone,
+    AppSetting,
 )
 
 KST = ZoneInfo("Asia/Seoul")
@@ -1966,22 +1967,120 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
     }
 
 
+DASHBOARD_LAYOUTS = ("gallery", "ops", "bento")
+DASHBOARD_LAYOUT_META = {
+    "gallery": {
+        "label": "시설 갤러리",
+        "ref": "시설 안내 사이트 · 건물 사진 그리드",
+        "desc": "첨부하신 화면처럼 건물 사진을 2~3열로 두고 이름만 아래에 붙입니다. 사진을 누르면 해당 건물 설비관리로 들어갑니다.",
+    },
+    "ops": {
+        "label": "운영 보드",
+        "ref": "Stripe · Linear 운영 대시보드",
+        "desc": "지금 쓰는 구성입니다. 사업장·점검·정비·D-1 숫자를 행으로 보고, 아래에 에너지 추이를 둡니다.",
+    },
+    "bento": {
+        "label": "한눈에 보기",
+        "ref": "Apple · Notion 홈 레이아웃",
+        "desc": "왼쪽은 주요 건물 사진, 오른쪽은 오늘 할 일·이상 건수, 아래는 에너지 차트입니다.",
+    },
+}
+
+
+async def _get_dashboard_layout(db: AsyncSession) -> str:
+    row = await db.get(AppSetting, "dashboard.layout")
+    val = (row.value or "").strip() if row else ""
+    return val if val in DASHBOARD_LAYOUTS else "ops"
+
+
+async def _set_dashboard_layout(db: AsyncSession, layout: str) -> None:
+    row = await db.get(AppSetting, "dashboard.layout")
+    if row:
+        row.value = layout
+    else:
+        db.add(AppSetting(key="dashboard.layout", value=layout))
+
+
+async def _dashboard_buildings(db: AsyncSession) -> list[dict]:
+    rows = (
+        await db.execute(
+            select(Building)
+            .where(Building.is_active == True)  # noqa: E712
+            .options(selectinload(Building.site))
+        )
+    ).scalars().all()
+    buildings = _sort_buildings(list(rows))
+    return [
+        {
+            "id": b.id,
+            "name": b.name or "",
+            "code": getattr(b, "code", "") or "",
+            "site_name": (b.site.name if b.site else "") or "",
+            "photo_url": (b.photo_url or "").strip() or None,
+        }
+        for b in buildings
+    ]
+
+
 @app.get("/admin/dashboard")
 async def dashboard(
     request: Request,
+    preview: str | None = Query(None),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     kpi = await _compute_dashboard_kpi(db)
-
+    layout = (preview or "").strip()
+    is_preview = layout in DASHBOARD_LAYOUTS
+    if not is_preview:
+        layout = await _get_dashboard_layout(db)
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "user": user,
             "kpi": kpi,
+            "layout": layout,
+            "layout_meta": DASHBOARD_LAYOUT_META[layout],
+            "preview": is_preview,
+            "buildings": await _dashboard_buildings(db),
         },
     )
+
+
+@app.get("/admin/dashboard/layouts")
+async def dashboard_layouts(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    return templates.TemplateResponse(
+        request,
+        "dashboard_layouts.html",
+        {
+            "user": user,
+            "kpi": await _compute_dashboard_kpi(db),
+            "layouts": DASHBOARD_LAYOUT_META,
+            "current_layout": await _get_dashboard_layout(db),
+            "buildings": await _dashboard_buildings(db),
+        },
+    )
+
+
+@app.post("/admin/dashboard/layout")
+async def save_dashboard_layout(
+    layout: str = Form(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    if not can_edit(user):
+        raise HTTPException(403, "화면 구성 변경 권한이 없습니다.")
+    key = (layout or "").strip()
+    if key not in DASHBOARD_LAYOUTS:
+        raise HTTPException(400, "알 수 없는 화면 구성입니다.")
+    await _set_dashboard_layout(db, key)
+    await db.commit()
+    return RedirectResponse("/admin/dashboard?flash=layout_saved", status_code=303)
 
 
 @app.get("/admin/dashboard/kpi")

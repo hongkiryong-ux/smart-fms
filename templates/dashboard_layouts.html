@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}대시보드 화면 구성{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>대시보드 화면 구성 샘플</h1>
+  <p>웹에서 많이 쓰는 3가지 메인 구성을 실제 데이터로 보여 드립니다. 전체 화면으로 미리본 뒤 적용하세요.</p>
+</header>
+
+{% if current_layout %}
+<p class="alert alert-ok">현재 적용: <strong>{{ layouts[current_layout].label }}</strong></p>
+{% endif %}
+
+<div class="dash-pick-grid">
+  {% for key, item in layouts.items() %}
+  <article class="dash-pick-card{% if current_layout == key %} is-current{% endif %}">
+    <header class="dash-pick-head">
+      <span class="dash-pick-no">샘플 {{ loop.index }}</span>
+      <h2>{{ item.label }}</h2>
+      <p class="dash-pick-ref">참고 {{ item.ref }}</p>
+      <p>{{ item.desc }}</p>
+    </header>
+
+    <div class="dash-pick-preview dash-pick-{{ key }}" aria-hidden="true">
+      {% if key == 'gallery' %}
+      <div class="mini-g-kpis">
+        <i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <div class="mini-g-grid">
+        {% for b in buildings[:6] %}
+        <div>
+          <div class="mini-photo tone-{{ loop.index0 % 6 }}"></div>
+          <span>{{ b.name }}</span>
+        </div>
+        {% else %}
+        {% for i in range(6) %}
+        <div>
+          <div class="mini-photo tone-{{ i % 6 }}"></div>
+          <span>건물 {{ loop.index }}</span>
+        </div>
+        {% endfor %}
+        {% endfor %}
+      </div>
+      {% elif key == 'bento' %}
+      <div class="mini-bento">
+        <div class="mini-bento-photos">
+          <div class="mini-photo tone-0 is-lead"></div>
+          <div class="mini-photo tone-1"></div>
+          <div class="mini-photo tone-2"></div>
+        </div>
+        <div class="mini-bento-tiles">
+          <div><span>점검</span><strong>{{ kpi.pm_today_plan }}</strong></div>
+          <div><span>정비</span><strong>{{ kpi.wo_progress }}</strong></div>
+          <div><span>긴급</span><strong>{{ kpi.wo_urgent }}</strong></div>
+          <div><span>D-1</span><strong>{{ kpi.d1_today_plan }}</strong></div>
+        </div>
+        <div class="mini-bento-chart"></div>
+      </div>
+      {% else %}
+      <div class="mini-ops">
+        <div class="mini-ops-row"><b>01</b><span>사업장 {{ kpi.sites }} · 건물 {{ kpi.buildings }} · 설비 {{ kpi.equipment }}</span></div>
+        <div class="mini-ops-row"><b>02</b><span>점검 계획 {{ kpi.pm_today_plan }} · 완료 {{ kpi.pm_today_done }} · 지연 {{ kpi.pm_overdue }}</span></div>
+        <div class="mini-ops-row"><b>03</b><span>정비 의뢰 {{ kpi.wo_request }} · 진행 {{ kpi.wo_progress }} · 긴급 {{ kpi.wo_urgent }}</span></div>
+        <div class="mini-ops-row"><b>04</b><span>D-1 계획 {{ kpi.d1_today_plan }} · 완료 {{ kpi.d1_today_done }}</span></div>
+        <div class="mini-ops-chart"></div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="dash-pick-actions">
+      <a class="btn-secondary" href="/admin/dashboard?preview={{ key }}">전체 화면 미리보기</a>
+      {% if user_can_edit(user) %}
+      <form method="post" action="/admin/dashboard/layout">
+        <input type="hidden" name="layout" value="{{ key }}" />
+        <button type="submit" class="btn-primary"{% if current_layout == key %} disabled{% endif %}>
+          {% if current_layout == key %}적용 중{% else %}이 화면 적용{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

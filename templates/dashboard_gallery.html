@@ -1,0 +1,46 @@
+<div class="dash-g-kpis">
+  <a class="dash-g-kpi" href="/admin/sites">
+    <span>사업장</span><strong id="kpi-sites">{{ kpi.sites }}</strong>
+  </a>
+  <a class="dash-g-kpi" href="/admin/equipment">
+    <span>설비</span><strong id="kpi-equipment">{{ kpi.equipment }}</strong>
+  </a>
+  <a class="dash-g-kpi" href="/admin/pm">
+    <span>금일 점검</span><strong id="kpi-pm-today-plan">{{ kpi.pm_today_plan }}</strong>
+  </a>
+  <a class="dash-g-kpi{% if kpi.wo_urgent %} is-alert{% endif %}" href="/admin/work-orders">
+    <span>긴급 미완료</span><strong id="kpi-wo-urgent">{{ kpi.wo_urgent }}</strong>
+  </a>
+  <a class="dash-g-kpi" href="/admin/d1">
+    <span>D-1 금일</span><strong id="kpi-d1-plan">{{ kpi.d1_today_plan }}</strong>
+  </a>
+</div>
+
+<section class="dash-g-section">
+  <div class="dash-g-head">
+    <h2>시설 현황</h2>
+    <p>건물을 눌러 설비관리로 이동합니다. 사진은 건물 정보에 등록된 이미지를 사용합니다.</p>
+  </div>
+  <div class="dash-g-grid">
+    {% for b in buildings %}
+    <a class="dash-g-card" href="/admin/equipment?building_id={{ b.id }}" title="{{ b.name }}">
+      <div class="dash-g-photo tone-{{ loop.index0 % 6 }}">
+        {% if b.photo_url %}
+        <img src="{{ b.photo_url }}" alt="{{ b.name }}" />
+        {% else %}
+        <div class="dash-g-ph">
+          <span class="dash-g-ph-mark" aria-hidden="true"></span>
+          <span class="dash-g-ph-site">{{ b.site_name }}</span>
+        </div>
+        {% endif %}
+      </div>
+      <div class="dash-g-name">{{ b.name }}</div>
+    </a>
+    {% else %}
+    <a class="dash-g-card dash-g-empty" href="/admin/sites">
+      <div class="dash-g-photo tone-0"><div class="dash-g-ph"><span class="dash-g-ph-mark"></span></div></div>
+      <div class="dash-g-name">사업장/건물에서 등록</div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
