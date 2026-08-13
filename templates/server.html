@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}서버관리{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>서버관리</h1>
+  <p>Render/호스트 리소스 · DB · 통신 상태 (30초 자동갱신)</p>
+</header>
+
+<aside class="dash-server-panel server-admin-panel" id="dash-server-panel" data-level="{{ server.overall }}" data-render="{{ '1' if server.is_render else '0' }}">
+  <div class="dash-server-head">
+    <div>
+      <h2>서버 상태</h2>
+      <p class="dash-server-sub" id="srv-env-desc">{{ server.env_desc }}</p>
+    </div>
+    <span class="dash-server-badge" id="srv-overall" title="{{ server.overall_desc }}">{{ server.overall_label }}</span>
+  </div>
+
+  <p class="dash-server-help" id="srv-overall-desc">{{ server.overall_desc }}</p>
+
+  <div class="dash-server-meta">
+    <div title="Render에 등록된 웹 서비스 이름">
+      <span>서비스</span><strong id="srv-service">{{ server.render.service_name }}</strong>
+    </div>
+    <div title="현재 배포된 코드 버전(짧은 커밋)">
+      <span>배포버전</span><strong id="srv-commit">{{ server.render.git_commit }}</strong>
+    </div>
+    <div title="상태 정보를 마지막에 확인한 시각">
+      <span>확인시각</span><strong id="srv-as-of">{{ server.as_of }}</strong>
+    </div>
+    <div title="실행 환경">
+      <span>환경</span><strong id="srv-env">{{ server.env_label }}</strong>
+    </div>
+  </div>
+
+  <div class="dash-server-bars" id="srv-resource-block"{% if not server.is_render %} hidden{% endif %}>
+    <div class="dash-server-metric" data-key="disk">
+      <div class="dash-server-metric-top">
+        <span>웹 서버 · 앱 파일</span>
+        <strong id="srv-disk-used">{% if server.disk and server.disk.app %}{{ server.disk.app.total_label }}{% elif server.disk %}{{ server.disk.used_label }}{% else %}-{% endif %}</strong>
+      </div>
+      <p class="dash-server-desc" id="srv-disk-desc">
+        웹 서버에 있는 프로그램·업로드 파일 용량입니다. 업무 입력 자료는 아래 DB를 보세요.
+      </p>
+      <ul class="dash-server-disk-top" id="srv-disk-top">
+        {% if server.disk and server.disk.app and server.disk.app.top %}
+          {% for item in server.disk.app.top %}
+          <li><span>{{ item.name }}</span><strong>{{ item.label }}</strong></li>
+          {% endfor %}
+        {% endif %}
+      </ul>
+    </div>
+
+    <div class="dash-server-metric" data-key="memory">
+      <div class="dash-server-metric-top">
+        <span>웹 서버 메모리</span>
+        <strong id="srv-mem-pct">{% if server.memory %}{{ server.memory.percent if server.memory.percent is not none else '-' }}%{% else %}-{% endif %}</strong>
+      </div>
+      <p class="dash-server-desc">웹 서버 RAM 사용 비율입니다. 높으면 화면 응답이 느려질 수 있습니다.</p>
+      <div class="dash-server-bar"><i id="srv-mem-bar" style="width:{% if server.memory %}{{ server.memory.percent or 0 }}{% else %}0{% endif %}%"></i></div>
+      <div class="dash-server-metric-foot">
+        <span>사용 <span id="srv-mem-used">{% if server.memory %}{{ server.memory.used_label }}{% else %}-{% endif %}</span></span>
+        <span>/ 전체 <span id="srv-mem-total">{% if server.memory %}{{ server.memory.total_label }}{% else %}-{% endif %}</span></span>
+      </div>
+    </div>
+
+    <div class="dash-server-metric" data-key="cpu">
+      <div class="dash-server-metric-top">
+        <span>웹 서버 CPU</span>
+        <strong id="srv-cpu-pct">{% if server.cpu %}{{ server.cpu.percent if server.cpu.percent is not none else '-' }}%{% else %}-{% endif %}</strong>
+      </div>
+      <p class="dash-server-desc">웹 서버 연산 부하입니다.</p>
+      <div class="dash-server-bar"><i id="srv-cpu-bar" style="width:{% if server.cpu %}{{ server.cpu.percent or 0 }}{% else %}0{% endif %}%"></i></div>
+      <div class="dash-server-metric-foot">
+        <span>코어 <span id="srv-cpu-count">{% if server.cpu %}{{ server.cpu.count }}{% else %}-{% endif %}</span></span>
+      </div>
+    </div>
+  </div>
+
+  {% set st = server.db.storage if server.db and server.db.storage else none %}
+  <div class="dash-server-bars" id="srv-db-block">
+    <div class="dash-server-metric" data-key="db-storage" data-level="{{ st.level if st and st.level else 'unknown' }}">
+      <div class="dash-server-metric-top">
+        <span>DB 저장용량 (업무 자료)</span>
+        <strong id="srv-db-pct">{% if st and st.percent is not none %}{{ st.percent }}%{% else %}-{% endif %}</strong>
+      </div>
+      <p class="dash-server-desc" id="srv-db-storage-desc">
+        {% if st and st.desc %}{{ st.desc }}{% else %}웹에서 작성한 자료가 저장되는 Postgres/DB 용량입니다.{% endif %}
+      </p>
+      <div class="dash-server-bar"><i id="srv-db-bar" style="width:{% if st and st.percent is not none %}{{ st.percent }}{% else %}0{% endif %}%"></i></div>
+      <div class="dash-server-metric-foot">
+        <span>사용 <span id="srv-db-used">{% if st %}{{ st.used_label }}{% else %}-{% endif %}</span></span>
+        <span>/ 할당 <span id="srv-db-quota">{% if st %}{{ st.quota_label }}{% else %}-{% endif %}</span></span>
+        <span class="dash-server-free">여유 <span id="srv-db-free">{% if st %}{{ st.free_label }}{% else %}-{% endif %}</span></span>
+      </div>
+      <ul class="dash-server-disk-top" id="srv-db-top">
+        {% if st and st.top %}
+          {% for item in st.top %}
+          <li><span>{{ item.name }}</span><strong>{{ item.label }}</strong></li>
+          {% endfor %}
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="dash-server-grid">
+    <div class="dash-server-chip" id="srv-app-chip" data-level="ok">
+      <span class="chip-label">웹 서비스</span>
+      <strong id="srv-app">{{ server.app.label }}</strong>
+      <p class="dash-server-desc">화면·API가 정상 응답하는지 확인합니다.</p>
+    </div>
+    <div class="dash-server-chip" id="srv-db-chip" data-level="{{ server.db.level }}">
+      <span class="chip-label">DB 통신</span>
+      <strong id="srv-db">{{ server.db.label }}{% if server.db.latency_ms is not none %} · {{ server.db.latency_ms }}ms{% endif %}</strong>
+      <p class="dash-server-desc">웹 서버↔DB 연결 상태입니다.</p>
+    </div>
+    <div class="dash-server-chip" id="srv-net-chip" data-level="{{ server.network.level }}">
+      <span class="chip-label">외부 통신</span>
+      <strong id="srv-net">{{ server.network.label }}{% if server.network.latency_ms is not none %} · {{ server.network.latency_ms }}ms{% endif %}</strong>
+      <p class="dash-server-desc">서버의 인터넷 통신 가능 여부입니다.</p>
+    </div>
+    <div class="dash-server-chip" id="srv-up-chip" data-level="ok">
+      <span class="chip-label">가동시간</span>
+      <strong id="srv-uptime">{{ server.uptime.label }}</strong>
+      <p class="dash-server-desc">이번 웹 서버 인스턴스가 켜진 뒤 지난 시간입니다.</p>
+    </div>
+  </div>
+
+  <div class="dash-server-foot">
+    <span id="srv-db-dialect">DB: {{ server.db.dialect }}{% if st and st.db_name %} · {{ st.db_name }}{% endif %}</span>
+    <span>30초 자동갱신</span>
+  </div>
+</aside>
+
+<script>
+(function () {
+  var INTERVAL = 30000;
+
+  function setText(id, val) {
+    var el = document.getElementById(id);
+    if (el && val !== undefined && val !== null) el.textContent = val;
+  }
+
+  function setBar(id, pct) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var n = (pct === undefined || pct === null || isNaN(pct)) ? 0 : Math.max(0, Math.min(100, Number(pct)));
+    el.style.width = n + '%';
+  }
+
+  function setLevel(el, level) {
+    if (!el) return;
+    el.setAttribute('data-level', level || 'unknown');
+  }
+
+  function applyServer(data) {
+    if (!data) return;
+    var panel = document.getElementById('dash-server-panel');
+    setLevel(panel, data.overall);
+    if (panel) panel.setAttribute('data-render', data.is_render ? '1' : '0');
+    setText('srv-overall', data.overall_label || '-');
+    setText('srv-overall-desc', data.overall_desc || '');
+    setText('srv-env-desc', data.env_desc || '');
+    setText('srv-env', data.env_label || '-');
+    setText('srv-as-of', data.as_of || '-');
+    if (data.render) {
+      setText('srv-service', data.render.service_name || '-');
+      setText('srv-commit', data.render.git_commit || '-');
+    }
+
+    var resBlock = document.getElementById('srv-resource-block');
+    if (resBlock) resBlock.hidden = !data.is_render;
+
+    var disk = data.disk || {};
+    var mem = data.memory || {};
+    var cpu = data.cpu || {};
+    var db = data.db || {};
+    var net = data.network || {};
+    var up = data.uptime || {};
+    var app = data.app || {};
+
+    if (data.is_render) {
+      var appDisk = disk.app || {};
+      setText('srv-disk-used', appDisk.total_label || disk.used_label || '-');
+      setText('srv-disk-desc', disk.desc || '');
+      var topEl = document.getElementById('srv-disk-top');
+      if (topEl) {
+        topEl.innerHTML = '';
+        (appDisk.top || []).forEach(function (item) {
+          var li = document.createElement('li');
+          var sp = document.createElement('span');
+          sp.textContent = item.name || '';
+          var st = document.createElement('strong');
+          st.textContent = item.label || '';
+          li.appendChild(sp);
+          li.appendChild(st);
+          topEl.appendChild(li);
+        });
+      }
+
+      setText('srv-mem-pct', (mem.percent != null ? mem.percent : '-') + '%');
+      setBar('srv-mem-bar', mem.percent);
+      setText('srv-mem-used', mem.used_label || '-');
+      setText('srv-mem-total', mem.total_label || '-');
+
+      setText('srv-cpu-pct', (cpu.percent != null ? cpu.percent : '-') + '%');
+      setBar('srv-cpu-bar', cpu.percent);
+      setText('srv-cpu-count', cpu.count != null ? cpu.count : '-');
+    }
+
+    var storage = db.storage || {};
+    setText('srv-db-pct', (storage.percent != null ? storage.percent : '-') + '%');
+    setBar('srv-db-bar', storage.percent);
+    setText('srv-db-used', storage.used_label || '-');
+    setText('srv-db-quota', storage.quota_label || '-');
+    setText('srv-db-free', storage.free_label || '-');
+    setText('srv-db-storage-desc', storage.desc || '');
+    var dbMetric = document.querySelector('.dash-server-metric[data-key="db-storage"]');
+    setLevel(dbMetric, storage.level);
+    var dbTop = document.getElementById('srv-db-top');
+    if (dbTop) {
+      dbTop.innerHTML = '';
+      (storage.top || []).forEach(function (item) {
+        var li = document.createElement('li');
+        var sp = document.createElement('span');
+        sp.textContent = item.name || '';
+        var st = document.createElement('strong');
+        st.textContent = item.label || '';
+        li.appendChild(sp);
+        li.appendChild(st);
+        dbTop.appendChild(li);
+      });
+    }
+
+    setText('srv-app', app.label || '-');
+    setLevel(document.getElementById('srv-app-chip'), app.level || 'ok');
+    setText(
+      'srv-db',
+      (db.label || '-') + (db.latency_ms != null ? ' · ' + db.latency_ms + 'ms' : '')
+    );
+    setLevel(document.getElementById('srv-db-chip'), db.level);
+    setText(
+      'srv-net',
+      (net.label || '-') + (net.latency_ms != null ? ' · ' + net.latency_ms + 'ms' : '')
+    );
+    setLevel(document.getElementById('srv-net-chip'), net.level);
+    setText('srv-uptime', up.label || '-');
+    setText(
+      'srv-db-dialect',
+      'DB: ' + (db.dialect || '-') + (storage.db_name ? ' · ' + storage.db_name : '')
+    );
+  }
+
+  function refreshServer() {
+    fetch('/admin/server/status', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(applyServer)
+      .catch(function () {});
+  }
+
+  setInterval(refreshServer, INTERVAL);
+})();
+</script>
+{% endblock %}

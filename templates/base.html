@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20260807db1" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260813srv1" />
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -18,13 +18,14 @@
   {% set wo_path = '/work-orders' in request.url.path %}
   {% set fac_path = '/facility-section' in request.url.path %}
   {% set sl_path = '/admin/streetlamp' in request.url.path %}
-  {% set maint_path = wo_path or d1_path or fac_path %}
+  {% set srv_path = '/admin/server' in request.url.path %}
+  {% set maint_path = wo_path or d1_path or fac_path or sl_path %}
   {% set can_wo = user_can_access_menu(user, 'work_orders') %}
   {% set can_d1 = user_can_access_menu(user, 'd1') %}
   {% set can_fac = user_can_access_menu(user, 'facility_section') %}
   {% set can_sl = user_can_access_menu(user, 'streetlamp') %}
-  {% set maint_home = '/admin/work-orders' if can_wo else ('/admin/d1' if can_d1 else '/admin/facility-section') %}
   {% set sl_home = '/admin/streetlamp/requests' %}
+  {% set maint_home = '/admin/work-orders' if can_wo else ('/admin/d1' if can_d1 else ('/admin/facility-section' if can_fac else sl_home)) %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
   {% set ilog_path_parts = request.url.path.split('/') %}
@@ -120,7 +121,7 @@
         </ul>
       </li>
       {% endif %}
-      {% if can_wo or can_d1 or can_fac %}
+      {% if can_wo or can_d1 or can_fac or can_sl %}
       <li class="nav-expandable nav-maint-root{% if maint_path %} is-open{% endif %}" id="nav-maintenance">
         <div class="nav-parent-row">
           <a href="{{ maint_home }}"
@@ -172,39 +173,39 @@
                class="{% if fac_path %}active{% endif %}">작업허가/승인(시설섹션)</a>
           </li>
           {% endif %}
-        </ul>
-      </li>
-      {% endif %}
-      {% if can_sl %}
-      <li class="nav-expandable{% if sl_path %} is-open{% endif %}" id="nav-streetlamp">
-        <div class="nav-parent-row">
-          <a href="{{ sl_home }}"
-             class="nav-parent-link{% if sl_path %} active{% endif %}">가로등</a>
-          <button type="button"
-                  class="nav-toggle"
-                  aria-expanded="{% if sl_path %}true{% else %}false{% endif %}"
-                  aria-controls="nav-streetlamp-sub"
-                  title="가로등 하위 메뉴 펼치기">
-            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
-          </button>
-        </div>
-        <ul class="nav-sub" id="nav-streetlamp-sub">
-          <li>
-            <a href="/admin/streetlamp/requests"
-               class="{% if '/admin/streetlamp/requests' in request.url.path and '/qr' not in request.url.path %}active{% endif %}">정비의뢰 목록</a>
-          </li>
-          <li>
-            <a href="/admin/streetlamp/qr">전체 QR 받기</a>
-          </li>
-          {% if user_can_edit(user) %}
-          <li>
-            <a href="/admin/streetlamp/settings"
-               class="{% if '/admin/streetlamp/settings' in request.url.path %}active{% endif %}">가로등 설정</a>
+          {% if can_sl %}
+          <li class="nav-expandable nav-nested{% if sl_path %} is-open{% endif %}" id="nav-streetlamp">
+            <div class="nav-parent-row">
+              <a href="{{ sl_home }}"
+                 class="nav-parent-link{% if sl_path %} active{% endif %}">가로등</a>
+              <button type="button"
+                      class="nav-toggle"
+                      aria-expanded="{% if sl_path %}true{% else %}false{% endif %}"
+                      aria-controls="nav-streetlamp-sub"
+                      title="가로등 하위 메뉴 펼치기">
+                <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+              </button>
+            </div>
+            <ul class="nav-sub" id="nav-streetlamp-sub">
+              <li>
+                <a href="/admin/streetlamp/requests"
+                   class="{% if '/admin/streetlamp/requests' in request.url.path and '/qr' not in request.url.path %}active{% endif %}">정비의뢰 목록</a>
+              </li>
+              <li>
+                <a href="/admin/streetlamp/qr">전체 QR 받기</a>
+              </li>
+              {% if user_can_edit(user) %}
+              <li>
+                <a href="/admin/streetlamp/settings"
+                   class="{% if '/admin/streetlamp/settings' in request.url.path %}active{% endif %}">가로등 설정</a>
+              </li>
+              {% endif %}
+              <li>
+                <a href="/status" target="_blank" rel="noopener">진행상황 확인(시민)</a>
+              </li>
+            </ul>
           </li>
           {% endif %}
-          <li>
-            <a href="/status" target="_blank" rel="noopener">진행상황 확인(시민)</a>
-          </li>
         </ul>
       </li>
       {% endif %}
@@ -223,6 +224,9 @@
       {% endif %}
       {% if user_can_access_menu(user, 'users') %}
       <li class="nav-pc-only"><a href="/admin/users" class="{% if '/admin/users' in request.url.path %}active{% endif %}">계정관리</a></li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'server') %}
+      <li class="nav-pc-only"><a href="/admin/server" class="{% if srv_path %}active{% endif %}">서버관리</a></li>
       {% endif %}
       <li class="nav-pc-only"><a href="/admin/account" class="{% if request.url.path == '/admin/account' %}active{% endif %}">내 계정</a></li>
     </ul>

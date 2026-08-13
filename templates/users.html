@@ -39,7 +39,7 @@
     {% else %}
     <div class="users-menu-grid">
       {% for key, label in menu_items %}
-      {% if key == 'users' and (not u or u.role.value != 'system_admin') and not locked %}
+      {% if key in ('users', 'server') and (not u or u.role.value != 'system_admin') and not locked %}
       {% else %}
       <label class="users-perm users-menu-perm">
         <input type="checkbox"

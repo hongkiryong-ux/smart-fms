@@ -1973,7 +1973,6 @@ async def dashboard(
     db: AsyncSession = Depends(get_db),
 ):
     kpi = await _compute_dashboard_kpi(db)
-    server = await collect_server_status(db)
 
     return templates.TemplateResponse(
         request,
@@ -1981,7 +1980,6 @@ async def dashboard(
         {
             "user": user,
             "kpi": kpi,
-            "server": server,
         },
     )
 
@@ -1995,12 +1993,38 @@ async def dashboard_kpi(
     return JSONResponse(await _compute_dashboard_kpi(db))
 
 
-@app.get("/admin/dashboard/server-status")
-async def dashboard_server_status(
-    user: User = Depends(require_login),
+@app.get("/admin/server")
+async def server_admin(
+    request: Request,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """시스템관리자 전용 서버 상태."""
+    return templates.TemplateResponse(
+        request,
+        "server.html",
+        {
+            "user": user,
+            "server": await collect_server_status(db),
+        },
+    )
+
+
+@app.get("/admin/server/status")
+async def server_admin_status(
+    user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
     """Render/호스트 서버 리소스·통신 상태 JSON."""
+    return JSONResponse(await collect_server_status(db))
+
+
+@app.get("/admin/dashboard/server-status")
+async def dashboard_server_status_compat(
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """구 대시보드 경로 호환."""
     return JSONResponse(await collect_server_status(db))
 
 

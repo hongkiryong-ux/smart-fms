@@ -117,6 +117,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("d1", "정비 List(D-1)/협력사"),
     ("facility_section", "작업허가/승인(시설섹션)"),
     ("streetlamp", "가로등"),
+    ("server", "서버관리"),
     ("risk_assessment", "위험성평가"),
     ("materials", "자재관리"),
     ("partners", "협력사"),
@@ -137,6 +138,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/work-orders", "work_orders"),
     ("/admin/facility-section", "facility_section"),
     ("/admin/streetlamp", "streetlamp"),
+    ("/admin/server", "server"),
     ("/admin/d1", "d1"),
     ("/admin/risk-assessment", "risk_assessment"),
     ("/admin/materials", "materials"),
@@ -153,6 +155,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("d1", "/admin/d1"),
     ("facility_section", "/admin/facility-section"),
     ("streetlamp", "/admin/streetlamp/requests"),
+    ("server", "/admin/server"),
     ("risk_assessment", "/admin/risk-assessment"),
     ("materials", "/admin/materials?popup=1"),
     ("partners", "/admin/partners"),
@@ -164,7 +167,7 @@ def default_menu_access(role: UserRole) -> list[str]:
     """역할별 기본 메뉴 접근 목록."""
     if role == UserRole.system_admin:
         return list(MENU_KEYS)
-    denied = {"users"}
+    denied = {"users", "server"}
     if role in (UserRole.partner, UserRole.external):
         denied |= {"equipment", "pm", "inspection_logs", "facility_section", "streetlamp"}
     return [k for k in MENU_KEYS if k not in denied]
@@ -223,6 +226,8 @@ def can_access_menu(user: User | None, menu_key: str) -> bool:
         return False
     if menu_key == "account":
         return True
+    if menu_key == "server":
+        return user.role == UserRole.system_admin
     if user.role == UserRole.system_admin:
         return True
     return menu_key in effective_menu_access(user)
