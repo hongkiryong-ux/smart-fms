@@ -888,12 +888,16 @@ def _work_orders_excel_response(orders: list, filename_prefix: str = "정비목�
                 _status_label(wo.status),
                 wo.action or "",
                 getattr(wo, "approved_by", None) or "",
-                "Y" if getattr(wo, "d1_approved", False) else "N",
+                (getattr(wo, "approved_by", None) or "").strip()
+                if getattr(wo, "d1_approved", False)
+                else "",
                 wo.assignee_name or "",
                 getattr(wo, "hazard_content", None) or "",
                 getattr(wo, "safety_measures", None) or "",
                 getattr(wo, "risk_grade", None) or "",
-                "Y" if getattr(wo, "work_permitted", False) else "N",
+                (getattr(wo, "work_permitted_by", None) or "").strip()
+                if getattr(wo, "work_permitted", False)
+                else "",
             ]
         )
         r = ws.max_row
