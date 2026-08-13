@@ -670,12 +670,49 @@ def _partner_risk_for_name(partner_name: str | None) -> dict[str, str] | None:
     return None
 
 
+def _partner_risk_resolved(partner: Partner | None) -> dict[str, str]:
+    """협력사 DB 기본값 우선, 없으면 엑셀 카탈로그."""
+    pname = (getattr(partner, "name", None) or "").strip() if partner else ""
+    excel = _partner_risk_for_name(pname) or {}
+    out = {
+        "hazard_content": (excel.get("hazard_content") or "").strip(),
+        "safety_measures": (excel.get("safety_measures") or "").strip(),
+        "risk_grade": (excel.get("risk_grade") or "").strip()[:20],
+    }
+    if partner is None:
+        return out
+    db_h = (getattr(partner, "hazard_content", None) or "").strip()
+    db_s = (getattr(partner, "safety_measures", None) or "").strip()
+    db_g = (getattr(partner, "risk_grade", None) or "").strip()
+    if db_h or db_s or db_g:
+        if db_h:
+            out["hazard_content"] = db_h
+        if db_s:
+            out["safety_measures"] = db_s
+        if db_g:
+            out["risk_grade"] = db_g[:20]
+    return out
+
+
+def _save_partner_risk_defaults(
+    partner: Partner,
+    *,
+    hazard_content: str,
+    safety_measures: str,
+    risk_grade: str = "",
+) -> None:
+    """승인 모달에서 수정한 내용을 협력사 기본값으로 저장."""
+    partner.hazard_content = (hazard_content or "").strip() or None
+    partner.safety_measures = (safety_measures or "").strip() or None
+    g = (risk_grade or "").strip()
+    partner.risk_grade = g[:20] if g else None
+
+
 def _wo_apply_partner_risk_from_excel(wo: WorkOrder, *, overwrite: bool = False) -> bool:
-    """업체명=시트명 매칭 시 잠재위험·안전대책 자동 반영. 변경 시 True."""
+    """업체 기본값(DB→엑셀) 잠재위험·안전대책 자동 반영. 변경 시 True."""
     partner = getattr(wo, "partner", None)
-    pname = getattr(partner, "name", None) if partner else None
-    risk = _partner_risk_for_name(pname)
-    if not risk:
+    risk = _partner_risk_resolved(partner)
+    if not any(risk.values()):
         return False
     changed = False
     if overwrite or not (getattr(wo, "hazard_content", None) or "").strip():
@@ -6285,17 +6322,43 @@ async def facility_section_list(
     orders = pager["items"]
     risk_xlsx = _partner_risk_xlsx_path()
     risk_catalog = _load_partner_risk_catalog()
-    # 승인 모달용: 행별 잠재위험·안전대책 (빈 값은 엑셀 카탈로그로 보강)
+    # 승인 모달용: 행별 잠재위험·안전대책 (빈 값은 협력사 기본값·엑셀로 보강)
     fac_risk_by_wo: dict[str, dict[str, str]] = {}
     for w in orders:
-        pname = w.partner.name if getattr(w, "partner", None) else ""
-        excel = _partner_risk_for_name(pname) or {}
+        partner = getattr(w, "partner", None)
+        pname = partner.name if partner else ""
+        defaults = _partner_risk_resolved(partner)
         fac_risk_by_wo[str(w.id)] = {
             "partner": pname or "",
-            "hazard": (w.hazard_content or excel.get("hazard_content") or "").strip(),
-            "safety": (w.safety_measures or excel.get("safety_measures") or "").strip(),
-            "grade": (w.risk_grade or excel.get("risk_grade") or "").strip(),
+            "partner_id": str(partner.id) if partner else "",
+            "hazard": (w.hazard_content or defaults.get("hazard_content") or "").strip(),
+            "safety": (w.safety_measures or defaults.get("safety_measures") or "").strip(),
+            "grade": (w.risk_grade or defaults.get("risk_grade") or "").strip(),
         }
+
+    partner_defaults: list[dict] = []
+    for p in (
+        await db.execute(
+            select(Partner)
+            .where(Partner.is_active == True)  # noqa: E712
+            .order_by(Partner.name)
+        )
+    ).scalars().all():
+        resolved = _partner_risk_resolved(p)
+        partner_defaults.append(
+            {
+                "id": p.id,
+                "name": p.name or "",
+                "hazard": resolved.get("hazard_content") or "",
+                "safety": resolved.get("safety_measures") or "",
+                "grade": resolved.get("risk_grade") or "",
+                "saved": bool(
+                    (getattr(p, "hazard_content", None) or "").strip()
+                    or (getattr(p, "safety_measures", None) or "").strip()
+                    or (getattr(p, "risk_grade", None) or "").strip()
+                ),
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -6313,6 +6376,7 @@ async def facility_section_list(
             "partner_risk_file": risk_xlsx.name if risk_xlsx.is_file() else "",
             "fac_risk_by_wo": fac_risk_by_wo,
             "partner_risk_catalog": risk_catalog,
+            "partner_defaults": partner_defaults,
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
             "partners": (
@@ -6371,6 +6435,7 @@ async def facility_permit_work(
     safety_measures: str = Form(""),
     risk_grade: str = Form(""),
     risk_confirmed: str = Form(""),
+    save_as_default: str | None = Form(None),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -6408,6 +6473,14 @@ async def facility_permit_work(
             error="잠재위험 내용과 안전작업 대책을 입력한 뒤 승인해 주세요.",
         )
 
+    if (save_as_default or "").strip() in ("1", "true", "yes", "on") and wo.partner:
+        _save_partner_risk_defaults(
+            wo.partner,
+            hazard_content=wo.hazard_content or "",
+            safety_measures=wo.safety_measures or "",
+            risk_grade=wo.risk_grade or "",
+        )
+
     _wo_apply_work_permit(wo, _wo_approver_label(user))
     await db.commit()
     return _facility_redirect(
@@ -6417,12 +6490,51 @@ async def facility_permit_work(
     )
 
 
+@app.post("/admin/facility-section/partner-risk-defaults")
+async def facility_save_partner_risk_defaults(
+    request: Request,
+    board: str = Form("day_before"),
+    page: str = Form("1"),
+    partner_id: int = Form(...),
+    hazard_content: str = Form(""),
+    safety_measures: str = Form(""),
+    risk_grade: str = Form(""),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """협력사별 잠재위험·안전대책 기본값 저장 (승인 없이)."""
+    partner = await db.get(Partner, partner_id)
+    if not partner or not partner.is_active:
+        return _facility_redirect(board=board, page=page, error="협력사를 찾을 수 없습니다.")
+    h = hazard_content.strip()
+    s = safety_measures.strip()
+    if not h or not s:
+        return _facility_redirect(
+            board=board,
+            page=page,
+            error="기본값 저장에는 잠재위험 내용과 안전작업 대책이 필요합니다.",
+        )
+    _save_partner_risk_defaults(
+        partner,
+        hazard_content=h,
+        safety_measures=s,
+        risk_grade=risk_grade,
+    )
+    await db.commit()
+    return _facility_redirect(
+        board=board,
+        page=page,
+        message=f"「{partner.name}」 잠재위험·안전대책 기본값을 저장했습니다.",
+    )
+
+
 @app.post("/admin/facility-section/permit-bulk")
 async def facility_permit_work_bulk(
     request: Request,
     board: str = Form("day_before"),
     page: str = Form("1"),
     risk_confirmed: str = Form(""),
+    save_as_default: str | None = Form(None),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -6444,6 +6556,7 @@ async def facility_permit_work_bulk(
             error="일괄승인 전 잠재위험 및 안전대책 확인이 필요합니다.",
         )
 
+    do_save_default = (save_as_default or "").strip() in ("1", "true", "yes", "on")
     label = _wo_approver_label(user)
     now = datetime.utcnow()
     ok = 0
@@ -6477,6 +6590,13 @@ async def facility_permit_work_bulk(
         if not (wo.hazard_content or "").strip() or not (wo.safety_measures or "").strip():
             skip += 1
             continue
+        if do_save_default and wo.partner:
+            _save_partner_risk_defaults(
+                wo.partner,
+                hazard_content=wo.hazard_content or "",
+                safety_measures=wo.safety_measures or "",
+                risk_grade=wo.risk_grade or "",
+            )
         _wo_apply_work_permit(wo, label, now)
         ok += 1
     await db.commit()
@@ -6484,6 +6604,8 @@ async def facility_permit_work_bulk(
         msg = f"{ok}건 작업허가(진행상태 '진행')"
         if skip:
             msg += f" · {skip}건 제외"
+        if do_save_default:
+            msg += " · 협력사 기본값 반영"
         return _facility_redirect(board=board, page=page, message=msg)
     return _facility_redirect(
         board=board,

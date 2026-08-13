@@ -6,7 +6,8 @@
   <p>
     오늘 {{ today }} · 협력사 승인요청 항목 ·
     <strong>하루전·당일·정비예정</strong> 개별/일괄 승인(작업허가)
-    · 선정 업체명=엑셀 시트명 시 잠재위험·안전대책 자동반영 · 승인 전 확인/수정 필수
+    · 잠재위험·안전대책 기본값(협력사별) 확인/수정 후 승인
+    {% if partner_risk_file %} · 엑셀 참고: {{ partner_risk_file }}{% endif %}
   </p>
 </header>
 
@@ -15,6 +16,39 @@
 {% endif %}
 {% if flash_message %}
 <div class="alert alert-ok">{{ flash_message }}</div>
+{% endif %}
+
+{% if user_can_edit(user) and partner_defaults %}
+<section class="card fac-risk-defaults-card">
+  <details class="fac-risk-defaults" id="fac-risk-defaults">
+    <summary>
+      협력사별 잠재위험·안전대책 <strong>기본값</strong> 수정·저장
+      <small class="text-muted">(승인 모달에 미리 채워지는 내용 · DB에 저장되면 엑셀보다 우선)</small>
+    </summary>
+    <div class="fac-risk-defaults-body">
+      {% for p in partner_defaults %}
+      <form method="post" action="/admin/facility-section/partner-risk-defaults" class="fac-risk-default-form">
+        <input type="hidden" name="board" value="{{ board }}" />
+        <input type="hidden" name="page" value="{{ pager.page if pager else 1 }}" />
+        <input type="hidden" name="partner_id" value="{{ p.id }}" />
+        <div class="fac-risk-default-head">
+          <strong>{{ p.name }}</strong>
+          {% if p.saved %}<span class="badge">저장됨</span>{% else %}<span class="text-muted">엑셀/미설정</span>{% endif %}
+        </div>
+        <label class="fac-risk-label">잠재위험 내용</label>
+        <textarea name="hazard_content" rows="4" required>{{ p.hazard }}</textarea>
+        <label class="fac-risk-label">안전작업 대책</label>
+        <textarea name="safety_measures" rows="4" required>{{ p.safety }}</textarea>
+        <label class="fac-risk-label">위험도</label>
+        <div class="fac-risk-default-foot">
+          <input name="risk_grade" type="text" maxlength="20" value="{{ p.grade }}" />
+          <button type="submit" class="btn btn-sm btn-primary">기본값 저장</button>
+        </div>
+      </form>
+      {% endfor %}
+    </div>
+  </details>
+</section>
 {% endif %}
 
 <section class="card">
@@ -228,31 +262,41 @@
     </div>
     <div class="eq-popup-body fac-risk-body">
       <p class="fac-risk-lead text-muted" id="fac-risk-lead">
-        엑셀(시트명=협력사명) 내용을 확인·수정한 뒤 승인하세요.
-        {% if partner_risk_file %}<br />기준파일: {{ partner_risk_file }}{% endif %}
+        협력사 기본값(저장본) 또는 엑셀 내용을 확인하고 필요하면 수정한 뒤 승인하세요.
+        {% if partner_risk_file %}<br />엑셀 참고파일: {{ partner_risk_file }}{% endif %}
       </p>
       <div id="fac-risk-single-fields">
         <input type="hidden" name="board" value="{{ board }}" />
         <input type="hidden" name="page" value="{{ page_n }}" />
         <input type="hidden" name="risk_confirmed" value="1" />
+        <input type="hidden" name="partner_id" id="fac-risk-partner-id" value="" />
         <label class="fac-risk-label">협력사 <span id="fac-risk-partner">-</span></label>
         <label class="fac-risk-label" for="fac-risk-hazard">잠재위험 내용</label>
         <textarea id="fac-risk-hazard" name="hazard_content" rows="8" required
-                  placeholder="엑셀(시트명=협력사명) 잠재위험 내용"></textarea>
+                  placeholder="잠재위험 내용"></textarea>
         <label class="fac-risk-label" for="fac-risk-safety">안전작업 대책</label>
         <textarea id="fac-risk-safety" name="safety_measures" rows="8" required
-                  placeholder="엑셀(시트명=협력사명) 안전작업 대책"></textarea>
+                  placeholder="안전작업 대책"></textarea>
         <label class="fac-risk-label" for="fac-risk-grade">위험도</label>
         <input id="fac-risk-grade" name="risk_grade" type="text" maxlength="20" />
+        <label class="fac-risk-save-default">
+          <input type="checkbox" name="save_as_default" value="1" id="fac-risk-save-default" checked />
+          수정한 내용을 이 협력사 <strong>기본값으로 저장</strong> (다음 승인부터 적용)
+        </label>
       </div>
       <div id="fac-risk-bulk-fields" hidden>
         <input type="hidden" name="board" value="{{ board }}" />
         <input type="hidden" name="page" value="{{ page_n }}" />
         <input type="hidden" name="risk_confirmed" value="1" />
         <div id="fac-risk-bulk-list" class="fac-risk-bulk-list"></div>
+        <label class="fac-risk-save-default">
+          <input type="checkbox" name="save_as_default" value="1" id="fac-risk-save-default-bulk" checked />
+          수정한 내용을 각 협력사 <strong>기본값으로 저장</strong>
+        </label>
       </div>
       <div class="fac-risk-actions">
         <button type="button" class="btn btn-secondary" id="fac-risk-cancel">취소</button>
+        <button type="button" class="btn btn-secondary" id="fac-risk-save-only" hidden>기본값만 저장</button>
         <button type="submit" class="btn btn-primary" id="fac-risk-submit">확인 후 승인</button>
       </div>
     </div>
@@ -286,6 +330,10 @@
   var hazardEl = document.getElementById('fac-risk-hazard');
   var safetyEl = document.getElementById('fac-risk-safety');
   var gradeEl = document.getElementById('fac-risk-grade');
+  var partnerIdEl = document.getElementById('fac-risk-partner-id');
+  var saveOnlyBtn = document.getElementById('fac-risk-save-only');
+  var saveDefaultChk = document.getElementById('fac-risk-save-default');
+  var saveDefaultBulkChk = document.getElementById('fac-risk-save-default-bulk');
 
   var riskByWo = {};
   try {
@@ -301,6 +349,7 @@
     var row = riskByWo[String(woId)] || {};
     return {
       partner: row.partner || '',
+      partner_id: row.partner_id || '',
       hazard: row.hazard || '',
       safety: row.safety || '',
       grade: row.grade || ''
@@ -374,9 +423,12 @@
     });
     if (titleEl) titleEl.textContent = '잠재위험 및 안전대책 확인 후 승인';
     if (partnerEl) partnerEl.textContent = risk.partner || '-';
+    if (partnerIdEl) partnerIdEl.value = risk.partner_id || '';
     if (hazardEl) hazardEl.value = risk.hazard || '';
     if (safetyEl) safetyEl.value = risk.safety || '';
     if (gradeEl) gradeEl.value = risk.grade || '';
+    if (saveDefaultChk) saveDefaultChk.checked = true;
+    if (saveOnlyBtn) saveOnlyBtn.hidden = !risk.partner_id;
     dialog.showModal();
     if (hazardEl) {
       hazardEl.focus();
@@ -387,6 +439,22 @@
   document.querySelectorAll('.fac-permit-open').forEach(function (btn) {
     btn.addEventListener('click', function () { openSinglePermit(btn); });
   });
+
+  if (saveOnlyBtn) {
+    saveOnlyBtn.addEventListener('click', function () {
+      if (!riskForm || !partnerIdEl || !partnerIdEl.value) {
+        alert('협력사가 없어 기본값을 저장할 수 없습니다.');
+        return;
+      }
+      if (!(hazardEl.value || '').trim() || !(safetyEl.value || '').trim()) {
+        alert('잠재위험 내용과 안전작업 대책을 입력해 주세요.');
+        return;
+      }
+      riskForm.action = '/admin/facility-section/partner-risk-defaults';
+      if (saveDefaultChk) saveDefaultChk.disabled = true;
+      riskForm.submit();
+    });
+  }
 
   var bulkApproveBtn = document.getElementById('fac-bulk-approve-btn');
   if (bulkApproveBtn && dialog && riskForm) {
@@ -408,6 +476,8 @@
         el.disabled = false;
       });
       if (titleEl) titleEl.textContent = '일괄승인 · 잠재위험 및 안전대책 확인';
+      if (saveOnlyBtn) saveOnlyBtn.hidden = true;
+      if (saveDefaultBulkChk) saveDefaultBulkChk.checked = true;
       if (bulkList) {
         bulkList.innerHTML = '';
         selected.forEach(function (chk) {

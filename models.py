@@ -492,6 +492,10 @@ class Partner(Base):
     email = Column(String(120), nullable=True)
     contract_end = Column(Date, nullable=True)
     is_active = Column(Boolean, default=True)
+    # 시설섹션 승인 모달 기본값 (엑셀보다 우선)
+    hazard_content = Column(Text, nullable=True)
+    safety_measures = Column(Text, nullable=True)
+    risk_grade = Column(String(20), nullable=True)
 
 
 class WorkOrder(Base):

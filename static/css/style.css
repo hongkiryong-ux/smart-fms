@@ -4700,6 +4700,59 @@ tr.wo-row-selected {
 }
 .fac-risk-bulk-head { margin-bottom: 0.25rem; font-size: 0.9rem; }
 
+.fac-risk-save-default {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.86rem;
+  color: #334155;
+  line-height: 1.4;
+}
+.fac-risk-save-default input { margin-top: 0.15rem; }
+.fac-risk-defaults-card { padding: 0.75rem 1rem; }
+.fac-risk-defaults summary {
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--primary);
+  list-style: none;
+}
+.fac-risk-defaults summary::-webkit-details-marker { display: none; }
+.fac-risk-defaults summary::before {
+  content: '▸ ';
+  color: #64748b;
+}
+.fac-risk-defaults[open] summary::before { content: '▾ '; }
+.fac-risk-defaults-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+.fac-risk-default-form {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem 0.75rem;
+  background: #f8fafc;
+}
+.fac-risk-default-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.fac-risk-default-foot {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.fac-risk-default-foot input { flex: 1; }
+.fac-risk-default-foot .btn { margin-top: 0; }
+
 /* ── Dashboard layout samples ── */
 .main-with-sidebar:has(.dash-board-gallery),
 .main-with-sidebar:has(.dash-board-bento),
