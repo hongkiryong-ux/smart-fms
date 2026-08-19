@@ -7003,45 +7003,26 @@ async def _ensure_inspection_log_tables() -> None:
                     """
                 )
             )
+    alter_stmts = (
+        [
+            "ALTER TABLE inspection_log_files "
+            "ADD COLUMN IF NOT EXISTS last_edit_pos JSONB",
+            "ALTER TABLE inspection_log_files "
+            "ADD COLUMN IF NOT EXISTS file_size INTEGER",
+            "ALTER TABLE inspection_log_buildings "
+            "ADD COLUMN IF NOT EXISTS qr_write_file_id INTEGER",
+        ]
+        if is_pg
+        else [
+            "ALTER TABLE inspection_log_files ADD COLUMN last_edit_pos TEXT",
+            "ALTER TABLE inspection_log_files ADD COLUMN file_size INTEGER",
+            "ALTER TABLE inspection_log_buildings ADD COLUMN qr_write_file_id INTEGER",
+        ]
+    )
+    for stmt in alter_stmts:
         try:
-            if is_pg:
-                await conn.execute(
-                    text(
-                        "ALTER TABLE inspection_log_files "
-                        "ADD COLUMN IF NOT EXISTS last_edit_pos JSONB"
-                    )
-                )
-                await conn.execute(
-                    text(
-                        "ALTER TABLE inspection_log_files "
-                        "ADD COLUMN IF NOT EXISTS file_size INTEGER"
-                    )
-                )
-                await conn.execute(
-                    text(
-                        "ALTER TABLE inspection_log_buildings "
-                        "ADD COLUMN IF NOT EXISTS qr_write_file_id INTEGER"
-                    )
-                )
-            else:
-                await conn.execute(
-                    text(
-                        "ALTER TABLE inspection_log_files "
-                        "ADD COLUMN last_edit_pos TEXT"
-                    )
-                )
-                await conn.execute(
-                    text(
-                        "ALTER TABLE inspection_log_files "
-                        "ADD COLUMN file_size INTEGER"
-                    )
-                )
-                await conn.execute(
-                    text(
-                        "ALTER TABLE inspection_log_buildings "
-                        "ADD COLUMN qr_write_file_id INTEGER"
-                    )
-                )
+            async with engine.begin() as alter_conn:
+                await alter_conn.execute(text(stmt))
         except Exception:
             pass
 
