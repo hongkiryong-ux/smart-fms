@@ -3,11 +3,17 @@
 {% block content %}
 <header class="page-header ilog-oo-header">
   <div class="breadcrumb-nav">
+    {% if qr_mode %}
+    <a href="/eq/{{ qr_eq_code }}">설비 QR</a>
+    <span>›</span>
+    <strong>{{ doc.title }}</strong>
+    {% else %}
     <a href="/admin/inspection-logs">점검일지</a>
     <span>›</span>
     <a href="/admin/inspection-logs/{{ building.id }}">{{ building.name }}</a>
     <span>›</span>
     <strong>{{ doc.title }}</strong>
+    {% endif %}
   </div>
   <div class="ilog-oo-title-row">
     <div>
@@ -20,7 +26,7 @@
     <div class="ilog-oo-actions">
       <a class="btn btn-secondary btn-sm" href="{{ file_url }}">다운로드</a>
       <a class="btn btn-secondary btn-sm" href="{{ legacy_edit_url }}">간단 편집기</a>
-      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs/{{ building.id }}">목록</a>
+      <a class="btn btn-secondary btn-sm" href="{% if qr_mode %}/eq/{{ qr_eq_code }}{% else %}/admin/inspection-logs/{{ building.id }}{% endif %}">{% if qr_mode %}설비로{% else %}목록{% endif %}</a>
     </div>
   </div>
   {% if oo_error %}

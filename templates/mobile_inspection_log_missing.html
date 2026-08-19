@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>점검일지 | {{ eq.name }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#003876" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260819ilog2" />
+</head>
+<body class="mobile-body">
+  <header class="mobile-header">
+    <a class="mobile-log-btn" href="/eq/{{ eq.code }}">설비</a>
+    <h1>점검일지</h1>
+    <p><code>{{ eq.code }}</code> · {{ eq.name }}</p>
+  </header>
+  <main class="mobile-main">
+    <section class="mobile-card">
+      <p class="empty">이 설비에 연결된 엑셀 점검일지가 없습니다.</p>
+      <p class="text-muted">관리자가 점검일지에서 파일을 업로드한 뒤, QR 일지작성 연결을 지정하면 바로 열립니다.</p>
+      <p><a class="btn btn-primary" href="/eq/{{ eq.code }}">설비 화면으로</a></p>
+    </section>
+  </main>
+</body>
+</html>

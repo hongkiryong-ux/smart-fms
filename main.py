@@ -7051,12 +7051,19 @@ async def _ensure_inspection_log_tables() -> None:
             "ADD COLUMN IF NOT EXISTS file_size INTEGER",
             "ALTER TABLE inspection_log_buildings "
             "ADD COLUMN IF NOT EXISTS qr_write_file_id INTEGER",
+            "ALTER TABLE inspection_log_files "
+            "ADD COLUMN IF NOT EXISTS qr_equipment_id INTEGER",
+            "CREATE INDEX IF NOT EXISTS ix_inspection_log_files_qr_equipment_id "
+            "ON inspection_log_files (qr_equipment_id)",
         ]
         if is_pg
         else [
             "ALTER TABLE inspection_log_files ADD COLUMN last_edit_pos TEXT",
             "ALTER TABLE inspection_log_files ADD COLUMN file_size INTEGER",
             "ALTER TABLE inspection_log_buildings ADD COLUMN qr_write_file_id INTEGER",
+            "ALTER TABLE inspection_log_files ADD COLUMN qr_equipment_id INTEGER",
+            "CREATE INDEX IF NOT EXISTS ix_inspection_log_files_qr_equipment_id "
+            "ON inspection_log_files (qr_equipment_id)",
         ]
     )
     for stmt in alter_stmts:
@@ -7085,36 +7092,77 @@ async def _inspection_log_building_row(
 
 
 async def _resolve_qr_write_file_id(
-    db: AsyncSession, building_id: int
+    db: AsyncSession,
+    building_id: int,
+    equipment_id: int | None = None,
 ) -> int | None:
-    """QR 일지작성에 연결할 파일. 지정값이 없거나 삭제됐으면 최신 파일."""
+    """QR 일지작성 파일. 설비 지정 → 건물 기본 → 최신 파일."""
+    if equipment_id:
+        eq_file_id = (
+            await db.execute(
+                select(InspectionLogFile.id)
+                .where(
+                    InspectionLogFile.building_id == building_id,
+                    InspectionLogFile.qr_equipment_id == equipment_id,
+                )
+                .order_by(InspectionLogFile.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if eq_file_id:
+            return int(eq_file_id)
     files = (
         await db.execute(
-            select(InspectionLogFile)
+            select(InspectionLogFile.id)
             .where(InspectionLogFile.building_id == building_id)
             .order_by(InspectionLogFile.id.desc())
         )
     ).scalars().all()
     if not files:
         return None
-    ids = {f.id for f in files}
+    ids = {int(i) for i in files}
     registered = await _inspection_log_building_row(db, building_id)
     chosen = getattr(registered, "qr_write_file_id", None) if registered else None
     if chosen in ids:
         return int(chosen)
-    return int(files[0].id)
+    return int(files[0])
 
 
-async def _qr_write_log_url(db: AsyncSession, building_id: int | None) -> str:
+async def _building_qr_equipment(db: AsyncSession, building_id: int) -> list[dict]:
+    """점검일지 QR 연결용 설비 목록 (id/name/code만)."""
+    rows = (
+        await db.execute(
+            select(Equipment.id, Equipment.name, Equipment.code)
+            .join(Zone, Equipment.zone_id == Zone.id)
+            .join(Floor, Zone.floor_id == Floor.id)
+            .where(
+                Floor.building_id == building_id,
+                Equipment.is_active == True,  # noqa: E712
+            )
+            .order_by(Equipment.name, Equipment.code)
+        )
+    ).all()
+    return [
+        {"id": int(r.id), "name": r.name or "", "code": r.code or ""}
+        for r in rows
+    ]
+
+
+async def _qr_linked_log_file(
+    db: AsyncSession, eq: Equipment
+) -> InspectionLogFile | None:
+    building_id = None
+    if eq.zone and eq.zone.floor and eq.zone.floor.building:
+        building_id = eq.zone.floor.building.id
     if not building_id:
-        return "/admin/inspection-logs"
-    file_id = await _resolve_qr_write_file_id(db, building_id)
-    if file_id:
-        return f"/admin/inspection-logs/{building_id}/files/{file_id}/edit"
-    registered = await _inspection_log_building_row(db, building_id)
-    if registered:
-        return f"/admin/inspection-logs/{building_id}"
-    return "/admin/inspection-logs"
+        return None
+    file_id = await _resolve_qr_write_file_id(db, building_id, eq.id)
+    if not file_id:
+        return None
+    doc = await db.get(InspectionLogFile, file_id)
+    if not doc or doc.building_id != building_id:
+        return None
+    return doc
 
 
 async def _load_inspection_log_bytes(
@@ -7351,6 +7399,8 @@ async def inspection_log_building_detail(
     ).scalars().all()
     await _backfill_attachment_sizes(db, files)
     qr_write_file_id = await _resolve_qr_write_file_id(db, building_id)
+    qr_equipment = await _building_qr_equipment(db, building_id)
+    eq_name_by_id = {e["id"]: e["name"] for e in qr_equipment}
 
     return templates.TemplateResponse(
         request,
@@ -7360,6 +7410,8 @@ async def inspection_log_building_detail(
             "building": building,
             "files": files,
             "qr_write_file_id": qr_write_file_id,
+            "qr_equipment": qr_equipment,
+            "eq_name_by_id": eq_name_by_id,
             "upload_max_mb": UPLOAD_MAX_FILE_MB,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
@@ -7511,6 +7563,35 @@ async def inspection_log_file_edit(
     editor: str | None = Query(None),
 ):
     """점검일지 편집. OnlyOffice 설정 시 Docs 편집기, ?editor=legacy 로 간단 편집기."""
+    return await _inspection_log_editor_response(
+        request=request,
+        db=db,
+        building_id=building_id,
+        file_id=file_id,
+        user=user,
+        can_save=can_edit(user),
+        editor=editor,
+        qr_mode=False,
+    )
+
+
+async def _inspection_log_editor_response(
+    *,
+    request: Request,
+    db: AsyncSession,
+    building_id: int,
+    file_id: int,
+    user: User | None,
+    can_save: bool,
+    editor: str | None = None,
+    qr_mode: bool = False,
+    qr_eq_code: str | None = None,
+    file_url: str | None = None,
+    save_url: str | None = None,
+    cursor_url: str | None = None,
+    legacy_url: str | None = None,
+    onlyoffice_edit_url: str | None = None,
+):
     import json as _json
 
     registered = (
@@ -7531,15 +7612,26 @@ async def inspection_log_file_edit(
     if not registered or not building or not doc or doc.building_id != building_id:
         raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
 
-    can_save = can_edit(user)
-    file_url = f"/admin/inspection-logs/{building_id}/files/{file_id}/file"
-    legacy_url = (
+    file_url = file_url or f"/admin/inspection-logs/{building_id}/files/{file_id}/file"
+    legacy_url = legacy_url or (
         f"/admin/inspection-logs/{building_id}/files/{file_id}/edit?editor=legacy"
+    )
+    onlyoffice_edit_url = onlyoffice_edit_url or (
+        f"/admin/inspection-logs/{building_id}/files/{file_id}/edit"
+    )
+    save_url = save_url or (
+        f"/admin/inspection-logs/{building_id}/files/{file_id}/save"
+    )
+    cursor_url = cursor_url or (
+        f"/admin/inspection-logs/{building_id}/files/{file_id}/cursor"
     )
     use_legacy = (editor or "").lower() in ("legacy", "simple", "js")
     want_oo = oo.onlyoffice_enabled() and not use_legacy
-    cursor_url = f"/admin/inspection-logs/{building_id}/files/{file_id}/cursor"
     last_edit_pos = getattr(doc, "last_edit_pos", None) or None
+    ctx_extra = {
+        "qr_mode": qr_mode,
+        "qr_eq_code": qr_eq_code or "",
+    }
 
     if want_oo:
         oo_error = None
@@ -7549,6 +7641,12 @@ async def inspection_log_file_edit(
             oo_error = "파일 데이터가 없습니다. 다시 업로드해 주세요."
         else:
             try:
+                uid = int(user.id) if user is not None else 0
+                uname = (
+                    (user.name or user.username or f"user-{uid}")
+                    if user is not None
+                    else (qr_eq_code or "QR")
+                )
                 editor_config = oo.build_editor_config(
                     request=request,
                     building_id=building_id,
@@ -7556,8 +7654,8 @@ async def inspection_log_file_edit(
                     filename=doc.original_name or doc.stored_name or "inspection.xlsx",
                     title=doc.title or doc.original_name or "점검일지",
                     file_bytes=data,
-                    user_id=user.id,
-                    user_name=user.name or user.username or f"user-{user.id}",
+                    user_id=uid,
+                    user_name=uname,
                     can_edit=can_save,
                 )
             except Exception as e:
@@ -7582,6 +7680,7 @@ async def inspection_log_file_edit(
                 "cursor_url": cursor_url,
                 "last_edit_pos": last_edit_pos,
                 "file_id": file_id,
+                **ctx_extra,
             },
         )
 
@@ -7593,15 +7692,14 @@ async def inspection_log_file_edit(
             "building": building,
             "doc": doc,
             "file_url": file_url,
-            "save_url": f"/admin/inspection-logs/{building_id}/files/{file_id}/save",
+            "save_url": save_url,
             "can_save": can_save,
             "onlyoffice_available": oo.onlyoffice_enabled(),
-            "onlyoffice_edit_url": (
-                f"/admin/inspection-logs/{building_id}/files/{file_id}/edit"
-            ),
+            "onlyoffice_edit_url": onlyoffice_edit_url,
             "cursor_url": cursor_url,
             "last_edit_pos": last_edit_pos,
             "file_id": file_id,
+            **ctx_extra,
         },
     )
 
@@ -7838,6 +7936,7 @@ async def inspection_log_file_delete(
 async def inspection_log_set_qr_write_file(
     building_id: int,
     file_id: int = Form(...),
+    equipment_id: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -7856,11 +7955,71 @@ async def inspection_log_set_qr_write_file(
             f"/admin/inspection-logs/{building_id}?error=" + quote("파일을 찾을 수 없습니다."),
             status_code=303,
         )
-    registered.qr_write_file_id = doc.id
+
+    target = (equipment_id or "").strip()
+    if target == "":
+        doc.qr_equipment_id = None
+        if registered.qr_write_file_id == doc.id:
+            registered.qr_write_file_id = None
+        await db.commit()
+        return RedirectResponse(
+            f"/admin/inspection-logs/{building_id}?message="
+            + quote(f"QR 연결 해제: {doc.title}"),
+            status_code=303,
+        )
+
+    if target == "0":
+        doc.qr_equipment_id = None
+        registered.qr_write_file_id = doc.id
+        await db.commit()
+        return RedirectResponse(
+            f"/admin/inspection-logs/{building_id}?message="
+            + quote(f"건물 QR 기본 연결: {doc.title}"),
+            status_code=303,
+        )
+
+    try:
+        eq_id = int(target)
+    except ValueError:
+        return RedirectResponse(
+            f"/admin/inspection-logs/{building_id}?error=" + quote("설비를 찾을 수 없습니다."),
+            status_code=303,
+        )
+    eq_ok = (
+        await db.execute(
+            select(Equipment.id)
+            .join(Zone, Equipment.zone_id == Zone.id)
+            .join(Floor, Zone.floor_id == Floor.id)
+            .where(
+                Equipment.id == eq_id,
+                Floor.building_id == building_id,
+                Equipment.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalar_one_or_none()
+    if not eq_ok:
+        return RedirectResponse(
+            f"/admin/inspection-logs/{building_id}?error=" + quote("설비를 찾을 수 없습니다."),
+            status_code=303,
+        )
+    others = (
+        await db.execute(
+            select(InspectionLogFile).where(
+                InspectionLogFile.building_id == building_id,
+                InspectionLogFile.qr_equipment_id == eq_id,
+                InspectionLogFile.id != doc.id,
+            )
+        )
+    ).scalars().all()
+    for other in others:
+        other.qr_equipment_id = None
+    doc.qr_equipment_id = eq_id
     await db.commit()
+    eq_row = await db.get(Equipment, eq_id)
+    eq_label = (eq_row.name if eq_row else "") or str(eq_id)
     return RedirectResponse(
         f"/admin/inspection-logs/{building_id}?message="
-        + quote(f"QR 일지작성 연결: {doc.title}"),
+        + quote(f"「{eq_label}」 QR 일지 연결: {doc.title}"),
         status_code=303,
     )
 
@@ -9148,10 +9307,6 @@ async def equipment_mobile(
     )
     msg = request.query_params.get("msg", "")
     error = request.query_params.get("error", "")
-    building_id = None
-    if eq.zone and eq.zone.floor and eq.zone.floor.building:
-        building_id = eq.zone.floor.building.id
-    log_write_url = await _qr_write_log_url(db, building_id)
     return templates.TemplateResponse(
         request,
         "mobile_equipment.html",
@@ -9166,9 +9321,191 @@ async def equipment_mobile(
             "today": _today_kst(),
             "message": msg,
             "error": error,
-            "log_write_url": log_write_url,
+            "log_write_url": f"/eq/{eq.code}/log",
         },
     )
+
+
+async def _equipment_for_qr_log(
+    db: AsyncSession, code: str
+) -> Equipment | None:
+    return (
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.code == code)
+            .options(
+                selectinload(Equipment.zone)
+                .selectinload(Zone.floor)
+                .selectinload(Floor.building)
+            )
+        )
+    ).scalar_one_or_none()
+
+
+@app.get("/eq/{code}/log")
+async def equipment_qr_log(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+    editor: str | None = Query(None),
+):
+    """설비 QR 「일지작성」 — 연결된 엑셀을 바로 연다 (로그인 없이 작성 가능)."""
+    eq = await _equipment_for_qr_log(db, code)
+    if not eq:
+        raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+    try:
+        await _ensure_inspection_log_tables()
+    except Exception:
+        pass
+    doc = await _qr_linked_log_file(db, eq)
+    if not doc:
+        return templates.TemplateResponse(
+            request,
+            "mobile_inspection_log_missing.html",
+            {"eq": eq, "user": user, "qr_mode": True},
+            status_code=404,
+        )
+    can_save = True if user is None else can_edit(user)
+    prefix = f"/eq/{eq.code}/log"
+    return await _inspection_log_editor_response(
+        request=request,
+        db=db,
+        building_id=doc.building_id,
+        file_id=doc.id,
+        user=user,
+        can_save=can_save,
+        editor=editor,
+        qr_mode=True,
+        qr_eq_code=eq.code,
+        file_url=f"{prefix}/file",
+        save_url=f"{prefix}/save",
+        cursor_url=f"{prefix}/cursor",
+        legacy_url=f"{prefix}?editor=legacy",
+        onlyoffice_edit_url=prefix,
+    )
+
+
+@app.get("/eq/{code}/log/file")
+async def equipment_qr_log_file(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    eq = await _equipment_for_qr_log(db, code)
+    if not eq:
+        raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+    doc = await _qr_linked_log_file(db, eq)
+    if not doc:
+        raise HTTPException(404, detail="연결된 점검일지가 없습니다.")
+    data = await _load_inspection_log_bytes(doc, doc.building_id, db)
+    if not data:
+        raise HTTPException(404, detail="파일 데이터가 없습니다. 다시 업로드해 주세요.")
+    filename = doc.original_name or doc.stored_name or "inspection.xlsx"
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii") or "inspection.xlsx"
+    return Response(
+        content=data,
+        media_type=_inspection_media_type(filename, doc.content_type),
+        headers={
+            "Content-Disposition": (
+                f'inline; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+            ),
+            "Cache-Control": "private, max-age=60",
+        },
+    )
+
+
+@app.post("/eq/{code}/log/save")
+async def equipment_qr_log_save(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    import base64
+
+    if user is not None and not can_edit(user):
+        raise HTTPException(403, detail="수정 권한이 없습니다.")
+    eq = await _equipment_for_qr_log(db, code)
+    if not eq:
+        raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+    doc = await _qr_linked_log_file(db, eq)
+    if not doc:
+        raise HTTPException(404, detail="연결된 점검일지가 없습니다.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, detail="잘못된 요청입니다.")
+    b64 = (body.get("data_base64") or "").strip()
+    if not b64:
+        raise HTTPException(400, detail="저장할 데이터가 없습니다.")
+    if "," in b64 and b64.lower().startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    try:
+        raw = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(400, detail="파일 디코딩에 실패했습니다.")
+    if not raw:
+        raise HTTPException(400, detail="빈 파일입니다.")
+    if len(raw) > UPLOAD_MAX_FILE_BYTES:
+        raise HTTPException(
+            400, detail=f"파일이 너무 큽니다. (최대 {UPLOAD_MAX_FILE_MB}MB)"
+        )
+    uploaded_by = (
+        (user.name or user.username) if user is not None else f"QR:{eq.code}"
+    )
+    await _persist_inspection_log_bytes(doc, raw, uploaded_by=uploaded_by)
+    await db.commit()
+    return JSONResponse(
+        {
+            "ok": True,
+            "message": "저장되었습니다.",
+            "filename": doc.original_name or "inspection.xlsx",
+        }
+    )
+
+
+@app.post("/eq/{code}/log/cursor")
+async def equipment_qr_log_cursor(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    eq = await _equipment_for_qr_log(db, code)
+    if not eq:
+        raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+    doc = await _qr_linked_log_file(db, eq)
+    if not doc:
+        raise HTTPException(404, detail="연결된 점검일지가 없습니다.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, detail="잘못된 요청입니다.")
+    if not isinstance(body, dict):
+        raise HTTPException(400, detail="잘못된 요청입니다.")
+    pos = {
+        "sheet": str(body.get("sheet") or "")[:80] or None,
+        "sheetIndex": body.get("sheetIndex"),
+        "cell": str(body.get("cell") or "")[:20] or None,
+        "x": body.get("x"),
+        "y": body.get("y"),
+        "user_id": user.id if user is not None else 0,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+    try:
+        if pos["sheetIndex"] is not None:
+            pos["sheetIndex"] = int(pos["sheetIndex"])
+        if pos["x"] is not None:
+            pos["x"] = int(pos["x"])
+        if pos["y"] is not None:
+            pos["y"] = int(pos["y"])
+    except (TypeError, ValueError):
+        raise HTTPException(400, detail="위치 값이 올바르지 않습니다.")
+    doc.last_edit_pos = pos
+    await db.commit()
+    return JSONResponse({"ok": True})
 
 
 @app.post("/eq/{code}/pm-inspect")

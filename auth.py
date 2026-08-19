@@ -359,7 +359,8 @@ async def get_current_user(
         if user is not None:
             request.state.current_user = user
     if not hasattr(request.state, "nav_buildings"):
-        if user:
+        path = request.url.path or ""
+        if user and not path.startswith("/eq/"):
             apply_nav_state(request, await _load_nav_state(db))
         else:
             apply_nav_state(request, {})

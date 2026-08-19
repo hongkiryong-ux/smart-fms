@@ -257,6 +257,8 @@ class InspectionLogFile(Base):
 
     id = Column(Integer, primary_key=True)
     building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    # 설비 QR 「일지작성」에 연결할 설비 (건물 기본은 InspectionLogBuilding.qr_write_file_id)
+    qr_equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=True, index=True)
     title = Column(String(200), nullable=False)
     original_name = Column(String(300), nullable=True)
     stored_name = Column(String(300), nullable=False)

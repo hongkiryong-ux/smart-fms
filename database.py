@@ -438,6 +438,13 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE inspection_log_buildings ADD COLUMN IF NOT EXISTS qr_write_file_id INTEGER"
         )
         await _exec(
+            "ALTER TABLE inspection_log_files ADD COLUMN IF NOT EXISTS qr_equipment_id INTEGER"
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_inspection_log_files_qr_equipment_id "
+            "ON inspection_log_files (qr_equipment_id)"
+        )
+        await _exec(
             """
             CREATE TABLE IF NOT EXISTS equipment_change_logs (
                 id SERIAL PRIMARY KEY,
@@ -504,6 +511,9 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE inspection_log_files ADD COLUMN last_edit_pos TEXT",
             "ALTER TABLE inspection_log_files ADD COLUMN file_size INTEGER",
             "ALTER TABLE inspection_log_buildings ADD COLUMN qr_write_file_id INTEGER",
+            "ALTER TABLE inspection_log_files ADD COLUMN qr_equipment_id INTEGER",
+            "CREATE INDEX IF NOT EXISTS ix_inspection_log_files_qr_equipment_id "
+            "ON inspection_log_files (qr_equipment_id)",
             """
             CREATE TABLE IF NOT EXISTS maintenance_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -590,6 +600,13 @@ async def ensure_schema_updates() -> None:
                 created_at DATETIME
             )
             """
+        )
+        await _exec(
+            "ALTER TABLE inspection_log_files ADD COLUMN qr_equipment_id INTEGER"
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_inspection_log_files_qr_equipment_id "
+            "ON inspection_log_files (qr_equipment_id)"
         )
         await _exec(
             """

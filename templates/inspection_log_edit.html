@@ -6,11 +6,17 @@
 
 <header class="page-header ilog-edit-header">
   <div class="breadcrumb-nav ilog-breadcrumb">
+    {% if qr_mode %}
+    <a href="/eq/{{ qr_eq_code }}">설비 QR</a>
+    <span>›</span>
+    <strong>{{ doc.title }}</strong>
+    {% else %}
     <a href="/admin/inspection-logs">점검일지</a>
     <span>›</span>
     <a href="/admin/inspection-logs/{{ building.id }}">{{ building.name }}</a>
     <span>›</span>
     <strong>{{ doc.title }}</strong>
+    {% endif %}
   </div>
   <h1 class="ilog-edit-doc-title">{{ doc.title }}</h1>
   {% if onlyoffice_available %}
@@ -26,7 +32,7 @@
         <span class="ilog-ribbon-group">
           <button type="button" class="ilog-ribbon-btn" id="ilog-save-btn" {% if not can_save %}disabled title="수정 권한 없음"{% endif %}>저장</button>
           <a class="ilog-ribbon-btn" id="ilog-download-btn" href="{{ file_url }}">다운로드</a>
-          <a class="ilog-ribbon-btn" href="/admin/inspection-logs/{{ building.id }}">목록</a>
+          <a class="ilog-ribbon-btn" href="{% if qr_mode %}/eq/{{ qr_eq_code }}{% else %}/admin/inspection-logs/{{ building.id }}{% endif %}">{% if qr_mode %}설비{% else %}목록{% endif %}</a>
         </span>
         <span class="ilog-ribbon-sep"></span>
         <span class="ilog-ribbon-group">
