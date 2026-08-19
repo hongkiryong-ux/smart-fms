@@ -47,7 +47,14 @@ from auth import (
     require_user_manager,
     verify_password,
 )
-from database import AsyncSessionLocal, Base, engine, get_db, ensure_schema_updates
+from database import (
+    AsyncSessionLocal,
+    Base,
+    engine,
+    ensure_app_settings_table,
+    ensure_schema_updates,
+    get_db,
+)
 from init_data import seed_if_empty
 import onlyoffice as oo
 from server_status import collect_server_status
@@ -2029,17 +2036,34 @@ DASHBOARD_LAYOUT_META = {
 
 
 async def _get_dashboard_layout(db: AsyncSession) -> str:
-    row = await db.get(AppSetting, "dashboard.layout")
-    val = (row.value or "").strip() if row else ""
-    return val if val in DASHBOARD_LAYOUTS else "ops"
+    for attempt in range(2):
+        try:
+            row = await db.get(AppSetting, "dashboard.layout")
+            val = (row.value or "").strip() if row else ""
+            return val if val in DASHBOARD_LAYOUTS else "ops"
+        except Exception as e:
+            if attempt == 0 and "app_settings" in str(e).lower():
+                await ensure_app_settings_table()
+                continue
+            print(f"[dashboard] layout read fallback: {e}", flush=True)
+            return "ops"
+    return "ops"
 
 
 async def _set_dashboard_layout(db: AsyncSession, layout: str) -> None:
-    row = await db.get(AppSetting, "dashboard.layout")
-    if row:
-        row.value = layout
-    else:
-        db.add(AppSetting(key="dashboard.layout", value=layout))
+    for attempt in range(2):
+        try:
+            row = await db.get(AppSetting, "dashboard.layout")
+            if row:
+                row.value = layout
+            else:
+                db.add(AppSetting(key="dashboard.layout", value=layout))
+            return
+        except Exception as e:
+            if attempt == 0 and "app_settings" in str(e).lower():
+                await ensure_app_settings_table()
+                continue
+            raise
 
 
 async def _dashboard_buildings(db: AsyncSession) -> list[dict]:

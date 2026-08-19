@@ -455,6 +455,14 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "CREATE INDEX IF NOT EXISTS ix_equipment_change_logs_changed_at ON equipment_change_logs (changed_at)"
         )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key VARCHAR(64) PRIMARY KEY,
+                value TEXT
+            )
+            """
+        )
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
@@ -615,6 +623,32 @@ async def ensure_schema_updates() -> None:
             )
             """
         )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key VARCHAR(64) PRIMARY KEY,
+                value TEXT
+            )
+            """
+        )
+
+
+async def ensure_app_settings_table() -> None:
+    """대시보드 화면 구성 등 앱 설정 테이블 (기동 전 요청 대비)."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError, OperationalError, ProgrammingError
+
+    stmt = """
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key VARCHAR(64) PRIMARY KEY,
+            value TEXT
+        )
+    """
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(stmt))
+    except (OperationalError, ProgrammingError, DBAPIError) as e:
+        print(f"[db] app_settings ensure skip: {e}", flush=True)
 
 
 async def get_db():
