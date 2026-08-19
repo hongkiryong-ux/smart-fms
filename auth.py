@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
+import time
 from typing import Callable
 
 from fastapi import Depends, HTTPException, Request
@@ -249,92 +250,119 @@ def home_path_for_user(user: User | None) -> str:
     return "/admin/account"
 
 
+_NAV_CACHE_TTL_SEC = 60.0
+_nav_cache: dict = {
+    "at": 0.0,
+    "building_groups": [],
+    "buildings": [],
+    "inspection_log_buildings": [],
+    "partners": [],
+}
+
+
+async def _load_nav_state(db: AsyncSession) -> dict:
+    """사이드바 네비 데이터 (짧은 TTL 메모리 캐시)."""
+    now = time.monotonic()
+    if now - _nav_cache["at"] < _NAV_CACHE_TTL_SEC:
+        return _nav_cache
+    building_groups: list[dict] = []
+    buildings: list = []
+    inspection_log_buildings: list[dict] = []
+    partners: list[dict] = []
+    try:
+        rows = (
+            await db.execute(
+                select(Building)
+                .where(Building.is_active == True)  # noqa: E712
+                .options(selectinload(Building.site))
+            )
+        ).scalars().all()
+        building_groups = group_buildings_by_site(list(rows))
+        buildings = [b for g in building_groups for b in g.get("buildings", [])]
+    except Exception:
+        pass
+    try:
+        log_rows = (
+            await db.execute(
+                select(InspectionLogBuilding, Building)
+                .join(Building, Building.id == InspectionLogBuilding.building_id)
+                .where(Building.is_active == True)  # noqa: E712
+                .options(selectinload(Building.site))
+            )
+        ).all()
+        log_buildings = [b for _, b in log_rows]
+        inspection_log_buildings = [
+            {
+                "id": b.id,
+                "name": b.name or "",
+                "code": getattr(b, "code", "") or "",
+                "site_name": (b.site.name if b.site else "") or "",
+            }
+            for b in sorted(
+                log_buildings,
+                key=lambda x: nav_building_sort_key(getattr(x, "name", None)),
+            )
+        ]
+    except Exception:
+        pass
+    try:
+        partner_rows = (
+            await db.execute(
+                select(Partner)
+                .where(Partner.is_active == True)  # noqa: E712
+                .order_by(Partner.name)
+            )
+        ).scalars().all()
+        partners = [
+            {"id": p.id, "name": p.name or "", "code": getattr(p, "code", "") or ""}
+            for p in partner_rows
+        ]
+    except Exception:
+        pass
+    _nav_cache.update(
+        {
+            "at": now,
+            "building_groups": building_groups,
+            "buildings": buildings,
+            "inspection_log_buildings": inspection_log_buildings,
+            "partners": partners,
+        }
+    )
+    return _nav_cache
+
+
+def apply_nav_state(request: Request, nav: dict) -> None:
+    request.state.nav_building_groups = nav.get("building_groups") or []
+    request.state.nav_buildings = nav.get("buildings") or []
+    request.state.nav_inspection_log_buildings = nav.get("inspection_log_buildings") or []
+    request.state.nav_partners = nav.get("partners") or []
+
+
 async def get_current_user(
     request: Request, db: AsyncSession = Depends(get_db)
 ) -> User | None:
     user_id = request.session.get("user_id")
     if not user_id:
-        request.state.nav_buildings = []
-        request.state.nav_building_groups = []
-        request.state.nav_inspection_log_buildings = []
-        request.state.nav_partners = []
+        apply_nav_state(request, {})
         return None
-    result = await db.execute(
-        select(User).where(
-            User.id == user_id,
-            User.is_active == True,
-            User.is_approved == True,
+    user = getattr(request.state, "current_user", None)
+    if user is None and not getattr(request.state, "_current_user_loaded", False):
+        result = await db.execute(
+            select(User).where(
+                User.id == user_id,
+                User.is_active == True,
+                User.is_approved == True,
+            )
         )
-    )
-    user = result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        request.state._current_user_loaded = True
+        if user is not None:
+            request.state.current_user = user
     if not hasattr(request.state, "nav_buildings"):
-        request.state.nav_buildings = []
-        request.state.nav_building_groups = []
-        request.state.nav_inspection_log_buildings = []
-        request.state.nav_partners = []
         if user:
-            try:
-                rows = (
-                    await db.execute(
-                        select(Building)
-                        .where(Building.is_active == True)  # noqa: E712
-                        .options(selectinload(Building.site))
-                    )
-                ).scalars().all()
-                request.state.nav_building_groups = group_buildings_by_site(list(rows))
-                # 하위 호환: 평면 목록
-                request.state.nav_buildings = [
-                    b
-                    for g in request.state.nav_building_groups
-                    for b in g.get("buildings", [])
-                ]
-            except Exception:
-                request.state.nav_buildings = []
-                request.state.nav_building_groups = []
-            try:
-                log_rows = (
-                    await db.execute(
-                        select(InspectionLogBuilding, Building)
-                        .join(Building, Building.id == InspectionLogBuilding.building_id)
-                        .where(Building.is_active == True)  # noqa: E712
-                        .options(selectinload(Building.site))
-                    )
-                ).all()
-                log_buildings = [b for _, b in log_rows]
-                request.state.nav_inspection_log_buildings = [
-                    {
-                        "id": b.id,
-                        "name": b.name or "",
-                        "code": getattr(b, "code", "") or "",
-                        "site_name": (b.site.name if b.site else "") or "",
-                    }
-                    for b in sorted(
-                        log_buildings,
-                        key=lambda x: nav_building_sort_key(getattr(x, "name", None)),
-                    )
-                ]
-            except Exception:
-                request.state.nav_inspection_log_buildings = []
-            try:
-                partners = (
-                    await db.execute(
-                        select(Partner)
-                        .where(Partner.is_active == True)  # noqa: E712
-                        .order_by(Partner.name)
-                    )
-                ).scalars().all()
-                request.state.nav_partners = [
-                    {"id": p.id, "name": p.name or "", "code": getattr(p, "code", "") or ""}
-                    for p in partners
-                ]
-            except Exception:
-                request.state.nav_partners = []
-    if not hasattr(request.state, "nav_building_groups"):
-        request.state.nav_building_groups = []
-    if not hasattr(request.state, "nav_inspection_log_buildings"):
-        request.state.nav_inspection_log_buildings = []
-    if not hasattr(request.state, "nav_partners"):
-        request.state.nav_partners = []
+            apply_nav_state(request, await _load_nav_state(db))
+        else:
+            apply_nav_state(request, {})
     return user
 
 

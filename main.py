@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
@@ -15,7 +16,7 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -51,7 +52,6 @@ from database import (
     AsyncSessionLocal,
     Base,
     engine,
-    ensure_app_settings_table,
     ensure_schema_updates,
     get_db,
 )
@@ -1135,8 +1135,13 @@ class _MenuAccessMiddleware(BaseHTTPMiddleware):
                         )
                     )
                 ).scalar_one_or_none()
-                if u is not None and not can_access_menu(u, menu_key):
-                    return RedirectResponse("/admin/account?error=no_menu", status_code=303)
+                if u is not None:
+                    request.state.current_user = u
+                    if not can_access_menu(u, menu_key):
+                        return RedirectResponse(
+                            "/admin/account?error=no_menu", status_code=303
+                        )
+                request.state._current_user_loaded = True
         except Exception as e:
             print(f"[menu] access check skip: {e}", flush=True)
         return await call_next(request)
@@ -1892,75 +1897,73 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
         )
     ).scalar() or 0
 
-    # 점검: 금일 계획(next_due==today) / 금일 완료(last_done==today) / 전일 실적
-    pm_today_plan = (
+    # 점검: 금일 계획 / 금일 완료 / 전일 실적 / 지연 (한 번에 집계)
+    pm_row = (
         await db.execute(
-            select(func.count(PMSchedule.id)).where(
-                PMSchedule.is_active == True,  # noqa: E712
-                PMSchedule.next_due == today,
-            )
+            select(
+                func.coalesce(
+                    func.sum(case((PMSchedule.next_due == today, 1), else_=0)), 0
+                ),
+                func.coalesce(
+                    func.sum(case((PMSchedule.last_done == today, 1), else_=0)), 0
+                ),
+                func.coalesce(
+                    func.sum(case((PMSchedule.last_done == yesterday, 1), else_=0)), 0
+                ),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                PMSchedule.next_due.is_not(None)
+                                & (PMSchedule.next_due < today),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+            ).where(PMSchedule.is_active == True)  # noqa: E712
         )
-    ).scalar() or 0
-    pm_today_done = (
-        await db.execute(
-            select(func.count(PMSchedule.id)).where(
-                PMSchedule.is_active == True,  # noqa: E712
-                PMSchedule.last_done == today,
-            )
-        )
-    ).scalar() or 0
-    pm_yesterday_done = (
-        await db.execute(
-            select(func.count(PMSchedule.id)).where(
-                PMSchedule.is_active == True,  # noqa: E712
-                PMSchedule.last_done == yesterday,
-            )
-        )
-    ).scalar() or 0
-    pm_overdue = (
-        await db.execute(
-            select(func.count(PMSchedule.id)).where(
-                PMSchedule.is_active == True,  # noqa: E712
-                PMSchedule.next_due.is_not(None),
-                PMSchedule.next_due < today,
-            )
-        )
-    ).scalar() or 0
+    ).one()
+    pm_today_plan, pm_today_done, pm_yesterday_done, pm_overdue = map(int, pm_row)
 
-    # 정비관리: 의뢰 / 진행 / 완료 (누적 활성)
-    wo_request = (
+    # 정비관리: 의뢰 / 진행 / 완료 / 긴급 (한 번에 집계)
+    wo_row = (
         await db.execute(
-            select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,  # noqa: E712
-                WorkOrder.status.in_(_WO_REQUEST),
-            )
+            select(
+                func.coalesce(
+                    func.sum(case((WorkOrder.status.in_(_WO_REQUEST), 1), else_=0)), 0
+                ),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (WorkOrder.status == WorkOrderStatus.in_progress, 1),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+                func.coalesce(
+                    func.sum(case((WorkOrder.status.in_(_WO_DONE), 1), else_=0)), 0
+                ),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                (WorkOrder.priority == "high")
+                                & WorkOrder.status.in_(_WO_OPEN),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+            ).where(WorkOrder.is_active == True)  # noqa: E712
         )
-    ).scalar() or 0
-    wo_progress = (
-        await db.execute(
-            select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,  # noqa: E712
-                WorkOrder.status == WorkOrderStatus.in_progress,
-            )
-        )
-    ).scalar() or 0
-    wo_done = (
-        await db.execute(
-            select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,  # noqa: E712
-                WorkOrder.status.in_(_WO_DONE),
-            )
-        )
-    ).scalar() or 0
-    wo_urgent = (
-        await db.execute(
-            select(func.count(WorkOrder.id)).where(
-                WorkOrder.is_active == True,  # noqa: E712
-                WorkOrder.priority == "high",
-                WorkOrder.status.in_(_WO_OPEN),
-            )
-        )
-    ).scalar() or 0
+    ).one()
+    wo_request, wo_progress, wo_done, wo_urgent = map(int, wo_row)
 
     # D-1 (업체 지정 + 승인된 WorkOrder만)
     d1_gate = _wo_d1_sql_gate()
@@ -2035,35 +2038,45 @@ DASHBOARD_LAYOUT_META = {
 }
 
 
+_KPI_CACHE_TTL_SEC = 30.0
+_kpi_cache: dict = {"at": 0.0, "data": None}
+_layout_cache: str | None = None
+
+
+async def _get_dashboard_kpi_cached(db: AsyncSession) -> dict:
+    """대시보드 KPI (30초 TTL, 프론트 자동갱신 주기와 동일)."""
+    now = time.monotonic()
+    cached = _kpi_cache.get("data")
+    if cached is not None and now - _kpi_cache["at"] < _KPI_CACHE_TTL_SEC:
+        return cached
+    data = await _compute_dashboard_kpi(db)
+    _kpi_cache["at"] = now
+    _kpi_cache["data"] = data
+    return data
+
+
 async def _get_dashboard_layout(db: AsyncSession) -> str:
-    for attempt in range(2):
-        try:
-            row = await db.get(AppSetting, "dashboard.layout")
-            val = (row.value or "").strip() if row else ""
-            return val if val in DASHBOARD_LAYOUTS else "ops"
-        except Exception as e:
-            if attempt == 0 and "app_settings" in str(e).lower():
-                await ensure_app_settings_table()
-                continue
-            print(f"[dashboard] layout read fallback: {e}", flush=True)
-            return "ops"
-    return "ops"
+    global _layout_cache
+    if _layout_cache in DASHBOARD_LAYOUTS:
+        return _layout_cache
+    try:
+        row = await db.get(AppSetting, "dashboard.layout")
+        val = (row.value or "").strip() if row else ""
+        _layout_cache = val if val in DASHBOARD_LAYOUTS else "ops"
+    except Exception as e:
+        print(f"[dashboard] layout read fallback: {e}", flush=True)
+        _layout_cache = "ops"
+    return _layout_cache
 
 
 async def _set_dashboard_layout(db: AsyncSession, layout: str) -> None:
-    for attempt in range(2):
-        try:
-            row = await db.get(AppSetting, "dashboard.layout")
-            if row:
-                row.value = layout
-            else:
-                db.add(AppSetting(key="dashboard.layout", value=layout))
-            return
-        except Exception as e:
-            if attempt == 0 and "app_settings" in str(e).lower():
-                await ensure_app_settings_table()
-                continue
-            raise
+    global _layout_cache
+    row = await db.get(AppSetting, "dashboard.layout")
+    if row:
+        row.value = layout
+    else:
+        db.add(AppSetting(key="dashboard.layout", value=layout))
+    _layout_cache = layout
 
 
 async def _dashboard_buildings(db: AsyncSession) -> list[dict]:
@@ -2094,11 +2107,14 @@ async def dashboard(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    kpi = await _compute_dashboard_kpi(db)
     layout = (preview or "").strip()
     is_preview = layout in DASHBOARD_LAYOUTS
     if not is_preview:
         layout = await _get_dashboard_layout(db)
+    kpi = await _get_dashboard_kpi_cached(db)
+    buildings: list[dict] = []
+    if is_preview or layout in ("gallery", "bento"):
+        buildings = await _dashboard_buildings(db)
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -2108,7 +2124,7 @@ async def dashboard(
             "layout": layout,
             "layout_meta": DASHBOARD_LAYOUT_META[layout],
             "preview": is_preview,
-            "buildings": await _dashboard_buildings(db),
+            "buildings": buildings,
         },
     )
 
@@ -2124,7 +2140,7 @@ async def dashboard_layouts(
         "dashboard_layouts.html",
         {
             "user": user,
-            "kpi": await _compute_dashboard_kpi(db),
+            "kpi": await _get_dashboard_kpi_cached(db),
             "layouts": DASHBOARD_LAYOUT_META,
             "current_layout": await _get_dashboard_layout(db),
             "buildings": await _dashboard_buildings(db),
@@ -2154,7 +2170,7 @@ async def dashboard_kpi(
     db: AsyncSession = Depends(get_db),
 ):
     """대시보드 KPI JSON (자동 갱신)."""
-    return JSONResponse(await _compute_dashboard_kpi(db))
+    return JSONResponse(await _get_dashboard_kpi_cached(db))
 
 
 @app.get("/admin/server")
