@@ -435,6 +435,9 @@ async def ensure_schema_updates() -> None:
         await _exec("ALTER TABLE inspection_log_files ADD COLUMN IF NOT EXISTS last_edit_pos JSONB")
         await _exec("ALTER TABLE inspection_log_files ADD COLUMN IF NOT EXISTS file_size INTEGER")
         await _exec(
+            "ALTER TABLE inspection_log_buildings ADD COLUMN IF NOT EXISTS qr_write_file_id INTEGER"
+        )
+        await _exec(
             """
             CREATE TABLE IF NOT EXISTS equipment_change_logs (
                 id SERIAL PRIMARY KEY,
@@ -492,6 +495,7 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE building_standards ADD COLUMN file_size INTEGER",
             "ALTER TABLE inspection_log_files ADD COLUMN last_edit_pos TEXT",
             "ALTER TABLE inspection_log_files ADD COLUMN file_size INTEGER",
+            "ALTER TABLE inspection_log_buildings ADD COLUMN qr_write_file_id INTEGER",
             """
             CREATE TABLE IF NOT EXISTS maintenance_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

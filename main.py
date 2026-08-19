@@ -7017,6 +7017,12 @@ async def _ensure_inspection_log_tables() -> None:
                         "ADD COLUMN IF NOT EXISTS file_size INTEGER"
                     )
                 )
+                await conn.execute(
+                    text(
+                        "ALTER TABLE inspection_log_buildings "
+                        "ADD COLUMN IF NOT EXISTS qr_write_file_id INTEGER"
+                    )
+                )
             else:
                 await conn.execute(
                     text(
@@ -7030,6 +7036,12 @@ async def _ensure_inspection_log_tables() -> None:
                         "ADD COLUMN file_size INTEGER"
                     )
                 )
+                await conn.execute(
+                    text(
+                        "ALTER TABLE inspection_log_buildings "
+                        "ADD COLUMN qr_write_file_id INTEGER"
+                    )
+                )
         except Exception:
             pass
 
@@ -7037,6 +7049,51 @@ async def _ensure_inspection_log_tables() -> None:
 def _inspection_log_excel_ok(filename: str) -> bool:
     name = (filename or "").lower()
     return name.endswith((".xls", ".xlsx", ".xlsm"))
+
+
+async def _inspection_log_building_row(
+    db: AsyncSession, building_id: int
+) -> InspectionLogBuilding | None:
+    return (
+        await db.execute(
+            select(InspectionLogBuilding).where(
+                InspectionLogBuilding.building_id == building_id
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def _resolve_qr_write_file_id(
+    db: AsyncSession, building_id: int
+) -> int | None:
+    """QR 일지작성에 연결할 파일. 지정값이 없거나 삭제됐으면 최신 파일."""
+    files = (
+        await db.execute(
+            select(InspectionLogFile)
+            .where(InspectionLogFile.building_id == building_id)
+            .order_by(InspectionLogFile.id.desc())
+        )
+    ).scalars().all()
+    if not files:
+        return None
+    ids = {f.id for f in files}
+    registered = await _inspection_log_building_row(db, building_id)
+    chosen = getattr(registered, "qr_write_file_id", None) if registered else None
+    if chosen in ids:
+        return int(chosen)
+    return int(files[0].id)
+
+
+async def _qr_write_log_url(db: AsyncSession, building_id: int | None) -> str:
+    if not building_id:
+        return "/admin/inspection-logs"
+    file_id = await _resolve_qr_write_file_id(db, building_id)
+    if file_id:
+        return f"/admin/inspection-logs/{building_id}/files/{file_id}/edit"
+    registered = await _inspection_log_building_row(db, building_id)
+    if registered:
+        return f"/admin/inspection-logs/{building_id}"
+    return "/admin/inspection-logs"
 
 
 async def _load_inspection_log_bytes(
@@ -7272,6 +7329,7 @@ async def inspection_log_building_detail(
         )
     ).scalars().all()
     await _backfill_attachment_sizes(db, files)
+    qr_write_file_id = await _resolve_qr_write_file_id(db, building_id)
 
     return templates.TemplateResponse(
         request,
@@ -7280,6 +7338,7 @@ async def inspection_log_building_detail(
             "user": user,
             "building": building,
             "files": files,
+            "qr_write_file_id": qr_write_file_id,
             "upload_max_mb": UPLOAD_MAX_FILE_MB,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
@@ -7357,6 +7416,18 @@ async def inspection_log_upload(
         saved += 1
 
     if saved:
+        await db.flush()
+        if registered and not getattr(registered, "qr_write_file_id", None):
+            latest = (
+                await db.execute(
+                    select(InspectionLogFile)
+                    .where(InspectionLogFile.building_id == building_id)
+                    .order_by(InspectionLogFile.id.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if latest:
+                registered.qr_write_file_id = latest.id
         await db.commit()
     if saved and not errors:
         msg = f"엑셀 파일 {saved}개가 업로드되었습니다."
@@ -7719,10 +7790,56 @@ async def inspection_log_file_delete(
     doc = await db.get(InspectionLogFile, file_id)
     if not doc or doc.building_id != building_id:
         raise HTTPException(404)
+    registered = await _inspection_log_building_row(db, building_id)
+    if registered and registered.qr_write_file_id == file_id:
+        registered.qr_write_file_id = None
     await db.delete(doc)
+    await db.flush()
+    if registered and not registered.qr_write_file_id:
+        latest = (
+            await db.execute(
+                select(InspectionLogFile)
+                .where(InspectionLogFile.building_id == building_id)
+                .order_by(InspectionLogFile.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if latest:
+            registered.qr_write_file_id = latest.id
     await db.commit()
     return RedirectResponse(
         f"/admin/inspection-logs/{building_id}?message=" + quote("파일이 삭제되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs/{building_id}/qr-write-file")
+async def inspection_log_set_qr_write_file(
+    building_id: int,
+    file_id: int = Form(...),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """설비 QR 「일지작성」에 연결할 점검일지 파일 지정."""
+    from urllib.parse import quote
+
+    registered = await _inspection_log_building_row(db, building_id)
+    doc = await db.get(InspectionLogFile, file_id)
+    if not registered:
+        return RedirectResponse(
+            "/admin/inspection-logs?error=" + quote("점검일지에 등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    if not doc or doc.building_id != building_id:
+        return RedirectResponse(
+            f"/admin/inspection-logs/{building_id}?error=" + quote("파일을 찾을 수 없습니다."),
+            status_code=303,
+        )
+    registered.qr_write_file_id = doc.id
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/inspection-logs/{building_id}?message="
+        + quote(f"QR 일지작성 연결: {doc.title}"),
         status_code=303,
     )
 
@@ -9010,6 +9127,10 @@ async def equipment_mobile(
     )
     msg = request.query_params.get("msg", "")
     error = request.query_params.get("error", "")
+    building_id = None
+    if eq.zone and eq.zone.floor and eq.zone.floor.building:
+        building_id = eq.zone.floor.building.id
+    log_write_url = await _qr_write_log_url(db, building_id)
     return templates.TemplateResponse(
         request,
         "mobile_equipment.html",
@@ -9024,6 +9145,7 @@ async def equipment_mobile(
             "today": _today_kst(),
             "message": msg,
             "error": error,
+            "log_write_url": log_write_url,
         },
     )
 

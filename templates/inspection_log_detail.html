@@ -12,6 +12,7 @@
     {% if building.site %}{{ building.site.name }} · {% endif %}
     <code>{{ building.code }}</code>
     · 엑셀 파일(.xls, .xlsx, .xlsm) 업로드
+    · 여러 파일이 있으면 QR <strong>일지작성</strong>에 연결할 파일을 지정하세요
   </p>
 </header>
 
@@ -46,6 +47,7 @@
           <th>크기</th>
           <th>업로드</th>
           <th>일시</th>
+          <th>QR 일지작성</th>
           <th>다운로드</th>
           {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
         </tr>
@@ -62,6 +64,20 @@
           <td class="wo-date">{{ fmt_file_size(f.size_bytes) }}</td>
           <td>{{ f.uploaded_by or '-' }}</td>
           <td class="wo-date">{{ fmt_kst(f.created_at) }}</td>
+          <td>
+            {% if qr_write_file_id == f.id %}
+            <span class="badge">연결됨</span>
+            {% elif user_can_edit(user) %}
+            <form method="post"
+                  action="/admin/inspection-logs/{{ building.id }}/qr-write-file"
+                  class="inline-form">
+              <input type="hidden" name="file_id" value="{{ f.id }}" />
+              <button type="submit" class="btn btn-sm btn-secondary">이 파일로 연결</button>
+            </form>
+            {% else %}
+            <span class="text-muted">-</span>
+            {% endif %}
+          </td>
           <td>
             <a class="btn btn-sm btn-secondary" href="{{ f.url }}">다운로드</a>
             <a class="btn btn-sm btn-primary" href="/admin/inspection-logs/{{ building.id }}/files/{{ f.id }}/edit">열기</a>

@@ -243,6 +243,8 @@ class InspectionLogBuilding(Base):
     building_id = Column(
         Integer, ForeignKey("buildings.id"), nullable=False, unique=True, index=True
     )
+    # 설비 QR 「일지작성」에 연결할 점검일지 파일
+    qr_write_file_id = Column(Integer, nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     building = relationship("Building")
