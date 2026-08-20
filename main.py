@@ -2259,6 +2259,32 @@ async def server_backup_zip(
     )
 
 
+_MANUAL_PPTX = Path(__file__).resolve().parent / "docs" / "Smart_FMS_사용매뉴얼.pptx"
+
+
+@app.get("/admin/server/manual.pptx")
+async def server_user_manual_pptx(user: User = Depends(require_user_manager)):
+    """Smart FMS 사용 매뉴얼 PPT 다운로드."""
+    if not _MANUAL_PPTX.is_file():
+        raise HTTPException(404, detail="사용 매뉴얼 파일이 없습니다.")
+    filename = "Smart_FMS_사용매뉴얼.pptx"
+    ascii_name = "Smart_FMS_User_Manual.pptx"
+    return FileResponse(
+        _MANUAL_PPTX,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        ),
+        filename=ascii_name,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_name}"; '
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @app.get("/admin/dashboard/server-status")
 async def dashboard_server_status_compat(
     user: User = Depends(require_user_manager),
