@@ -12,7 +12,7 @@
     {% if building.site %}{{ building.site.name }} · {% endif %}
     <code>{{ building.code }}</code>
     · 엑셀 파일(.xls, .xlsx, .xlsm) 업로드
-    · 파일이 여러 개면 아래 <strong>QR 일지작성</strong>에서 설비별 연결 파일을 선택하세요
+    · 파일이 여러 개면 <strong>이 파일로 연결</strong>을 누르면 이 건물 QR은 모두 그 일지를 엽니다
   </p>
 </header>
 
@@ -66,28 +66,15 @@
           <td class="wo-date">{{ fmt_kst(f.created_at) }}</td>
           <td>
             {% if qr_write_file_id == f.id %}
-            <span class="badge">건물 기본</span>
-            {% endif %}
-            {% if f.qr_equipment_id %}
-            <span class="badge">{{ eq_name_by_id.get(f.qr_equipment_id, '설비') }}</span>
-            {% endif %}
-            {% if user_can_edit(user) %}
+            <span class="badge">연결됨</span>
+            {% elif user_can_edit(user) %}
             <form method="post"
                   action="/admin/inspection-logs/{{ building.id }}/qr-write-file"
-                  class="inline-form ilog-qr-link-form">
+                  class="inline-form">
               <input type="hidden" name="file_id" value="{{ f.id }}" />
-              <select name="equipment_id" aria-label="QR 일지 연결 대상">
-                <option value="">연결 안 함</option>
-                <option value="0"{% if qr_write_file_id == f.id and not f.qr_equipment_id %} selected{% endif %}>건물 QR 기본</option>
-                {% for eq in qr_equipment %}
-                <option value="{{ eq.id }}"{% if f.qr_equipment_id == eq.id %} selected{% endif %}>
-                  {{ eq.name }} ({{ eq.code }})
-                </option>
-                {% endfor %}
-              </select>
-              <button type="submit" class="btn btn-sm btn-secondary">연결</button>
+              <button type="submit" class="btn btn-sm btn-secondary">이 파일로 연결</button>
             </form>
-            {% elif not f.qr_equipment_id and qr_write_file_id != f.id %}
+            {% else %}
             <span class="text-muted">-</span>
             {% endif %}
           </td>

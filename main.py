@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import defer, selectinload
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -98,6 +98,15 @@ UPLOAD_MAX_FILE_BYTES = UPLOAD_MAX_FILE_MB * 1024 * 1024
 UPLOAD_MAX_FILES_PER_REQUEST = 10
 
 
+async def _parse_multipart_form(request: Request):
+    """엑셀·도면 업로드용. Starlette 기본 파트 제한(1MB)을 풀어 20MB까지 받음."""
+    return await request.form(
+        max_files=max(UPLOAD_MAX_FILES_PER_REQUEST, 20),
+        max_fields=80,
+        max_part_size=UPLOAD_MAX_FILE_BYTES,
+    )
+
+
 def _safe_login_next(raw: str | None) -> str | None:
     """로그인 후 복귀 URL — 내부 /admin 경로만 허용 (오픈 리다이렉트 방지)."""
     value = (raw or "").strip()
@@ -167,6 +176,13 @@ def _sync_attachment_file_size(obj) -> bool:
     """file_size가 비어 있으면 file_data 길이로 채운다. 변경 시 True."""
     if getattr(obj, "file_size", None) is not None:
         return False
+    try:
+        from sqlalchemy import inspect as sa_inspect
+
+        if "file_data" in sa_inspect(obj).unloaded:
+            return False
+    except Exception:
+        pass
     data = getattr(obj, "file_data", None)
     if data is None:
         return False
@@ -2791,7 +2807,6 @@ async def building_standard_file(
 async def building_standard_upload(
     building_id: int,
     request: Request,
-    title: str = Form(""),
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2809,7 +2824,7 @@ async def building_standard_upload(
         print(f"[standards] schema ensure: {e}", flush=True)
 
     try:
-        form = await request.form()
+        form = await _parse_multipart_form(request)
         raw_files = form.getlist("files")
     except Exception as e:
         print(f"[standards] form parse error: {e}", flush=True)
@@ -2839,7 +2854,7 @@ async def building_standard_upload(
     upload_dir = _building_standards_dir(building_id)
     saved = 0
     skipped = 0
-    common_title = (title or "").strip() or str(form.get("title") or "").strip()
+    common_title = str(form.get("title") or "").strip()
 
     try:
         for f in uploads:
@@ -6978,8 +6993,13 @@ async def _record_pm_inspection(
 
 # ── 점검일지 ──────────────────────────────────────────────────────────
 
+_ilog_schema_ready = False
+
 
 async def _ensure_inspection_log_tables() -> None:
+    global _ilog_schema_ready
+    if _ilog_schema_ready:
+        return
     from sqlalchemy import text
 
     url = (os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_INTERNAL_URL") or "").lower()
@@ -7072,6 +7092,7 @@ async def _ensure_inspection_log_tables() -> None:
                 await alter_conn.execute(text(stmt))
         except Exception:
             pass
+    _ilog_schema_ready = True
 
 
 def _inspection_log_excel_ok(filename: str) -> bool:
@@ -7096,21 +7117,8 @@ async def _resolve_qr_write_file_id(
     building_id: int,
     equipment_id: int | None = None,
 ) -> int | None:
-    """QR 일지작성 파일. 설비 지정 → 건물 기본 → 최신 파일."""
-    if equipment_id:
-        eq_file_id = (
-            await db.execute(
-                select(InspectionLogFile.id)
-                .where(
-                    InspectionLogFile.building_id == building_id,
-                    InspectionLogFile.qr_equipment_id == equipment_id,
-                )
-                .order_by(InspectionLogFile.id.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        if eq_file_id:
-            return int(eq_file_id)
+    """이 건물 QR 「일지작성」에 연결할 파일. 지정값이 없거나 삭제됐으면 최신 파일."""
+    del equipment_id  # 건물 단위 연결만 사용
     files = (
         await db.execute(
             select(InspectionLogFile.id)
@@ -7126,26 +7134,6 @@ async def _resolve_qr_write_file_id(
     if chosen in ids:
         return int(chosen)
     return int(files[0])
-
-
-async def _building_qr_equipment(db: AsyncSession, building_id: int) -> list[dict]:
-    """점검일지 QR 연결용 설비 목록 (id/name/code만)."""
-    rows = (
-        await db.execute(
-            select(Equipment.id, Equipment.name, Equipment.code)
-            .join(Zone, Equipment.zone_id == Zone.id)
-            .join(Floor, Zone.floor_id == Floor.id)
-            .where(
-                Floor.building_id == building_id,
-                Equipment.is_active == True,  # noqa: E712
-            )
-            .order_by(Equipment.name, Equipment.code)
-        )
-    ).all()
-    return [
-        {"id": int(r.id), "name": r.name or "", "code": r.code or ""}
-        for r in rows
-    ]
 
 
 async def _qr_linked_log_file(
@@ -7394,13 +7382,15 @@ async def inspection_log_building_detail(
         await db.execute(
             select(InspectionLogFile)
             .where(InspectionLogFile.building_id == building_id)
+            .options(
+                defer(InspectionLogFile.file_data),
+                defer(InspectionLogFile.last_edit_pos),
+            )
             .order_by(InspectionLogFile.id.desc())
         )
     ).scalars().all()
     await _backfill_attachment_sizes(db, files)
     qr_write_file_id = await _resolve_qr_write_file_id(db, building_id)
-    qr_equipment = await _building_qr_equipment(db, building_id)
-    eq_name_by_id = {e["id"]: e["name"] for e in qr_equipment}
 
     return templates.TemplateResponse(
         request,
@@ -7410,8 +7400,6 @@ async def inspection_log_building_detail(
             "building": building,
             "files": files,
             "qr_write_file_id": qr_write_file_id,
-            "qr_equipment": qr_equipment,
-            "eq_name_by_id": eq_name_by_id,
             "upload_max_mb": UPLOAD_MAX_FILE_MB,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
@@ -7423,7 +7411,6 @@ async def inspection_log_building_detail(
 async def inspection_log_upload(
     building_id: int,
     request: Request,
-    title: str = Form(""),
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
@@ -7449,7 +7436,8 @@ async def inspection_log_upload(
             status_code=303,
         )
 
-    form = await request.form()
+    form = await _parse_multipart_form(request)
+    title = str(form.get("title") or "")
     uploads = form.getlist("files") if hasattr(form, "getlist") else []
     if not uploads:
         one = form.get("file")
@@ -7457,6 +7445,7 @@ async def inspection_log_upload(
 
     saved = 0
     errors: list[str] = []
+    last_doc: InspectionLogFile | None = None
     for item in uploads[:UPLOAD_MAX_FILES_PER_REQUEST]:
         if not hasattr(item, "filename") or not item.filename:
             continue
@@ -7474,33 +7463,24 @@ async def inspection_log_upload(
         ext = Path(fname).suffix.lower() or ".xlsx"
         stored = f"{uuid.uuid4().hex}{ext}"
         display_title = (title or "").strip() or Path(fname).stem
-        db.add(
-            InspectionLogFile(
-                building_id=building_id,
-                title=display_title[:200],
-                original_name=fname[:300],
-                stored_name=stored,
-                content_type=getattr(item, "content_type", None) or "",
-                file_data=raw,
-                file_size=len(raw),
-                uploaded_by=user.name or user.username,
-            )
+        doc = InspectionLogFile(
+            building_id=building_id,
+            title=display_title[:200],
+            original_name=fname[:300],
+            stored_name=stored,
+            content_type=getattr(item, "content_type", None) or "",
+            file_data=raw,
+            file_size=len(raw),
+            uploaded_by=user.name or user.username,
         )
+        db.add(doc)
+        last_doc = doc
         saved += 1
 
     if saved:
         await db.flush()
-        if registered and not getattr(registered, "qr_write_file_id", None):
-            latest = (
-                await db.execute(
-                    select(InspectionLogFile)
-                    .where(InspectionLogFile.building_id == building_id)
-                    .order_by(InspectionLogFile.id.desc())
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            if latest:
-                registered.qr_write_file_id = latest.id
+        if registered and not getattr(registered, "qr_write_file_id", None) and last_doc:
+            registered.qr_write_file_id = last_doc.id
         await db.commit()
     if saved and not errors:
         msg = f"엑셀 파일 {saved}개가 업로드되었습니다."
@@ -7936,15 +7916,23 @@ async def inspection_log_file_delete(
 async def inspection_log_set_qr_write_file(
     building_id: int,
     file_id: int = Form(...),
-    equipment_id: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
-    """설비 QR 「일지작성」에 연결할 점검일지 파일 지정."""
+    """이 건물 설비 QR 「일지작성」에 연결할 점검일지 파일 지정."""
     from urllib.parse import quote
 
     registered = await _inspection_log_building_row(db, building_id)
-    doc = await db.get(InspectionLogFile, file_id)
+    doc = (
+        await db.execute(
+            select(InspectionLogFile)
+            .where(InspectionLogFile.id == file_id)
+            .options(
+                defer(InspectionLogFile.file_data),
+                defer(InspectionLogFile.last_edit_pos),
+            )
+        )
+    ).scalar_one_or_none()
     if not registered:
         return RedirectResponse(
             "/admin/inspection-logs?error=" + quote("점검일지에 등록되지 않은 건물입니다."),
@@ -7955,71 +7943,11 @@ async def inspection_log_set_qr_write_file(
             f"/admin/inspection-logs/{building_id}?error=" + quote("파일을 찾을 수 없습니다."),
             status_code=303,
         )
-
-    target = (equipment_id or "").strip()
-    if target == "":
-        doc.qr_equipment_id = None
-        if registered.qr_write_file_id == doc.id:
-            registered.qr_write_file_id = None
-        await db.commit()
-        return RedirectResponse(
-            f"/admin/inspection-logs/{building_id}?message="
-            + quote(f"QR 연결 해제: {doc.title}"),
-            status_code=303,
-        )
-
-    if target == "0":
-        doc.qr_equipment_id = None
-        registered.qr_write_file_id = doc.id
-        await db.commit()
-        return RedirectResponse(
-            f"/admin/inspection-logs/{building_id}?message="
-            + quote(f"건물 QR 기본 연결: {doc.title}"),
-            status_code=303,
-        )
-
-    try:
-        eq_id = int(target)
-    except ValueError:
-        return RedirectResponse(
-            f"/admin/inspection-logs/{building_id}?error=" + quote("설비를 찾을 수 없습니다."),
-            status_code=303,
-        )
-    eq_ok = (
-        await db.execute(
-            select(Equipment.id)
-            .join(Zone, Equipment.zone_id == Zone.id)
-            .join(Floor, Zone.floor_id == Floor.id)
-            .where(
-                Equipment.id == eq_id,
-                Floor.building_id == building_id,
-                Equipment.is_active == True,  # noqa: E712
-            )
-        )
-    ).scalar_one_or_none()
-    if not eq_ok:
-        return RedirectResponse(
-            f"/admin/inspection-logs/{building_id}?error=" + quote("설비를 찾을 수 없습니다."),
-            status_code=303,
-        )
-    others = (
-        await db.execute(
-            select(InspectionLogFile).where(
-                InspectionLogFile.building_id == building_id,
-                InspectionLogFile.qr_equipment_id == eq_id,
-                InspectionLogFile.id != doc.id,
-            )
-        )
-    ).scalars().all()
-    for other in others:
-        other.qr_equipment_id = None
-    doc.qr_equipment_id = eq_id
+    registered.qr_write_file_id = doc.id
     await db.commit()
-    eq_row = await db.get(Equipment, eq_id)
-    eq_label = (eq_row.name if eq_row else "") or str(eq_id)
     return RedirectResponse(
         f"/admin/inspection-logs/{building_id}?message="
-        + quote(f"「{eq_label}」 QR 일지 연결: {doc.title}"),
+        + quote(f"이 건물 QR 일지작성 연결: {doc.title}"),
         status_code=303,
     )
 
