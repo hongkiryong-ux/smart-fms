@@ -187,6 +187,54 @@ async def _add_equipment_status_excels(
     return file_count, equipment_rows
 
 
+async def _add_equipment_detail_excels(
+    zf: zipfile.ZipFile,
+    db: AsyncSession,
+) -> int:
+    """설비관리 상세「Excel 내보내기」와 동일한 설비별 xlsx를 ZIP에 넣는다."""
+    from excel_import import export_equipment_excel
+
+    buildings = (
+        await db.execute(select(Building).order_by(Building.id))
+    ).scalars().all()
+
+    file_count = 0
+    seen: set[str] = set()
+    for building in buildings:
+        result = await db.execute(
+            select(Equipment)
+            .join(Zone)
+            .join(Floor)
+            .where(Floor.building_id == building.id, Equipment.is_active == True)
+            .options(
+                selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building),
+                selectinload(Equipment.maintenance_records),
+                selectinload(Equipment.pm_inspections).selectinload(PMInspection.schedule),
+                selectinload(Equipment.pm_schedules),
+                selectinload(Equipment.work_orders),
+            )
+            .order_by(Equipment.category, Equipment.code)
+        )
+        items = result.scalars().unique().all()
+        if not items:
+            continue
+
+        safe_building = _safe_name(building.name, f"building_{building.id}")
+        folder = f"excel/설비상세/{building.id}_{safe_building}"
+        for eq in items:
+            data = export_equipment_excel(eq)
+            safe_code = _safe_name(eq.code or f"eq{eq.id}", f"eq{eq.id}")
+            zip_path = f"{folder}/{eq.id}_{safe_code}_설비상세.xlsx"
+            if zip_path in seen:
+                zip_path = f"{folder}/{eq.id}_{safe_code}_{eq.id}_설비상세.xlsx"
+            seen.add(zip_path)
+            zf.writestr(zip_path, data, compress_type=zipfile.ZIP_STORED)
+            file_count += 1
+            del data
+
+    return file_count
+
+
 def _add_uploads_dir(zf: zipfile.ZipFile) -> int:
     root = Path("static") / "uploads"
     if not root.is_dir():
@@ -297,12 +345,15 @@ async def build_backup_zip(db: AsyncSession, dest: Path) -> dict:
         ).scalar() or 0
         counts["excel_equipment_active_db"] = int(active_eq)
 
+        counts["excel_equipment_detail_files"] = await _add_equipment_detail_excels(zf, db)
+
         readme = (
             "Smart FMS 전체 백업\n"
             f"- 생성시각: {datetime.now().isoformat(sep=' ', timespec='seconds')}\n"
             "- files/ : 사이트에 올린 원본 파일 (점검일지 엑셀, 도면, 표준서)\n"
             "- excel/업무데이터.xlsx : 사업장·설비·정비·점검 등 업무 자료 (DB flat export)\n"
             "- excel/설비현황/ : 설비관리「엑셀 출력」과 동일한 건물별 설비현황 xlsx\n"
+            "- excel/설비상세/ : 설비 상세「Excel 내보내기」와 동일한 설비별 xlsx\n"
             "- 이미 압축된 파일은 다시 압축하지 않았습니다 (빠른 다운로드).\n"
             f"- 건수: {json.dumps(counts, ensure_ascii=False)}\n"
         )
