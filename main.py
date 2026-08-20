@@ -2260,17 +2260,14 @@ async def server_backup_zip(
 
 
 _MANUAL_PPTX = Path(__file__).resolve().parent / "docs" / "Smart_FMS_사용매뉴얼.pptx"
+_PRESENTATION_PPTX = Path(__file__).resolve().parent / "docs" / "Smart_FMS_발표자료.pptx"
 
 
-@app.get("/admin/server/manual.pptx")
-async def server_user_manual_pptx(user: User = Depends(require_user_manager)):
-    """Smart FMS 사용 매뉴얼 PPT 다운로드."""
-    if not _MANUAL_PPTX.is_file():
-        raise HTTPException(404, detail="사용 매뉴얼 파일이 없습니다.")
-    filename = "Smart_FMS_사용매뉴얼.pptx"
-    ascii_name = "Smart_FMS_User_Manual.pptx"
+def _pptx_download(path: Path, *, ko_name: str, ascii_name: str, missing: str) -> FileResponse:
+    if not path.is_file():
+        raise HTTPException(404, detail=missing)
     return FileResponse(
-        _MANUAL_PPTX,
+        path,
         media_type=(
             "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         ),
@@ -2278,10 +2275,32 @@ async def server_user_manual_pptx(user: User = Depends(require_user_manager)):
         headers={
             "Content-Disposition": (
                 f'attachment; filename="{ascii_name}"; '
-                f"filename*=UTF-8''{quote(filename)}"
+                f"filename*=UTF-8''{quote(ko_name)}"
             ),
             "Cache-Control": "no-store",
         },
+    )
+
+
+@app.get("/admin/server/manual.pptx")
+async def server_user_manual_pptx(user: User = Depends(require_user_manager)):
+    """Smart FMS 사용 매뉴얼 PPT 다운로드."""
+    return _pptx_download(
+        _MANUAL_PPTX,
+        ko_name="Smart_FMS_사용매뉴얼.pptx",
+        ascii_name="Smart_FMS_User_Manual.pptx",
+        missing="사용 매뉴얼 파일이 없습니다.",
+    )
+
+
+@app.get("/admin/server/presentation.pptx")
+async def server_presentation_pptx(user: User = Depends(require_user_manager)):
+    """Smart FMS QSS형 발표자료 PPT 다운로드."""
+    return _pptx_download(
+        _PRESENTATION_PPTX,
+        ko_name="Smart_FMS_발표자료.pptx",
+        ascii_name="Smart_FMS_Presentation.pptx",
+        missing="발표자료 파일이 없습니다.",
     )
 
 
