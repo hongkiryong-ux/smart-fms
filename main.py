@@ -13,12 +13,13 @@ from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, selectinload
+from starlette.background import BackgroundTask
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -2213,6 +2214,49 @@ async def server_admin_status(
 ):
     """Render/호스트 서버 리소스·통신 상태 JSON."""
     return JSONResponse(await collect_server_status(db))
+
+
+@app.get("/admin/server/backup.zip")
+async def server_backup_zip(
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """업로드 파일 + 업무 엑셀을 무압축 ZIP으로 즉시 내려받기."""
+    import tempfile
+
+    from backup_export import build_backup_zip
+
+    tmp = tempfile.NamedTemporaryFile(prefix="fms-backup-", suffix=".zip", delete=False)
+    tmp_path = tmp.name
+    tmp.close()
+
+    def _cleanup() -> None:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    try:
+        await build_backup_zip(db, Path(tmp_path))
+    except Exception:
+        _cleanup()
+        raise
+
+    stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
+    filename = f"smart-fms-backup_{stamp}.zip"
+    return FileResponse(
+        tmp_path,
+        media_type="application/zip",
+        filename=filename,
+        background=BackgroundTask(_cleanup),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"; '
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @app.get("/admin/dashboard/server-status")

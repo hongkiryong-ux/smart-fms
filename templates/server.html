@@ -6,6 +6,17 @@
   <p>Render/호스트 리소스 · DB · 통신 상태 (30초 자동갱신)</p>
 </header>
 
+<section class="card">
+  <h2>전체 자료 백업</h2>
+  <p>
+    사이트에 올린 점검일지 엑셀·도면·표준서와 사업장/설비/정비 등 업무 데이터를
+    <strong>ZIP 한 개</strong>로 받습니다. 이미 압축된 파일은 다시 압축하지 않아 빠르게 내려받을 수 있습니다.
+  </p>
+  <p>
+    <a class="btn btn-primary" href="/admin/server/backup.zip">ZIP 백업 받기</a>
+  </p>
+</section>
+
 <aside class="dash-server-panel server-admin-panel" id="dash-server-panel" data-level="{{ server.overall }}" data-render="{{ '1' if server.is_render else '0' }}">
   <div class="dash-server-head">
     <div>
