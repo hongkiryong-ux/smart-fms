@@ -5405,6 +5405,114 @@ async def work_order_advance(
     return RedirectResponse(f"/admin/work-orders/{wo_id}", status_code=303)
 
 
+# ── AI 분석 ───────────────────────────────────────────────────────────
+
+
+_AI_INTENT_LABELS = {
+    "overview": "전체 현황",
+    "equipment": "설비",
+    "work_order": "정비의뢰",
+    "pm": "예방점검(PM)",
+    "streetlamp": "가로등",
+    "d1": "D-1/작업허가",
+    "partner": "협력사",
+    "inspection_log": "점검일지",
+}
+
+_AI_EXAMPLES = [
+    "전체 시설·설비·정비 현황 요약해줘",
+    "예방점검 지연·7일 이내 도래 건수는?",
+    "정비의뢰 상태별 건수와 최근 목록",
+    "가로등 등록·의뢰 현황은?",
+    "건물별 설비 많은 곳 Top은?",
+]
+
+
+@app.get("/admin/ai-analysis")
+async def ai_analysis_page(
+    request: Request,
+    user: User = Depends(require_login),
+):
+    from risk_assessment import mask_api_key, user_openai_credentials
+
+    if not can_access_menu(user, "ai_analysis"):
+        return RedirectResponse("/admin/account", status_code=303)
+    key, model = user_openai_credentials(user)
+    return templates.TemplateResponse(
+        request,
+        "ai_analysis.html",
+        {
+            "user": user,
+            "question": "",
+            "answer": "",
+            "result_mode": "",
+            "intent": "",
+            "intent_label": "",
+            "ai_ready": bool(key),
+            "ai_key_masked": mask_api_key(key),
+            "ai_model": model or "gpt-4o-mini",
+            "examples": _AI_EXAMPLES,
+            "error": "",
+            "info": "",
+        },
+    )
+
+
+@app.post("/admin/ai-analysis/ask")
+async def ai_analysis_ask(
+    request: Request,
+    question: str = Form(""),
+    mode: str = Form("aggregate"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_analysis import run_analysis
+    from risk_assessment import mask_api_key, user_openai_credentials
+
+    if not can_access_menu(user, "ai_analysis"):
+        return RedirectResponse("/admin/account", status_code=303)
+
+    key, model = user_openai_credentials(user)
+    mode_val = (mode or "aggregate").strip().lower()
+    if mode_val not in ("aggregate", "detail"):
+        mode_val = "aggregate"
+
+    result = await run_analysis(
+        db,
+        question,
+        mode=mode_val,
+        api_key=key,
+        model=model,
+    )
+    intent = result.get("intent") or ""
+    info = ""
+    if result.get("needs_api_key"):
+        info = "세부 분석에는 OpenAI API 키가 필요합니다. 위험성평가 화면에서 키를 등록하세요."
+    elif result.get("mode") == "detail":
+        info = "세부 분석(AI) 완료 — 하단에 집계 원본도 함께 표시됩니다."
+    elif not result.get("ok") and result.get("mode") == "detail_error":
+        info = "AI 호출에 실패해 집계 답변으로 대체했습니다."
+
+    return templates.TemplateResponse(
+        request,
+        "ai_analysis.html",
+        {
+            "user": user,
+            "question": question,
+            "answer": result.get("answer") or "",
+            "result_mode": result.get("mode") or "",
+            "intent": intent,
+            "intent_label": _AI_INTENT_LABELS.get(intent, intent),
+            "ai_ready": bool(key),
+            "ai_key_masked": mask_api_key(key),
+            "ai_model": model or "gpt-4o-mini",
+            "examples": _AI_EXAMPLES,
+            "error": "" if result.get("ok") or result.get("mode") == "detail_error" else (result.get("answer") or "오류"),
+            "info": info,
+        },
+    )
+
+
 # ── D-1 Plans ─────────────────────────────────────────────────────────
 
 

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}AI 분석{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>AI 분석</h1>
+  <p>
+    FMS에 등록된 자료를 바탕으로 질문에 답합니다.
+    API 키 없이도 <strong>집계 답변</strong>이 가능하고,
+    <strong>세부 분석(AI)</strong>은 OpenAI API 키가 필요합니다.
+  </p>
+</header>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+{% if info %}
+<div class="alert alert-success">{{ info }}</div>
+{% endif %}
+
+<section class="card">
+  <h2>질문하기</h2>
+  <form method="post" action="/admin/ai-analysis/ask" class="ai-ask-form">
+    <label for="question">질문</label>
+    <textarea id="question" name="question" rows="4" required
+              placeholder="예: 전체 설비·정비 현황 요약해줘 / 지연된 PM은 몇 건이야? / 가로등 의뢰 현황은?">{{ question or '' }}</textarea>
+
+    <div class="ai-ask-actions" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;align-items:center">
+      <button type="submit" name="mode" value="aggregate" class="btn btn-primary">집계 답변</button>
+      <button type="submit" name="mode" value="detail" class="btn btn-secondary">세부 분석 (AI)</button>
+      {% if ai_ready %}
+      <span class="text-muted" style="font-size:0.9rem">API 키 등록됨 ({{ ai_key_masked }}) · 모델 {{ ai_model }}</span>
+      {% else %}
+      <span class="text-muted" style="font-size:0.9rem">
+        API 키 없음 —
+        <a href="/admin/risk-assessment">위험성평가</a>에서 키 등록 후 세부 분석 가능
+      </span>
+      {% endif %}
+    </div>
+  </form>
+
+  <div style="margin-top:1rem">
+    <p class="text-muted" style="margin-bottom:0.5rem">예시 질문</p>
+    <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+      {% for ex in examples %}
+      <button type="button" class="btn btn-sm btn-secondary ai-ex-btn" data-q="{{ ex }}">{{ ex }}</button>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% if answer %}
+<section class="card">
+  <h2>
+    {% if result_mode == 'detail' %}세부 분석 결과
+    {% elif result_mode == 'needs_key' %}집계 답변 · 세부 분석 키 필요
+    {% else %}집계 답변{% endif %}
+  </h2>
+  {% if intent %}
+  <p class="text-muted" style="margin-bottom:0.5rem">인식된 주제: {{ intent_label }}</p>
+  {% endif %}
+  <pre class="ai-answer-box" style="white-space:pre-wrap;word-break:break-word;background:#f5f7fa;padding:1rem;border-radius:6px;line-height:1.5;font-family:inherit;font-size:0.95rem">{{ answer }}</pre>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>이용 안내</h2>
+  <ul>
+    <li><strong>집계 답변</strong> — DB에서 관련 수치만 모아 바로 답합니다. (API 키 불필요)</li>
+    <li><strong>세부 분석(AI)</strong> — 같은 집계를 OpenAI가 해석·제안합니다. 키가 없으면 집계 후 등록 안내만 표시합니다.</li>
+    <li>1차 범위: 설비·정비의뢰·PM·가로등·협력사·점검일지 파일 수 등. 점검일지 엑셀 본문·도면 OCR은 포함하지 않습니다.</li>
+  </ul>
+</section>
+
+<script>
+(function () {
+  var ta = document.getElementById('question');
+  document.querySelectorAll('.ai-ex-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (ta) {
+        ta.value = btn.getAttribute('data-q') || '';
+        ta.focus();
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

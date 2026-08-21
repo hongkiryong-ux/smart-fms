@@ -118,6 +118,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("d1", "정비 List(D-1)/협력사"),
     ("facility_section", "작업허가/승인(시설섹션)"),
     ("streetlamp", "가로등"),
+    ("ai_analysis", "AI 분석"),
     ("server", "서버관리"),
     ("risk_assessment", "위험성평가"),
     ("materials", "자재관리"),
@@ -139,6 +140,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/work-orders", "work_orders"),
     ("/admin/facility-section", "facility_section"),
     ("/admin/streetlamp", "streetlamp"),
+    ("/admin/ai-analysis", "ai_analysis"),
     ("/admin/server", "server"),
     ("/admin/d1", "d1"),
     ("/admin/risk-assessment", "risk_assessment"),
@@ -156,6 +158,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("d1", "/admin/d1"),
     ("facility_section", "/admin/facility-section"),
     ("streetlamp", "/admin/streetlamp/requests"),
+    ("ai_analysis", "/admin/ai-analysis"),
     ("server", "/admin/server"),
     ("risk_assessment", "/admin/risk-assessment"),
     ("materials", "/admin/materials?popup=1"),
@@ -218,6 +221,9 @@ def effective_menu_access(user: User | None) -> list[str]:
         and ("work_orders" in keys or "d1" in keys or "facility_section" in keys)
     ):
         keys.append("streetlamp")
+    # 신규 메뉴 AI 분석 — 기존 계정에 자동 부여
+    if "ai_analysis" not in keys and user.role not in (UserRole.partner, UserRole.external):
+        keys.append("ai_analysis")
     return keys
 
 

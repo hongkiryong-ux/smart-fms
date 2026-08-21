@@ -209,6 +209,9 @@
         </ul>
       </li>
       {% endif %}
+      {% if user_can_access_menu(user, 'ai_analysis') %}
+      <li><a href="/admin/ai-analysis" class="{% if '/ai-analysis' in request.url.path %}active{% endif %}">AI 분석</a></li>
+      {% endif %}
       {% if user_can_access_menu(user, 'risk_assessment') %}
       <li class="nav-pc-only"><a href="/admin/risk-assessment" class="{% if '/risk-assessment' in request.url.path %}active{% endif %}">위험성평가</a></li>
       {% endif %}
