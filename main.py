@@ -5427,6 +5427,12 @@ _AI_EXAMPLES = [
     "건물별 설비 많은 곳 Top은?",
 ]
 
+_AI_EXAMPLES_DETAIL = [
+    "정비·PM 지연 원인을 분석하고 우선 조치 순서를 제안해줘",
+    "설비 많은 건물의 정비 리스크를 평가해줘",
+    "가로등·설비 운영 현황을 종합해 개선 포인트를 알려줘",
+]
+
 
 @app.get("/admin/ai-analysis")
 async def ai_analysis_page(
@@ -5443,7 +5449,8 @@ async def ai_analysis_page(
         "ai_analysis.html",
         {
             "user": user,
-            "question": "",
+            "question_general": "",
+            "question_ai": "",
             "answer": "",
             "result_mode": "",
             "intent": "",
@@ -5452,6 +5459,7 @@ async def ai_analysis_page(
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",
             "examples": _AI_EXAMPLES,
+            "examples_ai": _AI_EXAMPLES_DETAIL,
             "error": "",
             "info": "",
         },
@@ -5487,18 +5495,24 @@ async def ai_analysis_ask(
     intent = result.get("intent") or ""
     info = ""
     if result.get("needs_api_key"):
-        info = "세부 분석에는 OpenAI API 키가 필요합니다. 위험성평가 화면에서 키를 등록하세요."
+        info = "AI 질문에는 OpenAI API 키가 필요합니다. 위험성평가 화면에서 키를 등록하세요."
     elif result.get("mode") == "detail":
-        info = "세부 분석(AI) 완료 — 하단에 집계 원본도 함께 표시됩니다."
+        info = "AI 질문 답변 완료입니다."
+    elif result.get("mode") == "aggregate":
+        info = "일반질문(집계) 답변 완료입니다."
     elif not result.get("ok") and result.get("mode") == "detail_error":
         info = "AI 호출에 실패해 집계 답변으로 대체했습니다."
+
+    q_general = question if mode_val == "aggregate" else ""
+    q_ai = question if mode_val == "detail" else ""
 
     return templates.TemplateResponse(
         request,
         "ai_analysis.html",
         {
             "user": user,
-            "question": question,
+            "question_general": q_general,
+            "question_ai": q_ai,
             "answer": result.get("answer") or "",
             "result_mode": result.get("mode") or "",
             "intent": intent,
@@ -5507,7 +5521,10 @@ async def ai_analysis_ask(
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",
             "examples": _AI_EXAMPLES,
-            "error": "" if result.get("ok") or result.get("mode") == "detail_error" else (result.get("answer") or "오류"),
+            "examples_ai": _AI_EXAMPLES_DETAIL,
+            "error": ""
+            if result.get("ok") or result.get("mode") == "detail_error"
+            else (result.get("answer") or "오류"),
             "info": info,
         },
     )

@@ -1,12 +1,77 @@
 {% extends "base.html" %}
 {% block title %}AI 분석{% endblock %}
+{% block head_extra %}
+<style>
+  .ai-page { max-width: none; width: 100%; }
+  .ai-ask-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    width: 100%;
+  }
+  .ai-ask-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .ai-ask-panel h2 {
+    margin-bottom: 0.35rem;
+  }
+  .ai-ask-panel .ai-panel-desc {
+    color: var(--muted, #666);
+    font-size: 0.88rem;
+    margin: 0 0 0.75rem;
+  }
+  .ai-ask-panel textarea {
+    width: 100%;
+    min-height: 160px;
+    box-sizing: border-box;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--border, #ccd3dc);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    resize: vertical;
+  }
+  .ai-ask-panel .ai-ask-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 0.75rem;
+  }
+  .ai-examples {
+    margin-top: 0.85rem;
+  }
+  .ai-examples .ai-ex-list {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  .ai-answer-card { width: 100%; }
+  .ai-answer-box {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #f5f7fa;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    line-height: 1.55;
+    font-family: inherit;
+    font-size: 0.95rem;
+    margin: 0;
+  }
+  @media (max-width: 900px) {
+    .ai-ask-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
 {% block content %}
+<div class="ai-page">
 <header class="page-header">
   <h1>AI 분석</h1>
   <p>
-    FMS에 등록된 자료를 바탕으로 질문에 답합니다.
-    API 키 없이도 <strong>집계 답변</strong>이 가능하고,
-    <strong>세부 분석(AI)</strong>은 OpenAI API 키가 필요합니다.
+    <strong>일반질문</strong>은 DB 집계로 바로 답하고,
+    <strong>AI 질문</strong>은 OpenAI로 세부 분석합니다.
   </p>
 </header>
 
@@ -17,65 +82,88 @@
 <div class="alert alert-success">{{ info }}</div>
 {% endif %}
 
-<section class="card">
-  <h2>질문하기</h2>
-  <form method="post" action="/admin/ai-analysis/ask" class="ai-ask-form">
-    <label for="question">질문</label>
-    <textarea id="question" name="question" rows="4" required
-              placeholder="예: 전체 설비·정비 현황 요약해줘 / 지연된 PM은 몇 건이야? / 가로등 의뢰 현황은?">{{ question or '' }}</textarea>
+<div class="ai-ask-grid">
+  <section class="card ai-ask-panel">
+    <h2>일반질문</h2>
+    <p class="ai-panel-desc">API 키 없이 FMS 등록 자료를 집계해 답변합니다.</p>
+    <form method="post" action="/admin/ai-analysis/ask" class="form-stack">
+      <input type="hidden" name="mode" value="aggregate" />
+      <label for="question_general">질문</label>
+      <textarea id="question_general" name="question" rows="7" required
+                placeholder="예: 전체 설비·정비 현황 요약해줘 / 지연된 PM은 몇 건이야?">{{ question_general or '' }}</textarea>
+      <div class="ai-ask-actions">
+        <button type="submit" class="btn btn-primary">질문하기</button>
+      </div>
+    </form>
+    <div class="ai-examples">
+      <p class="text-muted" style="margin-bottom:0.4rem;font-size:0.85rem">예시</p>
+      <div class="ai-ex-list">
+        {% for ex in examples %}
+        <button type="button" class="btn btn-sm btn-secondary ai-ex-btn" data-target="question_general" data-q="{{ ex }}">{{ ex }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
 
-    <div class="ai-ask-actions" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;align-items:center">
-      <button type="submit" name="mode" value="aggregate" class="btn btn-primary">집계 답변</button>
-      <button type="submit" name="mode" value="detail" class="btn btn-secondary">세부 분석 (AI)</button>
+  <section class="card ai-ask-panel">
+    <h2>AI 질문</h2>
+    <p class="ai-panel-desc">
+      집계 결과를 바탕으로 원인·우선순위·개선안을 분석합니다.
       {% if ai_ready %}
-      <span class="text-muted" style="font-size:0.9rem">API 키 등록됨 ({{ ai_key_masked }}) · 모델 {{ ai_model }}</span>
+      <span>키 등록됨 ({{ ai_key_masked }}) · {{ ai_model }}</span>
       {% else %}
-      <span class="text-muted" style="font-size:0.9rem">
-        API 키 없음 —
-        <a href="/admin/risk-assessment">위험성평가</a>에서 키 등록 후 세부 분석 가능
-      </span>
+      <span>키 없음 — <a href="/admin/risk-assessment">위험성평가</a>에서 등록</span>
       {% endif %}
+    </p>
+    <form method="post" action="/admin/ai-analysis/ask" class="form-stack">
+      <input type="hidden" name="mode" value="detail" />
+      <label for="question_ai">질문</label>
+      <textarea id="question_ai" name="question" rows="7" required
+                placeholder="예: 정비 지연 원인을 분석하고 우선 조치 순서를 제안해줘">{{ question_ai or '' }}</textarea>
+      <div class="ai-ask-actions">
+        <button type="submit" class="btn btn-primary"{% if not ai_ready %} title="API 키가 없으면 집계 후 키 등록을 안내합니다"{% endif %}>질문하기</button>
+      </div>
+    </form>
+    <div class="ai-examples">
+      <p class="text-muted" style="margin-bottom:0.4rem;font-size:0.85rem">예시</p>
+      <div class="ai-ex-list">
+        {% for ex in examples_ai %}
+        <button type="button" class="btn btn-sm btn-secondary ai-ex-btn" data-target="question_ai" data-q="{{ ex }}">{{ ex }}</button>
+        {% endfor %}
+      </div>
     </div>
-  </form>
-
-  <div style="margin-top:1rem">
-    <p class="text-muted" style="margin-bottom:0.5rem">예시 질문</p>
-    <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-      {% for ex in examples %}
-      <button type="button" class="btn btn-sm btn-secondary ai-ex-btn" data-q="{{ ex }}">{{ ex }}</button>
-      {% endfor %}
-    </div>
-  </div>
-</section>
+  </section>
+</div>
 
 {% if answer %}
-<section class="card">
+<section class="card ai-answer-card" style="margin-top:1rem">
   <h2>
-    {% if result_mode == 'detail' %}세부 분석 결과
-    {% elif result_mode == 'needs_key' %}집계 답변 · 세부 분석 키 필요
-    {% else %}집계 답변{% endif %}
+    {% if result_mode == 'detail' %}AI 질문 답변
+    {% elif result_mode == 'needs_key' %}일반 집계 + AI 키 안내
+    {% else %}일반질문 답변{% endif %}
   </h2>
   {% if intent %}
   <p class="text-muted" style="margin-bottom:0.5rem">인식된 주제: {{ intent_label }}</p>
   {% endif %}
-  <pre class="ai-answer-box" style="white-space:pre-wrap;word-break:break-word;background:#f5f7fa;padding:1rem;border-radius:6px;line-height:1.5;font-family:inherit;font-size:0.95rem">{{ answer }}</pre>
+  <pre class="ai-answer-box">{{ answer }}</pre>
 </section>
 {% endif %}
 
-<section class="card">
+<section class="card" style="margin-top:1rem">
   <h2>이용 안내</h2>
   <ul>
-    <li><strong>집계 답변</strong> — DB에서 관련 수치만 모아 바로 답합니다. (API 키 불필요)</li>
-    <li><strong>세부 분석(AI)</strong> — 같은 집계를 OpenAI가 해석·제안합니다. 키가 없으면 집계 후 등록 안내만 표시합니다.</li>
-    <li>1차 범위: 설비·정비의뢰·PM·가로등·협력사·점검일지 파일 수 등. 점검일지 엑셀 본문·도면 OCR은 포함하지 않습니다.</li>
+    <li><strong>일반질문</strong> — DB에서 관련 수치만 모아 바로 답합니다. (API 키 불필요)</li>
+    <li><strong>AI 질문</strong> — 같은 집계를 OpenAI가 해석·제안합니다. 키가 없으면 집계 후 등록 안내를 표시합니다.</li>
   </ul>
 </section>
+</div>
 
 <script>
 (function () {
-  var ta = document.getElementById('question');
   document.querySelectorAll('.ai-ex-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-target');
+      var ta = id ? document.getElementById(id) : null;
       if (ta) {
         ta.value = btn.getAttribute('data-q') || '';
         ta.focus();
