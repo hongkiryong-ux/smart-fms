@@ -5567,18 +5567,27 @@ async def ai_analysis_ai_settings(
         info = "OpenAI 키를 삭제했습니다."
     else:
         if key_in and not (set(key_in) <= {"•", "*"} or "…" in key_in or "..." in key_in):
-            db_user.openai_api_key = key_in
-        db_user.openai_model = model_in
-        await db.commit()
-        await db.refresh(db_user)
-        has_key = bool((db_user.openai_api_key or "").strip())
-        if has_key:
-            info = (
-                f"OpenAI 키 저장됨 ({mask_api_key(db_user.openai_api_key)}, "
-                f"모델: {db_user.openai_model})"
-            )
+            try:
+                key_in.encode("ascii")
+            except UnicodeEncodeError:
+                err = "API 키는 영문·숫자·기호만 가능합니다. 한글이 섞인 값은 저장되지 않습니다."
+                key_in = ""
+            if key_in:
+                db_user.openai_api_key = key_in
+        if not err:
+            db_user.openai_model = model_in
+            await db.commit()
+            await db.refresh(db_user)
+            has_key = bool((db_user.openai_api_key or "").strip())
+            if has_key:
+                info = (
+                    f"OpenAI 키 저장됨 ({mask_api_key(db_user.openai_api_key)}, "
+                    f"모델: {db_user.openai_model})"
+                )
+            else:
+                err = "OpenAI API 키를 입력하세요."
         else:
-            err = "OpenAI API 키를 입력하세요."
+            await db.rollback()
 
     key, model = user_openai_credentials(db_user)
     return templates.TemplateResponse(

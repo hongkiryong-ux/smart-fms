@@ -369,6 +369,28 @@ def format_aggregate_answer(ctx: dict[str, Any], *, include_footer: bool = True)
     return "\n".join(lines)
 
 
+def _sanitize_openai_api_key(api_key: str) -> str:
+    """HTTP Authorization 헤더는 latin-1만 허용 → 키는 ASCII만 사용."""
+    key = (api_key or "").strip().replace("\ufeff", "")
+    # 마스킹 값이 잘못 저장된 경우
+    if not key or "…" in key or set(key) <= {"•", "*"}:
+        raise RuntimeError(
+            "OpenAI API 키가 올바르지 않습니다. "
+            "마스킹된 값이 아니라 원본 키(sk-...)를 다시 저장해 주세요."
+        )
+    try:
+        key.encode("ascii")
+    except UnicodeEncodeError as e:
+        raise RuntimeError(
+            "API 키에 한글/유니코드 문자가 포함되어 있습니다. "
+            "OpenAI 키(영문·숫자·기호만)를 다시 등록해 주세요."
+        ) from e
+    if not (key.startswith("sk-") or key.startswith("sk-proj-")):
+        # 형식만 경고성 — 일부 키는 다를 수 있어 차단하지는 않음
+        pass
+    return key
+
+
 def call_openai_detail(
     *,
     api_key: str,
@@ -377,8 +399,10 @@ def call_openai_detail(
     context: dict[str, Any],
 ) -> str:
     """집계 컨텍스트를 바탕으로 GPT 세부 분석 문장 생성."""
-    import requests
+    import urllib.error
+    import urllib.request
 
+    key = _sanitize_openai_api_key(api_key)
     system = (
         "당신은 POSCO WIDE Smart FMS 시설관리 분석 도우미입니다. "
         "제공된 JSON 집계만 근거로 한국어로 답하세요. "
@@ -388,41 +412,53 @@ def call_openai_detail(
     )
     payload_ctx = json.dumps(context, ensure_ascii=False, default=str)
     if len(payload_ctx) > 28000:
-        payload_ctx = payload_ctx[:28000] + "…"
+        payload_ctx = payload_ctx[:28000] + "..."
     user_msg = (
         f"질문:\n{question}\n\n"
         f"FMS 집계 데이터(JSON):\n{payload_ctx}\n\n"
         "위 데이터만으로 세부 분석 답변을 작성하세요."
     )
     model_name = (model or "gpt-4o-mini").strip() or "gpt-4o-mini"
-    resp = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model_name,
-            "temperature": 0.2,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_msg},
-            ],
-        },
-        timeout=120,
-    )
-    if resp.status_code >= 400:
-        # 흔한 모델명 오류 시 mini로 1회 재시도
-        err_body = resp.text[:400]
-        if resp.status_code == 404 and model_name != "gpt-4o-mini":
-            return call_openai_detail(
-                api_key=api_key,
-                model="gpt-4o-mini",
-                question=question,
-                context=context,
-            )
-        raise RuntimeError(f"OpenAI 오류 ({resp.status_code}): {err_body}")
-    data = resp.json()
+    try:
+        model_name.encode("ascii")
+    except UnicodeEncodeError:
+        model_name = "gpt-4o-mini"
+
+    body_obj = {
+        "model": model_name,
+        "temperature": 0.2,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
+        ],
+    }
+
+    def _post(use_model: str) -> dict:
+        payload = dict(body_obj)
+        payload["model"] = use_model
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": "Bearer " + key,
+                "Content-Type": "application/json; charset=utf-8",
+                "Accept": "application/json",
+                "User-Agent": "SmartFMS/1.0",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                return json.loads(raw)
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")[:400]
+            if e.code == 404 and use_model != "gpt-4o-mini":
+                return _post("gpt-4o-mini")
+            raise RuntimeError(f"OpenAI 오류 ({e.code}): {err_body}") from e
+
+    data = _post(model_name)
     text = (
         data.get("choices", [{}])[0]
         .get("message", {})
