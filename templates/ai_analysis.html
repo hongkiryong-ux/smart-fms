@@ -14,9 +14,7 @@
     flex-direction: column;
     min-width: 0;
   }
-  .ai-ask-panel h2 {
-    margin-bottom: 0.35rem;
-  }
+  .ai-ask-panel h2 { margin-bottom: 0.35rem; }
   .ai-ask-panel .ai-panel-desc {
     color: var(--muted, #666);
     font-size: 0.88rem;
@@ -40,15 +38,8 @@
     align-items: center;
     margin-top: 0.75rem;
   }
-  .ai-examples {
-    margin-top: 0.85rem;
-  }
-  .ai-examples .ai-ex-list {
-    display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-  }
-  .ai-answer-card { width: 100%; }
+  .ai-examples { margin-top: 0.85rem; }
+  .ai-examples .ai-ex-list { display: flex; gap: 0.4rem; flex-wrap: wrap; }
   .ai-answer-box {
     white-space: pre-wrap;
     word-break: break-word;
@@ -59,6 +50,23 @@
     font-family: inherit;
     font-size: 0.95rem;
     margin: 0;
+  }
+  .ai-answer-box.gpt {
+    background: #eef6ff;
+    border: 1px solid #c5daf5;
+  }
+  .ai-key-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: end;
+  }
+  .ai-key-row label { margin: 0; font-size: 0.85rem; font-weight: 600; }
+  .ai-key-row input, .ai-key-row select {
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border, #ccd3dc);
+    border-radius: 6px;
+    min-width: 14rem;
   }
   @media (max-width: 900px) {
     .ai-ask-grid { grid-template-columns: 1fr; }
@@ -71,7 +79,7 @@
   <h1>AI 분석</h1>
   <p>
     <strong>일반질문</strong>은 DB 집계로 바로 답하고,
-    <strong>AI 질문</strong>은 OpenAI로 세부 분석합니다.
+    <strong>AI 질문</strong>은 등록된 OpenAI 키로 GPT가 분석합니다.
   </p>
 </header>
 
@@ -82,6 +90,35 @@
 <div class="alert alert-success">{{ info }}</div>
 {% endif %}
 
+<section class="card" style="margin-bottom:1rem">
+  <h2>OpenAI API 키</h2>
+  <p class="text-muted" style="margin-bottom:0.75rem">
+    AI 질문은 계정에 저장된 키로 GPT를 호출합니다.
+    {% if ai_ready %}현재 키: {{ ai_key_masked }} · 모델 {{ ai_model }}
+    {% else %}<strong>키가 없습니다. 아래에서 등록하세요.</strong>{% endif %}
+  </p>
+  <form method="post" action="/admin/ai-analysis/ai-settings" class="ai-key-row">
+    <div>
+      <label for="openai_api_key">API 키</label><br>
+      <input id="openai_api_key" type="password" name="openai_api_key"
+             placeholder="{% if ai_ready %}새 키 입력 시 교체{% else %}sk-...{% endif %}"
+             autocomplete="off" />
+    </div>
+    <div>
+      <label for="openai_model">모델</label><br>
+      <select id="openai_model" name="openai_model">
+        <option value="gpt-4o-mini" {% if ai_model == 'gpt-4o-mini' %}selected{% endif %}>gpt-4o-mini</option>
+        <option value="gpt-4o" {% if ai_model == 'gpt-4o' %}selected{% endif %}>gpt-4o</option>
+        <option value="gpt-4.1-mini" {% if ai_model == 'gpt-4.1-mini' %}selected{% endif %}>gpt-4.1-mini</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">키 저장</button>
+    {% if ai_ready %}
+    <button type="submit" name="clear_key" value="1" class="btn btn-secondary">키 삭제</button>
+    {% endif %}
+  </form>
+</section>
+
 <div class="ai-ask-grid">
   <section class="card ai-ask-panel">
     <h2>일반질문</h2>
@@ -90,7 +127,7 @@
       <input type="hidden" name="mode" value="aggregate" />
       <label for="question_general">질문</label>
       <textarea id="question_general" name="question" rows="7" required
-                placeholder="예: 전체 설비·정비 현황 요약해줘 / 지연된 PM은 몇 건이야?">{{ question_general or '' }}</textarea>
+                placeholder="예: 전체 설비·정비 현황 요약해줘">{{ question_general or '' }}</textarea>
       <div class="ai-ask-actions">
         <button type="submit" class="btn btn-primary">질문하기</button>
       </div>
@@ -106,22 +143,15 @@
   </section>
 
   <section class="card ai-ask-panel">
-    <h2>AI 질문</h2>
-    <p class="ai-panel-desc">
-      집계 결과를 바탕으로 원인·우선순위·개선안을 분석합니다.
-      {% if ai_ready %}
-      <span>키 등록됨 ({{ ai_key_masked }}) · {{ ai_model }}</span>
-      {% else %}
-      <span>키 없음 — <a href="/admin/risk-assessment">위험성평가</a>에서 등록</span>
-      {% endif %}
-    </p>
+    <h2>AI 질문 (GPT)</h2>
+    <p class="ai-panel-desc">집계 수치를 근거로 GPT가 해석·제안합니다. 반드시 OpenAI 키가 필요합니다.</p>
     <form method="post" action="/admin/ai-analysis/ask" class="form-stack">
       <input type="hidden" name="mode" value="detail" />
       <label for="question_ai">질문</label>
       <textarea id="question_ai" name="question" rows="7" required
                 placeholder="예: 정비 지연 원인을 분석하고 우선 조치 순서를 제안해줘">{{ question_ai or '' }}</textarea>
       <div class="ai-ask-actions">
-        <button type="submit" class="btn btn-primary"{% if not ai_ready %} title="API 키가 없으면 집계 후 키 등록을 안내합니다"{% endif %}>질문하기</button>
+        <button type="submit" class="btn btn-primary">질문하기</button>
       </div>
     </form>
     <div class="ai-examples">
@@ -136,26 +166,27 @@
 </div>
 
 {% if answer %}
-<section class="card ai-answer-card" style="margin-top:1rem">
+<section class="card" style="margin-top:1rem">
   <h2>
-    {% if result_mode == 'detail' %}AI 질문 답변
-    {% elif result_mode == 'needs_key' %}일반 집계 + AI 키 안내
-    {% else %}일반질문 답변{% endif %}
+    {% if result_mode == 'detail' %}GPT 답변
+    {% elif result_mode == 'needs_key' %}키 필요
+    {% elif result_mode == 'detail_error' %}GPT 오류
+    {% else %}일반질문 답변 (집계){% endif %}
   </h2>
   {% if intent %}
   <p class="text-muted" style="margin-bottom:0.5rem">인식된 주제: {{ intent_label }}</p>
   {% endif %}
-  <pre class="ai-answer-box">{{ answer }}</pre>
+  <pre class="ai-answer-box{% if result_mode == 'detail' %} gpt{% endif %}">{{ answer }}</pre>
 </section>
 {% endif %}
 
+{% if evidence %}
 <section class="card" style="margin-top:1rem">
-  <h2>이용 안내</h2>
-  <ul>
-    <li><strong>일반질문</strong> — DB에서 관련 수치만 모아 바로 답합니다. (API 키 불필요)</li>
-    <li><strong>AI 질문</strong> — 같은 집계를 OpenAI가 해석·제안합니다. 키가 없으면 집계 후 등록 안내를 표시합니다.</li>
-  </ul>
+  <h2>분석에 사용한 집계 근거</h2>
+  <p class="text-muted" style="margin-bottom:0.5rem">GPT가 참고한 DB 수치입니다. (본문 GPT 답변과 별개)</p>
+  <pre class="ai-answer-box">{{ evidence }}</pre>
 </section>
+{% endif %}
 </div>
 
 <script>

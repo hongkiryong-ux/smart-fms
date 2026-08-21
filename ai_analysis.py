@@ -288,11 +288,11 @@ def _extract_building_hint(question: str) -> str | None:
     return None
 
 
-def format_aggregate_answer(ctx: dict[str, Any]) -> str:
+def format_aggregate_answer(ctx: dict[str, Any], *, include_footer: bool = True) -> str:
     """API 키 없이 집계만으로 한국어 답변 생성."""
     lines: list[str] = []
     ov = ctx.get("sections", {}).get("overview", {})
-    lines.append(f"[집계 답변] 기준 시각: {ctx.get('as_of', '')}")
+    lines.append(f"[집계] 기준 시각: {ctx.get('as_of', '')}")
     lines.append(
         f"전체 현황 - 사업장 {ov.get('sites', 0)} · 건물 {ov.get('buildings', 0)} · "
         f"활성 설비 {ov.get('equipment_active', 0):,} · 정비의뢰 {ov.get('work_orders_active', 0)} · "
@@ -361,11 +361,11 @@ def format_aggregate_answer(ctx: dict[str, Any]) -> str:
         lines.append("")
         lines.append(f"■ 점검일지 파일 {sec['inspection_logs'].get('files', 0)}건")
 
-    lines.append("")
-    lines.append(
-        "※ 이 답변은 DB 집계 결과입니다. 원인 해석·우선순위·개선안 등 세부 분석은 "
-        "「세부 분석(AI)」과 OpenAI API 키가 필요합니다."
-    )
+    if include_footer:
+        lines.append("")
+        lines.append(
+            "※ 이 답변은 DB 집계 결과입니다. GPT 해석이 필요하면 우측 「AI 질문」을 사용하세요."
+        )
     return "\n".join(lines)
 
 
@@ -376,14 +376,15 @@ def call_openai_detail(
     question: str,
     context: dict[str, Any],
 ) -> str:
-    """집계 컨텍스트를 바탕으로 세부 분석 문장 생성."""
+    """집계 컨텍스트를 바탕으로 GPT 세부 분석 문장 생성."""
     import requests
 
     system = (
         "당신은 POSCO WIDE Smart FMS 시설관리 분석 도우미입니다. "
         "제공된 JSON 집계만 근거로 한국어로 답하세요. "
         "없는 수치는 추측하지 말고, 개선 제안은 근거와 함께 짧게 제시하세요. "
-        "비밀번호·API키·개인 연락처는 언급하지 마세요."
+        "비밀번호·API키·개인 연락처는 언급하지 마세요. "
+        "답변 서두에 'GPT 분석'이라고 쓰지 말고, 바로 본론부터 작성하세요."
     )
     payload_ctx = json.dumps(context, ensure_ascii=False, default=str)
     if len(payload_ctx) > 28000:
@@ -393,6 +394,7 @@ def call_openai_detail(
         f"FMS 집계 데이터(JSON):\n{payload_ctx}\n\n"
         "위 데이터만으로 세부 분석 답변을 작성하세요."
     )
+    model_name = (model or "gpt-4o-mini").strip() or "gpt-4o-mini"
     resp = requests.post(
         "https://api.openai.com/v1/chat/completions",
         headers={
@@ -400,17 +402,26 @@ def call_openai_detail(
             "Content-Type": "application/json",
         },
         json={
-            "model": model or "gpt-4o-mini",
+            "model": model_name,
             "temperature": 0.2,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user_msg},
             ],
         },
-        timeout=90,
+        timeout=120,
     )
     if resp.status_code >= 400:
-        raise RuntimeError(f"OpenAI 오류 ({resp.status_code}): {resp.text[:300]}")
+        # 흔한 모델명 오류 시 mini로 1회 재시도
+        err_body = resp.text[:400]
+        if resp.status_code == 404 and model_name != "gpt-4o-mini":
+            return call_openai_detail(
+                api_key=api_key,
+                model="gpt-4o-mini",
+                question=question,
+                context=context,
+            )
+        raise RuntimeError(f"OpenAI 오류 ({resp.status_code}): {err_body}")
     data = resp.json()
     text = (
         data.get("choices", [{}])[0]
@@ -434,8 +445,11 @@ async def run_analysis(
     """
     mode:
       - aggregate: 집계만
-      - detail: API 키로 세부 분석 (없으면 needs_api_key)
+      - detail: API 키로 GPT 분석 (없으면 needs_api_key)
+    반환: answer(화면 본문), evidence(집계 근거, detail일 때), mode, ...
     """
+    import asyncio
+
     q = (question or "").strip()
     if not q:
         return {
@@ -443,13 +457,16 @@ async def run_analysis(
             "mode": mode,
             "needs_api_key": False,
             "answer": "질문을 입력해 주세요.",
+            "evidence": "",
             "intent": "overview",
             "context": {},
+            "error": "질문을 입력해 주세요.",
         }
 
     intent = classify_intent(q)
     context = await gather_context(db, intent, q)
-    aggregate_text = format_aggregate_answer(context)
+    evidence = format_aggregate_answer(context, include_footer=False)
+    aggregate_text = format_aggregate_answer(context, include_footer=True)
 
     if mode != "detail":
         return {
@@ -457,57 +474,54 @@ async def run_analysis(
             "mode": "aggregate",
             "needs_api_key": False,
             "answer": aggregate_text,
+            "evidence": "",
             "intent": intent,
             "context": context,
+            "error": "",
         }
 
-    if not (api_key or "").strip():
+    key = (api_key or "").strip()
+    if not key:
         return {
             "ok": True,
             "mode": "needs_key",
             "needs_api_key": True,
             "answer": (
-                aggregate_text
-                + "\n\n"
-                + "────────────────────────────────\n"
-                + "[세부 분석 안내]\n"
-                + "세부 분석(원인 해석·우선순위·개선 제안)을 원하시면 "
-                + "위험성평가 또는 내 계정에서 OpenAI API 키를 등록한 뒤 "
-                + "「세부 분석(AI)」을 다시 눌러 주세요."
+                "OpenAI API 키가 없어 GPT 분석을 실행하지 못했습니다.\n"
+                "아래 「API 키 등록」에서 키를 저장한 뒤 AI 질문을 다시 눌러 주세요."
             ),
+            "evidence": evidence,
             "intent": intent,
             "context": context,
+            "error": "",
         }
 
     try:
-        detail = call_openai_detail(
-            api_key=api_key.strip(),
+        detail = await asyncio.to_thread(
+            call_openai_detail,
+            api_key=key,
             model=model or "gpt-4o-mini",
             question=q,
             context=context,
-        )
-        answer = (
-            f"[세부 분석 · AI]\n{detail}\n\n"
-            f"────────────────────────────────\n"
-            f"[참고 · 원본 집계]\n{aggregate_text}"
         )
         return {
             "ok": True,
             "mode": "detail",
             "needs_api_key": False,
-            "answer": answer,
+            "answer": detail,
+            "evidence": evidence,
             "intent": intent,
             "context": context,
+            "error": "",
         }
     except Exception as e:
         return {
             "ok": False,
             "mode": "detail_error",
             "needs_api_key": False,
-            "answer": (
-                f"세부 분석 중 오류가 발생했습니다: {e}\n\n"
-                f"대신 집계 답변을 제공합니다.\n\n{aggregate_text}"
-            ),
+            "answer": f"GPT 호출에 실패했습니다.\n{e}",
+            "evidence": evidence,
             "intent": intent,
             "context": context,
+            "error": str(e),
         }

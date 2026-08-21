@@ -5438,12 +5438,14 @@ _AI_EXAMPLES_DETAIL = [
 async def ai_analysis_page(
     request: Request,
     user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
 ):
     from risk_assessment import mask_api_key, user_openai_credentials
 
     if not can_access_menu(user, "ai_analysis"):
         return RedirectResponse("/admin/account", status_code=303)
-    key, model = user_openai_credentials(user)
+    db_user = await db.get(User, user.id) or user
+    key, model = user_openai_credentials(db_user)
     return templates.TemplateResponse(
         request,
         "ai_analysis.html",
@@ -5452,6 +5454,7 @@ async def ai_analysis_page(
             "question_general": "",
             "question_ai": "",
             "answer": "",
+            "evidence": "",
             "result_mode": "",
             "intent": "",
             "intent_label": "",
@@ -5480,7 +5483,9 @@ async def ai_analysis_ask(
     if not can_access_menu(user, "ai_analysis"):
         return RedirectResponse("/admin/account", status_code=303)
 
-    key, model = user_openai_credentials(user)
+    # 세션 캐시가 아닌 DB 최신 키 사용
+    db_user = await db.get(User, user.id) or user
+    key, model = user_openai_credentials(db_user)
     mode_val = (mode or "aggregate").strip().lower()
     if mode_val not in ("aggregate", "detail"):
         mode_val = "aggregate"
@@ -5494,14 +5499,16 @@ async def ai_analysis_ask(
     )
     intent = result.get("intent") or ""
     info = ""
+    err = ""
     if result.get("needs_api_key"):
-        info = "AI 질문에는 OpenAI API 키가 필요합니다. 위험성평가 화면에서 키를 등록하세요."
+        info = "AI 질문에는 OpenAI API 키가 필요합니다. 아래에서 키를 등록하세요."
     elif result.get("mode") == "detail":
-        info = "AI 질문 답변 완료입니다."
+        info = "GPT 분석 완료입니다."
     elif result.get("mode") == "aggregate":
         info = "일반질문(집계) 답변 완료입니다."
-    elif not result.get("ok") and result.get("mode") == "detail_error":
-        info = "AI 호출에 실패해 집계 답변으로 대체했습니다."
+    elif result.get("mode") == "detail_error":
+        err = result.get("error") or result.get("answer") or "GPT 호출 실패"
+        info = "GPT 호출에 실패했습니다. 아래 오류와 집계 근거를 확인하세요."
 
     q_general = question if mode_val == "aggregate" else ""
     q_ai = question if mode_val == "detail" else ""
@@ -5514,6 +5521,7 @@ async def ai_analysis_ask(
             "question_general": q_general,
             "question_ai": q_ai,
             "answer": result.get("answer") or "",
+            "evidence": result.get("evidence") or "",
             "result_mode": result.get("mode") or "",
             "intent": intent,
             "intent_label": _AI_INTENT_LABELS.get(intent, intent),
@@ -5522,9 +5530,75 @@ async def ai_analysis_ask(
             "ai_model": model or "gpt-4o-mini",
             "examples": _AI_EXAMPLES,
             "examples_ai": _AI_EXAMPLES_DETAIL,
-            "error": ""
-            if result.get("ok") or result.get("mode") == "detail_error"
-            else (result.get("answer") or "오류"),
+            "error": err,
+            "info": info,
+        },
+    )
+
+
+@app.post("/admin/ai-analysis/ai-settings")
+async def ai_analysis_ai_settings(
+    request: Request,
+    openai_api_key: str = Form(""),
+    openai_model: str = Form("gpt-4o-mini"),
+    clear_key: str = Form("0"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """AI 분석 화면에서 계정별 OpenAI 키 저장."""
+    from risk_assessment import mask_api_key, user_openai_credentials
+
+    if not can_access_menu(user, "ai_analysis"):
+        return RedirectResponse("/admin/account", status_code=303)
+
+    db_user = await db.get(User, user.id)
+    if not db_user or not db_user.is_active:
+        raise HTTPException(401, detail="login_required")
+
+    key_in = (openai_api_key or "").strip()
+    model_in = (openai_model or "").strip() or "gpt-4o-mini"
+    info = ""
+    err = ""
+
+    if clear_key == "1":
+        db_user.openai_api_key = None
+        db_user.openai_model = model_in
+        await db.commit()
+        info = "OpenAI 키를 삭제했습니다."
+    else:
+        if key_in and not (set(key_in) <= {"•", "*"} or "…" in key_in or "..." in key_in):
+            db_user.openai_api_key = key_in
+        db_user.openai_model = model_in
+        await db.commit()
+        await db.refresh(db_user)
+        has_key = bool((db_user.openai_api_key or "").strip())
+        if has_key:
+            info = (
+                f"OpenAI 키 저장됨 ({mask_api_key(db_user.openai_api_key)}, "
+                f"모델: {db_user.openai_model})"
+            )
+        else:
+            err = "OpenAI API 키를 입력하세요."
+
+    key, model = user_openai_credentials(db_user)
+    return templates.TemplateResponse(
+        request,
+        "ai_analysis.html",
+        {
+            "user": user,
+            "question_general": "",
+            "question_ai": "",
+            "answer": "",
+            "evidence": "",
+            "result_mode": "",
+            "intent": "",
+            "intent_label": "",
+            "ai_ready": bool(key),
+            "ai_key_masked": mask_api_key(key),
+            "ai_model": model or "gpt-4o-mini",
+            "examples": _AI_EXAMPLES,
+            "examples_ai": _AI_EXAMPLES_DETAIL,
+            "error": err,
             "info": info,
         },
     )
