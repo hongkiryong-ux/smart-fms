@@ -8,13 +8,12 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app_templates import templates
 from auth import can_access_menu, can_create, can_delete, can_edit, require_login
-from database import get_db
 from models import (
     AppSetting,
     Building,
@@ -28,9 +27,9 @@ from models import (
     WorkOrderStatus,
     Zone,
 )
+from database import get_db
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 KST = ZoneInfo("Asia/Seoul")
 
 SCHEDULE_CATEGORIES = ("긴급", "점검", "작업", "검수")
@@ -44,6 +43,13 @@ DASH_WIDGETS: tuple[tuple[str, str], ...] = (
     ("notices", "공지사항"),
 )
 DASH_WIDGET_KEYS = [k for k, _ in DASH_WIDGETS]
+DASH_WIDGET_HINTS = {
+    "maintenance_status": "긴급·의뢰·해결·오늘 작업 KPI 카드",
+    "sites_status": "사업장별 정비의뢰·미해결·알람 순위",
+    "energy": "전력·급수·가스 등 (현재 예시 그래픽)",
+    "schedules": "오늘 등록된 주요설비 일정",
+    "notices": "최근 공지 목록",
+}
 DEFAULT_DASH_CONFIG = {
     "order": list(DASH_WIDGET_KEYS),
     "visible": {k: True for k in DASH_WIDGET_KEYS},
@@ -347,7 +353,7 @@ async def schedules_create(
     db.add(ev)
     await db.commit()
     return RedirectResponse(
-        f"/admin/schedules?year={d.year}&month={d.month}&day={d.isoformat()}",
+        f"/admin/schedules?year={d.year}&month={d.month}&day={d.isoformat()}&flash=created",
         status_code=303,
     )
 
@@ -368,7 +374,7 @@ async def schedules_delete(
     ev.is_active = False
     await db.commit()
     return RedirectResponse(
-        f"/admin/schedules?year={d.year}&month={d.month}&day={d.isoformat()}",
+        f"/admin/schedules?year={d.year}&month={d.month}&day={d.isoformat()}&flash=deleted",
         status_code=303,
     )
 
@@ -462,6 +468,7 @@ async def dashboard_settings_page(
         {
             "key": key,
             "label": label,
+            "hint": DASH_WIDGET_HINTS.get(key, ""),
             "visible": cfg["visible"].get(key, True),
             "order": cfg["order"].index(key) + 1 if key in cfg["order"] else 99,
         }
@@ -500,3 +507,15 @@ async def dashboard_settings_save(
     await set_dashboard_widget_config(db, {"order": order, "visible": visible})
     await db.commit()
     return RedirectResponse("/admin/dashboard/settings?flash=saved", status_code=303)
+
+
+@router.post("/admin/dashboard/settings/reset")
+async def dashboard_settings_reset(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    if not can_edit(user):
+        raise HTTPException(403, "수정 권한이 없습니다.")
+    await set_dashboard_widget_config(db, DEFAULT_DASH_CONFIG)
+    await db.commit()
+    return RedirectResponse("/admin/dashboard/settings?flash=reset", status_code=303)

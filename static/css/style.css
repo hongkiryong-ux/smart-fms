@@ -5290,3 +5290,37 @@ tr.wo-row-selected {
   border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.45rem 0.6rem; font: inherit;
 }
 @media (max-width: 700px) { .form-grid { grid-template-columns: 1fr; } }
+
+/* 게시판형 관리 페이지 (일정·공지·설정) */
+.board-page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.board-page-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.board-split { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1rem; align-items: start; }
+.board-split-single { grid-template-columns: 1fr; }
+.board-split-main, .board-split-side { min-width: 0; }
+.board-help { margin: 0.75rem 0 0; color: #64748b; font-size: 0.85rem; }
+.board-quick-form { margin-bottom: 1rem; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.65rem 0.85rem; background: #f8fafc; }
+.board-quick-form summary { cursor: pointer; font-weight: 700; color: #003876; margin-bottom: 0.5rem; }
+.board-form-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+.board-count { font-size: 0.85rem; color: #64748b; font-weight: 500; }
+.board-pin-check { display: flex; align-items: center; gap: 0.4rem; padding-top: 1.6rem; }
+.sched-list-item { padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9; }
+.sched-list-item:last-child { border-bottom: 0; }
+.sched-list-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+.sched-time { font-size: 0.82rem; color: #475569; font-weight: 700; }
+.sched-desc { margin: 0.35rem 0 0.5rem; color: #64748b; font-size: 0.88rem; white-space: pre-wrap; }
+.notice-card { padding: 0.85rem; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 0.65rem; background: #fff; }
+.notice-card.is-pinned { border-color: #fcd34d; background: #fffbeb; }
+.notice-card-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+.notice-pin { font-size: 0.72rem; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 0.1rem 0.45rem; font-weight: 700; }
+.notice-date { margin-left: auto; font-size: 0.8rem; color: #94a3b8; }
+.notice-title { display: block; font-size: 1rem; margin-bottom: 0.15rem; }
+.notice-author { font-size: 0.8rem; }
+.notice-body { margin: 0.5rem 0; color: #475569; white-space: pre-wrap; line-height: 1.5; }
+.dash-settings-list li { align-items: flex-start; }
+.dash-settings-num { width: 1.6rem; height: 1.6rem; border-radius: 50%; background: #003876; color: #fff; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+.dash-settings-check span { display: flex; flex-direction: column; gap: 0.15rem; }
+.dash-settings-check em { font-style: normal; font-size: 0.8rem; color: #64748b; font-weight: 400; }
+@media (max-width: 900px) {
+  .board-split { grid-template-columns: 1fr; }
+  .board-notice-form { order: -1; }
+}

@@ -1,18 +1,30 @@
 {% extends "base.html" %}
 {% block title %}주요설비 일정{% endblock %}
 {% block content %}
-<header class="page-header">
-  <h1>주요설비 일정</h1>
-  <p>캘린더에 등록한 일정이 대시보드 「주요 설비 일정(오늘)」에 표시됩니다.</p>
+<header class="page-header board-page-head">
+  <div>
+    <h1>주요설비 일정</h1>
+    <p>캘린더에 등록한 일정이 대시보드 <strong>「주요 설비 일정 (오늘)」</strong>에 자동 표시됩니다.</p>
+  </div>
+  <div class="board-page-actions">
+    <a class="btn btn-secondary" href="/admin/dashboard">대시보드</a>
+    <a class="btn btn-primary" href="/admin/schedules?day={{ today.isoformat() }}">오늘 일정</a>
+  </div>
 </header>
 
-<div class="sched-layout">
-  <section class="card sched-cal-card">
+{% if request.query_params.get('flash') == 'created' %}
+<p class="alert alert-ok">일정을 등록했습니다. 대시보드에 반영됩니다.</p>
+{% elif request.query_params.get('flash') == 'deleted' %}
+<p class="alert alert-ok">일정을 삭제했습니다.</p>
+{% endif %}
+
+<div class="board-split">
+  <section class="card board-split-main">
     <div class="sched-cal-nav">
-      <a class="btn btn-secondary" href="/admin/schedules?year={{ prev_y }}&month={{ prev_m }}">&larr;</a>
+      <a class="btn btn-secondary btn-sm" href="/admin/schedules?year={{ prev_y }}&month={{ prev_m }}{% if selected %}&day={{ selected.isoformat() }}{% endif %}">&larr; 이전</a>
       <h2>{{ year }}년 {{ month }}월</h2>
-      <a class="btn btn-secondary" href="/admin/schedules?year={{ next_y }}&month={{ next_m }}">&rarr;</a>
-      <a class="btn btn-secondary" href="/admin/schedules">오늘</a>
+      <a class="btn btn-secondary btn-sm" href="/admin/schedules?year={{ next_y }}&month={{ next_m }}{% if selected %}&day={{ selected.isoformat() }}{% endif %}">다음 &rarr;</a>
+      <a class="btn btn-secondary btn-sm" href="/admin/schedules?day={{ today.isoformat() }}">오늘</a>
     </div>
     <table class="sched-cal">
       <thead>
@@ -27,7 +39,7 @@
           {% set key = d.isoformat() %}
           {% set cnt = by_day.get(key, [])|length %}
           <td class="{% if d.month != month %}other{% endif %}{% if d == today %} today{% endif %}{% if d == selected %} selected{% endif %}">
-            <a href="/admin/schedules?year={{ year }}&month={{ month }}&day={{ key }}">
+            <a href="/admin/schedules?year={{ year }}&month={{ month }}&day={{ key }}" title="{{ cnt }}건">
               <span class="dnum">{{ d.day }}</span>
               {% if cnt %}<span class="ddot">{{ cnt }}</span>{% endif %}
             </a>
@@ -37,21 +49,68 @@
         {% endfor %}
       </tbody>
     </table>
+    <p class="board-help">날짜를 클릭하면 오른쪽에서 해당 일정을 확인·등록할 수 있습니다.</p>
   </section>
 
-  <section class="card sched-day-card">
+  <section class="card board-split-side">
     <h2>{{ selected.strftime('%Y-%m-%d') }} 일정</h2>
+
+    {% if can_create %}
+    <details class="board-quick-form" open>
+      <summary>+ 빠른 등록</summary>
+      <form method="post" action="/admin/schedules" class="form-grid">
+        <label class="full">제목
+          <input type="text" name="title" required maxlength="300" placeholder="예: 지하주차장 배수펌프 긴급점검" />
+        </label>
+        <label>구분
+          <select name="category">
+            {% for c in categories %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>날짜
+          <input type="date" name="event_date" value="{{ selected.isoformat() }}" required />
+        </label>
+        <label>시간
+          <input type="time" name="event_time" value="09:00" />
+        </label>
+        <label class="full">장소
+          <input type="text" name="location" maxlength="200" placeholder="예: B사업장 102동" />
+        </label>
+        <label class="full">사업장
+          <select name="site_id">
+            <option value="">선택 안 함</option>
+            {% for s in sites %}
+            <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="full">메모
+          <textarea name="description" rows="2" placeholder="점검 내용, 담당자 등"></textarea>
+        </label>
+        <div class="full">
+          <button type="submit" class="btn btn-primary">일정 등록</button>
+        </div>
+      </form>
+    </details>
+    {% endif %}
+
     {% if day_events %}
     <ul class="sched-list">
       {% for e in day_events %}
-      <li>
-        <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
-        <div class="sched-list-body">
-          <strong>{% if e.event_time %}{{ e.event_time }} · {% endif %}{{ e.title }}</strong>
-          <span class="text-muted">{{ e.location or (e.site.name if e.site else '') }}</span>
+      <li class="sched-list-item">
+        <div class="sched-list-head">
+          <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
+          {% if e.event_time %}<span class="sched-time">{{ e.event_time }}</span>{% endif %}
         </div>
+        <strong>{{ e.title }}</strong>
+        {% if e.location or (e.site and e.site.name) %}
+        <span class="text-muted">{{ e.location or e.site.name }}</span>
+        {% endif %}
+        {% if e.description %}<p class="sched-desc">{{ e.description }}</p>{% endif %}
         {% if can_delete %}
-        <form method="post" action="/admin/schedules/{{ e.id }}/delete" onsubmit="return confirm('삭제할까요?');">
+        <form method="post" action="/admin/schedules/{{ e.id }}/delete" onsubmit="return confirm('이 일정을 삭제할까요?');">
           <button type="submit" class="btn btn-secondary btn-sm">삭제</button>
         </form>
         {% endif %}
@@ -59,47 +118,7 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p class="empty">등록된 일정이 없습니다.</p>
-    {% endif %}
-
-    {% if can_create %}
-    <hr />
-    <h3>일정 등록</h3>
-    <form method="post" action="/admin/schedules" class="form-grid">
-      <label>제목
-        <input type="text" name="title" required maxlength="300" />
-      </label>
-      <label>구분
-        <select name="category">
-          {% for c in categories %}
-          <option value="{{ c }}">{{ c }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>날짜
-        <input type="date" name="event_date" value="{{ selected.isoformat() }}" required />
-      </label>
-      <label>시간
-        <input type="time" name="event_time" />
-      </label>
-      <label>장소
-        <input type="text" name="location" maxlength="200" placeholder="예: B사업장 102동" />
-      </label>
-      <label>사업장
-        <select name="site_id">
-          <option value="">선택 안 함</option>
-          {% for s in sites %}
-          <option value="{{ s.id }}">{{ s.name }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label class="full">내용
-        <textarea name="description" rows="2"></textarea>
-      </label>
-      <div class="full">
-        <button type="submit" class="btn btn-primary">등록</button>
-      </div>
-    </form>
+    <p class="empty">이 날짜에 등록된 일정이 없습니다. 위에서 바로 추가하세요.</p>
     {% endif %}
   </section>
 </div>

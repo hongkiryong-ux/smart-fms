@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 {% block title %}공지사항{% endblock %}
 {% block content %}
-<header class="page-header">
-  <h1>공지사항</h1>
-  <p>등록한 공지가 대시보드에 표시됩니다.</p>
+<header class="page-header board-page-head">
+  <div>
+    <h1>공지사항</h1>
+    <p>등록한 공지가 대시보드 <strong>「공지사항」</strong> 구역에 표시됩니다.</p>
+  </div>
+  <div class="board-page-actions">
+    <a class="btn btn-secondary" href="/admin/dashboard">대시보드</a>
+    <a class="btn btn-secondary" href="/admin/dashboard/settings">대시보드 설정</a>
+  </div>
 </header>
 
 {% if request.query_params.get('flash') == 'created' %}
@@ -12,55 +18,60 @@
 <p class="alert alert-ok">공지를 삭제했습니다.</p>
 {% endif %}
 
-{% if can_create %}
-<section class="card">
-  <h2>공지 등록</h2>
-  <form method="post" action="/admin/notices" class="form-grid">
-    <label>제목
-      <input type="text" name="title" required maxlength="300" />
-    </label>
-    <label>구분
-      <select name="category">
-        {% for c in categories %}
-        <option value="{{ c }}"{% if c == '일반' %} selected{% endif %}>{{ c }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label class="full">내용
-      <textarea name="body" rows="4"></textarea>
-    </label>
-    <label>
-      <input type="checkbox" name="is_pinned" value="1" /> 상단 고정
-    </label>
-    <div class="full">
-      <button type="submit" class="btn btn-primary">등록</button>
-    </div>
-  </form>
-</section>
-{% endif %}
-
-<section class="card">
-  <h2>목록</h2>
-  {% if notices %}
-  <ul class="notice-admin-list">
-    {% for n in notices %}
-    <li>
-      <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
-      <div>
-        <strong>{% if n.is_pinned %}📌 {% endif %}{{ n.title }}</strong>
-        <span class="text-muted">{{ (n.published_at or n.created_at).strftime('%Y-%m-%d %H:%M') if (n.published_at or n.created_at) else '' }} · {{ n.created_by or '-' }}</span>
-        {% if n.body %}<p>{{ n.body }}</p>{% endif %}
+<div class="board-split{% if not can_create %} board-split-single{% endif %}">
+  {% if can_create %}
+  <section class="card board-split-side board-notice-form">
+    <h2>공지 등록</h2>
+    <form method="post" action="/admin/notices" class="form-grid">
+      <label class="full">제목
+        <input type="text" name="title" required maxlength="300" placeholder="공지 제목" />
+      </label>
+      <label>구분
+        <select name="category">
+          {% for c in categories %}
+          <option value="{{ c }}"{% if c == '일반' %} selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="board-pin-check">
+        <input type="checkbox" name="is_pinned" value="1" />
+        상단 고정
+      </label>
+      <label class="full">내용
+        <textarea name="body" rows="8" placeholder="공지 내용을 입력하세요"></textarea>
+      </label>
+      <div class="full">
+        <button type="submit" class="btn btn-primary">공지 등록</button>
       </div>
-      {% if can_delete %}
-      <form method="post" action="/admin/notices/{{ n.id }}/delete" onsubmit="return confirm('삭제할까요?');">
-        <button type="submit" class="btn btn-secondary btn-sm">삭제</button>
-      </form>
-      {% endif %}
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="empty">등록된 공지가 없습니다.</p>
+    </form>
+  </section>
   {% endif %}
-</section>
+
+  <section class="card board-split-main">
+    <h2>등록된 공지 {% if notices %}<span class="board-count">{{ notices|length }}건</span>{% endif %}</h2>
+    {% if notices %}
+    <ul class="notice-admin-list">
+      {% for n in notices %}
+      <li class="notice-card{% if n.is_pinned %} is-pinned{% endif %}">
+        <div class="notice-card-head">
+          <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
+          {% if n.is_pinned %}<span class="notice-pin">고정</span>{% endif %}
+          <span class="notice-date">{{ (n.published_at or n.created_at).strftime('%Y-%m-%d %H:%M') if (n.published_at or n.created_at) else '' }}</span>
+        </div>
+        <strong class="notice-title">{{ n.title }}</strong>
+        <span class="text-muted notice-author">{{ n.created_by or '-' }}</span>
+        {% if n.body %}<p class="notice-body">{{ n.body }}</p>{% endif %}
+        {% if can_delete %}
+        <form method="post" action="/admin/notices/{{ n.id }}/delete" onsubmit="return confirm('이 공지를 삭제할까요?');">
+          <button type="submit" class="btn btn-secondary btn-sm">삭제</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">등록된 공지가 없습니다.{% if can_create %} 왼쪽에서 첫 공지를 등록하세요.{% endif %}</p>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

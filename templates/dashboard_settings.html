@@ -1,13 +1,22 @@
 {% extends "base.html" %}
 {% block title %}대시보드 설정{% endblock %}
 {% block content %}
-<header class="page-header">
-  <h1>대시보드 설정</h1>
-  <p>표시할 구역과 순서를 수동으로 지정합니다. 저장 후 대시보드에 바로 반영됩니다.</p>
+<header class="page-header board-page-head">
+  <div>
+    <h1>대시보드 설정</h1>
+    <p>대시보드에 표시할 구역과 순서를 지정합니다. 저장하면 즉시 반영됩니다.</p>
+  </div>
+  <div class="board-page-actions">
+    <a class="btn btn-primary" href="/admin/dashboard">대시보드 보기</a>
+    <a class="btn btn-secondary" href="/admin/schedules">주요설비 일정</a>
+    <a class="btn btn-secondary" href="/admin/notices">공지사항</a>
+  </div>
 </header>
 
 {% if flash == 'saved' %}
 <p class="alert alert-ok">대시보드 구성을 저장했습니다.</p>
+{% elif flash == 'reset' %}
+<p class="alert alert-ok">기본 구성으로 되돌렸습니다.</p>
 {% endif %}
 
 <section class="card">
@@ -17,22 +26,25 @@
     <ul class="dash-settings-list" id="dash-settings-list">
       {% for w in widgets %}
       <li data-key="{{ w.key }}">
-        <span class="dash-settings-handle" title="순서 변경">☰</span>
+        <span class="dash-settings-num">{{ loop.index }}</span>
         <label class="dash-settings-check">
           <input type="checkbox" name="visible_{{ w.key }}" value="1"{% if w.visible %} checked{% endif %} />
-          <strong>{{ w.label }}</strong>
+          <span>
+            <strong>{{ w.label }}</strong>
+            {% if w.hint %}<em>{{ w.hint }}</em>{% endif %}
+          </span>
         </label>
         <div class="dash-settings-move">
-          <button type="button" class="btn btn-secondary btn-sm" data-move="-1">위로</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-move="1">아래로</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-move="-1" title="위로">▲</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-move="1" title="아래로">▼</button>
         </div>
       </li>
       {% endfor %}
     </ul>
-    <p class="text-muted">체크 해제하면 해당 구역이 대시보드에서 숨겨집니다. 「위로/아래로」로 표시 순서를 바꿉니다.</p>
-    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:1rem">
+    <p class="board-help">체크를 해제하면 해당 구역이 숨겨집니다. ▲▼ 버튼으로 표시 순서를 바꿉니다.</p>
+    <div class="board-form-actions">
       <button type="submit" class="btn btn-primary">저장</button>
-      <a class="btn btn-secondary" href="/admin/dashboard">대시보드로</a>
+      <button type="submit" formaction="/admin/dashboard/settings/reset" formmethod="post" class="btn btn-secondary" onclick="return confirm('기본 구성으로 되돌릴까요?');">기본값 복원</button>
       <a class="btn btn-secondary" href="/admin/dashboard/layouts">레이아웃 샘플</a>
     </div>
   </form>
@@ -50,8 +62,10 @@
 
   function syncOrder() {
     var keys = [];
-    list.querySelectorAll('li[data-key]').forEach(function (li) {
+    list.querySelectorAll('li[data-key]').forEach(function (li, idx) {
       keys.push(li.getAttribute('data-key'));
+      var num = li.querySelector('.dash-settings-num');
+      if (num) num.textContent = String(idx + 1);
     });
     orderInput.value = keys.join(',');
   }
@@ -70,7 +84,10 @@
     syncOrder();
   });
 
-  document.getElementById('dash-settings-form').addEventListener('submit', syncOrder);
+  document.getElementById('dash-settings-form').addEventListener('submit', function (e) {
+    if (e.submitter && e.submitter.getAttribute('formaction')) return;
+    syncOrder();
+  });
 })();
 </script>
 {% endblock %}
