@@ -249,6 +249,15 @@ def _mem_cpu_info() -> tuple[dict, dict]:
 
         vm = psutil.virtual_memory()
         pct = float(vm.percent)
+        proc = psutil.Process()
+        proc_rss = int(proc.memory_info().rss)
+        # Render 플랜 할당(환경변수 RENDER_MEMORY_MB, 없으면 512MB 가정)
+        try:
+            plan_mb = int(os.environ.get("RENDER_MEMORY_MB") or 512)
+        except (TypeError, ValueError):
+            plan_mb = 512
+        plan_bytes = plan_mb * 1024 * 1024
+        proc_pct = _pct(proc_rss, plan_bytes)
         mem.update(
             {
                 "total": int(vm.total),
@@ -259,7 +268,13 @@ def _mem_cpu_info() -> tuple[dict, dict]:
                 "available_label": _bytes_label(vm.available),
                 "percent": round(pct, 1),
                 "level": _level(pct),
-                "process_rss_label": _bytes_label(psutil.Process().memory_info().rss),
+                # 내 프로세스(FMS 앱) 전용
+                "process_rss": proc_rss,
+                "process_rss_label": _bytes_label(proc_rss),
+                "plan_mb": plan_mb,
+                "plan_label": _bytes_label(plan_bytes),
+                "process_pct": round(proc_pct, 1) if proc_pct is not None else None,
+                "process_level": _level(proc_pct) if proc_pct is not None else "unknown",
             }
         )
         # 짧은 샘플 — Render 단발성 폴링에 적합
@@ -287,6 +302,22 @@ def _mem_cpu_info() -> tuple[dict, dict]:
             if total and avail is not None:
                 used = total - avail
                 pct = _pct(used, total)
+                # 프로세스 RSS: /proc/self/status VmRSS
+                proc_rss = 0
+                try:
+                    with open("/proc/self/status", encoding="utf-8") as sf:
+                        for sline in sf:
+                            if sline.startswith("VmRSS:"):
+                                proc_rss = int(sline.split()[1]) * 1024
+                                break
+                except OSError:
+                    pass
+                try:
+                    plan_mb = int(os.environ.get("RENDER_MEMORY_MB") or 512)
+                except (TypeError, ValueError):
+                    plan_mb = 512
+                plan_bytes = plan_mb * 1024 * 1024
+                proc_pct = _pct(proc_rss, plan_bytes)
                 mem.update(
                     {
                         "total": total,
@@ -297,6 +328,12 @@ def _mem_cpu_info() -> tuple[dict, dict]:
                         "available_label": _bytes_label(avail),
                         "percent": pct,
                         "level": _level(pct),
+                        "process_rss": proc_rss,
+                        "process_rss_label": _bytes_label(proc_rss),
+                        "plan_mb": plan_mb,
+                        "plan_label": _bytes_label(plan_bytes),
+                        "process_pct": round(proc_pct, 1) if proc_pct is not None else None,
+                        "process_level": _level(proc_pct) if proc_pct is not None else "unknown",
                     }
                 )
         except OSError:
@@ -596,8 +633,11 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
         mem, cpu = _mem_cpu_info()
         # 프로세스(로컬 PC 체감용) 정보는 제외
         if isinstance(mem, dict):
-            mem = {k: v for k, v in mem.items() if k != "process_rss_label"}
-            mem["desc"] = "Render 웹 서버 메모리 사용 비율입니다. 높으면 서비스 지연이 날 수 있습니다."
+            mem["desc"] = (
+                "Smart FMS 프로세스가 실제로 사용 중인 메모리(RSS)와 "
+                "Render 플랜 할당량입니다. "
+                "전체 서버 RAM은 공용이라 참고값입니다."
+            )
         if isinstance(cpu, dict):
             cpu = {
                 "percent": cpu.get("percent"),

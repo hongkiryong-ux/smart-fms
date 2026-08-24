@@ -75,15 +75,22 @@
 
     <div class="dash-server-metric" data-key="memory">
       <div class="dash-server-metric-top">
-        <span>웹 서버 메모리</span>
-        <strong id="srv-mem-pct">{% if server.memory %}{{ server.memory.percent if server.memory.percent is not none else '-' }}%{% else %}-{% endif %}</strong>
+        <span>내 앱 메모리 (FMS 프로세스)</span>
+        <strong id="srv-mem-pct">{% if server.memory and server.memory.process_pct is not none %}{{ server.memory.process_pct }}%{% else %}-{% endif %}</strong>
       </div>
-      <p class="dash-server-desc">웹 서버 RAM 사용 비율입니다. 높으면 화면 응답이 느려질 수 있습니다.</p>
-      <div class="dash-server-bar"><i id="srv-mem-bar" style="width:{% if server.memory %}{{ server.memory.percent or 0 }}{% else %}0{% endif %}%"></i></div>
+      <p class="dash-server-desc" id="srv-mem-desc">
+        Smart FMS 프로그램이 실제로 쓰는 메모리 / Render 플랜 할당량입니다.
+        아래 "서버 전체"는 공용 참고값입니다.
+      </p>
+      <div class="dash-server-bar"><i id="srv-mem-bar" style="width:{% if server.memory and server.memory.process_pct is not none %}{{ server.memory.process_pct }}{% else %}0{% endif %}%"></i></div>
       <div class="dash-server-metric-foot">
-        <span>사용 <span id="srv-mem-used">{% if server.memory %}{{ server.memory.used_label }}{% else %}-{% endif %}</span></span>
-        <span>/ 전체 <span id="srv-mem-total">{% if server.memory %}{{ server.memory.total_label }}{% else %}-{% endif %}</span></span>
+        <span>앱 사용 <span id="srv-mem-used">{% if server.memory %}{{ server.memory.process_rss_label }}{% else %}-{% endif %}</span></span>
+        <span>/ 플랜 할당 <span id="srv-mem-total">{% if server.memory %}{{ server.memory.plan_label }}{% else %}-{% endif %}</span></span>
       </div>
+      <ul class="dash-server-disk-top" style="margin-top:0.5rem">
+        <li><span>서버 전체 RAM (공용)</span><strong id="srv-host-mem-total">{% if server.memory %}{{ server.memory.total_label }}{% else %}-{% endif %}</strong></li>
+        <li><span>서버 전체 사용 (공용)</span><strong id="srv-host-mem-used">{% if server.memory %}{{ server.memory.used_label }}{% else %}-{% endif %}</strong></li>
+      </ul>
     </div>
 
     <div class="dash-server-metric" data-key="cpu">
@@ -220,10 +227,13 @@
         });
       }
 
-      setText('srv-mem-pct', (mem.percent != null ? mem.percent : '-') + '%');
-      setBar('srv-mem-bar', mem.percent);
-      setText('srv-mem-used', mem.used_label || '-');
-      setText('srv-mem-total', mem.total_label || '-');
+      var memPct = mem.process_pct != null ? mem.process_pct : null;
+      setText('srv-mem-pct', (memPct != null ? memPct : '-') + '%');
+      setBar('srv-mem-bar', memPct);
+      setText('srv-mem-used', mem.process_rss_label || '-');
+      setText('srv-mem-total', mem.plan_label || '-');
+      setText('srv-host-mem-total', mem.total_label || '-');
+      setText('srv-host-mem-used', mem.used_label || '-');
 
       setText('srv-cpu-pct', (cpu.percent != null ? cpu.percent : '-') + '%');
       setBar('srv-cpu-bar', cpu.percent);
