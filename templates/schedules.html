@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}주요설비 일정{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>주요설비 일정</h1>
+  <p>캘린더에 등록한 일정이 대시보드 「주요 설비 일정(오늘)」에 표시됩니다.</p>
+</header>
+
+<div class="sched-layout">
+  <section class="card sched-cal-card">
+    <div class="sched-cal-nav">
+      <a class="btn btn-secondary" href="/admin/schedules?year={{ prev_y }}&month={{ prev_m }}">&larr;</a>
+      <h2>{{ year }}년 {{ month }}월</h2>
+      <a class="btn btn-secondary" href="/admin/schedules?year={{ next_y }}&month={{ next_m }}">&rarr;</a>
+      <a class="btn btn-secondary" href="/admin/schedules">오늘</a>
+    </div>
+    <table class="sched-cal">
+      <thead>
+        <tr>
+          <th class="sun">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="sat">토</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for week in weeks %}
+        <tr>
+          {% for d in week %}
+          {% set key = d.isoformat() %}
+          {% set cnt = by_day.get(key, [])|length %}
+          <td class="{% if d.month != month %}other{% endif %}{% if d == today %} today{% endif %}{% if d == selected %} selected{% endif %}">
+            <a href="/admin/schedules?year={{ year }}&month={{ month }}&day={{ key }}">
+              <span class="dnum">{{ d.day }}</span>
+              {% if cnt %}<span class="ddot">{{ cnt }}</span>{% endif %}
+            </a>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card sched-day-card">
+    <h2>{{ selected.strftime('%Y-%m-%d') }} 일정</h2>
+    {% if day_events %}
+    <ul class="sched-list">
+      {% for e in day_events %}
+      <li>
+        <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
+        <div class="sched-list-body">
+          <strong>{% if e.event_time %}{{ e.event_time }} · {% endif %}{{ e.title }}</strong>
+          <span class="text-muted">{{ e.location or (e.site.name if e.site else '') }}</span>
+        </div>
+        {% if can_delete %}
+        <form method="post" action="/admin/schedules/{{ e.id }}/delete" onsubmit="return confirm('삭제할까요?');">
+          <button type="submit" class="btn btn-secondary btn-sm">삭제</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">등록된 일정이 없습니다.</p>
+    {% endif %}
+
+    {% if can_create %}
+    <hr />
+    <h3>일정 등록</h3>
+    <form method="post" action="/admin/schedules" class="form-grid">
+      <label>제목
+        <input type="text" name="title" required maxlength="300" />
+      </label>
+      <label>구분
+        <select name="category">
+          {% for c in categories %}
+          <option value="{{ c }}">{{ c }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>날짜
+        <input type="date" name="event_date" value="{{ selected.isoformat() }}" required />
+      </label>
+      <label>시간
+        <input type="time" name="event_time" />
+      </label>
+      <label>장소
+        <input type="text" name="location" maxlength="200" placeholder="예: B사업장 102동" />
+      </label>
+      <label>사업장
+        <select name="site_id">
+          <option value="">선택 안 함</option>
+          {% for s in sites %}
+          <option value="{{ s.id }}">{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="full">내용
+        <textarea name="description" rows="2"></textarea>
+      </label>
+      <div class="full">
+        <button type="submit" class="btn btn-primary">등록</button>
+      </div>
+    </form>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

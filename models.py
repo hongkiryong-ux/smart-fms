@@ -617,3 +617,39 @@ class AppSetting(Base):
 
     key = Column(String(64), primary_key=True)
     value = Column(Text, nullable=True)
+
+
+class ScheduleEvent(Base):
+    """주요설비 일정 (캘린더)."""
+
+    __tablename__ = "schedule_events"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(300), nullable=False)
+    category = Column(String(30), default="작업")  # 긴급/점검/작업/검수
+    event_date = Column(Date, nullable=False, index=True)
+    event_time = Column(String(10), nullable=True)  # HH:MM
+    location = Column(String(200), nullable=True)
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=True)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    site = relationship("Site")
+
+
+class Notice(Base):
+    """공지사항."""
+
+    __tablename__ = "notices"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(300), nullable=False)
+    category = Column(String(30), default="일반")  # 긴급/안전/일반
+    body = Column(Text, nullable=True)
+    is_pinned = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+    published_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

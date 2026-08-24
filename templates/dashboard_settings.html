@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}대시보드 설정{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>대시보드 설정</h1>
+  <p>표시할 구역과 순서를 수동으로 지정합니다. 저장 후 대시보드에 바로 반영됩니다.</p>
+</header>
+
+{% if flash == 'saved' %}
+<p class="alert alert-ok">대시보드 구성을 저장했습니다.</p>
+{% endif %}
+
+<section class="card">
+  {% if can_edit %}
+  <form method="post" action="/admin/dashboard/settings" id="dash-settings-form">
+    <input type="hidden" name="order" id="dash-order" value="{{ widgets | map(attribute='key') | join(',') }}" />
+    <ul class="dash-settings-list" id="dash-settings-list">
+      {% for w in widgets %}
+      <li data-key="{{ w.key }}">
+        <span class="dash-settings-handle" title="순서 변경">☰</span>
+        <label class="dash-settings-check">
+          <input type="checkbox" name="visible_{{ w.key }}" value="1"{% if w.visible %} checked{% endif %} />
+          <strong>{{ w.label }}</strong>
+        </label>
+        <div class="dash-settings-move">
+          <button type="button" class="btn btn-secondary btn-sm" data-move="-1">위로</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-move="1">아래로</button>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="text-muted">체크 해제하면 해당 구역이 대시보드에서 숨겨집니다. 「위로/아래로」로 표시 순서를 바꿉니다.</p>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:1rem">
+      <button type="submit" class="btn btn-primary">저장</button>
+      <a class="btn btn-secondary" href="/admin/dashboard">대시보드로</a>
+      <a class="btn btn-secondary" href="/admin/dashboard/layouts">레이아웃 샘플</a>
+    </div>
+  </form>
+  {% else %}
+  <p class="empty">수정 권한이 없습니다. 관리자에게 문의하세요.</p>
+  <a class="btn btn-secondary" href="/admin/dashboard">대시보드로</a>
+  {% endif %}
+</section>
+
+<script>
+(function () {
+  var list = document.getElementById('dash-settings-list');
+  var orderInput = document.getElementById('dash-order');
+  if (!list || !orderInput) return;
+
+  function syncOrder() {
+    var keys = [];
+    list.querySelectorAll('li[data-key]').forEach(function (li) {
+      keys.push(li.getAttribute('data-key'));
+    });
+    orderInput.value = keys.join(',');
+  }
+
+  list.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-move]');
+    if (!btn) return;
+    var li = btn.closest('li[data-key]');
+    if (!li) return;
+    var dir = parseInt(btn.getAttribute('data-move'), 10);
+    if (dir < 0 && li.previousElementSibling) {
+      list.insertBefore(li, li.previousElementSibling);
+    } else if (dir > 0 && li.nextElementSibling) {
+      list.insertBefore(li.nextElementSibling, li);
+    }
+    syncOrder();
+  });
+
+  document.getElementById('dash-settings-form').addEventListener('submit', syncOrder);
+})();
+</script>
+{% endblock %}

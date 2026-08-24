@@ -111,6 +111,8 @@ def apply_role_permissions(user: User) -> None:
 # 메인 메뉴 키 (사이드바 표시·접근 제어). 내 계정(account)은 항상 허용.
 MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("dashboard", "Dashboard"),
+    ("schedules", "주요설비 일정"),
+    ("notices", "공지사항"),
     ("sites", "사업장/건물"),
     ("equipment", "설비관리"),
     ("pm", "점검(PM)"),
@@ -133,6 +135,8 @@ MENU_LABELS: dict[str, str] = dict(MENU_ITEMS)
 _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/users", "users"),
     ("/admin/dashboard", "dashboard"),
+    ("/admin/schedules", "schedules"),
+    ("/admin/notices", "notices"),
     ("/admin/sites", "sites"),
     ("/admin/buildings", "sites"),
     ("/admin/equipment", "equipment"),
@@ -151,6 +155,8 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
 
 _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("dashboard", "/admin/dashboard"),
+    ("schedules", "/admin/schedules"),
+    ("notices", "/admin/notices"),
     ("sites", "/admin/sites"),
     ("equipment", "/admin/equipment"),
     ("pm", "/admin/pm"),
@@ -225,6 +231,12 @@ def effective_menu_access(user: User | None) -> list[str]:
     # 신규 메뉴 AI 분석 — 기존 계정에 자동 부여
     if "ai_analysis" not in keys and user.role not in (UserRole.partner, UserRole.external):
         keys.append("ai_analysis")
+    # 신규 메뉴 주요설비 일정·공지사항
+    if user.role not in (UserRole.partner, UserRole.external):
+        if "schedules" not in keys:
+            keys.append("schedules")
+        if "notices" not in keys:
+            keys.append("notices")
     return keys
 
 

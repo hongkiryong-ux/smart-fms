@@ -1213,6 +1213,10 @@ from streetlamp.router import router as streetlamp_router
 
 app.include_router(streetlamp_router)
 
+from board_ops import router as board_ops_router
+
+app.include_router(board_ops_router)
+
 
 @app.exception_handler(HTTPException)
 async def _http_exception_handler(request: Request, exc: HTTPException):
@@ -1854,6 +1858,8 @@ def _demo_energy_payload(today: date | None = None) -> dict:
     rolling = series(2400, 220)
     medium = series(185, 18)  # 중온 (t/h 예시)
     water = series(920, 70)  # 급수 (m³ 예시)
+    gas = series(180, 12)
+    peak = series(2450, 80)
     return {
         "is_demo": True,
         "note": "예시 데이터입니다. 추후 점검일지와 연동하여 자동 집계·그래프화합니다.",
@@ -1879,6 +1885,18 @@ def _demo_energy_payload(today: date | None = None) -> dict:
             "unit": "m³",
             "values": water,
             "today": water[-1],
+        },
+        "utility": {
+            "power_delta": "전주 대비 ▼ 4.2%",
+            "water_delta": "전주 대비 ▲ 18.7%",
+            "gas_today": gas[-1],
+            "gas_values": gas,
+            "gas_delta": "전주 대비 ▼ 2.1%",
+            "peak_today": peak[-1],
+            "peak_values": peak,
+            "peak_delta": "전주 대비 ▼ 1.8%",
+            "alarm_count": 2,
+            "alarm_text": "B사업장 급수 사용량이 전주 대비 급증했습니다. (예시)",
         },
     }
 
@@ -2044,8 +2062,8 @@ DASHBOARD_LAYOUT_META = {
     },
     "ops": {
         "label": "운영 보드",
-        "ref": "Stripe · Linear 운영 대시보드",
-        "desc": "지금 쓰는 구성입니다. 사업장·점검·정비·D-1 숫자를 행으로 보고, 아래에 에너지 추이를 둡니다.",
+        "ref": "운영 대시보드 시안",
+        "desc": "정비의뢰·사업장·에너지·주요일정·공지를 한 화면에. 대시보드 설정으로 구역 표시/순서를 바꿀 수 있습니다.",
     },
     "bento": {
         "label": "한눈에 보기",
@@ -2141,6 +2159,13 @@ async def dashboard(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    from board_ops import (
+        get_dashboard_widget_config,
+        load_recent_notices,
+        load_site_status,
+        load_today_schedules,
+    )
+
     layout = (preview or "").strip()
     is_preview = layout in DASHBOARD_LAYOUTS
     if not is_preview:
@@ -2149,6 +2174,22 @@ async def dashboard(
     buildings: list[dict] = []
     if is_preview or layout in ("gallery", "bento"):
         buildings = await _dashboard_buildings(db)
+
+    dash_config = await get_dashboard_widget_config(db)
+    today_schedules: list[dict] = []
+    recent_notices: list[dict] = []
+    site_status: list[dict] = []
+    if layout == "ops" or (not is_preview and layout not in ("gallery", "bento")):
+        today_schedules = await load_today_schedules(db)
+        recent_notices = await load_recent_notices(db)
+        site_status = await load_site_status(db)
+
+    now_label = datetime.now(KST).strftime("%Y.%m.%d (%a) %H:%M")
+    # 요일 영문 → 한글로 간단 치환
+    _wd = {"Mon": "월", "Tue": "화", "Wed": "수", "Thu": "목", "Fri": "금", "Sat": "토", "Sun": "일"}
+    for en, ko in _wd.items():
+        now_label = now_label.replace(en, ko)
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -2159,6 +2200,12 @@ async def dashboard(
             "layout_meta": DASHBOARD_LAYOUT_META[layout],
             "preview": is_preview,
             "buildings": buildings,
+            "dash_config": dash_config,
+            "today_schedules": today_schedules,
+            "recent_notices": recent_notices,
+            "site_status": site_status,
+            "now_label": now_label,
+            "role_label": ROLE_LABELS.get(user.role, ""),
         },
     )
 

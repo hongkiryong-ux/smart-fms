@@ -24,6 +24,7 @@
 {% endif %}
 
 <div class="dash-board dash-board-{{ layout }}">
+  {% if layout != 'ops' %}
   <header class="dash-top">
     <div class="dash-top-left">
       <h1>{% if layout == 'gallery' %}시설 Dashboard{% elif layout == 'bento' %}한눈에 Dashboard{% else %}운영 Dashboard{% endif %}</h1>
@@ -35,9 +36,11 @@
       <span>30초 자동갱신</span>
       {% if not preview %}
       <a class="dash-layout-change" href="/admin/dashboard/layouts">화면 구성 샘플</a>
+      <a class="dash-layout-change" href="/admin/dashboard/settings">대시보드 설정</a>
       {% endif %}
     </div>
   </header>
+  {% endif %}
 
   {% if layout == 'gallery' %}
     {% include "dashboard_gallery.html" %}
@@ -48,142 +51,83 @@
   {% endif %}
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 (function () {
   var INTERVAL = 30000;
   var energyInit = {{ kpi.energy | tojson }};
-  var powerChart = null;
-  var utilityChart = null;
-
-  var NUM_IDS = {
-    'kpi-sites': 'sites',
-    'kpi-buildings': 'buildings',
-    'kpi-equipment': 'equipment',
-    'kpi-pm-today-plan': 'pm_today_plan',
-    'kpi-pm-today-done': 'pm_today_done',
-    'kpi-pm-yesterday-done': 'pm_yesterday_done',
-    'kpi-pm-overdue': 'pm_overdue',
-    'kpi-wo-request': 'wo_request',
-    'kpi-wo-progress': 'wo_progress',
-    'kpi-wo-done': 'wo_done',
-    'kpi-wo-urgent': 'wo_urgent',
-    'kpi-d1-plan': 'd1_today_plan',
-    'kpi-d1-done': 'd1_today_done',
-    'kpi-d1-incomplete': 'd1_today_incomplete'
-  };
 
   function setText(id, val) {
     var el = document.getElementById(id);
     if (el && val !== undefined && val !== null) el.textContent = val;
   }
 
-  function chartDefaults() {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      plugins: {
-        legend: {
-          position: 'right',
-          labels: { boxWidth: 8, boxHeight: 8, font: { size: 10 }, padding: 8, color: '#64748b' }
-        },
-        tooltip: { mode: 'index', intersect: false }
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { font: { size: 9 }, color: '#94a3b8', maxRotation: 0 }
-        },
-        y: {
-          beginAtZero: false,
-          grid: { color: 'rgba(148,163,184,0.18)' },
-          ticks: { font: { size: 9 }, color: '#94a3b8', maxTicksLimit: 4 }
-        }
-      },
-      elements: {
-        point: { radius: 0, hoverRadius: 3 },
-        line: { borderWidth: 2 }
-      }
-    };
+  function drawSpark(canvasId, values, color) {
+    var c = document.getElementById(canvasId);
+    if (!c || !values || !values.length) return;
+    var ctx = c.getContext('2d');
+    var w = c.width, h = c.height;
+    ctx.clearRect(0, 0, w, h);
+    var min = Math.min.apply(null, values);
+    var max = Math.max.apply(null, values);
+    var span = (max - min) || 1;
+    ctx.beginPath();
+    ctx.strokeStyle = color || '#3b82f6';
+    ctx.lineWidth = 1.5;
+    values.forEach(function (v, i) {
+      var x = (i / (values.length - 1 || 1)) * (w - 2) + 1;
+      var y = h - 2 - ((v - min) / span) * (h - 4);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
   }
 
-  function renderEnergyCharts(energy) {
-    if (!energy || typeof Chart === 'undefined') return;
-    var labels = energy.labels || [];
-    var p = energy.power || {};
-    var m = energy.medium_temp || {};
-    var w = energy.water || {};
-
-    setText('nrg-kepco', (p.today || {}).kepco);
-    setText('nrg-receive', (p.today || {}).receive);
-    setText('nrg-rolling', (p.today || {}).rolling);
-    setText('nrg-medium', m.today);
-    setText('nrg-water', w.today);
-    setText('energy-note', energy.note || '');
-    var badge = document.getElementById('energy-demo-badge');
-    if (badge) badge.hidden = !energy.is_demo;
-
-    var pc = document.getElementById('chart-power');
-    var uc = document.getElementById('chart-utility');
-    if (!pc || !uc) return;
-
-    var powerCfg = {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: '한전', data: p.kepco || [], borderColor: '#003876', backgroundColor: 'rgba(0,56,118,0.10)', tension: 0.35, fill: true },
-          { label: '수전', data: p.receive || [], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', tension: 0.35, fill: true },
-          { label: '압연', data: p.rolling || [], borderColor: '#c81e1e', backgroundColor: 'rgba(200,30,30,0.06)', tension: 0.35, fill: true }
-        ]
-      },
-      options: chartDefaults()
-    };
-    var utilCfg = {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: '중온', data: m.values || [], backgroundColor: 'rgba(0,56,118,0.72)', borderRadius: 2, barPercentage: 0.7 },
-          { label: '급수', data: w.values || [], backgroundColor: 'rgba(14,165,233,0.55)', borderRadius: 2, barPercentage: 0.7 }
-        ]
-      },
-      options: chartDefaults()
-    };
-
-    if (powerChart) {
-      powerChart.data = powerCfg.data;
-      powerChart.update('none');
-    } else {
-      powerChart = new Chart(pc, powerCfg);
-    }
-    if (utilityChart) {
-      utilityChart.data = utilCfg.data;
-      utilityChart.update('none');
-    } else {
-      utilityChart = new Chart(uc, utilCfg);
-    }
+  function renderSparks(energy) {
+    if (!energy) return;
+    var p = (energy.power && energy.power.kepco) || [];
+    var w = (energy.water && energy.water.values) || [];
+    var u = energy.utility || {};
+    drawSpark('spark-power', p, '#f59e0b');
+    drawSpark('spark-water', w, '#3b82f6');
+    drawSpark('spark-gas', u.gas_values || [], '#ef4444');
+    drawSpark('spark-peak', u.peak_values || [], '#64748b');
   }
 
   function applyKpi(data) {
     if (!data) return;
-    Object.keys(NUM_IDS).forEach(function (id) {
-      setText(id, data[NUM_IDS[id]]);
-    });
-    if (data.as_of) setText('dash-as-of', data.as_of);
-    if (data.energy) renderEnergyCharts(data.energy);
+    setText('kpi-wo-urgent', data.wo_urgent);
+    setText('kpi-wo-request', data.wo_request);
+    setText('kpi-wo-done', data.wo_done);
+    setText('kpi-d1-plan', data.d1_today_plan);
+    if (data.energy) {
+      var p = data.energy.power || {};
+      var t = p.today || {};
+      if (t.kepco != null) setText('nrg-kepco', Number(t.kepco).toLocaleString());
+      if (data.energy.water && data.energy.water.today != null) setText('nrg-water', data.energy.water.today);
+      var u = data.energy.utility || {};
+      if (u.gas_today != null) setText('nrg-gas', u.gas_today);
+      if (u.peak_today != null) setText('nrg-peak', Number(u.peak_today).toLocaleString());
+      renderSparks(data.energy);
+    }
   }
 
-  function refreshKpi() {
+  function tickClock() {
+    var el = document.getElementById('ops-clock');
+    if (!el) return;
+    var d = new Date();
+    var wd = ['일','월','화','수','목','금','토'][d.getDay()];
+    function z(n){ return n < 10 ? '0'+n : ''+n; }
+    el.textContent = d.getFullYear()+'.'+z(d.getMonth()+1)+'.'+z(d.getDate())+' ('+wd+') '+z(d.getHours())+':'+z(d.getMinutes());
+  }
+
+  renderSparks(energyInit);
+  tickClock();
+  setInterval(tickClock, 30000);
+  setInterval(function () {
     fetch('/admin/dashboard/kpi', { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(applyKpi)
       .catch(function () {});
-  }
-
-  renderEnergyCharts(energyInit);
-  setInterval(refreshKpi, INTERVAL);
+  }, INTERVAL);
 })();
 </script>
 {% endblock %}
