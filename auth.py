@@ -8,11 +8,12 @@ import time
 from typing import Callable
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database import get_db
+from database import AsyncSessionLocal
 from models import Building, InspectionLogBuilding, Partner, User, UserRole
 
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
@@ -256,7 +257,7 @@ def home_path_for_user(user: User | None) -> str:
     return "/admin/account"
 
 
-_NAV_CACHE_TTL_SEC = 60.0
+_NAV_CACHE_TTL_SEC = 120.0
 _nav_cache: dict = {
     "at": 0.0,
     "building_groups": [],
@@ -337,6 +338,38 @@ async def _load_nav_state(db: AsyncSession) -> dict:
     return _nav_cache
 
 
+async def admin_request_bootstrap(
+    request: Request, session: AsyncSession
+) -> RedirectResponse | None:
+    """/admin 미들웨어: 사용자·메뉴·사이드바 네비 (요청당 DB 1회)."""
+    user_id = request.session.get("user_id") if "session" in request.scope else None
+    request.state._current_user_loaded = bool(user_id)
+    if user_id:
+        u = (
+            await session.execute(
+                select(User).where(
+                    User.id == user_id,
+                    User.is_active == True,
+                    User.is_approved == True,
+                )
+            )
+        ).scalar_one_or_none()
+        if u is not None:
+            request.state.current_user = u
+        menu_key = menu_key_for_path(request.url.path or "")
+        if menu_key and u is not None and not can_access_menu(u, menu_key):
+            return RedirectResponse("/admin/account?error=no_menu", status_code=303)
+
+    now = time.monotonic()
+    if now - _nav_cache["at"] < _NAV_CACHE_TTL_SEC:
+        apply_nav_state(request, _nav_cache)
+    elif user_id and getattr(request.state, "current_user", None):
+        apply_nav_state(request, await _load_nav_state(session))
+    else:
+        apply_nav_state(request, {})
+    return None
+
+
 def apply_nav_state(request: Request, nav: dict) -> None:
     request.state.nav_building_groups = nav.get("building_groups") or []
     request.state.nav_buildings = nav.get("buildings") or []
@@ -344,30 +377,35 @@ def apply_nav_state(request: Request, nav: dict) -> None:
     request.state.nav_partners = nav.get("partners") or []
 
 
-async def get_current_user(
-    request: Request, db: AsyncSession = Depends(get_db)
-) -> User | None:
+async def get_current_user(request: Request) -> User | None:
     user_id = request.session.get("user_id")
     if not user_id:
-        apply_nav_state(request, {})
+        if not hasattr(request.state, "nav_buildings"):
+            apply_nav_state(request, {})
         return None
     user = getattr(request.state, "current_user", None)
     if user is None and not getattr(request.state, "_current_user_loaded", False):
-        result = await db.execute(
-            select(User).where(
-                User.id == user_id,
-                User.is_active == True,
-                User.is_approved == True,
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(User).where(
+                    User.id == user_id,
+                    User.is_active == True,
+                    User.is_approved == True,
+                )
             )
-        )
-        user = result.scalar_one_or_none()
-        request.state._current_user_loaded = True
-        if user is not None:
-            request.state.current_user = user
+            user = result.scalar_one_or_none()
+            request.state._current_user_loaded = True
+            if user is not None:
+                request.state.current_user = user
     if not hasattr(request.state, "nav_buildings"):
         path = request.url.path or ""
         if user and not path.startswith("/eq/"):
-            apply_nav_state(request, await _load_nav_state(db))
+            now = time.monotonic()
+            if now - _nav_cache["at"] < _NAV_CACHE_TTL_SEC:
+                apply_nav_state(request, _nav_cache)
+            else:
+                async with AsyncSessionLocal() as session:
+                    apply_nav_state(request, await _load_nav_state(session))
         else:
             apply_nav_state(request, {})
     return user

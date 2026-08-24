@@ -566,8 +566,18 @@ def _overall(levels: list[str]) -> str:
     return "unknown"
 
 
+_SRV_STATUS_CACHE_TTL_SEC = 45.0
+_srv_status_cache: dict = {"at": 0.0, "data": None}
+
+
 async def collect_server_status(db: AsyncSession | None = None) -> dict:
     """Render 서버(배포 인스턴스) 상태만 수집. 로컬 PC 정보는 UI에서 제외."""
+    now = time.monotonic()
+    cached = _srv_status_cache.get("data")
+    if cached is not None and now - _srv_status_cache["at"] < _SRV_STATUS_CACHE_TTL_SEC:
+        out = dict(cached)
+        out["as_of"] = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+        return out
     meta = _render_meta()
     uptime = _uptime_info()
     db_st = await _db_status(db)
@@ -613,7 +623,7 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
         pass
 
     overall = _overall(levels)
-    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+    as_of = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     db_st = {
         **db_st,
         "desc": "데이터베이스 연결 상태입니다. 숫자가 작을수록(ms) 응답이 빠릅니다.",
@@ -626,8 +636,8 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
         **uptime,
         "desc": "이번 Render 인스턴스(웹 프로세스)가 켜진 뒤 경과 시간입니다.",
     }
-    return {
-        "as_of": now,
+    result = {
+        "as_of": as_of,
         "overall": overall,
         "overall_label": {
             "ok": "정상",
@@ -642,7 +652,8 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
             "Render 웹 서버와 Postgres DB 상태를 표시합니다."
             if meta.get("is_render")
             else "로컬 실행입니다. DB 용량은 표시되며, 웹 서버 리소스는 Render에서만 표시합니다."
-        ),        "disk": disk,
+        ),
+        "disk": disk,
         "memory": mem,
         "cpu": cpu,
         "uptime": uptime,
@@ -654,3 +665,6 @@ async def collect_server_status(db: AsyncSession | None = None) -> dict:
         "render": meta,
         "app": app,
     }
+    _srv_status_cache["at"] = time.monotonic()
+    _srv_status_cache["data"] = result
+    return result

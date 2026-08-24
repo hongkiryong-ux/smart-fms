@@ -2,6 +2,7 @@
 import os
 from urllib.parse import unquote, urlparse
 
+from fastapi import Request
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 
@@ -100,7 +101,10 @@ def _create_engine():
         "postgresql+psycopg://",
         async_creator=_connect,
         pool_pre_ping=True,
-        pool_recycle=3600,
+        pool_recycle=300,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=20,
     )
 
 
@@ -668,6 +672,11 @@ async def ensure_app_settings_table() -> None:
         print(f"[db] app_settings ensure skip: {e}", flush=True)
 
 
-async def get_db():
+async def get_db(request: Request):
+    """요청당 DB 세션 1개 재사용(/admin 미들웨어) 또는 짧게 열었다 닫음."""
+    scoped = getattr(request.state, "_db_session", None)
+    if scoped is not None:
+        yield scoped
+        return
     async with AsyncSessionLocal() as session:
         yield session

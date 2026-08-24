@@ -1,6 +1,7 @@
 # main.py
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
@@ -27,6 +28,7 @@ from auth import (
     MENU_ITEMS,
     ROLE_LABELS,
     SIGNUP_ROLES,
+    admin_request_bootstrap,
     apply_role_permissions,
     can_access_equipment_pm,
     can_access_menu,
@@ -1128,40 +1130,35 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="POSCO WIDE Smart FMS", lifespan=lifespan)
 
 
-class _MenuAccessMiddleware(BaseHTTPMiddleware):
-    """메뉴 권한이 없는 /admin/* 경로는 내 계정으로 리다이렉트."""
+class _AdminDbMiddleware(BaseHTTPMiddleware):
+    """/admin 요청당 DB 세션 1개 — 사용자·메뉴·네비를 같은 연결로 처리."""
 
     async def dispatch(self, request: Request, call_next):
-        path = request.url.path
-        menu_key = menu_key_for_path(path)
-        if menu_key is None:
+        path = request.url.path or ""
+        if not path.startswith("/admin"):
             return await call_next(request)
-        if "session" not in request.scope:
-            return await call_next(request)
-        user_id = request.session.get("user_id")
-        if not user_id:
-            return await call_next(request)
-        try:
-            async with AsyncSessionLocal() as session:
-                u = (
-                    await session.execute(
-                        select(User).where(
-                            User.id == user_id,
-                            User.is_active == True,  # noqa: E712
-                            User.is_approved == True,  # noqa: E712
-                        )
-                    )
-                ).scalar_one_or_none()
-                if u is not None:
-                    request.state.current_user = u
-                    if not can_access_menu(u, menu_key):
-                        return RedirectResponse(
-                            "/admin/account?error=no_menu", status_code=303
-                        )
-                request.state._current_user_loaded = True
-        except Exception as e:
-            print(f"[menu] access check skip: {e}", flush=True)
-        return await call_next(request)
+
+        async with AsyncSessionLocal() as session:
+            request.state._db_session = session
+            try:
+                try:
+                    denied = await admin_request_bootstrap(request, session)
+                except Exception as e:
+                    print(f"[admin] bootstrap skip: {e}", flush=True)
+                    from auth import apply_nav_state
+
+                    apply_nav_state(request, {})
+                    denied = None
+                if denied is not None:
+                    return denied
+                return await call_next(request)
+            except Exception:
+                await session.rollback()
+                raise
+
+
+# 하위 호환 alias
+_MenuAccessMiddleware = _AdminDbMiddleware
 
 
 SECRET_KEY = os.environ.get("APP_SECRET_KEY", "change_this_secret_in_prod")
@@ -1171,7 +1168,7 @@ if os.environ.get("RENDER", "").lower() in ("true", "1", "yes") or os.environ.ge
 ).lower() in ("1", "true", "yes"):
     _session_kw["https_only"] = True
 # 안쪽(메뉴) → Session → Proxy 순으로 add (마지막이 가장 바깥)
-app.add_middleware(_MenuAccessMiddleware)
+app.add_middleware(_AdminDbMiddleware)
 app.add_middleware(SessionMiddleware, **_session_kw)
 
 try:
@@ -2058,18 +2055,35 @@ DASHBOARD_LAYOUT_META = {
 _KPI_CACHE_TTL_SEC = 30.0
 _kpi_cache: dict = {"at": 0.0, "data": None}
 _layout_cache: str | None = None
+_kpi_lock: asyncio.Lock | None = None
 
 
-async def _get_dashboard_kpi_cached(db: AsyncSession) -> dict:
-    """대시보드 KPI (30초 TTL, 프론트 자동갱신 주기와 동일)."""
+def _kpi_lock_get() -> asyncio.Lock:
+    global _kpi_lock
+    if _kpi_lock is None:
+        _kpi_lock = asyncio.Lock()
+    return _kpi_lock
+
+
+async def _get_dashboard_kpi_cached(db: AsyncSession | None = None) -> dict:
+    """대시보드 KPI (30초 TTL, 동시 재계산 1회만)."""
     now = time.monotonic()
     cached = _kpi_cache.get("data")
     if cached is not None and now - _kpi_cache["at"] < _KPI_CACHE_TTL_SEC:
         return cached
-    data = await _compute_dashboard_kpi(db)
-    _kpi_cache["at"] = now
-    _kpi_cache["data"] = data
-    return data
+    async with _kpi_lock_get():
+        now = time.monotonic()
+        cached = _kpi_cache.get("data")
+        if cached is not None and now - _kpi_cache["at"] < _KPI_CACHE_TTL_SEC:
+            return cached
+        if db is None:
+            async with AsyncSessionLocal() as session:
+                data = await _compute_dashboard_kpi(session)
+        else:
+            data = await _compute_dashboard_kpi(db)
+        _kpi_cache["at"] = time.monotonic()
+        _kpi_cache["data"] = data
+        return data
 
 
 async def _get_dashboard_layout(db: AsyncSession) -> str:
@@ -2182,12 +2196,9 @@ async def save_dashboard_layout(
 
 
 @app.get("/admin/dashboard/kpi")
-async def dashboard_kpi(
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    """대시보드 KPI JSON (자동 갱신)."""
-    return JSONResponse(await _get_dashboard_kpi_cached(db))
+async def dashboard_kpi(user: User = Depends(require_login)):
+    """대시보드 KPI JSON (자동 갱신, 캐시 적중 시 DB 미사용)."""
+    return JSONResponse(await _get_dashboard_kpi_cached(None))
 
 
 @app.get("/admin/server")
