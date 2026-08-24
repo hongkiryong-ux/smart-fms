@@ -2,7 +2,6 @@
 import os
 from urllib.parse import unquote, urlparse
 
-from fastapi import Request
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 
@@ -43,8 +42,11 @@ def _create_engine():
         return create_async_engine(raw, echo=False)
 
     pg = _parse_postgres_url(raw)
+    pool_size = int(os.environ.get("DB_POOL_SIZE", "8"))
+    max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", "12"))
     print(
-        f"[db] external={pg['external_host']} internal={pg['internal_host']}",
+        f"[db] external={pg['external_host']} internal={pg['internal_host']} "
+        f"pool={pool_size}+{max_overflow}",
         flush=True,
     )
 
@@ -102,9 +104,10 @@ def _create_engine():
         async_creator=_connect,
         pool_pre_ping=True,
         pool_recycle=300,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=20,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=25,
+        pool_use_lifo=True,
     )
 
 
@@ -672,11 +675,6 @@ async def ensure_app_settings_table() -> None:
         print(f"[db] app_settings ensure skip: {e}", flush=True)
 
 
-async def get_db(request: Request):
-    """요청당 DB 세션 1개 재사용(/admin 미들웨어) 또는 짧게 열었다 닫음."""
-    scoped = getattr(request.state, "_db_session", None)
-    if scoped is not None:
-        yield scoped
-        return
+async def get_db():
     async with AsyncSessionLocal() as session:
         yield session

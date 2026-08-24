@@ -1131,30 +1131,33 @@ app = FastAPI(title="POSCO WIDE Smart FMS", lifespan=lifespan)
 
 
 class _AdminDbMiddleware(BaseHTTPMiddleware):
-    """/admin 요청당 DB 세션 1개 — 사용자·메뉴·네비를 같은 연결로 처리."""
+    """/admin: 사용자·메뉴·네비만 짧게 조회 후 연결 즉시 반환."""
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path or ""
         if not path.startswith("/admin"):
             return await call_next(request)
 
-        async with AsyncSessionLocal() as session:
-            request.state._db_session = session
-            try:
-                try:
-                    denied = await admin_request_bootstrap(request, session)
-                except Exception as e:
-                    print(f"[admin] bootstrap skip: {e}", flush=True)
-                    from auth import apply_nav_state
+        # 로그인·가입(비로그인)은 DB 없이 통과 — 연결 풀 절약
+        if path.startswith("/admin/login") or path.startswith("/admin/signup"):
+            if not (request.session.get("user_id") if "session" in request.scope else None):
+                from auth import apply_nav_state
 
-                    apply_nav_state(request, {})
-                    denied = None
-                if denied is not None:
-                    return denied
+                apply_nav_state(request, {})
                 return await call_next(request)
-            except Exception:
-                await session.rollback()
-                raise
+
+        async with AsyncSessionLocal() as session:
+            try:
+                denied = await admin_request_bootstrap(request, session)
+            except Exception as e:
+                print(f"[admin] bootstrap skip: {e}", flush=True)
+                from auth import apply_nav_state
+
+                apply_nav_state(request, {})
+                denied = None
+            if denied is not None:
+                return denied
+        return await call_next(request)
 
 
 # 하위 호환 alias
