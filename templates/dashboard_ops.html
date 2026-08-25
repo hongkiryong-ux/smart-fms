@@ -98,7 +98,7 @@
         <ul class="ops-site-list">
           {% for s in site_status %}
           <li>
-            <span class="ops-rank">{{ s.rank }}</span>
+            <span class="ops-rank rank-{{ s.rank }}">{{ s.rank }}</span>
             {% if s.photo_url %}
             <div class="ops-site-thumb has-photo">
               <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
@@ -111,13 +111,23 @@
                 <strong>{{ s.name }}</strong>
                 <span class="ops-status {% if s.status == '주의' %}warn{% else %}ok{% endif %}">{{ s.status }}</span>
               </div>
-              <span class="ops-site-meta">시설 {{ s.buildings }} · 설비 {{ "{:,}".format(s.equipment) }}</span>
-              <div class="ops-site-counts">
-                <span>정비의뢰 <b>{{ s.requests }}</b></span>
-                <span>미해결 <b>{{ s.unresolved }}</b></span>
-                <span>이상 알람 <b>{{ s.alarms }}</b></span>
+              <span class="ops-site-meta">{{ s.buildings }}개 시설 · {{ "{:,}".format(s.equipment) }}개 설비</span>
+            </div>
+            <div class="ops-site-metrics rank-{{ s.rank }}">
+              <div class="ops-site-metric">
+                <span class="ops-metric-label">정비의뢰</span>
+                <strong class="ops-metric-val">{{ s.requests }}<small> 건</small></strong>
               </div>
-              <div class="ops-site-bar"><i style="width:{{ s.score * 8 if s.score * 8 < 100 else 100 }}%"></i></div>
+              <div class="ops-site-metric">
+                <span class="ops-metric-label">미해결</span>
+                <strong class="ops-metric-val">{{ s.unresolved }}<small> 건</small></strong>
+              </div>
+              <div class="ops-site-metric">
+                <span class="ops-metric-label">완료</span>
+                <strong class="ops-metric-val">{{ s.completed }}<small> 건</small></strong>
+              </div>
+              {% set bar_pct = (s.unresolved * 100 // s.requests) if s.requests else 0 %}
+              <div class="ops-site-bar"><i style="width:{{ bar_pct if bar_pct < 100 else 100 }}%"></i></div>
             </div>
             <a class="ops-site-link" href="/admin/sites">자세히 보기 ›</a>
           </li>

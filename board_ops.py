@@ -45,7 +45,7 @@ DASH_WIDGETS: tuple[tuple[str, str], ...] = (
 DASH_WIDGET_KEYS = [k for k, _ in DASH_WIDGETS]
 DASH_WIDGET_HINTS = {
     "maintenance_status": "긴급·의뢰·해결·오늘 작업 KPI 카드",
-    "sites_status": "사업장별 정비의뢰·미해결·알람 순위",
+    "sites_status": "사업장별 정비의뢰·미해결·완료 순위",
     "energy": "전력·급수·가스 등 (현재 예시 그래픽)",
     "schedules": "오늘 등록된 주요설비 일정",
     "notices": "최근 공지 목록",
@@ -176,6 +176,11 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
         WorkOrderStatus.assigned,
         WorkOrderStatus.in_progress,
     )
+    done_st = (
+        WorkOrderStatus.completed,
+        WorkOrderStatus.verified,
+        WorkOrderStatus.closed,
+    )
     sites = (
         await db.execute(select(Site).where(Site.is_active == True).order_by(Site.name))  # noqa: E712
     ).scalars().all()
@@ -202,12 +207,29 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                 )
             )
         ).scalar() or 0
+        wo_total = (
+            await db.execute(
+                select(func.count(WorkOrder.id)).where(
+                    WorkOrder.site_id == s.id,
+                    WorkOrder.is_active == True,  # noqa: E712
+                )
+            )
+        ).scalar() or 0
         wo_open = (
             await db.execute(
                 select(func.count(WorkOrder.id)).where(
                     WorkOrder.site_id == s.id,
                     WorkOrder.is_active == True,  # noqa: E712
                     WorkOrder.status.in_(open_st),
+                )
+            )
+        ).scalar() or 0
+        wo_done = (
+            await db.execute(
+                select(func.count(WorkOrder.id)).where(
+                    WorkOrder.site_id == s.id,
+                    WorkOrder.is_active == True,  # noqa: E712
+                    WorkOrder.status.in_(done_st),
                 )
             )
         ).scalar() or 0
@@ -221,7 +243,6 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                 )
             )
         ).scalar() or 0
-        wo_all_open_like = int(wo_open)
         status = "주의" if (wo_urgent > 0 or wo_open >= 3) else "정상"
         result.append(
             {
@@ -230,9 +251,9 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                 "photo_url": _photo_for(s.name),
                 "buildings": int(buildings),
                 "equipment": int(equipment),
-                "requests": wo_all_open_like,
+                "requests": int(wo_total),
                 "unresolved": int(wo_open),
-                "alarms": int(wo_urgent),
+                "completed": int(wo_done),
                 "status": status,
                 "score": int(wo_urgent) * 10 + int(wo_open),
             }
