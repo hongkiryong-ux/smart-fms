@@ -2012,6 +2012,7 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
         )
     ).one()
     wo_request, wo_progress, wo_done, wo_urgent = map(int, wo_row)
+    wo_unresolved = wo_request + wo_progress
 
     # D-1 (업체 지정 + 승인된 WorkOrder만)
     d1_gate = _wo_d1_sql_gate()
@@ -2059,6 +2060,7 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
         "wo_progress": int(wo_progress),
         "wo_done": int(wo_done),
         "wo_urgent": int(wo_urgent),
+        "wo_unresolved": int(wo_unresolved),
         "d1_today_plan": int(d1_today_plan),
         "d1_today_done": int(d1_today_done),
         "d1_today_incomplete": int(d1_today_incomplete),

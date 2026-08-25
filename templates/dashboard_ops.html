@@ -59,6 +59,14 @@
           <em>완료·검수</em>
         </div>
       </a>
+      <a class="ops-stat ops-stat-amber" href="/admin/work-orders?status=in_progress">
+        <span class="ops-stat-ico">⏳</span>
+        <div>
+          <span class="ops-stat-label">미해결 건</span>
+          <strong><span id="kpi-wo-unresolved">{{ kpi.wo_unresolved }}</span> 건</strong>
+          <em>접수 {{ kpi.wo_request }} / 진행 {{ kpi.wo_progress }}</em>
+        </div>
+      </a>
       <a class="ops-stat ops-stat-purple" href="/admin/d1?board=today">
         <span class="ops-stat-ico">🔧</span>
         <div>
