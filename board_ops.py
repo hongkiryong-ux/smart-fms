@@ -155,13 +155,17 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
     # 사업장명 매칭 → 대시보드 썸네일 (부분 일치)
     site_photos = (
         ("광양운영", "/static/img/sites/gwangyang-ops.png"),
+        ("RIST", "/static/img/sites/rist.png"),
+        ("rist", "/static/img/sites/rist.png"),
+        ("미세먼지", "/static/img/sites/rist.png"),
         ("광양", "/static/img/sites/gwangyang-ops.png"),
     )
 
     def _photo_for(name: str) -> str | None:
         n = (name or "").strip()
+        n_lower = n.lower()
         for key, url in site_photos:
-            if key in n:
+            if key.lower() in n_lower:
                 return url
         return None
 
