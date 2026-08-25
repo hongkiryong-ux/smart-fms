@@ -69,12 +69,32 @@ body {
 }
 
 .nav-menu a {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.65rem 1.25rem;
   color: rgba(255,255,255,0.85);
   text-decoration: none;
   font-size: 0.9rem;
   transition: background 0.15s;
+}
+
+.nav-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
 .nav-menu a:hover, .nav-menu a.active {

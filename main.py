@@ -4638,6 +4638,10 @@ async def work_orders_list(
                 "building_id": bld_id,
             }
         )
+    from maint_nav_badges import mark_maint_seen
+
+    await mark_maint_seen(db, user.id, "work_orders")
+    await db.commit()
     return templates.TemplateResponse(
         request,
         "work_orders.html",
@@ -6533,6 +6537,12 @@ async def d1_list(
         if none_cnt > 0 or partner_sel == -1:
             partner_btns.append({"id": -1, "name": "미지정", "count": none_cnt})
 
+    from maint_nav_badges import mark_maint_seen
+
+    if partner_sel > 0:
+        await mark_maint_seen(db, user.id, "d1_partner", partner_id=partner_sel)
+        await db.commit()
+
     return templates.TemplateResponse(
         request,
         "d1_plans.html",
@@ -6807,6 +6817,10 @@ async def facility_section_list(
             }
         )
 
+    from maint_nav_badges import mark_maint_seen
+
+    await mark_maint_seen(db, user.id, "facility")
+    await db.commit()
     return templates.TemplateResponse(
         request,
         "facility_section.html",

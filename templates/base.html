@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20260825site1" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260825badge1" />
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -26,6 +26,8 @@
   {% set can_sl = user_can_access_menu(user, 'streetlamp') %}
   {% set sl_home = '/admin/streetlamp/requests' %}
   {% set maint_home = '/admin/work-orders' if can_wo else ('/admin/d1' if can_d1 else ('/admin/facility-section' if can_fac else sl_home)) %}
+  {% set nav_badges = request.state.nav_maint_badges if request.state.nav_maint_badges is defined else {'total': 0, 'work_orders': 0, 'facility': 0, 'd1_by_partner': {}} %}
+  {% set d1_badges = nav_badges.get('d1_by_partner', {}) if nav_badges is mapping else {} %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
   {% set ilog_path_parts = request.url.path.split('/') %}
@@ -131,7 +133,7 @@
       <li class="nav-expandable nav-maint-root{% if maint_path %} is-open{% endif %}" id="nav-maintenance">
         <div class="nav-parent-row">
           <a href="{{ maint_home }}"
-             class="nav-parent-link{% if maint_path %} active{% endif %}">정비관리</a>
+             class="nav-parent-link{% if maint_path %} active{% endif %}">정비관리{% if nav_badges.get('total') and not maint_path %}<span class="nav-count-badge">{{ nav_badges.get('total') }}</span>{% endif %}</a>
           <button type="button"
                   class="nav-toggle"
                   aria-expanded="{% if maint_path %}true{% else %}false{% endif %}"
@@ -144,7 +146,7 @@
           {% if can_wo %}
           <li>
             <a href="/admin/work-orders"
-               class="{% if wo_path %}active{% endif %}">정비접수/승인(정비섹션)</a>
+               class="{% if wo_path %}active{% endif %}">정비접수/승인(정비섹션){% if nav_badges.get('work_orders') and not wo_path %}<span class="nav-count-badge">{{ nav_badges.get('work_orders') }}</span>{% endif %}</a>
           </li>
           {% endif %}
           {% if can_d1 %}
@@ -165,7 +167,7 @@
               <li>
                 <a href="/admin/d1?partner_id={{ p.id }}&board=receipt"
                    class="{% if d1_path and nav_pid == p.id|string %}active{% endif %}"
-                   title="{{ p.name }}">{{ p.name }}</a>
+                   title="{{ p.name }}">{{ p.name }}{% if d1_badges.get(p.id) and not (d1_path and nav_pid == p.id|string) %}<span class="nav-count-badge">{{ d1_badges.get(p.id) }}</span>{% endif %}</a>
               </li>
               {% else %}
               <li class="nav-sub-empty">등록된 업체 없음</li>
@@ -176,7 +178,7 @@
           {% if can_fac %}
           <li>
             <a href="/admin/facility-section"
-               class="{% if fac_path %}active{% endif %}">작업허가/승인(시설섹션)</a>
+               class="{% if fac_path %}active{% endif %}">작업허가/승인(시설섹션){% if nav_badges.get('facility') and not fac_path %}<span class="nav-count-badge">{{ nav_badges.get('facility') }}</span>{% endif %}</a>
           </li>
           {% endif %}
           {% if can_sl %}

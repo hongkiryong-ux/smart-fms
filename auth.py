@@ -380,6 +380,8 @@ async def admin_request_bootstrap(
         apply_nav_state(request, await _load_nav_state(session))
     else:
         apply_nav_state(request, {})
+    user = getattr(request.state, "current_user", None)
+    await apply_maint_nav_badges(request, session, user)
     return None
 
 
@@ -388,6 +390,12 @@ def apply_nav_state(request: Request, nav: dict) -> None:
     request.state.nav_buildings = nav.get("buildings") or []
     request.state.nav_inspection_log_buildings = nav.get("inspection_log_buildings") or []
     request.state.nav_partners = nav.get("partners") or []
+
+
+async def apply_maint_nav_badges(request: Request, session: AsyncSession, user: User | None) -> None:
+    from maint_nav_badges import compute_maint_badges
+
+    request.state.nav_maint_badges = await compute_maint_badges(session, user)
 
 
 async def get_current_user(request: Request) -> User | None:
@@ -414,13 +422,17 @@ async def get_current_user(request: Request) -> User | None:
         path = request.url.path or ""
         if user and not path.startswith("/eq/"):
             now = time.monotonic()
-            if now - _nav_cache["at"] < _NAV_CACHE_TTL_SEC:
-                apply_nav_state(request, _nav_cache)
-            else:
-                async with AsyncSessionLocal() as session:
+            async with AsyncSessionLocal() as session:
+                if now - _nav_cache["at"] < _NAV_CACHE_TTL_SEC:
+                    apply_nav_state(request, _nav_cache)
+                else:
                     apply_nav_state(request, await _load_nav_state(session))
+                await apply_maint_nav_badges(request, session, user)
         else:
             apply_nav_state(request, {})
+    elif user and not hasattr(request.state, "nav_maint_badges"):
+        async with AsyncSessionLocal() as session:
+            await apply_maint_nav_badges(request, session, user)
     return user
 
 
