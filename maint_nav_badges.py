@@ -247,9 +247,14 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
                 d1_total += 1
 
     total = work_orders_count + facility_count + d1_total
+    # 템플릿에서 p.id(int) / 문자열 키 모두 조회 가능하도록 이중 키 제공
+    d1_for_tpl: dict = {}
+    for pid, cnt in d1_by_partner.items():
+        d1_for_tpl[pid] = cnt
+        d1_for_tpl[str(pid)] = cnt
     return {
         "total": total,
         "work_orders": work_orders_count,
         "facility": facility_count,
-        "d1_by_partner": d1_by_partner,
+        "d1_by_partner": d1_for_tpl,
     }

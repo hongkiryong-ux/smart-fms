@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20260825badge2" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260825badge3" />
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -133,7 +133,7 @@
       <li class="nav-expandable nav-maint-root{% if maint_path %} is-open{% endif %}" id="nav-maintenance">
         <div class="nav-parent-row">
           <a href="{{ maint_home }}"
-             class="nav-parent-link{% if maint_path %} active{% endif %}">정비관리{% if nav_badges.get('total') and not maint_path %}<span class="nav-count-badge">{{ nav_badges.get('total') }}</span>{% endif %}</a>
+             class="nav-parent-link{% if maint_path %} active{% endif %}"><span class="nav-label">정비관리</span>{% if nav_badges.get('total') and not maint_path %}<span class="nav-count-badge" title="신규 {{ nav_badges.get('total') }}건">{{ nav_badges.get('total') }}</span>{% endif %}</a>
           <button type="button"
                   class="nav-toggle"
                   aria-expanded="{% if maint_path %}true{% else %}false{% endif %}"
@@ -146,7 +146,7 @@
           {% if can_wo %}
           <li>
             <a href="/admin/work-orders"
-               class="{% if wo_path %}active{% endif %}">정비접수/승인(정비섹션){% if nav_badges.get('work_orders') and not wo_path %}<span class="nav-count-badge">{{ nav_badges.get('work_orders') }}</span>{% endif %}</a>
+               class="{% if wo_path %}active{% endif %}"><span class="nav-label">정비접수/승인(정비섹션)</span>{% if nav_badges.get('work_orders') and not wo_path %}<span class="nav-count-badge" title="신규 {{ nav_badges.get('work_orders') }}건">{{ nav_badges.get('work_orders') }}</span>{% endif %}</a>
           </li>
           {% endif %}
           {% if can_d1 %}
@@ -167,7 +167,7 @@
               <li>
                 <a href="/admin/d1?partner_id={{ p.id }}&board=receipt"
                    class="{% if d1_path and nav_pid == p.id|string %}active{% endif %}"
-                   title="{{ p.name }}">{{ p.name }}{% if d1_badges.get(p.id) and not (d1_path and nav_pid == p.id|string) %}<span class="nav-count-badge">{{ d1_badges.get(p.id) }}</span>{% endif %}</a>
+                   title="{{ p.name }}"><span class="nav-label">{{ p.name }}</span>{% if d1_badges.get(p.id) and not (d1_path and nav_pid == p.id|string) %}<span class="nav-count-badge" title="신규 {{ d1_badges.get(p.id) }}건">{{ d1_badges.get(p.id) }}</span>{% endif %}</a>
               </li>
               {% else %}
               <li class="nav-sub-empty">등록된 업체 없음</li>
@@ -178,7 +178,7 @@
           {% if can_fac %}
           <li>
             <a href="/admin/facility-section"
-               class="{% if fac_path %}active{% endif %}">작업허가/승인(시설섹션){% if nav_badges.get('facility') and not fac_path %}<span class="nav-count-badge">{{ nav_badges.get('facility') }}</span>{% endif %}</a>
+               class="{% if fac_path %}active{% endif %}"><span class="nav-label">작업허가/승인(시설섹션)</span>{% if nav_badges.get('facility') and not fac_path %}<span class="nav-count-badge" title="신규 {{ nav_badges.get('facility') }}건">{{ nav_badges.get('facility') }}</span>{% endif %}</a>
           </li>
           {% endif %}
           {% if can_sl %}
