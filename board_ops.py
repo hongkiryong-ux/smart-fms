@@ -152,6 +152,19 @@ async def load_recent_notices(db: AsyncSession, limit: int = 6) -> list[dict]:
 
 async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
     """문제(미해결 정비)·정비의뢰 많은 사업장 순."""
+    # 사업장명 매칭 → 대시보드 썸네일 (부분 일치)
+    site_photos = (
+        ("광양운영", "/static/img/sites/gwangyang-ops.png"),
+        ("광양", "/static/img/sites/gwangyang-ops.png"),
+    )
+
+    def _photo_for(name: str) -> str | None:
+        n = (name or "").strip()
+        for key, url in site_photos:
+            if key in n:
+                return url
+        return None
+
     open_st = (
         WorkOrderStatus.received,
         WorkOrderStatus.assigned,
@@ -208,6 +221,7 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
             {
                 "id": s.id,
                 "name": s.name,
+                "photo_url": _photo_for(s.name),
                 "buildings": int(buildings),
                 "equipment": int(equipment),
                 "requests": wo_all_open_like,

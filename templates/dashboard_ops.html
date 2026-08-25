@@ -99,7 +99,13 @@
           {% for s in site_status %}
           <li>
             <span class="ops-rank">{{ s.rank }}</span>
+            {% if s.photo_url %}
+            <div class="ops-site-thumb has-photo">
+              <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
+            </div>
+            {% else %}
             <div class="ops-site-thumb tone-{{ loop.index0 % 5 }}"></div>
+            {% endif %}
             <div class="ops-site-info">
               <div class="ops-site-name">
                 <strong>{{ s.name }}</strong>

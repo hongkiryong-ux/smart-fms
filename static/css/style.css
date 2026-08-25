@@ -5325,3 +5325,16 @@ tr.wo-row-selected {
   .board-split { grid-template-columns: 1fr; }
   .board-notice-form { order: -1; }
 }
+
+
+.ops-site-thumb.has-photo {
+  overflow: hidden;
+  padding: 0;
+  background: #e2e8f0;
+}
+.ops-site-thumb.has-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
