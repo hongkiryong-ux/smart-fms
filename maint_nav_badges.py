@@ -12,7 +12,10 @@ from models import AppSetting, User, WorkOrder, WorkOrderStatus
 
 KST = ZoneInfo("Asia/Seoul")
 
-_WO_RECEIVED = (WorkOrderStatus.received,)
+_WO_REQUEST = (
+    WorkOrderStatus.received,
+    WorkOrderStatus.assigned,
+)
 _WO_OPEN = (
     WorkOrderStatus.received,
     WorkOrderStatus.assigned,
@@ -189,7 +192,8 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
             await db.execute(
                 select(WorkOrder).where(
                     WorkOrder.is_active == True,  # noqa: E712
-                    WorkOrder.status.in_(_WO_RECEIVED),
+                    WorkOrder.status.in_(_WO_REQUEST),
+                    WorkOrder.d1_approved.is_(False),
                 )
             )
         ).scalars().all()

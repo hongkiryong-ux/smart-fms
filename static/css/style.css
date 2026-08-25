@@ -147,14 +147,21 @@ body {
   display: block;
 }
 .nav-sub a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
   padding: 0.2rem 0.75rem 0.2rem 1.1rem;
   font-size: 0.8rem;
   line-height: 1.25;
   color: #9eb6cc;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   border-left: 2px solid transparent;
+}
+.nav-sub a .nav-count-badge {
+  margin-left: 0.35rem;
 }
 .nav-sub a:hover {
   background: rgba(148, 180, 210, 0.12);
