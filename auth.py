@@ -189,21 +189,36 @@ def normalize_menu_access(raw) -> list[str]:
     if raw is None:
         return []
     if isinstance(raw, str):
-        raw = [x.strip() for x in raw.split(",") if x.strip()]
+        text = raw.strip()
+        # JSON 배열 문자열로 저장된 경우
+        if text.startswith("["):
+            try:
+                import json
+
+                parsed = json.loads(text)
+                if isinstance(parsed, list):
+                    raw = parsed
+                else:
+                    raw = [x.strip() for x in text.split(",") if x.strip()]
+            except Exception:
+                raw = [x.strip() for x in text.split(",") if x.strip()]
+        else:
+            raw = [x.strip() for x in text.split(",") if x.strip()]
     if not isinstance(raw, (list, tuple, set)):
         return []
     allowed = set(MENU_KEYS)
     out: list[str] = []
     seen: set[str] = set()
     for item in raw:
-        key = str(item or "").strip()
+        key = str(item or "").strip().strip('"').strip("'")
         if key in allowed and key not in seen:
             seen.add(key)
             out.append(key)
     return out
 
 
-def effective_menu_access(user: User | None) -> list[str]:
+def menu_access_for_edit(user: User | None) -> list[str]:
+    """계정관리 체크박스용 — DB에 저장된 값(없으면 역할 기본값). 자동 추가 없음."""
     if user is None:
         return []
     if user.role == UserRole.system_admin:
@@ -211,33 +226,19 @@ def effective_menu_access(user: User | None) -> list[str]:
     raw = getattr(user, "menu_access", None)
     if raw is None:
         return default_menu_access(user.role)
-    keys = normalize_menu_access(raw)
-    # 신규 메뉴 자동 부여 (저장된 권한에 없을 때)
-    if (
-        user.role not in (UserRole.partner, UserRole.external)
-        and "facility_section" not in keys
-        and ("d1" in keys or "work_orders" in keys)
-    ):
-        if "d1" in keys:
-            keys.insert(keys.index("d1") + 1, "facility_section")
-        else:
-            keys.append("facility_section")
-    if (
-        user.role not in (UserRole.partner, UserRole.external)
-        and "streetlamp" not in keys
-        and ("work_orders" in keys or "d1" in keys or "facility_section" in keys)
-    ):
-        keys.append("streetlamp")
-    # 신규 메뉴 AI 분석 — 기존 계정에 자동 부여
-    if "ai_analysis" not in keys and user.role not in (UserRole.partner, UserRole.external):
-        keys.append("ai_analysis")
-    # 신규 메뉴 주요설비 일정·공지사항
-    if user.role not in (UserRole.partner, UserRole.external):
-        if "schedules" not in keys:
-            keys.append("schedules")
-        if "notices" not in keys:
-            keys.append("notices")
-    return keys
+    return normalize_menu_access(raw)
+
+
+def effective_menu_access(user: User | None) -> list[str]:
+    """실제 사이드바 접근. 저장된 menu_access를 그대로 존중한다."""
+    if user is None:
+        return []
+    if user.role == UserRole.system_admin:
+        return list(MENU_KEYS)
+    raw = getattr(user, "menu_access", None)
+    if raw is None:
+        return default_menu_access(user.role)
+    return normalize_menu_access(raw)
 
 
 def can_access_menu(user: User | None, menu_key: str) -> bool:

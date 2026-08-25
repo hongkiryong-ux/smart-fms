@@ -28,7 +28,7 @@
   </div>
 {%- endmacro %}
 {% macro menu_access_fields(form_id, u=None, locked=false) -%}
-  {% set selected = user_menu_access(u) if u else [] %}
+  {% set selected = user_menu_access_edit(u) if u else [] %}
   <div class="users-menu-access">
     <div class="users-menu-access-title">메뉴 접근</div>
     {% if locked %}

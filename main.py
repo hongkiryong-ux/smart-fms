@@ -42,6 +42,7 @@ from auth import (
     group_buildings_by_site,
     hash_password,
     home_path_for_user,
+    menu_access_for_edit,
     menu_key_for_path,
     normalize_menu_access,
     require_can_create,
@@ -1193,6 +1194,7 @@ templates.env.globals["user_can_delete"] = can_delete
 templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
 templates.env.globals["user_can_access_menu"] = can_access_menu
 templates.env.globals["user_menu_access"] = effective_menu_access
+templates.env.globals["user_menu_access_edit"] = menu_access_for_edit
 templates.env.globals["menu_items"] = MENU_ITEMS
 templates.env.globals["upload_max_mb"] = UPLOAD_MAX_FILE_MB
 templates.env.globals["upload_max_files"] = UPLOAD_MAX_FILES_PER_REQUEST
@@ -1757,16 +1759,28 @@ async def users_menu_access(
     """하단 메뉴 접근 설정 전용 저장."""
     from urllib.parse import quote
 
+    from sqlalchemy.orm.attributes import flag_modified
+
     form = await request.form()
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
-    target.menu_access = _menu_keys_from_form(form, target.role)
-    _force_admin_menus(target)
+    if target.role == UserRole.system_admin:
+        # 시스템관리자는 항상 전체 메뉴 — 저장해도 변경하지 않음
+        return RedirectResponse(
+            "/admin/users?message="
+            + quote("시스템관리자는 모든 메뉴에 접근합니다.")
+            + f"#menu-access-{target.id}",
+            status_code=303,
+        )
+    keys = _menu_keys_from_form(form, target.role)
+    target.menu_access = list(keys)
+    flag_modified(target, "menu_access")
     await db.commit()
+    await db.refresh(target)
     return RedirectResponse(
         "/admin/users?message="
-        + quote(f"{target.username} 메뉴 접근이 저장되었습니다.")
+        + quote(f"{target.username} 메뉴 접근이 저장되었습니다. ({len(keys)}개)")
         + f"#menu-access-{target.id}",
         status_code=303,
     )
