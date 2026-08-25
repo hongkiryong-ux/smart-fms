@@ -109,23 +109,22 @@
             <div class="ops-site-info">
               <div class="ops-site-name">
                 <strong>{{ s.name }}</strong>
-                <span class="ops-status {% if s.status == '주의' %}warn{% else %}ok{% endif %}">{{ s.status }}</span>
               </div>
               <span class="ops-site-meta">{{ s.buildings }}개 시설 · {{ "{:,}".format(s.equipment) }}개 설비</span>
             </div>
             <div class="ops-site-metrics rank-{{ s.rank }}">
-              <div class="ops-site-metric">
+              <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed" title="{{ s.name }} 정비의뢰 목록">
                 <span class="ops-metric-label">정비의뢰</span>
                 <strong class="ops-metric-val">{{ s.requests }}<small> 건</small></strong>
-              </div>
-              <div class="ops-site-metric">
+              </a>
+              <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress" title="{{ s.name }} 미해결 목록">
                 <span class="ops-metric-label">미해결</span>
                 <strong class="ops-metric-val">{{ s.unresolved }}<small> 건</small></strong>
-              </div>
-              <div class="ops-site-metric">
+              </a>
+              <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed" title="{{ s.name }} 완료 목록">
                 <span class="ops-metric-label">완료</span>
                 <strong class="ops-metric-val">{{ s.completed }}<small> 건</small></strong>
-              </div>
+              </a>
               {% set bar_pct = (s.unresolved * 100 // s.requests) if s.requests else 0 %}
               <div class="ops-site-bar"><i style="width:{{ bar_pct if bar_pct < 100 else 100 }}%"></i></div>
             </div>

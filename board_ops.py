@@ -243,7 +243,6 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                 )
             )
         ).scalar() or 0
-        status = "주의" if (wo_urgent > 0 or wo_open >= 3) else "정상"
         result.append(
             {
                 "id": s.id,
@@ -254,7 +253,6 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                 "requests": int(wo_total),
                 "unresolved": int(wo_open),
                 "completed": int(wo_done),
-                "status": status,
                 "score": int(wo_urgent) * 10 + int(wo_open),
             }
         )

@@ -5223,7 +5223,16 @@ tr.wo-row-selected {
   align-items: start;
   min-width: 12rem;
 }
-.ops-site-metric { text-align: center; }
+.ops-site-metric {
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  padding: 0.15rem 0.25rem;
+  transition: background 0.15s ease;
+}
+.ops-site-metric:hover { background: #f1f5f9; }
+.ops-site-metric:hover .ops-metric-val { color: #2563eb; }
 .ops-metric-label { display: block; font-size: 0.72rem; color: #94a3b8; margin-bottom: 0.15rem; white-space: nowrap; }
 .ops-metric-val { display: block; font-size: 1.05rem; color: #0f172a; line-height: 1.2; }
 .ops-metric-val small { font-size: 0.72rem; font-weight: 600; color: #64748b; }

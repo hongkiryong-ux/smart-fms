@@ -34,6 +34,9 @@
   </div>
 
   <form method="get" action="/admin/work-orders" class="wo-filter-bar" id="wo-filter-form">
+    {% if filters.site_id %}
+    <input type="hidden" name="site_id" value="{{ filters.site_id }}" />
+    {% endif %}
     <input type="search"
            name="q"
            value="{{ filters.q }}"
@@ -73,7 +76,13 @@
     <span class="wo-filter-tilde">~</span>
     <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo-filter-date" title="등록일 종료" />
     <button type="submit" class="btn btn-sm btn-primary">검색</button>
+    {% if filters.site_id and filters.site_name %}
+    <a class="btn btn-sm btn-secondary wo-site-filter-chip"
+       href="/admin/work-orders{% if filters.statuses %}?status={{ filters.statuses|join('&status=') }}{% endif %}"
+       title="사업장 필터 해제">사업장: {{ filters.site_name }} ×</a>
+    {% else %}
     <a class="btn btn-sm btn-secondary" href="/admin/work-orders">초기화</a>
+    {% endif %}
   </form>
 
   <div class="wo-bulk-bar" id="wo-bulk-bar" hidden>

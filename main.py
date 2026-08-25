@@ -4518,6 +4518,7 @@ async def work_orders_list(
     q: str = "",
     status: list[str] = Query(default=[]),
     priority: str = "",
+    site_id: int = Query(0),
     date_from: str = "",
     date_to: str = "",
     page: int = Query(1),
@@ -4530,6 +4531,7 @@ async def work_orders_list(
     if not status_vals:
         status_vals = ["received"]
     priority_val = (priority or "").strip()
+    site_id_val = int(site_id or 0)
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
 
@@ -4560,6 +4562,9 @@ async def work_orders_list(
 
     if priority_val in ("normal", "high"):
         filters.append(WorkOrder.priority == priority_val)
+
+    if site_id_val > 0:
+        filters.append(WorkOrder.site_id == site_id_val)
 
     if date_from_val:
         try:
@@ -4593,6 +4598,10 @@ async def work_orders_list(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
         )
     ).scalars().all()
+
+    filter_site = None
+    if site_id_val > 0:
+        filter_site = await db.get(Site, site_id_val)
 
     buildings = (
         await db.execute(
@@ -4645,6 +4654,8 @@ async def work_orders_list(
                 "status": ",".join(status_vals),
                 "statuses": status_vals,
                 "priority": priority_val,
+                "site_id": site_id_val,
+                "site_name": (filter_site.name if filter_site else ""),
                 "date_from": date_from_val,
                 "date_to": date_to_val,
                 "page": pager["page"],
@@ -4662,6 +4673,7 @@ async def work_orders_export(
     q: str = "",
     status: list[str] = Query(default=[]),
     priority: str = "",
+    site_id: int = Query(0),
     date_from: str = "",
     date_to: str = "",
     user: User = Depends(require_login),
@@ -4673,6 +4685,7 @@ async def work_orders_export(
     if not status_vals:
         status_vals = ["received"]
     priority_val = (priority or "").strip()
+    site_id_val = int(site_id or 0)
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
 
@@ -4700,6 +4713,8 @@ async def work_orders_export(
         filters.append(status_f)
     if priority_val in ("normal", "high"):
         filters.append(WorkOrder.priority == priority_val)
+    if site_id_val > 0:
+        filters.append(WorkOrder.site_id == site_id_val)
     if date_from_val:
         try:
             filters.append(
