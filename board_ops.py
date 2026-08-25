@@ -44,11 +44,11 @@ DASH_WIDGETS: tuple[tuple[str, str], ...] = (
 )
 DASH_WIDGET_KEYS = [k for k, _ in DASH_WIDGETS]
 DASH_WIDGET_HINTS = {
-    "maintenance_status": "긴급·의뢰·해결·오늘 작업 KPI 카드",
-    "sites_status": "사업장별 정비의뢰·미해결·완료 순위",
-    "energy": "전력·급수·가스 등 (현재 예시 그래픽)",
-    "schedules": "오늘 등록된 주요설비 일정",
-    "notices": "최근 공지 목록",
+    "maintenance_status": "긴급·의뢰·해결·오늘 작업 KPI 카드 (전체 폭)",
+    "sites_status": "사업장별 정비의뢰·미해결·완료 순위 (좌측)",
+    "energy": "전력·급수·가스 등 (좌측 · 현재 예시 그래픽)",
+    "schedules": "오늘 등록된 주요설비 일정 (우측)",
+    "notices": "최근 공지 목록 (우측)",
 }
 DEFAULT_DASH_CONFIG = {
     "order": list(DASH_WIDGET_KEYS),

@@ -1,4 +1,54 @@
-{# 운영 대시보드 (첨부 시안 기준) #}
+{# 운영 대시보드 (첨부 시안 기준) — 위젯 순서는 dash_config.order 반영 #}
+{% macro ops_maint_card() %}
+<section class="ops-card ops-maint" data-widget="maintenance_status">
+  <div class="ops-card-head">
+    <h2>정비 의뢰 현황</h2>
+    <a class="ops-settings-btn" href="/admin/dashboard/settings">⚙ 대시보드 설정</a>
+  </div>
+  <div class="ops-maint-grid">
+    <a class="ops-stat ops-stat-red" href="/admin/work-orders?status=received">
+      <span class="ops-stat-ico">🔔</span>
+      <div>
+        <span class="ops-stat-label">긴급 정비</span>
+        <strong><span id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span> 건</strong>
+        <em>미완료 긴급</em>
+      </div>
+    </a>
+    <a class="ops-stat ops-stat-orange" href="/admin/work-orders?status=received">
+      <span class="ops-stat-ico">📋</span>
+      <div>
+        <span class="ops-stat-label">정비 의뢰 건</span>
+        <strong><span id="kpi-wo-request">{{ kpi.wo_request }}</span> 건</strong>
+        <em>접수·배정</em>
+      </div>
+    </a>
+    <a class="ops-stat ops-stat-green" href="/admin/work-orders?status=completed">
+      <span class="ops-stat-ico">✅</span>
+      <div>
+        <span class="ops-stat-label">해결 건</span>
+        <strong><span id="kpi-wo-done">{{ kpi.wo_done }}</span> 건</strong>
+        <em>완료·검수</em>
+      </div>
+    </a>
+    <a class="ops-stat ops-stat-amber" href="/admin/work-orders?status=in_progress">
+      <span class="ops-stat-ico">⏳</span>
+      <div>
+        <span class="ops-stat-label">미해결 건</span>
+        <strong><span id="kpi-wo-unresolved">{{ kpi.wo_unresolved }}</span> 건</strong>
+        <em>접수 {{ kpi.wo_request }} / 진행 {{ kpi.wo_progress }}</em>
+      </div>
+    </a>
+    <a class="ops-stat ops-stat-purple" href="/admin/d1?board=today">
+      <span class="ops-stat-ico">🔧</span>
+      <div>
+        <span class="ops-stat-label">오늘 작업</span>
+        <strong><span id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span> 건</strong>
+        <em>예정 {{ kpi.d1_today_plan }} / 진행 {{ kpi.wo_progress }}</em>
+      </div>
+    </a>
+  </div>
+</section>
+{% endmacro %}
 {% set cfg = dash_config or {'order': ['maintenance_status','sites_status','energy','schedules','notices'], 'visible': {}} %}
 {% set vis = cfg.visible or {} %}
 {% set order = cfg.order or ['maintenance_status','sites_status','energy','schedules','notices'] %}
@@ -7,6 +57,16 @@
 {% set show_e = vis.get('energy', true) %}
 {% set show_sch = vis.get('schedules', true) %}
 {% set show_n = vis.get('notices', true) %}
+{% set ns = namespace(maint_i=99, first_body=99) %}
+{% for key in order %}
+  {% if key == 'maintenance_status' %}{% set ns.maint_i = loop.index0 %}{% endif %}
+  {% if key == 'sites_status' and show_s and loop.index0 < ns.first_body %}{% set ns.first_body = loop.index0 %}{% endif %}
+  {% if key == 'energy' and show_e and loop.index0 < ns.first_body %}{% set ns.first_body = loop.index0 %}{% endif %}
+  {% if key == 'schedules' and show_sch and loop.index0 < ns.first_body %}{% set ns.first_body = loop.index0 %}{% endif %}
+  {% if key == 'notices' and show_n and loop.index0 < ns.first_body %}{% set ns.first_body = loop.index0 %}{% endif %}
+{% endfor %}
+{% set show_maint_before = show_m and ns.maint_i <= ns.first_body %}
+{% set show_maint_after = show_m and not show_maint_before %}
 
 <div class="ops-live">
   <header class="ops-live-top">
@@ -25,224 +85,184 @@
         <span class="ops-live-avatar" aria-hidden="true">👤</span>
         <span>{{ role_label or (user.role.value if user and user.role else '') }}</span>
       </div>
+      {% if user_can_edit(user) and not show_m %}
+      <a class="ops-settings-btn" href="/admin/dashboard/settings">⚙ 대시보드 설정</a>
+      {% endif %}
     </div>
   </header>
 
-  {% if show_m %}
-  <section class="ops-card ops-maint" data-widget="maintenance_status">
-    <div class="ops-card-head">
-      <h2>정비 의뢰 현황</h2>
-      <a class="ops-settings-btn" href="/admin/dashboard/settings">⚙ 대시보드 설정</a>
+  {% if show_maint_before %}{{ ops_maint_card() }}{% endif %}
+
+  {% set has_main = (show_s or show_e) %}
+  {% set has_side = (show_sch or show_n) %}
+  {% if has_main or has_side %}
+  <div class="ops-live-body{% if not has_side or not has_main %} ops-live-body-single{% endif %}">
+    {% if has_main %}
+    <div class="ops-live-main">
+      {% for key in order %}
+        {% if key == 'sites_status' and show_s %}
+        <section class="ops-card" data-widget="sites_status">
+          <div class="ops-card-head">
+            <h2>사업장 현황 <span class="ops-sub">(문제 발생 및 정비의뢰 많은 순)</span></h2>
+            <div class="ops-card-head-right">
+              <span>총 설비수 {{ "{:,}".format(kpi.equipment) }}개</span>
+              <a href="/admin/sites">전체 보기 ›</a>
+            </div>
+          </div>
+          {% if site_status %}
+          <ul class="ops-site-list">
+            {% for s in site_status %}
+            <li>
+              <span class="ops-rank rank-{{ s.rank }}">{{ s.rank }}</span>
+              {% if s.photo_url %}
+              <div class="ops-site-thumb has-photo">
+                <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
+              </div>
+              {% else %}
+              <div class="ops-site-thumb tone-{{ loop.index0 % 5 }}"></div>
+              {% endif %}
+              <div class="ops-site-info">
+                <div class="ops-site-name">
+                  <strong>{{ s.name }}</strong>
+                </div>
+                <span class="ops-site-meta">{{ s.buildings }}개 시설 · {{ "{:,}".format(s.equipment) }}개 설비</span>
+              </div>
+              <div class="ops-site-metrics rank-{{ s.rank }}">
+                <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed" title="{{ s.name }} 정비의뢰 목록">
+                  <span class="ops-metric-label">정비의뢰</span>
+                  <strong class="ops-metric-val">{{ s.requests }}<small> 건</small></strong>
+                </a>
+                <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress" title="{{ s.name }} 미해결 목록">
+                  <span class="ops-metric-label">미해결</span>
+                  <strong class="ops-metric-val">{{ s.unresolved }}<small> 건</small></strong>
+                </a>
+                <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed" title="{{ s.name }} 완료 목록">
+                  <span class="ops-metric-label">완료</span>
+                  <strong class="ops-metric-val">{{ s.completed }}<small> 건</small></strong>
+                </a>
+                {% set bar_pct = (s.unresolved * 100 // s.requests) if s.requests else 0 %}
+                <div class="ops-site-bar"><i style="width:{{ bar_pct if bar_pct < 100 else 100 }}%"></i></div>
+              </div>
+              <a class="ops-site-link" href="/admin/sites">자세히 보기 ›</a>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="empty">등록된 사업장이 없습니다.</p>
+          {% endif %}
+        </section>
+        {% elif key == 'energy' and show_e %}
+        <section class="ops-card" data-widget="energy">
+          <div class="ops-card-head">
+            <h2>에너지 / 유틸리티 현황 <span class="ops-sub">(최근 7일)</span></h2>
+            <span class="dash-badge-demo">예시 · 점검일지 연동 예정</span>
+          </div>
+          {% set util = kpi.energy.utility if kpi.energy and kpi.energy.utility else {} %}
+          <div class="ops-energy-grid">
+            <div class="ops-energy-tile">
+              <span class="ops-e-ico yellow">⚡</span>
+              <div>
+                <span class="ops-e-label">전력 사용량</span>
+                <strong id="nrg-kepco">{{ kpi.energy.power.today.kepco }}</strong>
+                <em>kWh · {{ util.get('power_delta', '예시') }}</em>
+              </div>
+              <canvas class="ops-spark" id="spark-power" width="80" height="28"></canvas>
+            </div>
+            <div class="ops-energy-tile">
+              <span class="ops-e-ico blue">💧</span>
+              <div>
+                <span class="ops-e-label">급수 사용량</span>
+                <strong id="nrg-water">{{ kpi.energy.water.today }}</strong>
+                <em>m³ · {{ util.get('water_delta', '예시') }}</em>
+              </div>
+              <canvas class="ops-spark" id="spark-water" width="80" height="28"></canvas>
+            </div>
+            <div class="ops-energy-tile">
+              <span class="ops-e-ico red">🔥</span>
+              <div>
+                <span class="ops-e-label">가스 사용량</span>
+                <strong id="nrg-gas">{{ util.get('gas_today', '-') }}</strong>
+                <em>m³/h · {{ util.get('gas_delta', '예시') }}</em>
+              </div>
+              <canvas class="ops-spark" id="spark-gas" width="80" height="28"></canvas>
+            </div>
+            <div class="ops-energy-tile">
+              <span class="ops-e-ico gray">📊</span>
+              <div>
+                <span class="ops-e-label">최대수요전력</span>
+                <strong id="nrg-peak">{{ util.get('peak_today', '-') }}</strong>
+                <em>kW · {{ util.get('peak_delta', '예시') }}</em>
+              </div>
+              <canvas class="ops-spark" id="spark-peak" width="80" height="28"></canvas>
+            </div>
+            <div class="ops-energy-alert">
+              <span class="ops-e-ico red">⚠</span>
+              <div>
+                <span class="ops-e-label">이상 알람</span>
+                <strong>{{ util.get('alarm_count', 0) }} 건</strong>
+                <p>{{ util.get('alarm_text', '추후 점검일지 연동 예정입니다.') }}</p>
+              </div>
+            </div>
+          </div>
+          <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
+        </section>
+        {% endif %}
+      {% endfor %}
     </div>
-    <div class="ops-maint-grid">
-      <a class="ops-stat ops-stat-red" href="/admin/work-orders?status=received">
-        <span class="ops-stat-ico">🔔</span>
-        <div>
-          <span class="ops-stat-label">긴급 정비</span>
-          <strong><span id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span> 건</strong>
-          <em>미완료 긴급</em>
-        </div>
-      </a>
-      <a class="ops-stat ops-stat-orange" href="/admin/work-orders?status=received">
-        <span class="ops-stat-ico">📋</span>
-        <div>
-          <span class="ops-stat-label">정비 의뢰 건</span>
-          <strong><span id="kpi-wo-request">{{ kpi.wo_request }}</span> 건</strong>
-          <em>접수·배정</em>
-        </div>
-      </a>
-      <a class="ops-stat ops-stat-green" href="/admin/work-orders?status=completed">
-        <span class="ops-stat-ico">✅</span>
-        <div>
-          <span class="ops-stat-label">해결 건</span>
-          <strong><span id="kpi-wo-done">{{ kpi.wo_done }}</span> 건</strong>
-          <em>완료·검수</em>
-        </div>
-      </a>
-      <a class="ops-stat ops-stat-amber" href="/admin/work-orders?status=in_progress">
-        <span class="ops-stat-ico">⏳</span>
-        <div>
-          <span class="ops-stat-label">미해결 건</span>
-          <strong><span id="kpi-wo-unresolved">{{ kpi.wo_unresolved }}</span> 건</strong>
-          <em>접수 {{ kpi.wo_request }} / 진행 {{ kpi.wo_progress }}</em>
-        </div>
-      </a>
-      <a class="ops-stat ops-stat-purple" href="/admin/d1?board=today">
-        <span class="ops-stat-ico">🔧</span>
-        <div>
-          <span class="ops-stat-label">오늘 작업</span>
-          <strong><span id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span> 건</strong>
-          <em>예정 {{ kpi.d1_today_plan }} / 진행 {{ kpi.wo_progress }}</em>
-        </div>
-      </a>
-    </div>
-  </section>
-  {% elif user_can_edit(user) %}
-  <div class="ops-card-head ops-settings-only">
-    <a class="ops-settings-btn" href="/admin/dashboard/settings">⚙ 대시보드 설정</a>
+    {% endif %}
+
+    {% if has_side %}
+    <aside class="ops-live-side">
+      {% for key in order %}
+        {% if key == 'schedules' and show_sch %}
+        <section class="ops-card" data-widget="schedules">
+          <div class="ops-card-head">
+            <h2>주요 설비 일정 (오늘)</h2>
+            <a href="/admin/schedules">전체 일정 보기 ›</a>
+          </div>
+          {% if today_schedules %}
+          <ul class="ops-schedule-list">
+            {% for e in today_schedules %}
+            <li>
+              <span class="ops-time">{{ e.event_time or '--:--' }}</span>
+              <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
+              <div>
+                <strong>{{ e.title }}</strong>
+                <em>{{ e.location or e.site_name }}</em>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="empty">오늘 등록된 일정이 없습니다. <a href="/admin/schedules">일정 등록</a></p>
+          {% endif %}
+        </section>
+        {% elif key == 'notices' and show_n %}
+        <section class="ops-card" data-widget="notices">
+          <div class="ops-card-head">
+            <h2>공지사항</h2>
+            <a href="/admin/notices">전체 공지 보기 ›</a>
+          </div>
+          {% if recent_notices %}
+          <ul class="ops-notice-list">
+            {% for n in recent_notices %}
+            <li>
+              <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
+              <strong>{{ n.title }}</strong>
+              <span class="ops-date">{{ n.date_label }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="empty">등록된 공지가 없습니다. <a href="/admin/notices">공지 등록</a></p>
+          {% endif %}
+        </section>
+        {% endif %}
+      {% endfor %}
+    </aside>
+    {% endif %}
   </div>
   {% endif %}
 
-  <div class="ops-live-body">
-    <div class="ops-live-main">
-      {% if show_s %}
-      <section class="ops-card" data-widget="sites_status">
-        <div class="ops-card-head">
-          <h2>사업장 현황 <span class="ops-sub">(문제 발생 및 정비의뢰 많은 순)</span></h2>
-          <div class="ops-card-head-right">
-            <span>총 설비수 {{ "{:,}".format(kpi.equipment) }}개</span>
-            <a href="/admin/sites">전체 보기 ›</a>
-          </div>
-        </div>
-        {% if site_status %}
-        <ul class="ops-site-list">
-          {% for s in site_status %}
-          <li>
-            <span class="ops-rank rank-{{ s.rank }}">{{ s.rank }}</span>
-            {% if s.photo_url %}
-            <div class="ops-site-thumb has-photo">
-              <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
-            </div>
-            {% else %}
-            <div class="ops-site-thumb tone-{{ loop.index0 % 5 }}"></div>
-            {% endif %}
-            <div class="ops-site-info">
-              <div class="ops-site-name">
-                <strong>{{ s.name }}</strong>
-              </div>
-              <span class="ops-site-meta">{{ s.buildings }}개 시설 · {{ "{:,}".format(s.equipment) }}개 설비</span>
-            </div>
-            <div class="ops-site-metrics rank-{{ s.rank }}">
-              <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed" title="{{ s.name }} 정비의뢰 목록">
-                <span class="ops-metric-label">정비의뢰</span>
-                <strong class="ops-metric-val">{{ s.requests }}<small> 건</small></strong>
-              </a>
-              <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress" title="{{ s.name }} 미해결 목록">
-                <span class="ops-metric-label">미해결</span>
-                <strong class="ops-metric-val">{{ s.unresolved }}<small> 건</small></strong>
-              </a>
-              <a class="ops-site-metric" href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed" title="{{ s.name }} 완료 목록">
-                <span class="ops-metric-label">완료</span>
-                <strong class="ops-metric-val">{{ s.completed }}<small> 건</small></strong>
-              </a>
-              {% set bar_pct = (s.unresolved * 100 // s.requests) if s.requests else 0 %}
-              <div class="ops-site-bar"><i style="width:{{ bar_pct if bar_pct < 100 else 100 }}%"></i></div>
-            </div>
-            <a class="ops-site-link" href="/admin/sites">자세히 보기 ›</a>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">등록된 사업장이 없습니다.</p>
-        {% endif %}
-      </section>
-      {% endif %}
-
-      {% if show_e %}
-      <section class="ops-card" data-widget="energy">
-        <div class="ops-card-head">
-          <h2>에너지 / 유틸리티 현황 <span class="ops-sub">(최근 7일)</span></h2>
-          <span class="dash-badge-demo">예시 · 점검일지 연동 예정</span>
-        </div>
-        {% set util = kpi.energy.utility if kpi.energy and kpi.energy.utility else {} %}
-        <div class="ops-energy-grid">
-          <div class="ops-energy-tile">
-            <span class="ops-e-ico yellow">⚡</span>
-            <div>
-              <span class="ops-e-label">전력 사용량</span>
-              <strong id="nrg-kepco">{{ kpi.energy.power.today.kepco }}</strong>
-              <em>kWh · {{ util.get('power_delta', '예시') }}</em>
-            </div>
-            <canvas class="ops-spark" id="spark-power" width="80" height="28"></canvas>
-          </div>
-          <div class="ops-energy-tile">
-            <span class="ops-e-ico blue">💧</span>
-            <div>
-              <span class="ops-e-label">급수 사용량</span>
-              <strong id="nrg-water">{{ kpi.energy.water.today }}</strong>
-              <em>m³ · {{ util.get('water_delta', '예시') }}</em>
-            </div>
-            <canvas class="ops-spark" id="spark-water" width="80" height="28"></canvas>
-          </div>
-          <div class="ops-energy-tile">
-            <span class="ops-e-ico red">🔥</span>
-            <div>
-              <span class="ops-e-label">가스 사용량</span>
-              <strong id="nrg-gas">{{ util.get('gas_today', '-') }}</strong>
-              <em>m³/h · {{ util.get('gas_delta', '예시') }}</em>
-            </div>
-            <canvas class="ops-spark" id="spark-gas" width="80" height="28"></canvas>
-          </div>
-          <div class="ops-energy-tile">
-            <span class="ops-e-ico gray">📊</span>
-            <div>
-              <span class="ops-e-label">최대수요전력</span>
-              <strong id="nrg-peak">{{ util.get('peak_today', '-') }}</strong>
-              <em>kW · {{ util.get('peak_delta', '예시') }}</em>
-            </div>
-            <canvas class="ops-spark" id="spark-peak" width="80" height="28"></canvas>
-          </div>
-          <div class="ops-energy-alert">
-            <span class="ops-e-ico red">⚠</span>
-            <div>
-              <span class="ops-e-label">이상 알람</span>
-              <strong>{{ util.get('alarm_count', 0) }} 건</strong>
-              <p>{{ util.get('alarm_text', '추후 점검일지 연동 예정입니다.') }}</p>
-            </div>
-          </div>
-        </div>
-        <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
-      </section>
-      {% endif %}
-    </div>
-
-    <aside class="ops-live-side">
-      {% if show_sch %}
-      <section class="ops-card" data-widget="schedules">
-        <div class="ops-card-head">
-          <h2>주요 설비 일정 (오늘)</h2>
-          <a href="/admin/schedules">전체 일정 보기 ›</a>
-        </div>
-        {% if today_schedules %}
-        <ul class="ops-schedule-list">
-          {% for e in today_schedules %}
-          <li>
-            <span class="ops-time">{{ e.event_time or '--:--' }}</span>
-            <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
-            <div>
-              <strong>{{ e.title }}</strong>
-              <em>{{ e.location or e.site_name }}</em>
-            </div>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">오늘 등록된 일정이 없습니다. <a href="/admin/schedules">일정 등록</a></p>
-        {% endif %}
-      </section>
-      {% endif %}
-
-      {% if show_n %}
-      <section class="ops-card" data-widget="notices">
-        <div class="ops-card-head">
-          <h2>공지사항</h2>
-          <a href="/admin/notices">전체 공지 보기 ›</a>
-        </div>
-        {% if recent_notices %}
-        <ul class="ops-notice-list">
-          {% for n in recent_notices %}
-          <li>
-            <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
-            <strong>{{ n.title }}</strong>
-            <span class="ops-date">{{ n.date_label }}</span>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">등록된 공지가 없습니다. <a href="/admin/notices">공지 등록</a></p>
-        {% endif %}
-      </section>
-      {% endif %}
-    </aside>
-  </div>
+  {% if show_maint_after %}{{ ops_maint_card() }}{% endif %}
 </div>
