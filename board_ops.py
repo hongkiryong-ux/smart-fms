@@ -155,6 +155,8 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
     # 사업장명 매칭 → 대시보드 썸네일 (부분 일치)
     site_photos = (
         ("광양운영", "/static/img/sites/gwangyang-ops.png"),
+        ("해수담수", "/static/img/sites/desalination.png"),
+        ("담수", "/static/img/sites/desalination.png"),
         ("RIST", "/static/img/sites/rist.png"),
         ("rist", "/static/img/sites/rist.png"),
         ("미세먼지", "/static/img/sites/rist.png"),
