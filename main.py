@@ -4116,8 +4116,10 @@ async def equipment_bulk_import(
     try:
         results = await import_from_directory(db, directory, replace=True)
         msg = (
-            f"건물 {results['buildings']}개 · 신규 {results['total_created']}건 · "
-            f"갱신 {results['total_updated']}건"
+            f"건물 {results.get('imported', 0)}개 import · "
+            f"신규 {results['total_created']}건 · 갱신 {results['total_updated']}건"
+            f" · 정비이력 {results.get('history_added', 0)} · 점검이력 {results.get('pm_added', 0)}"
+            " (기존 자료 대체)"
         )
         if results["errors"]:
             msg += f" · 오류 {len(results['errors'])}건"

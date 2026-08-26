@@ -53,14 +53,18 @@
   </section>
 
   <section class="card">
-    <h2>일괄 Import (광양운영그룹)</h2>
+    <h2>건물 일괄 Import (광양운영그룹)</h2>
+    <div class="alert alert-error" style="margin-bottom:1rem">
+      <strong>주의:</strong> Import 시 각 건물의 <em>기존 설비·정비이력·점검이력</em>이 삭제되고
+      엑셀 내용으로 <strong>전부 대체</strong>됩니다. 진행 전 백업을 권장합니다.
+    </div>
     <p class="text-muted">
       네트워크 공유 <code>\\poscowide1\홍기룡\202010 설비현황</code> 또는
       로컬 <code>data/</code> 폴더의 엑셀 파일을 건물명과 매칭하여 일괄 등록합니다.
     </p>
     <form method="post" action="/admin/equipment/bulk-import"
-          onsubmit="return confirm('경고\n\n모든 건물 설비를 일괄 import 합니다.\n기존 설비·정비이력·점검이력이 엑셀로 대체됩니다.\n\n승인하시겠습니까?');">
-      <button type="submit" class="btn btn-primary">38개 건물 일괄 Import (대체)</button>
+          onsubmit="return confirm('경고\n\n기존 설비·정비이력·점검이력 등 자료가 모두 사라지고 엑셀 내용으로 대체됩니다.\n\n승인하시겠습니까?');">
+      <button type="submit" class="btn btn-primary">건물 일괄 · 기존 자료 대체 Import</button>
     </form>
     <p style="margin-top:1.5rem">
       <a href="/admin/equipment">← 설비관리로 돌아가기</a>

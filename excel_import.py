@@ -530,7 +530,15 @@ async def import_from_directory(
 ) -> dict[str, Any]:
     """디렉터리 내 xls/xlsx 파일 일괄 import."""
     directory = Path(directory)
-    results: dict[str, Any] = {"buildings": 0, "total_created": 0, "total_updated": 0, "errors": []}
+    results: dict[str, Any] = {
+        "buildings": 0,
+        "imported": 0,
+        "total_created": 0,
+        "total_updated": 0,
+        "history_added": 0,
+        "pm_added": 0,
+        "errors": [],
+    }
 
     # 먼저 모든 건물 등록
     results["buildings"] = await ensure_all_buildings(session)
@@ -553,8 +561,11 @@ async def import_from_directory(
             continue
         try:
             stats = await import_excel_to_building(session, name, matched, replace=replace)
+            results["imported"] += 1
             results["total_created"] += stats["created"]
             results["total_updated"] += stats["updated"]
+            results["history_added"] += stats.get("history_added", 0)
+            results["pm_added"] += stats.get("pm_added", 0)
         except Exception as e:
             results["errors"].append(f"{name}: {e}")
 
