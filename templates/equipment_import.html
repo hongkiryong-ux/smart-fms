@@ -53,17 +53,31 @@
   </section>
 
   <section class="card">
-    <h2>건물 일괄 Import (광양운영그룹)</h2>
+    <h2>건물 일괄 Import</h2>
     <div class="alert alert-error" style="margin-bottom:1rem">
-      <strong>주의:</strong> Import 시 각 건물의 <em>기존 설비·정비이력·점검이력</em>이 삭제되고
+      <strong>주의:</strong> 폴더를 선택하면 그 안의 <em>모든 엑셀 파일</em>을 import 합니다.
+      파일명(건물명)에 해당하는 건물의 <em>기존 설비·정비이력·점검이력</em>이 삭제되고
       엑셀 내용으로 <strong>전부 대체</strong>됩니다. 진행 전 백업을 권장합니다.
     </div>
     <p class="text-muted">
-      네트워크 공유 <code>\\poscowide1\홍기룡\202010 설비현황</code> 또는
-      로컬 <code>data/</code> 폴더의 엑셀 파일을 건물명과 매칭하여 일괄 등록합니다.
+      폴더 선택 후 Import를 누르면, 폴더(하위 포함)의 <code>.xls</code> / <code>.xlsx</code> 파일을
+      파일명 기준으로 건물에 매칭해 일괄 반영합니다.
     </p>
-    <form method="post" action="/admin/equipment/bulk-import"
-          onsubmit="return confirm('경고\n\n기존 설비·정비이력·점검이력 등 자료가 모두 사라지고 엑셀 내용으로 대체됩니다.\n\n승인하시겠습니까?');">
+    <form method="post"
+          action="/admin/equipment/bulk-import"
+          enctype="multipart/form-data"
+          class="form-stack"
+          id="eq-bulk-import-form"
+          onsubmit="return confirmBulkFolderImport(this);">
+      <label>엑셀 폴더 선택</label>
+      <input type="file"
+             name="files"
+             id="eq-bulk-folder"
+             webkitdirectory
+             directory
+             multiple
+             required />
+      <p class="text-muted" id="eq-bulk-folder-hint" style="margin:0.25rem 0 0">폴더를 선택해 주세요.</p>
       <button type="submit" class="btn btn-primary">건물 일괄 · 기존 자료 대체 Import</button>
     </form>
     <p style="margin-top:1.5rem">
@@ -71,4 +85,47 @@
     </p>
   </section>
 </div>
+<script>
+(function () {
+  function countExcelFiles(fileList) {
+    var n = 0;
+    if (!fileList) return 0;
+    for (var i = 0; i < fileList.length; i++) {
+      var name = (fileList[i].name || '').toLowerCase();
+      if (/\.(xls|xlsx|xlsm)$/.test(name)) n++;
+    }
+    return n;
+  }
+
+  var folderInput = document.getElementById('eq-bulk-folder');
+  var hint = document.getElementById('eq-bulk-folder-hint');
+  if (folderInput && hint) {
+    folderInput.addEventListener('change', function () {
+      var n = countExcelFiles(folderInput.files);
+      if (!folderInput.files || !folderInput.files.length) {
+        hint.textContent = '폴더를 선택해 주세요.';
+        return;
+      }
+      hint.textContent = '선택한 폴더에서 엑셀 파일 ' + n + '개를 찾았습니다.' +
+        (n ? '' : ' (.xls/.xlsx 파일이 없으면 Import할 수 없습니다.)');
+    });
+  }
+
+  window.confirmBulkFolderImport = function (form) {
+    var input = form.querySelector('input[type="file"]');
+    var n = countExcelFiles(input && input.files);
+    if (!n) {
+      alert('선택한 폴더에 엑셀 파일(.xls/.xlsx)이 없습니다.');
+      return false;
+    }
+    return window.confirm(
+      '경고\n\n' +
+      '선택한 폴더의 엑셀 파일 ' + n + '개를 import 합니다.\n' +
+      '파일명에 해당하는 건물의 기존 설비·정비이력·점검이력 등 자료가 모두 사라지고\n' +
+      '엑셀 내용으로 대체됩니다.\n\n' +
+      '승인하시겠습니까?'
+    );
+  };
+})();
+</script>
 {% endblock %}

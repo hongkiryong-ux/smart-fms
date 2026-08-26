@@ -4094,35 +4094,77 @@ async def equipment_one_import(
 
 @app.post("/admin/equipment/bulk-import")
 async def equipment_bulk_import(
+    request: Request,
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
-    """네트워크 공유 또는 data 폴더에서 일괄 import."""
+    """선택한 폴더의 엑셀 파일을 건물명에 매칭해 일괄 import (기존 자료 대체)."""
     from urllib.parse import quote
-    from excel_import import import_from_directory
+    import tempfile
+    from excel_import import import_from_uploaded_excels
 
-    candidates = [
-        Path(r"\\poscowide1\홍기룡\202010 설비현황"),
-        Path("data/excel"),
-        Path("data"),
+    # 건물 수십 개 일괄 업로드용 (기본 파트 제한 완화)
+    form = await request.form(
+        max_files=200,
+        max_fields=50,
+        max_part_size=UPLOAD_MAX_FILE_BYTES,
+    )
+    raw_files = form.getlist("files")
+    uploads = [
+        f
+        for f in raw_files
+        if f is not None and getattr(f, "filename", None) and hasattr(f, "read")
     ]
-    directory = next((p for p in candidates if p.is_dir()), None)
-    if not directory:
+
+    excel_items: list[tuple[str, UploadFile]] = []
+    for f in uploads:
+        # webkitdirectory 는 filename 에 상대경로가 올 수 있음
+        rel = str(f.filename or "").replace("\\", "/")
+        base = Path(rel).name
+        suffix = Path(base).suffix.lower()
+        if suffix not in (".xls", ".xlsx", ".xlsm"):
+            continue
+        excel_items.append((base or rel, f))
+
+    if not excel_items:
         return RedirectResponse(
-            "/admin/equipment/import?error=" + quote("import 대상 폴더를 찾을 수 없습니다."),
+            "/admin/equipment/import?error="
+            + quote("선택한 폴더에 엑셀 파일(.xls/.xlsx)이 없습니다."),
             status_code=303,
         )
 
+    tmp_paths: list[str] = []
     try:
-        results = await import_from_directory(db, directory, replace=True)
+        pairs: list[tuple[str, str]] = []
+        for display_name, upload in excel_items:
+            content = await upload.read()
+            if not content:
+                continue
+            suffix = Path(display_name).suffix.lower() or ".xlsx"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(content)
+                tmp_paths.append(tmp.name)
+                pairs.append((display_name, tmp.name))
+
+        if not pairs:
+            return RedirectResponse(
+                "/admin/equipment/import?error=" + quote("업로드된 엑셀 내용이 비어 있습니다."),
+                status_code=303,
+            )
+
+        results = await import_from_uploaded_excels(db, pairs, replace=True)
         msg = (
-            f"건물 {results.get('imported', 0)}개 import · "
+            f"파일 {results.get('files', 0)}개 · 건물 {results.get('imported', 0)}개 import · "
             f"신규 {results['total_created']}건 · 갱신 {results['total_updated']}건"
             f" · 정비이력 {results.get('history_added', 0)} · 점검이력 {results.get('pm_added', 0)}"
             " (기존 자료 대체)"
         )
         if results["errors"]:
             msg += f" · 오류 {len(results['errors'])}건"
+            # 앞쪽 오류 요약을 메시지에 포함
+            brief = " / ".join(results["errors"][:2])
+            if brief:
+                msg += f" ({brief})"
         return RedirectResponse(
             f"/admin/equipment/import?message={quote(msg)}",
             status_code=303,
@@ -4132,6 +4174,9 @@ async def equipment_bulk_import(
             f"/admin/equipment/import?error={quote(str(e))}",
             status_code=303,
         )
+    finally:
+        for p in tmp_paths:
+            Path(p).unlink(missing_ok=True)
 
 
 @app.get("/admin/equipment/{eq_id}")

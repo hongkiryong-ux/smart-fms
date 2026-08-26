@@ -530,45 +530,86 @@ async def import_from_directory(
 ) -> dict[str, Any]:
     """디렉터리 내 xls/xlsx 파일 일괄 import."""
     directory = Path(directory)
+    pairs: list[tuple[str, Path]] = []
+    for f in sorted(directory.iterdir()):
+        if f.is_file() and f.suffix.lower() in (".xls", ".xlsx", ".xlsm"):
+            pairs.append((f.name, f))
+    return await import_from_uploaded_excels(session, pairs, replace=replace)
+
+
+def _building_name_from_excel_filename(filename: str) -> str:
+    """엑셀 파일명(상대경로 가능)에서 건물명을 추론."""
+    stem = Path(filename).stem.strip()
+    if not stem:
+        return stem
+    for name in BUILDING_NAMES:
+        if stem == name:
+            return name
+    matches = [n for n in BUILDING_NAMES if n and n in stem]
+    if matches:
+        return max(matches, key=len)
+    return stem
+
+
+async def import_from_uploaded_excels(
+    session: AsyncSession,
+    files: list[tuple[str, str | Path]],
+    replace: bool = True,
+) -> dict[str, Any]:
+    """업로드된 엑셀 파일 목록을 건물명(파일명)에 매칭해 일괄 import."""
     results: dict[str, Any] = {
         "buildings": 0,
         "imported": 0,
+        "skipped": 0,
         "total_created": 0,
         "total_updated": 0,
         "history_added": 0,
         "pm_added": 0,
         "errors": [],
+        "files": 0,
     }
 
-    # 먼저 모든 건물 등록
-    results["buildings"] = await ensure_all_buildings(session)
-
-    for name in BUILDING_NAMES:
-        matched = None
-        for ext in (".xls", ".xlsx", ".XLS", ".XLSX"):
-            p = directory / f"{name}{ext}"
-            if p.exists():
-                matched = p
-                break
-        if not matched:
-            # fuzzy: 파일명에 건물명 포함
-            for f in directory.iterdir():
-                if f.suffix.lower() in (".xls", ".xlsx") and name in f.stem:
-                    matched = f
-                    break
-        if not matched:
-            results["errors"].append(f"파일 없음: {name}")
+    excel_files: list[tuple[str, Path]] = []
+    for original_name, path in files:
+        p = Path(path)
+        suffix = p.suffix.lower()
+        if suffix not in (".xls", ".xlsx", ".xlsm"):
+            results["skipped"] += 1
             continue
+        if not p.is_file():
+            results["errors"].append(f"파일 없음: {original_name}")
+            continue
+        excel_files.append((original_name, p))
+
+    results["files"] = len(excel_files)
+    if not excel_files:
+        results["errors"].append("엑셀 파일(.xls/.xlsx)이 없습니다.")
+        return results
+
+    seen_buildings: set[str] = set()
+    for original_name, path in sorted(excel_files, key=lambda x: x[0].lower()):
+        building_name = _building_name_from_excel_filename(original_name)
+        if not building_name:
+            results["errors"].append(f"건물명 없음: {original_name}")
+            continue
+        if building_name in seen_buildings:
+            results["errors"].append(f"중복 건물 스킵: {building_name} ({original_name})")
+            results["skipped"] += 1
+            continue
+        seen_buildings.add(building_name)
         try:
-            stats = await import_excel_to_building(session, name, matched, replace=replace)
+            stats = await import_excel_to_building(
+                session, building_name, path, replace=replace
+            )
             results["imported"] += 1
             results["total_created"] += stats["created"]
             results["total_updated"] += stats["updated"]
             results["history_added"] += stats.get("history_added", 0)
             results["pm_added"] += stats.get("pm_added", 0)
         except Exception as e:
-            results["errors"].append(f"{name}: {e}")
+            results["errors"].append(f"{building_name} ({original_name}): {e}")
 
+    results["buildings"] = len(seen_buildings)
     return results
 
 
