@@ -21,6 +21,7 @@
       <p class="text-muted">
         OnlyOffice로 편집 · 저장 시 서버에 자동 반영 · 다시 열면 마지막 셀로 이동
         {% if not can_edit %} · <strong>읽기 전용</strong>{% endif %}
+        {% if edit_lock_holder %} · <strong>{{ edit_lock_holder }}</strong> 님 편집 중{% endif %}
       </p>
     </div>
     <div class="ilog-oo-actions">
@@ -46,10 +47,48 @@
   var cfg = {{ editor_config_json | safe }};
   var FILE_ID = {{ file_id | tojson }};
   var CURSOR_URL = {{ cursor_url | tojson }};
+  var UNLOCK_URL = {{ unlock_url | tojson }};
+  var HEARTBEAT_URL = {{ heartbeat_url | tojson }};
   var INITIAL_POS = {{ last_edit_pos | tojson }};
   var statusEl = document.getElementById('ilog-oo-status');
   var connector = null;
   var posTimer = null;
+  var lockReleased = false;
+
+  function releaseEditLock() {
+    if (lockReleased || !UNLOCK_URL) return;
+    lockReleased = true;
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(UNLOCK_URL, new Blob([], { type: 'application/json' }));
+        return;
+      }
+    } catch (e) {}
+    try {
+      fetch(UNLOCK_URL, { method: 'POST', keepalive: true, credentials: 'same-origin' });
+    } catch (e2) {}
+  }
+
+  function heartbeatEditLock() {
+    if (!HEARTBEAT_URL || lockReleased) return;
+    fetch(HEARTBEAT_URL, { method: 'POST', credentials: 'same-origin' })
+      .then(function (r) {
+        if (r.status === 409) {
+          setStatus('편집 잠금이 해제되었습니다. 다른 사용자가 편집했을 수 있습니다.', 'error');
+        }
+      })
+      .catch(function () {});
+  }
+
+  setInterval(heartbeatEditLock, 25000);
+  window.addEventListener('pagehide', releaseEditLock);
+  document.querySelectorAll('a[href]').forEach(function (a) {
+    a.addEventListener('click', function () {
+      if (a.getAttribute('href') && a.getAttribute('href').charAt(0) !== '#') {
+        releaseEditLock();
+      }
+    });
+  });
 
   function setStatus(msg, kind) {
     if (!statusEl) return;
@@ -190,7 +229,9 @@
     setStatus('편집기 시작 실패: ' + (err && err.message ? err.message : err), 'error');
   }
 
-  window.addEventListener('beforeunload', function () { capturePos(true); });
+  window.addEventListener('beforeunload', function () {
+    capturePos(true);
+  });
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'hidden') capturePos(true);
   });

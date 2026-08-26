@@ -8026,6 +8026,7 @@ async def _inspection_log_editor_response(
     onlyoffice_edit_url: str | None = None,
 ):
     import json as _json
+    import ilog_lock
 
     registered = (
         await db.execute(
@@ -8058,12 +8059,61 @@ async def _inspection_log_editor_response(
     cursor_url = cursor_url or (
         f"/admin/inspection-logs/{building_id}/files/{file_id}/cursor"
     )
+    unlock_url = (
+        f"/eq/{qr_eq_code}/log/unlock"
+        if qr_mode and qr_eq_code
+        else f"/admin/inspection-logs/{building_id}/files/{file_id}/unlock"
+    )
+    heartbeat_url = (
+        f"/eq/{qr_eq_code}/log/heartbeat"
+        if qr_mode and qr_eq_code
+        else f"/admin/inspection-logs/{building_id}/files/{file_id}/heartbeat"
+    )
+    back_url = (
+        f"/eq/{qr_eq_code}"
+        if qr_mode and qr_eq_code
+        else f"/admin/inspection-logs/{building_id}"
+    )
+    retry_url = str(request.url)
+
+    # 편집 잠금: 다른 사용자 편집 중이면 진입 차단
+    holder_name = ilog_lock.display_name(user, qr_eq_code=qr_eq_code)
+    session_key = ilog_lock.session_lock_key(request)
+    ok, lock_info = await ilog_lock.acquire_lock(
+        db,
+        file_id=file_id,
+        user=user,
+        session_key=session_key,
+        name=holder_name,
+    )
+    if not ok:
+        await db.rollback()
+        return templates.TemplateResponse(
+            request,
+            "inspection_log_locked.html",
+            {
+                "user": user,
+                "building": building,
+                "doc": doc,
+                "qr_mode": qr_mode,
+                "qr_eq_code": qr_eq_code or "",
+                "lock_holder_name": (lock_info or {}).get("name") or "다른 사용자",
+                "back_url": back_url,
+                "retry_url": retry_url,
+            },
+            status_code=423,
+        )
+    await db.commit()
+
     use_legacy = (editor or "").lower() in ("legacy", "simple", "js")
     want_oo = oo.onlyoffice_enabled() and not use_legacy
     last_edit_pos = getattr(doc, "last_edit_pos", None) or None
     ctx_extra = {
         "qr_mode": qr_mode,
         "qr_eq_code": qr_eq_code or "",
+        "unlock_url": unlock_url,
+        "heartbeat_url": heartbeat_url,
+        "edit_lock_holder": holder_name,
     }
 
     if want_oo:
@@ -8176,6 +8226,87 @@ async def inspection_log_file_cursor(
     doc.last_edit_pos = pos
     await db.commit()
     return JSONResponse({"ok": True})
+
+
+async def _ilog_unlock_response(
+    *,
+    request: Request,
+    db: AsyncSession,
+    file_id: int,
+    building_id: int,
+    user: User | None,
+):
+    import ilog_lock
+
+    doc = await db.get(InspectionLogFile, file_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+    ok = await ilog_lock.release_lock(
+        db,
+        file_id=file_id,
+        user=user,
+        session_key=ilog_lock.session_lock_key(request),
+    )
+    await db.commit()
+    return JSONResponse({"ok": ok})
+
+
+async def _ilog_heartbeat_response(
+    *,
+    request: Request,
+    db: AsyncSession,
+    file_id: int,
+    building_id: int,
+    user: User | None,
+):
+    import ilog_lock
+
+    doc = await db.get(InspectionLogFile, file_id)
+    if not doc or doc.building_id != building_id:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+    ok = await ilog_lock.heartbeat_lock(
+        db,
+        file_id=file_id,
+        user=user,
+        session_key=ilog_lock.session_lock_key(request),
+    )
+    await db.commit()
+    if not ok:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "lock_lost",
+                "message": "편집 잠금이 해제되었습니다. 다른 사용자가 편집 중이거나 시간이 만료되었습니다.",
+            },
+            status_code=409,
+        )
+    return JSONResponse({"ok": True})
+
+
+@app.post("/admin/inspection-logs/{building_id}/files/{file_id}/unlock")
+async def inspection_log_file_unlock(
+    building_id: int,
+    file_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _ilog_unlock_response(
+        request=request, db=db, file_id=file_id, building_id=building_id, user=user
+    )
+
+
+@app.post("/admin/inspection-logs/{building_id}/files/{file_id}/heartbeat")
+async def inspection_log_file_heartbeat(
+    building_id: int,
+    file_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _ilog_heartbeat_response(
+        request=request, db=db, file_id=file_id, building_id=building_id, user=user
+    )
 
 
 @app.get("/oo/inspection-logs/{building_id}/files/{file_id}/content")
@@ -9887,6 +10018,50 @@ async def equipment_qr_log_cursor(
     doc.last_edit_pos = pos
     await db.commit()
     return JSONResponse({"ok": True})
+
+
+@app.post("/eq/{code}/log/unlock")
+async def equipment_qr_log_unlock(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    eq = await _equipment_for_qr_log(db, code)
+    if not eq:
+        raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+    doc = await _qr_linked_log_file(db, eq)
+    if not doc:
+        raise HTTPException(404, detail="연결된 점검일지가 없습니다.")
+    return await _ilog_unlock_response(
+        request=request,
+        db=db,
+        file_id=doc.id,
+        building_id=doc.building_id,
+        user=user,
+    )
+
+
+@app.post("/eq/{code}/log/heartbeat")
+async def equipment_qr_log_heartbeat(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    eq = await _equipment_for_qr_log(db, code)
+    if not eq:
+        raise HTTPException(404, detail="설비를 찾을 수 없습니다.")
+    doc = await _qr_linked_log_file(db, eq)
+    if not doc:
+        raise HTTPException(404, detail="연결된 점검일지가 없습니다.")
+    return await _ilog_heartbeat_response(
+        request=request,
+        db=db,
+        file_id=doc.id,
+        building_id=doc.building_id,
+        user=user,
+    )
 
 
 @app.post("/eq/{code}/pm-inspect")

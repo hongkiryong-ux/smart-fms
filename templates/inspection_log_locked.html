@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}편집 중 · {{ doc.title }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div class="breadcrumb-nav">
+    {% if qr_mode %}
+    <a href="/eq/{{ qr_eq_code }}">설비 QR</a>
+    <span>›</span>
+    <strong>{{ doc.title }}</strong>
+    {% else %}
+    <a href="/admin/inspection-logs">점검일지</a>
+    <span>›</span>
+    <a href="/admin/inspection-logs/{{ building.id }}">{{ building.name }}</a>
+    <span>›</span>
+    <strong>{{ doc.title }}</strong>
+    {% endif %}
+  </div>
+  <h1>{{ doc.title }}</h1>
+</header>
+
+<section class="card">
+  <div class="alert alert-error" role="alert">
+    <strong>다른 사용자가 수정 중입니다.</strong>
+    <p style="margin:0.5rem 0 0;">
+      현재 <strong>{{ lock_holder_name }}</strong> 님이 이 점검일지를 편집하고 있습니다.<br />
+      해당 사용자가 편집 화면을 닫을 때까지 열 수 없습니다.
+    </p>
+  </div>
+  <p class="text-muted" style="margin-top:0.75rem;">
+    편집자가 브라우저를 강제 종료한 경우에는 약 1~2분 후 자동으로 잠금이 해제됩니다.
+  </p>
+  <div class="board-form-actions" style="margin-top:1rem;">
+    <a class="btn btn-primary" href="{{ back_url }}">{% if qr_mode %}설비로 돌아가기{% else %}목록으로{% endif %}</a>
+    <a class="btn btn-secondary" href="{{ retry_url }}">다시 시도</a>
+  </div>
+</section>
+{% endblock %}

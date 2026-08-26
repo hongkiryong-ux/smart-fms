@@ -19,6 +19,9 @@
     {% endif %}
   </div>
   <h1 class="ilog-edit-doc-title">{{ doc.title }}</h1>
+  {% if edit_lock_holder %}
+  <p class="text-muted" style="margin:0.25rem 0 0.5rem;">편집 잠금: <strong>{{ edit_lock_holder }}</strong> 님 (다른 사용자는 닫을 때까지 열 수 없습니다)</p>
+  {% endif %}
   {% if onlyoffice_available %}
   <p class="ilog-oo-switch">
     <a class="btn btn-primary btn-sm" href="{{ onlyoffice_edit_url }}">OnlyOffice로 열기</a>
@@ -154,6 +157,8 @@
   var CAN_SAVE = {{ can_save | tojson }};
   var FILE_ID = {{ file_id | tojson }};
   var CURSOR_URL = {{ cursor_url | tojson }};
+  var UNLOCK_URL = {{ unlock_url | default('') | tojson }};
+  var HEARTBEAT_URL = {{ heartbeat_url | default('') | tojson }};
   var INITIAL_POS = {{ last_edit_pos | tojson }};
 
   var sheets = []; // { name, data, styles, merges, formats }
@@ -171,6 +176,34 @@
   var findState = { query: '', lastX: -1, lastY: -1 };
   var toastTimer = null;
   var cursorTimer = null;
+  var lockReleased = false;
+
+  function releaseEditLock() {
+    if (lockReleased || !UNLOCK_URL) return;
+    lockReleased = true;
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(UNLOCK_URL, new Blob([], { type: 'application/json' }));
+        return;
+      }
+    } catch (e) {}
+    try {
+      fetch(UNLOCK_URL, { method: 'POST', keepalive: true, credentials: 'same-origin' });
+    } catch (e2) {}
+  }
+
+  function heartbeatEditLock() {
+    if (!HEARTBEAT_URL || lockReleased) return;
+    fetch(HEARTBEAT_URL, { method: 'POST', credentials: 'same-origin' }).catch(function () {});
+  }
+  setInterval(heartbeatEditLock, 25000);
+  window.addEventListener('pagehide', releaseEditLock);
+  document.querySelectorAll('a[href]').forEach(function (a) {
+    a.addEventListener('click', function () {
+      var href = a.getAttribute('href') || '';
+      if (href && href.charAt(0) !== '#') releaseEditLock();
+    });
+  });
 
   var pick = {
     on: false,
