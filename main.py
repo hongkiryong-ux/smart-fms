@@ -57,6 +57,7 @@ from database import (
     Base,
     engine,
     ensure_schema_updates,
+    deactivate_test_buildings_47_48,
     get_db,
 )
 from init_data import seed_if_empty
@@ -1000,6 +1001,7 @@ async def _startup_db_init() -> None:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             await ensure_schema_updates()
+            await deactivate_test_buildings_47_48()
             async with AsyncSessionLocal() as session:
                 await seed_if_empty(session)
                 from excel_import import backfill_all_building_default_categories

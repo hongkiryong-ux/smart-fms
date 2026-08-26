@@ -86,12 +86,23 @@ def _model_keys(model, skip: set[str] | None = None) -> list[str]:
     return keys
 
 
-async def _append_sheet(db: AsyncSession, wb: Workbook, title: str, model, skip: set[str] | None = None) -> int:
+async def _append_sheet(
+    db: AsyncSession,
+    wb: Workbook,
+    title: str,
+    model,
+    skip: set[str] | None = None,
+    *,
+    active_only: bool = False,
+) -> int:
     keys = _model_keys(model, skip)
     ws = wb.create_sheet(title[:31])
     ws.append(keys)
     count = 0
-    result = await db.stream(select(model))
+    stmt = select(model)
+    if active_only and hasattr(model, "is_active"):
+        stmt = stmt.where(model.is_active == True)  # noqa: E712
+    result = await db.stream(stmt)
     async for obj in result.scalars():
         ws.append([_cell(getattr(obj, k, None)) for k in keys])
         count += 1
@@ -151,7 +162,11 @@ async def _add_equipment_status_excels(
     from excel_import import export_building_excel
 
     buildings = (
-        await db.execute(select(Building).order_by(Building.id))
+        await db.execute(
+            select(Building)
+            .where(Building.is_active == True)  # noqa: E712
+            .order_by(Building.id)
+        )
     ).scalars().all()
 
     file_count = 0
@@ -195,7 +210,11 @@ async def _add_equipment_detail_excels(
     from excel_import import export_equipment_excel
 
     buildings = (
-        await db.execute(select(Building).order_by(Building.id))
+        await db.execute(
+            select(Building)
+            .where(Building.is_active == True)  # noqa: E712
+            .order_by(Building.id)
+        )
     ).scalars().all()
 
     file_count = 0
@@ -291,11 +310,15 @@ async def build_backup_zip(db: AsyncSession, dest: Path) -> dict:
         counts["disk_uploads"] = _add_uploads_dir(zf)
 
         wb = Workbook(write_only=True)
-        counts["excel_sites"] = await _append_sheet(db, wb, "사업장", Site)
-        counts["excel_buildings"] = await _append_sheet(db, wb, "건물", Building)
-        counts["excel_floors"] = await _append_sheet(db, wb, "층", Floor)
-        counts["excel_zones"] = await _append_sheet(db, wb, "구역", Zone)
-        counts["excel_equipment"] = await _append_sheet(db, wb, "설비", Equipment)
+        counts["excel_sites"] = await _append_sheet(db, wb, "사업장", Site, active_only=True)
+        counts["excel_buildings"] = await _append_sheet(
+            db, wb, "건물", Building, active_only=True
+        )
+        counts["excel_floors"] = await _append_sheet(db, wb, "층", Floor, active_only=True)
+        counts["excel_zones"] = await _append_sheet(db, wb, "구역", Zone, active_only=True)
+        counts["excel_equipment"] = await _append_sheet(
+            db, wb, "설비", Equipment, active_only=True
+        )
         counts["excel_eq_types"] = await _append_sheet(db, wb, "설비종류", EquipmentType)
         counts["excel_pm"] = await _append_sheet(db, wb, "점검일정", PMSchedule)
         counts["excel_pm_insp"] = await _append_sheet(db, wb, "점검결과", PMInspection)

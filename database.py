@@ -675,6 +675,53 @@ async def ensure_app_settings_table() -> None:
         print(f"[db] app_settings ensure skip: {e}", flush=True)
 
 
+async def deactivate_test_buildings_47_48() -> None:
+    """서버관리 백업에 섞이던 테스트 건물(id 47·48) 및 하위 데이터를 비활성화."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError, OperationalError, ProgrammingError
+
+    ids = (47, 48)
+    try:
+        async with engine.begin() as conn:
+            for bid in ids:
+                r = await conn.execute(
+                    text(
+                        "UPDATE buildings SET is_active = FALSE "
+                        "WHERE id = :id AND (is_active IS NULL OR is_active = TRUE)"
+                    ),
+                    {"id": bid},
+                )
+                if r.rowcount and r.rowcount > 0:
+                    print(f"[db] deactivated test building id={bid}", flush=True)
+                await conn.execute(
+                    text(
+                        "UPDATE floors SET is_active = FALSE "
+                        "WHERE building_id = :id AND (is_active IS NULL OR is_active = TRUE)"
+                    ),
+                    {"id": bid},
+                )
+                await conn.execute(
+                    text(
+                        "UPDATE zones SET is_active = FALSE WHERE floor_id IN "
+                        "(SELECT id FROM floors WHERE building_id = :id) "
+                        "AND (is_active IS NULL OR is_active = TRUE)"
+                    ),
+                    {"id": bid},
+                )
+                await conn.execute(
+                    text(
+                        "UPDATE equipment SET is_active = FALSE WHERE zone_id IN "
+                        "(SELECT z.id FROM zones z "
+                        " JOIN floors f ON z.floor_id = f.id "
+                        " WHERE f.building_id = :id) "
+                        "AND (is_active IS NULL OR is_active = TRUE)"
+                    ),
+                    {"id": bid},
+                )
+    except (OperationalError, ProgrammingError, DBAPIError) as e:
+        print(f"[db] deactivate test buildings 47/48 skip: {e}", flush=True)
+
+
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
