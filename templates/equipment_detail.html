@@ -335,6 +335,13 @@
   document.querySelectorAll('.eq-excel-import-form input[type="file"]').forEach(function (input) {
     input.addEventListener('change', function () {
       if (!input.files || !input.files.length) return;
+      var ok = window.confirm(
+        '경고\n\n엑셀 가져오기를 하면 이 설비의 기존 사양·정비이력·점검이력·점검주기·정비의뢰 자료가 모두 사라지고\n엑셀에 있는 내용으로 대체됩니다.\n\n승인하시겠습니까?'
+      );
+      if (!ok) {
+        input.value = '';
+        return;
+      }
       var form = input.closest('form');
       if (form) form.submit();
     });

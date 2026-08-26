@@ -3907,10 +3907,14 @@ async def equipment_import_upload(
             db,
             building.name,
             tmp_path,
-            replace=replace == "1",
+            replace=True,
             building_id=building_id,
         )
-        msg = f"시트 {stats['sheets']}개 · 신규 {stats['created']}건 · 갱신 {stats['updated']}건"
+        msg = (
+            f"시트 {stats['sheets']}개 · 신규 {stats['created']}건 · 갱신 {stats['updated']}건"
+            f" · 정비이력 {stats.get('history_added', 0)} · 점검이력 {stats.get('pm_added', 0)}"
+            " (기존 자료 대체)"
+        )
         return RedirectResponse(
             f"/admin/equipment/import?building_id={building_id}&message={quote(msg)}",
             status_code=303,
@@ -4017,10 +4021,13 @@ async def equipment_one_import(
         select(Equipment)
         .where(Equipment.id == eq_id, Equipment.is_active == True)
         .options(
-            selectinload(Equipment.zone).selectinload(Zone.floor),
+            selectinload(Equipment.zone)
+            .selectinload(Zone.floor)
+            .selectinload(Floor.building),
             selectinload(Equipment.maintenance_records),
             selectinload(Equipment.pm_inspections),
             selectinload(Equipment.pm_schedules),
+            selectinload(Equipment.work_orders),
         )
     )
     eq = result.scalar_one_or_none()
@@ -4058,7 +4065,7 @@ async def equipment_one_import(
         from equipment_schema import equipment_snapshot
 
         before = equipment_snapshot(eq)
-        stats = await import_equipment_excel(db, eq, content)
+        stats = await import_equipment_excel(db, eq, content, replace=True)
         await _record_equipment_change(db, eq, before, user=user, source="Excel")
         await db.commit()
     except Exception as e:
@@ -4066,9 +4073,10 @@ async def equipment_one_import(
         return _back(err=f"가져오기 실패: {e}")
 
     msg = (
-        f"{eq.code} 가져오기 완료 "
-        f"(사양 {stats['spec_updated']} · 정비이력 +{stats['history_added']} · "
-        f"점검이력 +{stats['pm_added']})"
+        f"{eq.code} 가져오기 완료(기존 자료 대체) "
+        f"(사양 {stats['spec_updated']} · 정비이력 {stats['history_added']} · "
+        f"점검이력 {stats['pm_added']} · 점검주기 {stats.get('schedule_added', 0)} · "
+        f"정비의뢰 {stats.get('wo_added', 0)})"
     )
     if stats.get("warnings"):
         msg += " · " + " / ".join(stats["warnings"][:2])
