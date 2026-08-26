@@ -3129,6 +3129,52 @@ async def building_standard_delete(
     )
 
 
+async def _building_name_taken(
+    db: AsyncSession,
+    *,
+    site_id: int,
+    name: str,
+    exclude_id: int | None = None,
+) -> bool:
+    """같은 사업장 내 활성 건물명 중복 여부."""
+    name_n = (name or "").strip()
+    if not name_n:
+        return False
+    stmt = select(Building.id).where(
+        Building.site_id == site_id,
+        Building.is_active == True,  # noqa: E712
+        func.lower(Building.name) == name_n.casefold(),
+    )
+    if exclude_id:
+        stmt = stmt.where(Building.id != exclude_id)
+    return (
+        await db.execute(stmt.limit(1))
+    ).scalar_one_or_none() is not None
+
+
+async def _building_code_taken(
+    db: AsyncSession,
+    *,
+    site_id: int,
+    code: str,
+    exclude_id: int | None = None,
+) -> bool:
+    """같은 사업장 내 활성 건물코드 중복 여부."""
+    code_n = (code or "").strip()
+    if not code_n:
+        return False
+    stmt = select(Building.id).where(
+        Building.site_id == site_id,
+        Building.is_active == True,  # noqa: E712
+        func.lower(Building.code) == code_n.casefold(),
+    )
+    if exclude_id:
+        stmt = stmt.where(Building.id != exclude_id)
+    return (
+        await db.execute(stmt.limit(1))
+    ).scalar_one_or_none() is not None
+
+
 @app.post("/admin/buildings")
 async def building_create(
     site_id: int = Form(...),
@@ -3144,28 +3190,14 @@ async def building_create(
     code = code.strip()
 
     # 같은 사업장 내 동일 건물명 중복 방지
-    dup = (
-        await db.execute(
-            select(Building)
-            .where(Building.site_id == site_id, Building.name == name, Building.is_active == True)
-            .limit(1)
-        )
-    ).scalars().first()
-    if dup:
+    if await _building_name_taken(db, site_id=site_id, name=name):
         return RedirectResponse(
             f"/admin/sites?error={quote(f'이미 같은 이름의 건물이 있습니다: {name}')}",
             status_code=303,
         )
 
     # 코드 중복 방지 (같은 사업장)
-    dup_code = (
-        await db.execute(
-            select(Building)
-            .where(Building.site_id == site_id, Building.code == code, Building.is_active == True)
-            .limit(1)
-        )
-    ).scalars().first()
-    if dup_code:
+    if await _building_code_taken(db, site_id=site_id, code=code):
         return RedirectResponse(
             f"/admin/sites?error={quote(f'이미 같은 코드의 건물이 있습니다: {code}')}",
             status_code=303,
@@ -3255,9 +3287,28 @@ async def building_edit(
     building = await db.get(Building, building_id)
     if not building or not building.is_active:
         raise HTTPException(404)
+
+    name_n = name.strip()
+    code_n = code.strip()
+
+    if await _building_name_taken(
+        db, site_id=site_id, name=name_n, exclude_id=building_id
+    ):
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}/edit?error={quote(f'이미 같은 이름의 건물이 있습니다: {name_n}')}",
+            status_code=303,
+        )
+    if await _building_code_taken(
+        db, site_id=site_id, code=code_n, exclude_id=building_id
+    ):
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}/edit?error={quote(f'이미 같은 코드의 건물이 있습니다: {code_n}')}",
+            status_code=303,
+        )
+
     building.site_id = site_id
-    building.name = name.strip()
-    building.code = code.strip()
+    building.name = name_n
+    building.code = code_n
     building.manager_name = manager_name
     await db.commit()
     return RedirectResponse(
