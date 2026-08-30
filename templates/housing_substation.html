@@ -7,7 +7,7 @@
 <header class="page-header hs-page-header">
   <div>
     <h1>주택변전소 점검일지</h1>
-    <p>{{ building.name }} · 1일 입력 · 월보 자동 집계 · 일별 엑셀 저장</p>
+    <p>{{ building.name }} · 1일 입력 · 월보 자동 집계 · 월별 엑셀 저장</p>
   </div>
   <div class="hs-header-actions">
     <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>
@@ -20,7 +20,7 @@
 <nav class="hs-tabs" aria-label="점검일지2 탭">
   <a href="?tab=daily&date={{ log_date.isoformat() }}" class="hs-tab{% if tab == 'daily' %} active{% endif %}">1일</a>
   <a href="?tab=monthly&year={{ year }}&month={{ month }}" class="hs-tab{% if tab == 'monthly' %} active{% endif %}">월보</a>
-  <a href="?tab=archives" class="hs-tab{% if tab == 'archives' %} active{% endif %}">지난 일지(엑셀)</a>
+  <a href="?tab=monthly-archives" class="hs-tab{% if tab == 'monthly-archives' %} active{% endif %}">지난 월보(엑셀)</a>
 </nav>
 
 {% if tab == 'daily' %}
@@ -144,6 +144,9 @@
     </div>
     {% endif %}
   </form>
+  <p class="text-muted" style="margin-top:1rem;font-size:0.9rem">
+    <a href="?tab=daily-archives">지난 1일 엑셀 보기</a> — 23:59 마감·「이 날짜 마감」 시 저장된 일지
+  </p>
 </section>
 
 {% elif tab == 'monthly' %}
@@ -158,7 +161,8 @@
   </form>
   <p class="text-muted hs-hint">
     1일 시트와 동일한 설비·순서 · 노란 칸 = 전일 지침(전월 말 22:00) ·
-    사용량 = (당일 22:00 지침 − 전일 지침) × 배율 · 계 = 1~31일 사용량 합 / 최대(A) 최대값
+    사용량 = (당일 22:00 지침 − 전일 지침) × 배율 · 계 = 1~31일 사용량 합 / 최대(A) 최대값 ·
+    매월 1일 07:00(KST) 전월 월보가 엑셀로 자동 저장됩니다.
   </p>
 
   {% for sec in monthly.sections %}
@@ -227,7 +231,33 @@
   {% endfor %}
 </section>
 
-{% else %}
+{% elif tab == 'monthly-archives' %}
+<section class="card card-wide hs-archives">
+  <h2>지난 월보 (엑셀)</h2>
+  <p class="text-muted">매월 1일 07:00(KST)에 전월 월보가 자동으로 엑셀 저장됩니다.</p>
+  {% if monthly_archives %}
+  <table class="data-table">
+    <thead><tr><th>연월</th><th>파일</th><th>크기</th><th></th></tr></thead>
+    <tbody>
+      {% for a in monthly_archives %}
+      <tr>
+        <td>{{ a.year }}-{{ '%02d'|format(a.month) }}</td>
+        <td>{{ a.original_name }}</td>
+        <td>{% if a.file_size %}{{ (a.file_size / 1024)|round(1) }} KB{% else %}-{% endif %}</td>
+        <td>
+          <a class="btn btn-sm btn-secondary"
+             href="/admin/inspection-logs2/{{ building.id }}/housing/monthly-archive/{{ a.id }}/download">다운로드</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">저장된 월보가 없습니다.</p>
+  {% endif %}
+</section>
+
+{% elif tab == 'daily-archives' %}
 <section class="card card-wide hs-archives">
   <h2>지난 1일 시트 (엑셀)</h2>
   <p class="text-muted">날짜가 지난 1일 시트는 23:59 마감 시 또는「이 날짜 마감」시 엑셀로 저장됩니다.</p>
@@ -251,6 +281,9 @@
   {% else %}
   <p class="empty">저장된 일지가 없습니다.</p>
   {% endif %}
+  <p style="margin-top:1rem">
+    <a class="btn btn-secondary btn-sm" href="?tab=monthly-archives">← 지난 월보(엑셀)</a>
+  </p>
 </section>
 {% endif %}
 {% endblock %}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -13,7 +14,12 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Building, HousingSubstationArchive, HousingSubstationDaily
+from models import (
+    Building,
+    HousingSubstationArchive,
+    HousingSubstationDaily,
+    HousingSubstationMonthlyArchive,
+)
 
 ROOT = Path(__file__).resolve().parent
 SCHEMA_PATH = ROOT / "resources" / "housing_substation_schema.json"
@@ -401,6 +407,205 @@ def compute_monthly_report(
     return {"year": year, "month": month, "sections": sections_out}
 
 
+def _norm_name(s: str) -> str:
+    return re.sub(r"\s+", "", (s or "").upper().replace(".", ""))
+
+
+def _breaker_match(daily_name: str, monthly_name: str) -> bool:
+    a, b = _norm_name(daily_name), _norm_name(monthly_name)
+    if a == b:
+        return True
+    if a in b or b in a:
+        return True
+    ma = re.search(r"NO\s*(\d+)", a)
+    mb = re.search(r"NO\s*(\d+)", b)
+    if ma and mb and ma.group(1) == mb.group(1) and "INCOMMING" in a and "INCOMMING" in b:
+        return True
+    return False
+
+
+def _monthly_excel_block_rows() -> dict[str, dict[str, int]]:
+    return {
+        "no1": {"header": 5, "prev": 8, "day1": 9, "total": 40},
+        "no2": {"header": 44, "prev": 47, "day1": 48, "total": 79},
+        "no3": {"header": 83, "prev": 86, "day1": 87, "total": 118},
+    }
+
+
+def _excel_cols_for_meter(sec_id: str, meter: dict, br_idx: int) -> dict[str, str] | None:
+    schema = load_schema()
+    schema_sec = next((s for s in schema.get("monthly_sections") or [] if s["id"] == sec_id), None)
+    if not schema_sec:
+        return None
+    for sb in schema_sec.get("breakers") or []:
+        if _breaker_match(meter.get("name") or "", sb.get("name") or ""):
+            return sb.get("cols") or {}
+    breakers = schema_sec.get("breakers") or []
+    if br_idx < len(breakers):
+        return breakers[br_idx].get("cols") or {}
+    return None
+
+
+def export_monthly_to_excel(monthly_report: dict) -> bytes:
+    """월보 집계 결과를 템플릿 월보 시트에 채워 반환."""
+    if not TEMPLATE_XLSX.is_file():
+        wb = load_workbook()
+        ws = wb.active
+        ws.title = "월보"
+    else:
+        wb = load_workbook(TEMPLATE_XLSX)
+        ws = wb["월보"] if "월보" in wb.sheetnames else wb.active
+
+    schema = load_schema()
+    block_rows = _monthly_excel_block_rows()
+    for sec in monthly_report.get("sections") or []:
+        sec_id = sec["id"]
+        rows = block_rows.get(sec_id)
+        if not rows:
+            continue
+        daily_block = next((b for b in schema["daily_blocks"] if b["id"] == sec_id), None)
+        if not daily_block:
+            continue
+        prev_row = rows["prev"]
+        day1_row = rows["day1"]
+        total_row = rows["total"]
+        for br_idx, br in enumerate(sec.get("breakers") or []):
+            mid = br.get("meter_id")
+            daily_meter = next((m for m in daily_block["meters"] if m["id"] == mid), br)
+            cols = _excel_cols_for_meter(sec_id, daily_meter, br_idx)
+            if not cols:
+                continue
+            rc, uc, mc = cols.get("reading"), cols.get("usage"), cols.get("max_a")
+            if not rc or not uc or not mc:
+                continue
+            prev_cell = (sec.get("prev_day") or [])[br_idx] if br_idx < len(sec.get("prev_day") or []) else {}
+            if prev_cell.get("reading") not in (None, ""):
+                ws[f"{rc}{prev_row}"] = prev_cell["reading"]
+            for day_row in sec.get("days") or []:
+                excel_row = day1_row + int(day_row["day"]) - 1
+                dr = (day_row.get("breakers") or [])[br_idx] if br_idx < len(day_row.get("breakers") or []) else {}
+                if dr.get("reading") not in (None, ""):
+                    ws[f"{rc}{excel_row}"] = dr["reading"]
+                if dr.get("usage") not in (None, ""):
+                    ws[f"{uc}{excel_row}"] = dr["usage"]
+                if dr.get("max_a") not in (None, ""):
+                    ws[f"{mc}{excel_row}"] = dr["max_a"]
+            tot = (sec.get("totals") or [])[br_idx] if br_idx < len(sec.get("totals") or []) else {}
+            if tot.get("usage_sum") not in (None, ""):
+                ws[f"{uc}{total_row}"] = tot["usage_sum"]
+            if tot.get("max_a_max") not in (None, ""):
+                ws[f"{mc}{total_row}"] = tot["max_a_max"]
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+async def fetch_monthly_report_data(
+    session: AsyncSession,
+    building_id: int,
+    year: int,
+    month: int,
+) -> dict[str, Any]:
+    import calendar
+
+    last_day = calendar.monthrange(year, month)[1]
+    d_from = date(year, month, 1)
+    d_to = date(year, month, last_day)
+    daily_rows = (
+        await session.execute(
+            select(HousingSubstationDaily).where(
+                HousingSubstationDaily.building_id == building_id,
+                HousingSubstationDaily.log_date >= d_from,
+                HousingSubstationDaily.log_date <= d_to,
+            )
+        )
+    ).scalars().all()
+    prev_month_last = d_from - timedelta(days=1)
+    prev_month_row = (
+        await session.execute(
+            select(HousingSubstationDaily).where(
+                HousingSubstationDaily.building_id == building_id,
+                HousingSubstationDaily.log_date == prev_month_last,
+            )
+        )
+    ).scalar_one_or_none()
+    return compute_monthly_report(
+        building_id, year, month, list(daily_rows), prev_month_row
+    )
+
+
+async def list_monthly_archives(
+    session: AsyncSession, building_id: int, limit: int = 36
+) -> list[HousingSubstationMonthlyArchive]:
+    rows = (
+        await session.execute(
+            select(HousingSubstationMonthlyArchive)
+            .where(HousingSubstationMonthlyArchive.building_id == building_id)
+            .order_by(
+                HousingSubstationMonthlyArchive.year.desc(),
+                HousingSubstationMonthlyArchive.month.desc(),
+            )
+            .limit(limit)
+        )
+    ).scalars().all()
+    return list(rows)
+
+
+async def archive_monthly_excel(
+    session: AsyncSession,
+    building_id: int,
+    year: int,
+    month: int,
+    *,
+    replace: bool = True,
+) -> HousingSubstationMonthlyArchive | None:
+    """해당 연월 월보를 엑셀로 저장."""
+    report = await fetch_monthly_report_data(session, building_id, year, month)
+    xbytes = export_monthly_to_excel(report)
+    fname = f"주택변전소_월보_{year}-{month:02d}.xlsx"
+    existing = (
+        await session.execute(
+            select(HousingSubstationMonthlyArchive).where(
+                HousingSubstationMonthlyArchive.building_id == building_id,
+                HousingSubstationMonthlyArchive.year == year,
+                HousingSubstationMonthlyArchive.month == month,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing:
+        if not replace:
+            return existing
+        existing.original_name = fname
+        existing.file_data = xbytes
+        existing.file_size = len(xbytes)
+        await session.flush()
+        return existing
+    arch = HousingSubstationMonthlyArchive(
+        building_id=building_id,
+        year=year,
+        month=month,
+        original_name=fname,
+        file_data=xbytes,
+        file_size=len(xbytes),
+    )
+    session.add(arch)
+    await session.flush()
+    return arch
+
+
+async def archive_previous_month_excel(
+    session: AsyncSession, building_id: int, as_of: date | None = None
+) -> HousingSubstationMonthlyArchive | None:
+    """as_of(기본 오늘) 기준 직전 월 월보 저장 — 매월 1일 07:00용."""
+    ref = as_of or date.today()
+    if ref.month == 1:
+        year, month = ref.year - 1, 12
+    else:
+        year, month = ref.year, ref.month - 1
+    return await archive_monthly_excel(session, building_id, year, month, replace=True)
+
+
 async def list_archives(
     session: AsyncSession, building_id: int, limit: int = 60
 ) -> list[HousingSubstationArchive]:
@@ -532,6 +737,23 @@ async def ensure_tables(engine) -> None:
                     """
                 )
             )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS housing_substation_monthly_archives (
+                        id SERIAL PRIMARY KEY,
+                        building_id INTEGER NOT NULL REFERENCES buildings(id),
+                        year INTEGER NOT NULL,
+                        month INTEGER NOT NULL,
+                        original_name VARCHAR(300),
+                        file_data BYTEA,
+                        file_size INTEGER,
+                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                        UNIQUE (building_id, year, month)
+                    )
+                    """
+                )
+            )
         else:
             await conn.execute(
                 text(
@@ -564,12 +786,29 @@ async def ensure_tables(engine) -> None:
                     """
                 )
             )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS housing_substation_monthly_archives (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        building_id INTEGER NOT NULL,
+                        year INTEGER NOT NULL,
+                        month INTEGER NOT NULL,
+                        original_name VARCHAR(300),
+                        file_data BLOB,
+                        file_size INTEGER,
+                        created_at DATETIME,
+                        UNIQUE (building_id, year, month)
+                    )
+                    """
+                )
+            )
 
 
 def register_scheduler(scheduler, session_factory, kst) -> None:
-    """매일 23:59 KST — 주택변전소 일지 마감."""
+    """매일 23:59 KST — 1일 마감 · 매월 1일 07:00 — 월보 엑셀 저장."""
 
-    async def _job():
+    async def _daily_job():
         from sqlalchemy import select
 
         async with session_factory() as session:
@@ -587,13 +826,43 @@ def register_scheduler(scheduler, session_factory, kst) -> None:
                     except Exception as e:
                         print(f"[housing_sub] rollover building={b.id}: {e}", flush=True)
             except Exception as e:
-                print(f"[housing_sub] scheduler job: {e}", flush=True)
+                print(f"[housing_sub] daily scheduler: {e}", flush=True)
+
+    async def _monthly_job():
+        from sqlalchemy import select
+
+        async with session_factory() as session:
+            try:
+                buildings = (
+                    await session.execute(select(Building).where(Building.is_active == True))  # noqa: E712
+                ).scalars().all()
+                target = load_schema().get("building_name", "주택변전소")
+                today = datetime.now(kst).date()
+                for b in buildings:
+                    if not b.name or target not in b.name:
+                        continue
+                    try:
+                        await archive_previous_month_excel(session, b.id, today)
+                        await session.commit()
+                    except Exception as e:
+                        print(f"[housing_sub] monthly archive building={b.id}: {e}", flush=True)
+            except Exception as e:
+                print(f"[housing_sub] monthly scheduler: {e}", flush=True)
 
     scheduler.add_job(
-        _job,
+        _daily_job,
         trigger="cron",
         hour=23,
         minute=59,
         id="housing_substation_rollover",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _monthly_job,
+        trigger="cron",
+        day=1,
+        hour=7,
+        minute=0,
+        id="housing_substation_monthly_archive",
         replace_existing=True,
     )

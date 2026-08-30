@@ -77,6 +77,7 @@ from models import (
     Floor,
     HousingSubstationArchive,
     HousingSubstationDaily,
+    HousingSubstationMonthlyArchive,
     InspectionLogBuilding,
     InspectionLogBuilding2,
     InspectionLogFile,
@@ -8108,6 +8109,7 @@ async def housing_substation_page(
         get_or_create_daily,
         is_housing_substation_building,
         list_archives,
+        list_monthly_archives,
         load_schema,
     )
     from housing_substation import ensure_tables as ensure_housing_tables
@@ -8175,15 +8177,29 @@ async def housing_substation_page(
         monthly = compute_monthly_report(
             building_id, year, month, list(daily_rows), prev_month_row
         )
+        monthly_archives = await list_monthly_archives(db, building_id)
         archives = []
         log_date = today
         daily_data = {}
-    elif tab == "archives":
+    elif tab == "monthly-archives":
         year, month = today.year, today.month
         monthly = {"sections": []}
+        monthly_archives = await list_monthly_archives(db, building_id)
+        archives = []
+        log_date = today
+        daily_data = {}
+    elif tab == "daily-archives":
+        year, month = today.year, today.month
+        monthly = {"sections": []}
+        monthly_archives = []
         archives = await list_archives(db, building_id)
         log_date = today
         daily_data = {}
+    elif tab == "archives":
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/housing?tab=monthly-archives",
+            status_code=303,
+        )
     else:
         tab = "daily"
         raw_date = request.query_params.get("date")
@@ -8196,6 +8212,7 @@ async def housing_substation_page(
         daily_data = daily_row.data or {}
         year, month = log_date.year, log_date.month
         monthly = {"sections": []}
+        monthly_archives = []
         archives = []
 
     return templates.TemplateResponse(
@@ -8214,6 +8231,7 @@ async def housing_substation_page(
             "daily_data": daily_data,
             "monthly": monthly,
             "archives": archives,
+            "monthly_archives": monthly_archives,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -8306,6 +8324,26 @@ async def housing_substation_close_day(
     return RedirectResponse(
         f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={tomorrow.isoformat()}&message={quote('마감·엑셀 저장 완료. 다음 날짜가 열렸습니다.')}",
         status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/housing/monthly-archive/{archive_id}/download")
+async def housing_substation_monthly_archive_download(
+    building_id: int,
+    archive_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    arch = await db.get(HousingSubstationMonthlyArchive, archive_id)
+    if not arch or arch.building_id != building_id or not arch.file_data:
+        raise HTTPException(404)
+    fname = quote(arch.original_name or f"housing_monthly_{arch.year}_{arch.month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(arch.file_data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
 
 
