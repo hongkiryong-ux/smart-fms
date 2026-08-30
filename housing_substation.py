@@ -14,12 +14,7 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import (
-    Building,
-    HousingSubstationArchive,
-    HousingSubstationDaily,
-    HousingSubstationMonthlyArchive,
-)
+from models import Building, HousingSubstationArchive, HousingSubstationDaily
 
 ROOT = Path(__file__).resolve().parent
 SCHEMA_PATH = ROOT / "resources" / "housing_substation_schema.json"
@@ -535,77 +530,6 @@ async def fetch_monthly_report_data(
     )
 
 
-async def list_monthly_archives(
-    session: AsyncSession, building_id: int, limit: int = 36
-) -> list[HousingSubstationMonthlyArchive]:
-    rows = (
-        await session.execute(
-            select(HousingSubstationMonthlyArchive)
-            .where(HousingSubstationMonthlyArchive.building_id == building_id)
-            .order_by(
-                HousingSubstationMonthlyArchive.year.desc(),
-                HousingSubstationMonthlyArchive.month.desc(),
-            )
-            .limit(limit)
-        )
-    ).scalars().all()
-    return list(rows)
-
-
-async def archive_monthly_excel(
-    session: AsyncSession,
-    building_id: int,
-    year: int,
-    month: int,
-    *,
-    replace: bool = True,
-) -> HousingSubstationMonthlyArchive | None:
-    """해당 연월 월보를 엑셀로 저장."""
-    report = await fetch_monthly_report_data(session, building_id, year, month)
-    xbytes = export_monthly_to_excel(report)
-    fname = f"주택변전소_월보_{year}-{month:02d}.xlsx"
-    existing = (
-        await session.execute(
-            select(HousingSubstationMonthlyArchive).where(
-                HousingSubstationMonthlyArchive.building_id == building_id,
-                HousingSubstationMonthlyArchive.year == year,
-                HousingSubstationMonthlyArchive.month == month,
-            )
-        )
-    ).scalar_one_or_none()
-    if existing:
-        if not replace:
-            return existing
-        existing.original_name = fname
-        existing.file_data = xbytes
-        existing.file_size = len(xbytes)
-        await session.flush()
-        return existing
-    arch = HousingSubstationMonthlyArchive(
-        building_id=building_id,
-        year=year,
-        month=month,
-        original_name=fname,
-        file_data=xbytes,
-        file_size=len(xbytes),
-    )
-    session.add(arch)
-    await session.flush()
-    return arch
-
-
-async def archive_previous_month_excel(
-    session: AsyncSession, building_id: int, as_of: date | None = None
-) -> HousingSubstationMonthlyArchive | None:
-    """as_of(기본 오늘) 기준 직전 월 월보 저장 — 매월 1일 07:00용."""
-    ref = as_of or date.today()
-    if ref.month == 1:
-        year, month = ref.year - 1, 12
-    else:
-        year, month = ref.year, ref.month - 1
-    return await archive_monthly_excel(session, building_id, year, month, replace=True)
-
-
 async def list_archives(
     session: AsyncSession, building_id: int, limit: int = 60
 ) -> list[HousingSubstationArchive]:
@@ -675,10 +599,15 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
         start = block_starts.get(bid, 7)
         block_data = data.get(bid) or {}
         times = block_data.get("times") or {}
-        col_map = {c["col"]: c for c in block.get("input_columns") or []}
+        prev_map = block_data.get("prev") or {}
         all_cols = {c["col"] for c in block.get("input_columns") or []}
         for m in block.get("meters") or []:
             all_cols.add(m["reading_col"])
+        prev_row = start - 1
+        for m in block.get("meters") or []:
+            val = prev_map.get(m["id"])
+            if val not in (None, ""):
+                ws[f"{m['reading_col']}{prev_row}"] = val
         for t, idx in time_index.items():
             row = start + idx
             cells = times.get(t) or {}
@@ -737,23 +666,6 @@ async def ensure_tables(engine) -> None:
                     """
                 )
             )
-            await conn.execute(
-                text(
-                    """
-                    CREATE TABLE IF NOT EXISTS housing_substation_monthly_archives (
-                        id SERIAL PRIMARY KEY,
-                        building_id INTEGER NOT NULL REFERENCES buildings(id),
-                        year INTEGER NOT NULL,
-                        month INTEGER NOT NULL,
-                        original_name VARCHAR(300),
-                        file_data BYTEA,
-                        file_size INTEGER,
-                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
-                        UNIQUE (building_id, year, month)
-                    )
-                    """
-                )
-            )
         else:
             await conn.execute(
                 text(
@@ -786,27 +698,10 @@ async def ensure_tables(engine) -> None:
                     """
                 )
             )
-            await conn.execute(
-                text(
-                    """
-                    CREATE TABLE IF NOT EXISTS housing_substation_monthly_archives (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        building_id INTEGER NOT NULL,
-                        year INTEGER NOT NULL,
-                        month INTEGER NOT NULL,
-                        original_name VARCHAR(300),
-                        file_data BLOB,
-                        file_size INTEGER,
-                        created_at DATETIME,
-                        UNIQUE (building_id, year, month)
-                    )
-                    """
-                )
-            )
 
 
 def register_scheduler(scheduler, session_factory, kst) -> None:
-    """매일 23:59 KST — 1일 마감 · 매월 1일 07:00 — 월보 엑셀 저장."""
+    """매일 23:59 KST — 주택변전소 1일 마감."""
 
     async def _daily_job():
         from sqlalchemy import select
@@ -828,41 +723,11 @@ def register_scheduler(scheduler, session_factory, kst) -> None:
             except Exception as e:
                 print(f"[housing_sub] daily scheduler: {e}", flush=True)
 
-    async def _monthly_job():
-        from sqlalchemy import select
-
-        async with session_factory() as session:
-            try:
-                buildings = (
-                    await session.execute(select(Building).where(Building.is_active == True))  # noqa: E712
-                ).scalars().all()
-                target = load_schema().get("building_name", "주택변전소")
-                today = datetime.now(kst).date()
-                for b in buildings:
-                    if not b.name or target not in b.name:
-                        continue
-                    try:
-                        await archive_previous_month_excel(session, b.id, today)
-                        await session.commit()
-                    except Exception as e:
-                        print(f"[housing_sub] monthly archive building={b.id}: {e}", flush=True)
-            except Exception as e:
-                print(f"[housing_sub] monthly scheduler: {e}", flush=True)
-
     scheduler.add_job(
         _daily_job,
         trigger="cron",
         hour=23,
         minute=59,
         id="housing_substation_rollover",
-        replace_existing=True,
-    )
-    scheduler.add_job(
-        _monthly_job,
-        trigger="cron",
-        day=1,
-        hour=7,
-        minute=0,
-        id="housing_substation_monthly_archive",
         replace_existing=True,
     )

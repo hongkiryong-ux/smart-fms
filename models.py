@@ -304,27 +304,6 @@ class HousingSubstationArchive(Base):
     )
 
 
-class HousingSubstationMonthlyArchive(Base):
-    """주택변전소 월보 엑셀 아카이브."""
-
-    __tablename__ = "housing_substation_monthly_archives"
-
-    id = Column(Integer, primary_key=True)
-    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
-    year = Column(Integer, nullable=False, index=True)
-    month = Column(Integer, nullable=False, index=True)
-    original_name = Column(String(300), nullable=True)
-    file_data = Column(LargeBinary, nullable=True)
-    file_size = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    building = relationship("Building")
-
-    __table_args__ = (
-        UniqueConstraint("building_id", "year", "month", name="uq_housing_sub_monthly_archive"),
-    )
-
-
 class InspectionLogFile(Base):
     """점검일지 엑셀 파일."""
 

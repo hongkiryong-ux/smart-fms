@@ -77,7 +77,6 @@ from models import (
     Floor,
     HousingSubstationArchive,
     HousingSubstationDaily,
-    HousingSubstationMonthlyArchive,
     InspectionLogBuilding,
     InspectionLogBuilding2,
     InspectionLogFile,
@@ -8108,8 +8107,6 @@ async def housing_substation_page(
         compute_monthly_report,
         get_or_create_daily,
         is_housing_substation_building,
-        list_archives,
-        list_monthly_archives,
         load_schema,
     )
     from housing_substation import ensure_tables as ensure_housing_tables
@@ -8177,29 +8174,8 @@ async def housing_substation_page(
         monthly = compute_monthly_report(
             building_id, year, month, list(daily_rows), prev_month_row
         )
-        monthly_archives = await list_monthly_archives(db, building_id)
-        archives = []
         log_date = today
         daily_data = {}
-    elif tab == "monthly-archives":
-        year, month = today.year, today.month
-        monthly = {"sections": []}
-        monthly_archives = await list_monthly_archives(db, building_id)
-        archives = []
-        log_date = today
-        daily_data = {}
-    elif tab == "daily-archives":
-        year, month = today.year, today.month
-        monthly = {"sections": []}
-        monthly_archives = []
-        archives = await list_archives(db, building_id)
-        log_date = today
-        daily_data = {}
-    elif tab == "archives":
-        return RedirectResponse(
-            f"/admin/inspection-logs2/{building_id}/housing?tab=monthly-archives",
-            status_code=303,
-        )
     else:
         tab = "daily"
         raw_date = request.query_params.get("date")
@@ -8212,8 +8188,6 @@ async def housing_substation_page(
         daily_data = daily_row.data or {}
         year, month = log_date.year, log_date.month
         monthly = {"sections": []}
-        monthly_archives = []
-        archives = []
 
     return templates.TemplateResponse(
         request,
@@ -8230,8 +8204,6 @@ async def housing_substation_page(
             "month": month,
             "daily_data": daily_data,
             "monthly": monthly,
-            "archives": archives,
-            "monthly_archives": monthly_archives,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -8327,21 +8299,55 @@ async def housing_substation_close_day(
     )
 
 
-@app.get("/admin/inspection-logs2/{building_id}/housing/monthly-archive/{archive_id}/download")
-async def housing_substation_monthly_archive_download(
+@app.get("/admin/inspection-logs2/{building_id}/housing/export/daily")
+async def housing_substation_export_daily(
     building_id: int,
-    archive_id: int,
+    log_date: str = Query(...),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
 
-    arch = await db.get(HousingSubstationMonthlyArchive, archive_id)
-    if not arch or arch.building_id != building_id or not arch.file_data:
+    from housing_substation import export_daily_to_excel, get_or_create_daily, is_housing_substation_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_housing_substation_building(building):
         raise HTTPException(404)
-    fname = quote(arch.original_name or f"housing_monthly_{arch.year}_{arch.month:02d}.xlsx")
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"주택변전소_1일_{d.isoformat()}.xlsx")
     return StreamingResponse(
-        BytesIO(arch.file_data),
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/housing/export/monthly")
+async def housing_substation_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from housing_substation import export_monthly_to_excel, fetch_monthly_report_data, is_housing_substation_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_housing_substation_building(building):
+        raise HTTPException(404)
+    report = await fetch_monthly_report_data(db, building_id, year, month)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"주택변전소_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
