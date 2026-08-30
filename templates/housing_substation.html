@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}점검일지2 · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=1" />
+{% endblock %}
+{% block content %}
+<header class="page-header hs-page-header">
+  <div>
+    <h1>주택변전소 점검일지</h1>
+    <p>{{ building.name }} · 1일 입력 · 월보 자동 집계 · 일별 엑셀 저장</p>
+  </div>
+  <div class="hs-header-actions">
+    <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>
+  </div>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="hs-tabs" aria-label="점검일지2 탭">
+  <a href="?tab=daily&date={{ log_date.isoformat() }}" class="hs-tab{% if tab == 'daily' %} active{% endif %}">1일</a>
+  <a href="?tab=monthly&year={{ year }}&month={{ month }}" class="hs-tab{% if tab == 'monthly' %} active{% endif %}">월보</a>
+  <a href="?tab=archives" class="hs-tab{% if tab == 'archives' %} active{% endif %}">지난 일지(엑셀)</a>
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide hs-daily">
+  <form method="get" class="hs-date-nav inline-form">
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜
+      <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" />
+    </label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+  </form>
+  <p class="text-muted hs-hint">
+    검침 시간: 06·10·14·17·20·22시 · 전일 22:00 지침이 당일「전일지침」에 자동 반영됩니다.
+    매일 23:59(KST)에 전일 시트가 엑셀로 저장되고 새 날짜가 생성됩니다.
+  </p>
+
+  <form method="post" action="/admin/inspection-logs2/{{ building.id }}/housing/save" class="hs-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    {% for block in schema.daily_blocks %}
+    {% set bid = block.id %}
+    {% set bdata = daily_data.get(bid, {}) %}
+    {% set prev = bdata.get('prev', {}) %}
+    {% set times = bdata.get('times', {}) %}
+    <div class="hs-block">
+      <h2>{{ block.title }}</h2>
+
+      {% if block.meters %}
+      <div class="hs-prev-row">
+        <span class="hs-prev-label">전일지침 (자동)</span>
+        {% for m in block.meters %}
+        <label class="hs-prev-item">
+          <span>{{ m.name }} ({{ m.reading_col }})</span>
+          <input type="text"
+                 name="prev__{{ bid }}__{{ m.id }}"
+                 value="{{ prev.get(m.id, '') }}"
+                 readonly
+                 class="hs-readonly" />
+        </label>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="hs-table-wrap">
+        <table class="hs-grid">
+          <thead>
+            <tr>
+              <th class="hs-time-col">시간</th>
+              {% for col in block.input_columns %}
+              <th title="{{ col.group }}">{{ col.col }}<br /><small>{{ col.metric }}/{{ col.unit }}</small></th>
+              {% endfor %}
+              {% for m in block.meters %}
+              <th class="hs-cum-col" title="{{ m.name }}">{{ m.reading_col }}<br /><small>지침</small></th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in block.times %}
+            {% set cells = times.get(t, {}) %}
+            <tr>
+              <th>{{ t }}</th>
+              {% for col in block.input_columns %}
+              <td>
+                <input type="text"
+                       name="cell__{{ bid }}__{{ t }}__{{ col.col }}"
+                       value="{{ cells.get(col.col, '') }}"
+                       inputmode="decimal"
+                       class="hs-cell" />
+              </td>
+              {% endfor %}
+              {% for m in block.meters %}
+              <td>
+                <input type="text"
+                       name="cell__{{ bid }}__{{ t }}__{{ m.reading_col }}"
+                       value="{{ cells.get(m.reading_col, '') }}"
+                       inputmode="decimal"
+                       class="hs-cell hs-cum-input" />
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if user_can_edit(user) %}
+    <div class="hs-form-actions">
+      <button type="submit" class="btn btn-primary">저장</button>
+      <button type="submit"
+              formaction="/admin/inspection-logs2/{{ building.id }}/housing/close-day"
+              formmethod="post"
+              class="btn btn-secondary"
+              onclick="return confirm('{{ log_date.isoformat() }} 일지를 마감하고 엑셀로 저장할까요?\n(내일 일지가 준비됩니다)');">
+        이 날짜 마감 · 엑셀 저장
+      </button>
+    </div>
+    {% endif %}
+  </form>
+</section>
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide hs-monthly">
+  <form method="get" class="hs-date-nav inline-form">
+    <input type="hidden" name="tab" value="monthly" />
+    <label>연월
+      <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
+      <input type="number" name="month" value="{{ month }}" min="1" max="12" style="width:3rem" />
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  <p class="text-muted">1일 시트 22:00 지침·전류 최대값을 바탕으로 자동 계산 (사용량 = (22:00 지침 − 전일지침) × 배율)</p>
+
+  {% for sec in monthly.sections %}
+  <div class="hs-block">
+    <h2>{{ sec.title }}</h2>
+    <div class="hs-table-wrap">
+      <table class="hs-grid hs-month-grid">
+        <thead>
+          <tr>
+            <th>일</th>
+            {% for br in sec.days[0].breakers if sec.days else [] %}
+            <th colspan="3">{{ br.name }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            <th></th>
+            {% for br in sec.days[0].breakers if sec.days else [] %}
+            <th>지침</th><th>사용량</th><th>최대A</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in sec.days %}
+          <tr>
+            <th>{{ day.day }}일</th>
+            {% for br in day.breakers %}
+            <td>{{ br.reading }}</td>
+            <td>{{ br.usage }}</td>
+            <td>{{ br.max_a }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+{% else %}
+<section class="card card-wide hs-archives">
+  <h2>지난 1일 시트 (엑셀)</h2>
+  <p class="text-muted">날짜가 지난 1일 시트는 23:59 마감 시 또는「이 날짜 마감」시 엑셀로 저장됩니다.</p>
+  {% if archives %}
+  <table class="data-table">
+    <thead><tr><th>날짜</th><th>파일</th><th>크기</th><th></th></tr></thead>
+    <tbody>
+      {% for a in archives %}
+      <tr>
+        <td>{{ a.log_date }}</td>
+        <td>{{ a.original_name }}</td>
+        <td>{% if a.file_size %}{{ (a.file_size / 1024)|round(1) }} KB{% else %}-{% endif %}</td>
+        <td>
+          <a class="btn btn-sm btn-secondary"
+             href="/admin/inspection-logs2/{{ building.id }}/housing/archive/{{ a.id }}/download">다운로드</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">저장된 일지가 없습니다.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

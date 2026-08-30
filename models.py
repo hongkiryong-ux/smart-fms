@@ -17,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
     JSON,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -262,6 +263,45 @@ class InspectionLogBuilding2(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     building = relationship("Building")
+
+
+class HousingSubstationDaily(Base):
+    """주택변전소 1일 검침 (웹 입력)."""
+
+    __tablename__ = "housing_substation_daily"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_housing_sub_daily"),
+    )
+
+
+class HousingSubstationArchive(Base):
+    """주택변전소 1일 시트 엑셀 아카이브."""
+
+    __tablename__ = "housing_substation_archives"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    original_name = Column(String(300), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_housing_sub_archive"),
+    )
 
 
 class InspectionLogFile(Base):

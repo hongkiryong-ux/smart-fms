@@ -75,6 +75,8 @@ from models import (
     EquipmentTemplate,
     EquipmentType,
     Floor,
+    HousingSubstationArchive,
+    HousingSubstationDaily,
     InspectionLogBuilding,
     InspectionLogBuilding2,
     InspectionLogFile,
@@ -1077,6 +1079,9 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(1)
         try:
             await reschedule_daily_report_job(scheduler)
+            from housing_substation import register_scheduler as register_housing_scheduler
+
+            register_housing_scheduler(scheduler, AsyncSessionLocal, KST)
             scheduler.start()
         except Exception as e:
             print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
@@ -8045,6 +8050,13 @@ async def inspection_logs2_building_detail(
             status_code=303,
         )
     _, building = row
+    from housing_substation import is_housing_substation_building
+
+    if is_housing_substation_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/housing",
+            status_code=303,
+        )
     return templates.TemplateResponse(
         request,
         "inspection_log2_detail.html",
@@ -8054,6 +8066,238 @@ async def inspection_logs2_building_detail(
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
+    )
+
+
+def _parse_housing_daily_form(form) -> dict:
+    from housing_substation import empty_daily_payload
+
+    data = empty_daily_payload()
+    if hasattr(form, "multi_items"):
+        items = form.multi_items()
+    else:
+        items = form.items()
+    for key, val in items:
+        if not isinstance(key, str):
+            continue
+        raw = (val or "").strip() if isinstance(val, str) else str(val or "")
+        if key.startswith("cell__"):
+            parts = key.split("__", 3)
+            if len(parts) != 4:
+                continue
+            _, bid, t, col = parts
+            if bid in data:
+                data[bid]["times"].setdefault(t, {})
+                data[bid]["times"][t][col] = raw
+    return data
+
+
+@app.get("/admin/inspection-logs2/{building_id}/housing")
+async def housing_substation_page(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    import calendar
+
+    from housing_substation import (
+        compute_monthly_report,
+        get_or_create_daily,
+        is_housing_substation_building,
+        list_archives,
+        load_schema,
+    )
+    from housing_substation import ensure_tables as ensure_housing_tables
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_housing_tables(engine)
+    except Exception as e:
+        print(f"[housing_sub] ensure: {e}", flush=True)
+
+    row = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(
+                InspectionLogBuilding2.building_id == building_id,
+                Building.is_active == True,  # noqa: E712
+            )
+        )
+    ).first()
+    if not row:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    _, building = row
+    if not is_housing_substation_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}",
+            status_code=303,
+        )
+
+    tab = request.query_params.get("tab") or "daily"
+    today = _today_kst()
+    schema = load_schema()
+
+    if tab == "monthly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        last_day = calendar.monthrange(year, month)[1]
+        d_from = date(year, month, 1)
+        d_to = date(year, month, last_day)
+        daily_rows = (
+            await db.execute(
+                select(HousingSubstationDaily).where(
+                    HousingSubstationDaily.building_id == building_id,
+                    HousingSubstationDaily.log_date >= d_from,
+                    HousingSubstationDaily.log_date <= d_to,
+                )
+            )
+        ).scalars().all()
+        monthly = compute_monthly_report(building_id, year, month, list(daily_rows))
+        archives = []
+        log_date = today
+        daily_data = {}
+    elif tab == "archives":
+        year, month = today.year, today.month
+        monthly = {"sections": []}
+        archives = await list_archives(db, building_id)
+        log_date = today
+        daily_data = {}
+    else:
+        tab = "daily"
+        raw_date = request.query_params.get("date")
+        try:
+            log_date = date.fromisoformat(raw_date) if raw_date else today
+        except ValueError:
+            log_date = today
+        daily_row = await get_or_create_daily(db, building_id, log_date)
+        await db.commit()
+        daily_data = daily_row.data or {}
+        year, month = log_date.year, log_date.month
+        monthly = {"sections": []}
+        archives = []
+
+    return templates.TemplateResponse(
+        request,
+        "housing_substation.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": schema,
+            "tab": tab,
+            "log_date": log_date,
+            "today": today,
+            "year": year,
+            "month": month,
+            "daily_data": daily_data,
+            "monthly": monthly,
+            "archives": archives,
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/housing/save")
+async def housing_substation_save(
+    building_id: int,
+    request: Request,
+    log_date: str = Form(...),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from housing_substation import get_or_create_daily, is_housing_substation_building, merge_daily_save
+
+    building = await db.get(Building, building_id)
+    if not building or not is_housing_substation_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/housing?error={quote('날짜 형식 오류')}",
+            status_code=303,
+        )
+    form = await request.form()
+    posted = _parse_housing_daily_form(form)
+    row = await get_or_create_daily(db, building_id, d)
+    row.data = merge_daily_save(row.data or {}, posted)
+    row.updated_at = datetime.utcnow()
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={d.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/housing/close-day")
+async def housing_substation_close_day(
+    building_id: int,
+    request: Request,
+    log_date: str = Form(...),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from housing_substation import (
+        archive_daily_excel,
+        get_or_create_daily,
+        is_housing_substation_building,
+        merge_daily_save,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_housing_substation_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/housing?error={quote('날짜 형식 오류')}",
+            status_code=303,
+        )
+    form = await request.form()
+    posted = _parse_housing_daily_form(form)
+    row = await get_or_create_daily(db, building_id, d)
+    row.data = merge_daily_save(row.data or {}, posted)
+    await archive_daily_excel(db, building_id, d)
+    tomorrow = d + timedelta(days=1)
+    await get_or_create_daily(db, building_id, tomorrow)
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={tomorrow.isoformat()}&message={quote('마감·엑셀 저장 완료. 다음 날짜가 열렸습니다.')}",
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/housing/archive/{archive_id}/download")
+async def housing_substation_archive_download(
+    building_id: int,
+    archive_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    arch = await db.get(HousingSubstationArchive, archive_id)
+    if not arch or arch.building_id != building_id or not arch.file_data:
+        raise HTTPException(404)
+    fname = quote(arch.original_name or f"housing_{arch.log_date}.xlsx")
+    return StreamingResponse(
+        BytesIO(arch.file_data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
 
 

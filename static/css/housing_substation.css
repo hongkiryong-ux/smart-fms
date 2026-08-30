@@ -1,0 +1,164 @@
+/* 주택변전소 점검일지2 웹 양식 */
+.hs-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.hs-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.hs-tab {
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #d8dee8);
+  text-decoration: none;
+  color: var(--text, #333);
+  font-size: 0.95rem;
+}
+
+.hs-tab.active {
+  background: var(--primary, #003876);
+  color: #fff;
+  border-color: var(--primary, #003876);
+}
+
+.hs-hint {
+  margin: 0.75rem 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+.hs-block {
+  margin-bottom: 2rem;
+}
+
+.hs-block h2 {
+  font-size: 1.05rem;
+  color: var(--primary, #003876);
+  margin-bottom: 0.75rem;
+}
+
+.hs-prev-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  background: #f6f8fb;
+  border-radius: 6px;
+  align-items: flex-end;
+}
+
+.hs-prev-label {
+  font-weight: 600;
+  width: 100%;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.hs-prev-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  min-width: 120px;
+}
+
+.hs-prev-item input {
+  width: 100%;
+  max-width: 140px;
+}
+
+.hs-readonly {
+  background: #eef1f5 !important;
+  color: #444;
+}
+
+.hs-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 6px;
+}
+
+.hs-grid {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 0.82rem;
+}
+
+.hs-grid th,
+.hs-grid td {
+  border: 1px solid #dde3ea;
+  padding: 0.25rem;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.hs-grid thead th {
+  background: #003876;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hs-grid thead th small {
+  font-weight: 400;
+  opacity: 0.9;
+}
+
+.hs-time-col {
+  min-width: 3.5rem;
+  background: #004a8f !important;
+}
+
+.hs-cell {
+  width: 4.2rem;
+  max-width: 5rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.82rem;
+  border: 1px solid #c5ced8;
+  border-radius: 3px;
+}
+
+.hs-cum-col {
+  background: #005a9e !important;
+}
+
+.hs-cum-input {
+  background: #f0f7ff;
+}
+
+.hs-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border, #d8dee8);
+}
+
+.hs-month-grid td,
+.hs-month-grid th {
+  min-width: 3.5rem;
+}
+
+.hs-date-nav {
+  margin-bottom: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .hs-cell {
+    width: 3.5rem;
+    font-size: 0.75rem;
+  }
+}
