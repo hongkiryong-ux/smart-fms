@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/housing_substation.css?v=4" />
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=5" />
 {% endblock %}
 {% block content %}
 <header class="page-header hs-page-header">
@@ -36,10 +36,10 @@
     </a>
   </form>
   <p class="text-muted hs-hint">
-    엑셀 양식과 동일한 표 · 노란 칸 = 전일지침(전날 22:00 자동) · 23:59(KST) 일별 마감
+    엑셀 양식과 동일한 표 · 노란 칸 = 전일지침(전날 22:00 자동) · 입력 시 자동 저장 · 23:59(KST) 일별 마감
   </p>
 
-  <form method="post" action="/admin/inspection-logs2/{{ building.id }}/housing/save" class="hs-daily-form">
+  <form method="post" action="/admin/inspection-logs2/{{ building.id }}/housing/save" class="hs-daily-form" id="hs-daily-form">
     <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
 
     {% for block in schema.daily_blocks %}
@@ -122,7 +122,7 @@
 
     {% if user_can_edit(user) %}
     <div class="hs-form-actions">
-      <button type="submit" class="btn btn-primary">저장</button>
+      <span id="hs-save-status" class="hs-save-status" aria-live="polite">자동 저장</span>
       <button type="submit"
               formaction="/admin/inspection-logs2/{{ building.id }}/housing/close-day"
               formmethod="post"
@@ -134,6 +134,9 @@
     {% endif %}
   </form>
 </section>
+{% if user_can_edit(user) %}
+<script src="/static/js/housing_substation.js?v=1"></script>
+{% endif %}
 
 {% else %}
 <section class="card card-wide hs-monthly">

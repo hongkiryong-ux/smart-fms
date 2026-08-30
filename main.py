@@ -8247,6 +8247,8 @@ async def housing_substation_save(
     await propagate_prev_to_next_day(db, building_id, d, row.data)
     row.updated_at = datetime.utcnow()
     await db.commit()
+    if request.headers.get("X-HS-Autosave") == "1":
+        return JSONResponse({"ok": True, "log_date": d.isoformat()})
     return RedirectResponse(
         f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={d.isoformat()}&message={quote('저장되었습니다.')}",
         status_code=303,
