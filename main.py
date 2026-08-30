@@ -76,6 +76,7 @@ from models import (
     EquipmentType,
     Floor,
     InspectionLogBuilding,
+    InspectionLogBuilding2,
     InspectionLogFile,
     MaintenanceRecord,
     MaterialItem,
@@ -7847,6 +7848,212 @@ async def inspection_logs_remove_building(
     return RedirectResponse(
         "/admin/inspection-logs?message=" + quote("건물 등록이 해제되었습니다."),
         status_code=303,
+    )
+
+
+# ── 점검일지2 ─────────────────────────────────────────────────────────
+
+_ilog2_schema_ready = False
+
+
+async def _ensure_inspection_log2_tables() -> None:
+    global _ilog2_schema_ready
+    if _ilog2_schema_ready:
+        return
+    from sqlalchemy import text
+
+    url = (os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_INTERNAL_URL") or "").lower()
+    is_pg = "postgresql" in url or "postgres" in url
+    async with engine.begin() as conn:
+        if is_pg:
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS inspection_log_buildings2 (
+                        id SERIAL PRIMARY KEY,
+                        building_id INTEGER NOT NULL UNIQUE REFERENCES buildings(id),
+                        created_at TIMESTAMP WITHOUT TIME ZONE
+                    )
+                    """
+                )
+            )
+        else:
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS inspection_log_buildings2 (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        building_id INTEGER NOT NULL UNIQUE,
+                        created_at DATETIME
+                    )
+                    """
+                )
+            )
+    _ilog2_schema_ready = True
+
+
+@app.get("/admin/inspection-logs2")
+async def inspection_logs2_page(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        await _ensure_inspection_log2_tables()
+    except Exception as e:
+        print(f"[inspection_logs2] ensure tables: {e}", flush=True)
+
+    selected_rows = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(Building.is_active == True)  # noqa: E712
+            .options(selectinload(Building.site))
+            .order_by(InspectionLogBuilding2.id.desc())
+        )
+    ).all()
+    selected_buildings = _sort_buildings([b for _, b in selected_rows])
+    selected_ids = {b.id for b in selected_buildings}
+
+    all_buildings = _sort_buildings(
+        list(
+            (
+                await db.execute(
+                    select(Building)
+                    .where(Building.is_active == True)  # noqa: E712
+                    .options(selectinload(Building.site))
+                )
+            ).scalars().all()
+        )
+    )
+    available_buildings = [b for b in all_buildings if b.id not in selected_ids]
+    building_groups = group_buildings_by_site(selected_buildings)
+
+    return templates.TemplateResponse(
+        request,
+        "inspection_logs2.html",
+        {
+            "user": user,
+            "selected_buildings": selected_buildings,
+            "building_groups": building_groups,
+            "available_buildings": available_buildings,
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/buildings")
+async def inspection_logs2_add_building(
+    building_id: int = Form(...),
+    user: User = Depends(require_can_create),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from auth import invalidate_nav_cache
+
+    try:
+        await _ensure_inspection_log2_tables()
+    except Exception:
+        pass
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("건물을 찾을 수 없습니다."),
+            status_code=303,
+        )
+    exists = (
+        await db.execute(
+            select(InspectionLogBuilding2).where(
+                InspectionLogBuilding2.building_id == building_id
+            )
+        )
+    ).scalar_one_or_none()
+    if exists:
+        return RedirectResponse(
+            "/admin/inspection-logs2?message=" + quote("이미 등록된 건물입니다."),
+            status_code=303,
+        )
+    db.add(InspectionLogBuilding2(building_id=building_id))
+    await db.commit()
+    invalidate_nav_cache()
+    return RedirectResponse(
+        "/admin/inspection-logs2?message="
+        + quote(f"「{building.name}」 건물이 추가되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs2/buildings/{building_id}/remove")
+async def inspection_logs2_remove_building(
+    building_id: int,
+    user: User = Depends(require_can_delete),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from auth import invalidate_nav_cache
+
+    row = (
+        await db.execute(
+            select(InspectionLogBuilding2).where(
+                InspectionLogBuilding2.building_id == building_id
+            )
+        )
+    ).scalar_one_or_none()
+    if row:
+        await db.delete(row)
+        await db.commit()
+        invalidate_nav_cache()
+    return RedirectResponse(
+        "/admin/inspection-logs2?message=" + quote("건물 등록이 해제되었습니다."),
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}")
+async def inspection_logs2_building_detail(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    try:
+        await _ensure_inspection_log2_tables()
+    except Exception:
+        pass
+
+    row = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(
+                InspectionLogBuilding2.building_id == building_id,
+                Building.is_active == True,  # noqa: E712
+            )
+            .options(selectinload(Building.site))
+        )
+    ).first()
+    if not row:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error="
+            + quote("등록되지 않은 건물이거나 건물을 찾을 수 없습니다."),
+            status_code=303,
+        )
+    _, building = row
+    return templates.TemplateResponse(
+        request,
+        "inspection_log2_detail.html",
+        {
+            "user": user,
+            "building": building,
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
     )
 
 

@@ -13,7 +13,8 @@
   {% set is_popup = request.query_params.get('popup') == '1' or qr_mode|default(false) %}
   {% if user and not is_popup %}
   {% set eq_path = '/equipment' in request.url.path %}
-  {% set ilog_path = '/inspection-logs' in request.url.path %}
+  {% set ilog_path = '/inspection-logs' in request.url.path and '/inspection-logs2' not in request.url.path %}
+  {% set ilog2_path = '/inspection-logs2' in request.url.path %}
   {% set d1_path = request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path or request.url.path.startswith('/admin/d1') %}
   {% set wo_path = '/work-orders' in request.url.path %}
   {% set fac_path = '/facility-section' in request.url.path %}
@@ -32,6 +33,8 @@
   {% set nav_pid = request.query_params.get('partner_id') %}
   {% set ilog_path_parts = request.url.path.split('/') %}
   {% set ilog_bid = ilog_path_parts[3] if ilog_path and ilog_path_parts|length > 3 and ilog_path_parts[3].isdigit() else none %}
+  {% set ilog2_path_parts = request.url.path.split('/') %}
+  {% set ilog2_bid = ilog2_path_parts[3] if ilog2_path and ilog2_path_parts|length > 3 and ilog2_path_parts[3].isdigit() else none %}
   <header class="mobile-topbar" aria-label="모바일 상단">
     <button type="button" class="mobile-nav-btn" id="nav-open-btn" aria-controls="app-sidebar" aria-expanded="false" title="메뉴 열기">
       <span aria-hidden="true">☰</span>
@@ -121,6 +124,32 @@
           <li>
             <a href="/admin/inspection-logs/{{ b.id }}"
                class="{% if ilog_bid == b.id|string %}active{% endif %}"
+               title="{{ b.name }}">{{ b.name }}</a>
+          </li>
+          {% else %}
+          <li class="nav-sub-empty">등록된 건물 없음</li>
+          {% endfor %}
+        </ul>
+      </li>
+      {% endif %}
+      {% if user_can_access_menu(user, 'inspection_logs2') %}
+      <li class="nav-expandable nav-pc-only{% if ilog2_path %} is-open{% endif %}" id="nav-inspection-logs2">
+        <div class="nav-parent-row">
+          <a href="/admin/inspection-logs2"
+             class="nav-parent-link{% if ilog2_path and not ilog2_bid %} active{% endif %}">점검일지2</a>
+          <button type="button"
+                  class="nav-toggle"
+                  aria-expanded="{% if ilog2_path %}true{% else %}false{% endif %}"
+                  aria-controls="nav-inspection-logs2-sub"
+                  title="등록 건물 펼치기">
+            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <ul class="nav-sub" id="nav-inspection-logs2-sub">
+          {% for b in request.state.nav_inspection_log2_buildings or [] %}
+          <li>
+            <a href="/admin/inspection-logs2/{{ b.id }}"
+               class="{% if ilog2_bid == b.id|string %}active{% endif %}"
                title="{{ b.name }}">{{ b.name }}</a>
           </li>
           {% else %}
@@ -295,6 +324,7 @@
     }
     bindNavExpandable('nav-equipment', 'nav-eq-open');
     bindNavExpandable('nav-inspection-logs', 'nav-ilog-open');
+    bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open');
     bindNavExpandable('nav-maintenance', 'nav-maint-open', { mobileToggleOnly: true });
     bindNavExpandable('nav-d1', 'nav-d1-open');
     bindNavExpandable('nav-streetlamp', 'nav-streetlamp-open');

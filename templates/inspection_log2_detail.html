@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}점검일지2 · {{ building.name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>점검일지2 · {{ building.name }}</h1>
+  <p>{{ building.code }} · 추가 기능은 준비 중입니다.</p>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<section class="card card-wide">
+  <p class="text-muted">이 건물의 점검일지2 상세 기능은 이후에 추가될 예정입니다.</p>
+</section>
+
+<p><a href="/admin/inspection-logs2">&larr; 점검일지2 건물 목록</a></p>
+{% endblock %}

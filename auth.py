@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import AsyncSessionLocal
-from models import Building, InspectionLogBuilding, Partner, User, UserRole
+from models import Building, InspectionLogBuilding, InspectionLogBuilding2, Partner, User, UserRole
 
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PW = os.environ.get("ADMIN_PW", "password123")
@@ -117,6 +117,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("equipment", "설비관리"),
     ("pm", "점검(PM)"),
     ("inspection_logs", "점검일지"),
+    ("inspection_logs2", "점검일지2"),
     ("work_orders", "정비접수/승인(정비섹션)"),
     ("d1", "정비 List(D-1)/협력사"),
     ("facility_section", "작업허가/승인(시설섹션)"),
@@ -140,6 +141,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/sites", "sites"),
     ("/admin/buildings", "sites"),
     ("/admin/equipment", "equipment"),
+    ("/admin/inspection-logs2", "inspection_logs2"),
     ("/admin/inspection-logs", "inspection_logs"),
     ("/admin/pm", "pm"),
     ("/admin/work-orders", "work_orders"),
@@ -161,6 +163,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("equipment", "/admin/equipment"),
     ("pm", "/admin/pm"),
     ("inspection_logs", "/admin/inspection-logs"),
+    ("inspection_logs2", "/admin/inspection-logs2"),
     ("work_orders", "/admin/work-orders"),
     ("d1", "/admin/d1"),
     ("facility_section", "/admin/facility-section"),
@@ -180,7 +183,7 @@ def default_menu_access(role: UserRole) -> list[str]:
         return list(MENU_KEYS)
     denied = {"users", "server"}
     if role in (UserRole.partner, UserRole.external):
-        denied |= {"equipment", "pm", "inspection_logs", "facility_section", "streetlamp"}
+        denied |= {"equipment", "pm", "inspection_logs", "inspection_logs2", "facility_section", "streetlamp"}
     return [k for k in MENU_KEYS if k not in denied]
 
 
@@ -276,8 +279,14 @@ _nav_cache: dict = {
     "building_groups": [],
     "buildings": [],
     "inspection_log_buildings": [],
+    "inspection_log2_buildings": [],
     "partners": [],
 }
+
+
+def invalidate_nav_cache() -> None:
+    """사이드바 건물 목록 등 네비 캐시 즉시 갱신."""
+    _nav_cache["at"] = 0.0
 
 
 async def _load_nav_state(db: AsyncSession) -> dict:
@@ -288,6 +297,7 @@ async def _load_nav_state(db: AsyncSession) -> dict:
     building_groups: list[dict] = []
     buildings: list = []
     inspection_log_buildings: list[dict] = []
+    inspection_log2_buildings: list[dict] = []
     partners: list[dict] = []
     try:
         rows = (
@@ -326,6 +336,30 @@ async def _load_nav_state(db: AsyncSession) -> dict:
     except Exception:
         pass
     try:
+        log2_rows = (
+            await db.execute(
+                select(InspectionLogBuilding2, Building)
+                .join(Building, Building.id == InspectionLogBuilding2.building_id)
+                .where(Building.is_active == True)  # noqa: E712
+                .options(selectinload(Building.site))
+            )
+        ).all()
+        log2_buildings = [b for _, b in log2_rows]
+        inspection_log2_buildings = [
+            {
+                "id": b.id,
+                "name": b.name or "",
+                "code": getattr(b, "code", "") or "",
+                "site_name": (b.site.name if b.site else "") or "",
+            }
+            for b in sorted(
+                log2_buildings,
+                key=lambda x: nav_building_sort_key(getattr(x, "name", None)),
+            )
+        ]
+    except Exception:
+        pass
+    try:
         partner_rows = (
             await db.execute(
                 select(Partner)
@@ -345,6 +379,7 @@ async def _load_nav_state(db: AsyncSession) -> dict:
             "building_groups": building_groups,
             "buildings": buildings,
             "inspection_log_buildings": inspection_log_buildings,
+            "inspection_log2_buildings": inspection_log2_buildings,
             "partners": partners,
         }
     )
@@ -389,6 +424,7 @@ def apply_nav_state(request: Request, nav: dict) -> None:
     request.state.nav_building_groups = nav.get("building_groups") or []
     request.state.nav_buildings = nav.get("buildings") or []
     request.state.nav_inspection_log_buildings = nav.get("inspection_log_buildings") or []
+    request.state.nav_inspection_log2_buildings = nav.get("inspection_log2_buildings") or []
     request.state.nav_partners = nav.get("partners") or []
 
 

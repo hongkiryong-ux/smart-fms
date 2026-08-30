@@ -250,6 +250,20 @@ class InspectionLogBuilding(Base):
     building = relationship("Building")
 
 
+class InspectionLogBuilding2(Base):
+    """점검일지2에 등록된 건물."""
+
+    __tablename__ = "inspection_log_buildings2"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(
+        Integer, ForeignKey("buildings.id"), nullable=False, unique=True, index=True
+    )
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building")
+
+
 class InspectionLogFile(Base):
     """점검일지 엑셀 파일."""
 

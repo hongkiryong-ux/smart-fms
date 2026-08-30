@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}점검일지2{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>점검일지2</h1>
+  <p>건물을 추가한 뒤, 건물을 클릭해 점검일지2를 관리합니다.</p>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<section class="card card-wide">
+  <h2>건물 추가</h2>
+  {% if available_buildings %}
+  <form method="post" action="/admin/inspection-logs2/buildings" class="ilog-add-form">
+    <label>
+      <span>건물 선택</span>
+      <select name="building_id" required>
+        <option value="">선택하세요</option>
+        {% for b in available_buildings %}
+        <option value="{{ b.id }}">
+          {% if b.site %}{{ b.site.name }} / {% endif %}{{ b.name }} ({{ b.code }})
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if user_can_create(user) %}
+    <button type="submit" class="btn btn-primary">추가</button>
+    {% endif %}
+  </form>
+  {% else %}
+  <p class="text-muted">추가할 수 있는 건물이 없습니다. 모든 활성 건물이 이미 등록되었거나 건물이 없습니다.</p>
+  {% endif %}
+</section>
+
+<section class="card card-wide">
+  <h2>등록된 건물 <small class="text-muted">({{ selected_buildings|length }})</small></h2>
+  {% if building_groups %}
+  <div class="eq-site-building-list">
+    {% for g in building_groups %}
+    <section class="eq-site-group">
+      <h3 class="eq-site-group-title">{{ g.site_name }}</h3>
+      <div class="eq-building-grid">
+        {% for b in g.buildings %}
+        <div class="ilog-building-card eq-building-palette-{{ (loop.index0 % 12) + 1 }}">
+          <a class="ilog-building-link" href="/admin/inspection-logs2/{{ b.id }}">
+            <strong>{{ b.name }}</strong>
+            <span class="eq-building-code">{{ b.code }}</span>
+          </a>
+          {% if user_can_delete(user) %}
+          <form method="post"
+                action="/admin/inspection-logs2/buildings/{{ b.id }}/remove"
+                class="ilog-remove-form"
+                onsubmit="return confirm('「{{ b.name }}」 등록을 해제할까요?');">
+            <button type="submit" class="btn btn-sm btn-danger">해제</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">등록된 건물이 없습니다. 위에서 건물을 추가하세요.</p>
+  {% endif %}
+</section>
+{% endblock %}
