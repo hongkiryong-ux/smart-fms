@@ -158,28 +158,6 @@ async def get_daily_row(
     ).scalar_one_or_none()
 
 
-async def get_or_create_daily(
-    session: AsyncSession, building_id: int, log_date: date
-) -> HousingSubstationDaily:
-    row = await get_daily_row(session, building_id, log_date)
-    if row:
-        return row
-    prev_vals = await _prev_day_readings(session, building_id, log_date)
-    data = empty_daily_payload()
-    for bid, meters in prev_vals.items():
-        if bid in data:
-            for mid, val in meters.items():
-                data[bid]["prev"][mid] = val
-    row = HousingSubstationDaily(
-        building_id=building_id,
-        log_date=log_date,
-        data=data,
-    )
-    session.add(row)
-    await session.flush()
-    return row
-
-
 async def _prev_day_readings(
     session: AsyncSession, building_id: int, log_date: date
 ) -> dict[str, dict[str, Any]]:
@@ -188,11 +166,16 @@ async def _prev_day_readings(
     row = await get_daily_row(session, building_id, prev_date)
     if not row or not row.data:
         return {}
+    return prev_readings_from_daily_data(row.data)
+
+
+def prev_readings_from_daily_data(source_data: dict) -> dict[str, dict[str, Any]]:
+    """저장된 1일 데이터에서 블록별 전일(22:00) 지침 추출."""
     schema = load_schema()
     out: dict[str, dict[str, Any]] = {}
     for block in schema["daily_blocks"]:
         bid = block["id"]
-        block_data = (row.data or {}).get(bid) or {}
+        block_data = (source_data or {}).get(bid) or {}
         times = block_data.get("times") or {}
         t2200 = times.get("22:00") or {}
         prev: dict[str, Any] = {}
@@ -202,6 +185,67 @@ async def _prev_day_readings(
             prev[m["id"]] = val
         out[bid] = prev
     return out
+
+
+def apply_prev_readings(data: dict, prev_vals: dict[str, dict[str, Any]]) -> bool:
+    """전일 22:00 지침을 prev에 반영. 변경 여부 반환."""
+    if not prev_vals:
+        return False
+    changed = False
+    for bid, meters in prev_vals.items():
+        if bid not in data:
+            continue
+        data[bid].setdefault("prev", {})
+        for mid, val in meters.items():
+            if data[bid]["prev"].get(mid) != val:
+                data[bid]["prev"][mid] = val
+                changed = True
+    return changed
+
+
+async def sync_daily_prev(
+    session: AsyncSession, building_id: int, log_date: date, data: dict
+) -> tuple[dict, bool]:
+    """스키마 키 보정 후 전일 22:00 지침으로 prev 동기화."""
+    merged = merge_daily_save(empty_daily_payload(), data)
+    prev_vals = await _prev_day_readings(session, building_id, log_date)
+    changed = apply_prev_readings(merged, prev_vals)
+    return merged, changed
+
+
+async def propagate_prev_to_next_day(
+    session: AsyncSession, building_id: int, log_date: date, saved_data: dict
+) -> None:
+    """당일 22:00 저장 내용을 다음 날 prev에 반영."""
+    next_date = log_date + timedelta(days=1)
+    next_row = await get_daily_row(session, building_id, next_date)
+    if not next_row:
+        return
+    prev_vals = prev_readings_from_daily_data(saved_data)
+    next_data = merge_daily_save(empty_daily_payload(), next_row.data or {})
+    if apply_prev_readings(next_data, prev_vals):
+        next_row.data = next_data
+
+
+async def get_or_create_daily(
+    session: AsyncSession, building_id: int, log_date: date
+) -> HousingSubstationDaily:
+    row = await get_daily_row(session, building_id, log_date)
+    if row:
+        synced, changed = await sync_daily_prev(session, building_id, log_date, row.data or {})
+        if changed:
+            row.data = synced
+            await session.flush()
+        return row
+    synced, _ = await sync_daily_prev(session, building_id, log_date, empty_daily_payload())
+    row = HousingSubstationDaily(
+        building_id=building_id,
+        log_date=log_date,
+        data=synced,
+    )
+    session.add(row)
+    await session.flush()
+    return row
 
 
 def merge_daily_save(existing: dict, posted: dict) -> dict:

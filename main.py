@@ -8230,7 +8230,13 @@ async def housing_substation_save(
 ):
     from urllib.parse import quote
 
-    from housing_substation import get_or_create_daily, is_housing_substation_building, merge_daily_save
+    from housing_substation import (
+        get_or_create_daily,
+        is_housing_substation_building,
+        merge_daily_save,
+        propagate_prev_to_next_day,
+        sync_daily_prev,
+    )
 
     building = await db.get(Building, building_id)
     if not building or not is_housing_substation_building(building):
@@ -8246,6 +8252,9 @@ async def housing_substation_save(
     posted = _parse_housing_daily_form(form)
     row = await get_or_create_daily(db, building_id, d)
     row.data = merge_daily_save(row.data or {}, posted)
+    synced, _ = await sync_daily_prev(db, building_id, d, row.data)
+    row.data = synced
+    await propagate_prev_to_next_day(db, building_id, d, row.data)
     row.updated_at = datetime.utcnow()
     await db.commit()
     return RedirectResponse(
@@ -8269,6 +8278,8 @@ async def housing_substation_close_day(
         get_or_create_daily,
         is_housing_substation_building,
         merge_daily_save,
+        propagate_prev_to_next_day,
+        sync_daily_prev,
     )
 
     building = await db.get(Building, building_id)
@@ -8285,8 +8296,11 @@ async def housing_substation_close_day(
     posted = _parse_housing_daily_form(form)
     row = await get_or_create_daily(db, building_id, d)
     row.data = merge_daily_save(row.data or {}, posted)
+    synced, _ = await sync_daily_prev(db, building_id, d, row.data)
+    row.data = synced
     await archive_daily_excel(db, building_id, d)
     tomorrow = d + timedelta(days=1)
+    await propagate_prev_to_next_day(db, building_id, d, row.data)
     await get_or_create_daily(db, building_id, tomorrow)
     await db.commit()
     return RedirectResponse(
