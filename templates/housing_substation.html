@@ -143,15 +143,19 @@
         <thead>
           <tr>
             <th>일</th>
-            {% for br in sec.days[0].breakers if sec.days else [] %}
+            {% if sec.days %}
+            {% for br in sec.days[0].breakers %}
             <th colspan="3">{{ br.name }}</th>
             {% endfor %}
+            {% endif %}
           </tr>
           <tr>
             <th></th>
-            {% for br in sec.days[0].breakers if sec.days else [] %}
+            {% if sec.days %}
+            {% for br in sec.days[0].breakers %}
             <th>지침</th><th>사용량</th><th>최대A</th>
             {% endfor %}
+            {% endif %}
           </tr>
         </thead>
         <tbody>
