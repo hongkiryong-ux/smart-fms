@@ -30,6 +30,63 @@ def load_schema() -> dict:
     return _schema_cache
 
 
+def build_daily_block_layout(block: dict) -> dict:
+    """엑셀 1일 시트와 동일한 다단 헤더·열 순서."""
+    from openpyxl.utils import column_index_from_string as col_idx
+
+    roman = {"no1": "Ⅰ", "no2": "Ⅱ", "no3": "Ⅲ"}
+    bid = block.get("id", "")
+    sheet_title = f"주택변전소 운전일지[{roman.get(bid, bid)}]"
+
+    all_cols: list[dict[str, Any]] = []
+    for c in block.get("input_columns") or []:
+        all_cols.append(
+            {
+                "sort": col_idx(c["col"]),
+                "col": c["col"],
+                "kind": "input",
+                "group": (c.get("group") or "").strip(),
+                "metric": c.get("metric") or "",
+                "unit": c.get("unit") or "",
+                "range": c.get("range") or "",
+            }
+        )
+    for m in block.get("meters") or []:
+        mult = m.get("multiplier") or 4800
+        all_cols.append(
+            {
+                "sort": col_idx(m["reading_col"]),
+                "col": m["reading_col"],
+                "kind": "cumulative",
+                "group": (m.get("name") or "").strip(),
+                "meter_id": m["id"],
+                "metric": f"적산량×{mult}",
+                "unit": "전일 지침",
+                "range": "",
+            }
+        )
+    all_cols.sort(key=lambda x: x["sort"])
+
+    sections: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for col in all_cols:
+        g = col.get("group") or ""
+        if current is None or current["name"] != g:
+            if current:
+                sections.append(current)
+            current = {"name": g, "columns": []}
+        current["columns"].append(col)
+    if current:
+        sections.append(current)
+
+    return {"title": sheet_title, "sections": sections, "times": block.get("times") or []}
+
+
+def build_all_daily_layouts(schema: dict | None = None) -> dict[str, dict]:
+    schema = schema or load_schema()
+    return {b["id"]: build_daily_block_layout(b) for b in schema.get("daily_blocks") or []}
+
+
 def is_housing_substation_building(building: Building | None) -> bool:
     if not building:
         return False

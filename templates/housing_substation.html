@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/housing_substation.css?v=1" />
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=2" />
 {% endblock %}
 {% block content %}
 <header class="page-header hs-page-header">
@@ -33,8 +33,7 @@
     <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
   </form>
   <p class="text-muted hs-hint">
-    검침 시간: 06·10·14·17·20·22시 · 전일 22:00 지침이 당일「전일지침」에 자동 반영됩니다.
-    매일 23:59(KST)에 전일 시트가 엑셀로 저장되고 새 날짜가 생성됩니다.
+    엑셀 양식과 동일한 표 · 노란 칸 = 전일지침(전날 22:00 자동) · 23:59(KST) 일별 마감
   </p>
 
   <form method="post" action="/admin/inspection-logs2/{{ building.id }}/housing/save" class="hs-daily-form">
@@ -42,38 +41,59 @@
 
     {% for block in schema.daily_blocks %}
     {% set bid = block.id %}
+    {% set layout = daily_layouts.get(bid, {}) %}
     {% set bdata = daily_data.get(bid, {}) %}
     {% set prev = bdata.get('prev', {}) %}
     {% set times = bdata.get('times', {}) %}
-    <div class="hs-block">
-      <h2>{{ block.title }}</h2>
-
-      {% if block.meters %}
-      <div class="hs-prev-row">
-        <span class="hs-prev-label">전일지침 (자동)</span>
-        {% for m in block.meters %}
-        <label class="hs-prev-item">
-          <span>{{ m.name }} ({{ m.reading_col }})</span>
-          <input type="text"
-                 name="prev__{{ bid }}__{{ m.id }}"
-                 value="{{ prev.get(m.id, '') }}"
-                 readonly
-                 class="hs-readonly" />
-        </label>
-        {% endfor %}
-      </div>
-      {% endif %}
-
+    <div class="hs-sheet">
+      <div class="hs-sheet-title">{{ layout.title or block.title }}</div>
       <div class="hs-table-wrap">
-        <table class="hs-grid">
+        <table class="hs-excel">
           <thead>
+            {# 1행: 구분 + 설비 구역명 #}
             <tr>
-              <th class="hs-time-col">시간</th>
-              {% for col in block.input_columns %}
-              <th title="{{ col.group }}">{{ col.col }}<br /><small>{{ col.metric }}/{{ col.unit }}</small></th>
+              <th class="hs-corner" rowspan="4">구분</th>
+              {% for sec in layout.sections %}
+              <th class="hs-group-head" colspan="{{ sec.columns|length }}">{{ sec.name }}</th>
               {% endfor %}
-              {% for m in block.meters %}
-              <th class="hs-cum-col" title="{{ m.name }}">{{ m.reading_col }}<br /><small>지침</small></th>
+            </tr>
+            {# 2행: 항목(전압·유효·적산량…) #}
+            <tr>
+              {% for sec in layout.sections %}
+              {% for col in sec.columns %}
+              <th class="hs-metric">{{ col.metric }}</th>
+              {% endfor %}
+              {% endfor %}
+            </tr>
+            {# 3행: 단위 · 적산 열은「전일 지침」 #}
+            <tr>
+              {% for sec in layout.sections %}
+              {% for col in sec.columns %}
+              {% if col.kind == 'cumulative' %}
+              <th class="hs-unit hs-yellow-head">전일 지침</th>
+              {% else %}
+              <th class="hs-unit">{{ col.unit }}</th>
+              {% endif %}
+              {% endfor %}
+              {% endfor %}
+            </tr>
+            {# 4행: 범위 · 적산 열 = 노란 전일지침 입력 #}
+            <tr>
+              {% for sec in layout.sections %}
+              {% for col in sec.columns %}
+              {% if col.kind == 'cumulative' %}
+              <td class="hs-yellow-cell">
+                <input type="text"
+                       name="prev__{{ bid }}__{{ col.meter_id }}"
+                       value="{{ prev.get(col.meter_id, '') }}"
+                       readonly
+                       class="hs-prev-input"
+                       title="전일 22:00 지침 (자동)" />
+              </td>
+              {% else %}
+              <td class="hs-range">{{ col.range }}</td>
+              {% endif %}
+              {% endfor %}
               {% endfor %}
             </tr>
           </thead>
@@ -81,24 +101,27 @@
             {% for t in block.times %}
             {% set cells = times.get(t, {}) %}
             <tr>
-              <th>{{ t }}</th>
-              {% for col in block.input_columns %}
-              <td>
+              <th class="hs-time-label">{{ t }}</th>
+              {% for sec in layout.sections %}
+              {% for col in sec.columns %}
+              {% if col.kind == 'cumulative' %}
+              <td class="hs-data-cell">
                 <input type="text"
                        name="cell__{{ bid }}__{{ t }}__{{ col.col }}"
                        value="{{ cells.get(col.col, '') }}"
                        inputmode="decimal"
                        class="hs-cell" />
               </td>
-              {% endfor %}
-              {% for m in block.meters %}
-              <td>
+              {% else %}
+              <td class="hs-data-cell">
                 <input type="text"
-                       name="cell__{{ bid }}__{{ t }}__{{ m.reading_col }}"
-                       value="{{ cells.get(m.reading_col, '') }}"
+                       name="cell__{{ bid }}__{{ t }}__{{ col.col }}"
+                       value="{{ cells.get(col.col, '') }}"
                        inputmode="decimal"
-                       class="hs-cell hs-cum-input" />
+                       class="hs-cell" />
               </td>
+              {% endif %}
+              {% endfor %}
               {% endfor %}
             </tr>
             {% endfor %}
@@ -139,13 +162,13 @@
   <div class="hs-block">
     <h2>{{ sec.title }}</h2>
     <div class="hs-table-wrap">
-      <table class="hs-grid hs-month-grid">
+      <table class="hs-excel hs-month-grid">
         <thead>
           <tr>
-            <th>일</th>
+            <th class="hs-corner">일</th>
             {% if sec.days %}
             {% for br in sec.days[0].breakers %}
-            <th colspan="3">{{ br.name }}</th>
+            <th class="hs-group-head" colspan="3">{{ br.name }}</th>
             {% endfor %}
             {% endif %}
           </tr>
@@ -153,7 +176,9 @@
             <th></th>
             {% if sec.days %}
             {% for br in sec.days[0].breakers %}
-            <th>지침</th><th>사용량</th><th>최대A</th>
+            <th class="hs-metric">지침</th>
+            <th class="hs-metric">사용량</th>
+            <th class="hs-metric">최대A</th>
             {% endfor %}
             {% endif %}
           </tr>
@@ -161,11 +186,11 @@
         <tbody>
           {% for day in sec.days %}
           <tr>
-            <th>{{ day.day }}일</th>
+            <th class="hs-time-label">{{ day.day }}일</th>
             {% for br in day.breakers %}
-            <td>{{ br.reading }}</td>
-            <td>{{ br.usage }}</td>
-            <td>{{ br.max_a }}</td>
+            <td class="hs-data-cell">{{ br.reading }}</td>
+            <td class="hs-data-cell">{{ br.usage }}</td>
+            <td class="hs-data-cell">{{ br.max_a }}</td>
             {% endfor %}
           </tr>
           {% endfor %}

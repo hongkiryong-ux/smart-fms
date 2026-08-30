@@ -8103,6 +8103,7 @@ async def housing_substation_page(
     import calendar
 
     from housing_substation import (
+        build_all_daily_layouts,
         compute_monthly_report,
         get_or_create_daily,
         is_housing_substation_building,
@@ -8142,6 +8143,7 @@ async def housing_substation_page(
     tab = request.query_params.get("tab") or "daily"
     today = _today_kst()
     schema = load_schema()
+    daily_layouts = build_all_daily_layouts(schema)
 
     if tab == "monthly":
         try:
@@ -8192,6 +8194,7 @@ async def housing_substation_page(
             "user": user,
             "building": building,
             "schema": schema,
+            "daily_layouts": daily_layouts,
             "tab": tab,
             "log_date": log_date,
             "today": today,
