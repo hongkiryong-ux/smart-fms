@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import json
-import re
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -87,30 +86,42 @@ def build_all_daily_layouts(schema: dict | None = None) -> dict[str, dict]:
     return {b["id"]: build_daily_block_layout(b) for b in schema.get("daily_blocks") or []}
 
 
+def build_monthly_sections(schema: dict | None = None) -> list[dict[str, Any]]:
+    """1일 시트 meters 순서·명칭과 동일한 월보 열 구성."""
+    schema = schema or load_schema()
+    roman = {"no1": "Ⅰ", "no2": "Ⅱ", "no3": "Ⅲ"}
+    order = {"no1": 0, "no2": 1, "no3": 2}
+    blocks = sorted(schema.get("daily_blocks") or [], key=lambda b: order.get(b["id"], 99))
+    sections: list[dict[str, Any]] = []
+    for block in blocks:
+        bid = block["id"]
+        breakers = []
+        for m in block.get("meters") or []:
+            breakers.append(
+                {
+                    "meter_id": m["id"],
+                    "name": m["name"],
+                    "multiplier": m.get("multiplier") or 4800,
+                    "reading_col": m["reading_col"],
+                    "current_col": m.get("current_col"),
+                }
+            )
+        sections.append(
+            {
+                "id": bid,
+                "title": f"주택변전소 월보[{roman.get(bid, bid)}]",
+                "breakers": breakers,
+            }
+        )
+    return sections
+
+
 def is_housing_substation_building(building: Building | None) -> bool:
     if not building:
         return False
     name = (building.name or "").strip()
     target = load_schema().get("building_name", "주택변전소")
     return name == target or target in name
-
-
-def _norm_name(s: str) -> str:
-    return re.sub(r"\s+", "", (s or "").upper().replace(".", ""))
-
-
-def _breaker_match(daily_name: str, monthly_name: str) -> bool:
-    a, b = _norm_name(daily_name), _norm_name(monthly_name)
-    if a == b:
-        return True
-    if a in b or b in a:
-        return True
-    # NO3 INCOMMING vs NO.3 6.6KV INCOMMING
-    ma = re.search(r"NO\s*(\d+)", a)
-    mb = re.search(r"NO\s*(\d+)", b)
-    if ma and mb and ma.group(1) == mb.group(1) and "INCOMMING" in a and "INCOMMING" in b:
-        return True
-    return False
 
 
 def empty_daily_payload() -> dict:
@@ -206,68 +217,143 @@ def merge_daily_save(existing: dict, posted: dict) -> dict:
     return data
 
 
+def _meter_reading_at_2200(block_data: dict, meter: dict) -> Any:
+    times = block_data.get("times") or {}
+    return (times.get("22:00") or {}).get(meter["reading_col"], "")
+
+
+def _meter_max_current(block_data: dict, meter: dict) -> float | None:
+    cc = meter.get("current_col")
+    if not cc:
+        return None
+    times = block_data.get("times") or {}
+    amps: list[float] = []
+    for cells in times.values():
+        av = _parse_num((cells or {}).get(cc))
+        if av is not None:
+            amps.append(av)
+    return max(amps) if amps else None
+
+
+def _breaker_row_from_daily(
+    block_data: dict,
+    meter: dict,
+    prev_reading: float | None,
+) -> tuple[dict[str, Any], float | None]:
+    """지침·사용량·최대(A). 사용량 = (당일 22:00 지침 − 전일 지침) × 배율."""
+    reading_raw = _meter_reading_at_2200(block_data, meter)
+    read_v = _parse_num(reading_raw)
+    mult = meter.get("multiplier") or 4800
+    usage: Any = ""
+    if prev_reading is not None and read_v is not None:
+        usage = round((read_v - prev_reading) * mult, 2)
+    max_a_val = _meter_max_current(block_data, meter)
+    max_a: Any = max_a_val if max_a_val is not None else ""
+    next_prev = read_v if read_v is not None else prev_reading
+    return (
+        {
+            "meter_id": meter.get("id") or meter.get("meter_id"),
+            "name": meter["name"],
+            "multiplier": mult,
+            "reading": reading_raw if reading_raw not in (None, "") else "",
+            "usage": usage,
+            "max_a": max_a,
+        },
+        next_prev,
+    )
+
+
 def compute_monthly_report(
     building_id: int,
     year: int,
     month: int,
     daily_rows: list[HousingSubstationDaily],
+    prev_month_last_row: HousingSubstationDaily | None = None,
 ) -> dict[str, Any]:
-    """월보: 일별 22:00 지침·사용량·최대(A)."""
+    """월보: 전일(노란 칸) · 1~31일 · 계(사용량 합·최대A)."""
     del building_id
-    schema = load_schema()
     by_date = {r.log_date: r.data or {} for r in daily_rows}
     sections_out = []
-    for sec in schema["monthly_sections"]:
+    for sec in build_monthly_sections():
         sec_id = sec["id"]
-        block = next((b for b in schema["daily_blocks"] if b["id"] == sec_id), None)
+        breakers = sec["breakers"]
+        prev_day_cells: list[dict[str, Any]] = []
+        prev_readings: dict[str, float | None] = {}
+        prev_month_data = (prev_month_last_row.data or {}).get(sec_id, {}) if prev_month_last_row else {}
+        for br in breakers:
+            mid = br["meter_id"]
+            val = _parse_num(_meter_reading_at_2200(prev_month_data, br))
+            if val is None:
+                first_of_month = date(year, month, 1)
+                first_data = by_date.get(first_of_month, {}).get(sec_id, {})
+                prev_map = first_data.get("prev") or {}
+                val = _parse_num(prev_map.get(mid))
+            prev_readings[mid] = val
+            prev_day_cells.append(
+                {
+                    "meter_id": mid,
+                    "name": br["name"],
+                    "multiplier": br["multiplier"],
+                    "reading": val if val is not None else "",
+                    "usage": "",
+                    "max_a": "",
+                }
+            )
         days = []
+        usage_sums: dict[str, float] = {b["meter_id"]: 0.0 for b in breakers}
+        max_a_peaks: dict[str, float | None] = {b["meter_id"]: None for b in breakers}
+        rolling_prev = dict(prev_readings)
         for day in range(1, 32):
             try:
                 d = date(year, month, day)
             except ValueError:
                 break
-            row_data = by_date.get(d) or {}
-            block_data = row_data.get(sec_id, {}) if block else {}
-            times = block_data.get("times") or {}
-            prev_map = block_data.get("prev") or {}
-            t2200 = times.get("22:00") or {}
+            block_data = by_date.get(d, {}).get(sec_id, {})
+            if block_data:
+                prev_map = block_data.get("prev") or {}
+            else:
+                prev_map = {}
             breaker_rows = []
-            for br in sec["breakers"]:
-                meter = None
-                if block:
-                    for m in block["meters"]:
-                        if _breaker_match(m["name"], br["name"]):
-                            meter = m
-                            break
-                reading = ""
-                usage = ""
-                max_a = ""
-                if meter:
-                    rc, cc = meter["reading_col"], meter["current_col"]
-                    reading = t2200.get(rc, "")
-                    prev_v = _parse_num(prev_map.get(meter["id"]))
-                    read_v = _parse_num(reading)
-                    mult = meter.get("multiplier") or br.get("multiplier") or 4800
-                    if prev_v is not None and read_v is not None:
-                        usage = round((read_v - prev_v) * mult, 2)
-                    if cc:
-                        amps = []
-                        for t, cells in times.items():
-                            av = _parse_num((cells or {}).get(cc))
-                            if av is not None:
-                                amps.append(av)
-                        if amps:
-                            max_a = max(amps)
-                breaker_rows.append(
-                    {
-                        "name": br["name"],
-                        "reading": reading,
-                        "usage": usage,
-                        "max_a": max_a,
-                    }
-                )
+            for br in breakers:
+                mid = br["meter_id"]
+                prev_v = rolling_prev.get(mid)
+                if block_data and mid in prev_map and prev_map.get(mid) not in (None, ""):
+                    pv = _parse_num(prev_map.get(mid))
+                    if pv is not None:
+                        prev_v = pv
+                row, next_prev = _breaker_row_from_daily(block_data, br, prev_v)
+                breaker_rows.append(row)
+                if row["usage"] != "":
+                    usage_sums[mid] += float(row["usage"])
+                if row["max_a"] != "":
+                    mv = float(row["max_a"])
+                    cur = max_a_peaks[mid]
+                    max_a_peaks[mid] = mv if cur is None else max(cur, mv)
+                if next_prev is not None:
+                    rolling_prev[mid] = next_prev
             days.append({"day": day, "date": d.isoformat(), "breakers": breaker_rows})
-        sections_out.append({"id": sec_id, "title": sec_id.upper(), "days": days})
+        totals = []
+        for br in breakers:
+            mid = br["meter_id"]
+            u_sum = usage_sums[mid]
+            peak = max_a_peaks[mid]
+            totals.append(
+                {
+                    "meter_id": mid,
+                    "usage_sum": round(u_sum, 2) if u_sum else "",
+                    "max_a_max": peak if peak is not None else "",
+                }
+            )
+        sections_out.append(
+            {
+                "id": sec_id,
+                "title": sec["title"],
+                "breakers": breakers,
+                "prev_day": prev_day_cells,
+                "days": days,
+                "totals": totals,
+            }
+        )
     return {"year": year, "month": month, "sections": sections_out}
 
 

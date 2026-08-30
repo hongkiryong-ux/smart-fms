@@ -8163,7 +8163,18 @@ async def housing_substation_page(
                 )
             )
         ).scalars().all()
-        monthly = compute_monthly_report(building_id, year, month, list(daily_rows))
+        prev_month_last = d_from - timedelta(days=1)
+        prev_month_row = (
+            await db.execute(
+                select(HousingSubstationDaily).where(
+                    HousingSubstationDaily.building_id == building_id,
+                    HousingSubstationDaily.log_date == prev_month_last,
+                )
+            )
+        ).scalar_one_or_none()
+        monthly = compute_monthly_report(
+            building_id, year, month, list(daily_rows), prev_month_row
+        )
         archives = []
         log_date = today
         daily_data = {}

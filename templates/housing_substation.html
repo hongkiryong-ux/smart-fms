@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/housing_substation.css?v=2" />
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=3" />
 {% endblock %}
 {% block content %}
 <header class="page-header hs-page-header">
@@ -156,34 +156,50 @@
     </label>
     <button type="submit" class="btn btn-secondary btn-sm">조회</button>
   </form>
-  <p class="text-muted">1일 시트 22:00 지침·전류 최대값을 바탕으로 자동 계산 (사용량 = (22:00 지침 − 전일지침) × 배율)</p>
+  <p class="text-muted hs-hint">
+    1일 시트와 동일한 설비·순서 · 노란 칸 = 전일 지침(전월 말 22:00) ·
+    사용량 = (당일 22:00 지침 − 전일 지침) × 배율 · 계 = 1~31일 사용량 합 / 최대(A) 최대값
+  </p>
 
   {% for sec in monthly.sections %}
-  <div class="hs-block">
-    <h2>{{ sec.title }}</h2>
+  <div class="hs-sheet">
+    <div class="hs-sheet-title">{{ sec.title }}</div>
     <div class="hs-table-wrap">
       <table class="hs-excel hs-month-grid">
         <thead>
+          {# 설비명 #}
           <tr>
-            <th class="hs-corner">일</th>
-            {% if sec.days %}
-            {% for br in sec.days[0].breakers %}
-            <th class="hs-group-head" colspan="3">{{ br.name }}</th>
+            <th class="hs-corner" rowspan="3">구분</th>
+            {% for br in sec.breakers %}
+            <th class="hs-group-head hs-month-unit" colspan="3">{{ br.name }}</th>
             {% endfor %}
-            {% endif %}
           </tr>
+          {# 배율 #}
           <tr>
-            <th></th>
-            {% if sec.days %}
-            {% for br in sec.days[0].breakers %}
-            <th class="hs-metric">지침</th>
-            <th class="hs-metric">사용량</th>
-            <th class="hs-metric">최대A</th>
+            {% for br in sec.breakers %}
+            <th class="hs-mult" colspan="3">적산량×{{ br.multiplier }}</th>
             {% endfor %}
-            {% endif %}
+          </tr>
+          {# 지침·사용량·최대 #}
+          <tr>
+            {% for br in sec.breakers %}
+            <th class="hs-metric">지침(KW)</th>
+            <th class="hs-metric">사용량(KWH)</th>
+            <th class="hs-metric">최대(A)</th>
+            {% endfor %}
           </tr>
         </thead>
         <tbody>
+          {# 전일 (노란 지침) #}
+          <tr class="hs-prev-row">
+            <th class="hs-time-label">전일</th>
+            {% for br in sec.prev_day %}
+            <td class="hs-yellow-cell hs-data-cell">{{ br.reading }}</td>
+            <td class="hs-data-cell"></td>
+            <td class="hs-data-cell"></td>
+            {% endfor %}
+          </tr>
+          {# 1~31일 #}
           {% for day in sec.days %}
           <tr>
             <th class="hs-time-label">{{ day.day }}일</th>
@@ -194,6 +210,16 @@
             {% endfor %}
           </tr>
           {% endfor %}
+          {# 계 #}
+          <tr class="hs-total-row">
+            <th class="hs-time-label">계</th>
+            {% for br in sec.breakers %}
+            {% set tot = sec.totals[loop.index0] %}
+            <td class="hs-data-cell"></td>
+            <td class="hs-green-cell">{{ tot.usage_sum }}</td>
+            <td class="hs-green-cell">{{ tot.max_a_max }}</td>
+            {% endfor %}
+          </tr>
         </tbody>
       </table>
     </div>

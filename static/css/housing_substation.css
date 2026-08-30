@@ -178,6 +178,29 @@
   font-size: 0.75rem;
 }
 
+.hs-month-unit {
+  background: #dce6f1 !important;
+}
+
+.hs-mult {
+  background: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.hs-prev-row .hs-yellow-cell {
+  font-weight: 600;
+}
+
+.hs-green-cell {
+  background: #c6efce !important;
+  font-weight: 700;
+}
+
+.hs-total-row th {
+  font-weight: 700;
+}
+
 .hs-date-nav {
   margin-bottom: 0.75rem;
   align-items: center;
