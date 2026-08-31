@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/housing_substation.css?v=5" />
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=6" />
 {% endblock %}
 {% block content %}
 <header class="page-header hs-page-header">
   <div>
     <h1>주택변전소 점검일지</h1>
-    <p>{{ building.name }} · 1일 입력 · 월보 자동 집계 · 엑셀 다운로드</p>
+    <p>{{ building.name }} · 1일 입력 · 월보 · 년보 · 엑셀 다운로드</p>
   </div>
   <div class="hs-header-actions">
     <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>
@@ -20,6 +20,7 @@
 <nav class="hs-tabs" aria-label="점검일지2 탭">
   <a href="?tab=daily&date={{ log_date.isoformat() }}" class="hs-tab{% if tab == 'daily' %} active{% endif %}">1일</a>
   <a href="?tab=monthly&year={{ year }}&month={{ month }}" class="hs-tab{% if tab == 'monthly' %} active{% endif %}">월보</a>
+  <a href="?tab=yearly&year={{ year }}" class="hs-tab{% if tab == 'yearly' %} active{% endif %}">년보</a>
 </nav>
 
 {% if tab == 'daily' %}
@@ -138,7 +139,7 @@
 <script src="/static/js/housing_substation.js?v=1"></script>
 {% endif %}
 
-{% else %}
+{% elif tab == 'monthly' %}
 <section class="card card-wide hs-monthly">
   <form method="get" class="hs-date-nav inline-form">
     <input type="hidden" name="tab" value="monthly" />
@@ -195,6 +196,84 @@
           <tr>
             <th class="hs-time-label">{{ day.day }}일</th>
             {% for br in day.breakers %}
+            <td class="hs-data-cell">{{ br.reading }}</td>
+            <td class="hs-data-cell">{{ br.usage }}</td>
+            <td class="hs-data-cell">{{ br.max_a }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="hs-total-row">
+            <th class="hs-time-label">계</th>
+            {% for br in sec.breakers %}
+            {% set tot = sec.totals[loop.index0] %}
+            <td class="hs-data-cell"></td>
+            <td class="hs-green-cell">{{ tot.usage_sum }}</td>
+            <td class="hs-green-cell">{{ tot.max_a_max }}</td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+{% else %}
+<section class="card card-wide hs-monthly hs-yearly">
+  <form method="get" class="hs-date-nav inline-form">
+    <input type="hidden" name="tab" value="yearly" />
+    <label>연도
+      <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+    <a class="btn btn-secondary btn-sm"
+       href="/admin/inspection-logs2/{{ building.id }}/housing/export/yearly?year={{ year }}">
+      엑셀 다운로드
+    </a>
+  </form>
+  <p class="text-muted hs-hint">
+    월보와 동일한 설비·순서 · 노란 칸 = 전년 12/31 지침 · 각 월 = 해당 월 월보 합계 ·
+    계 = 1~12월 사용량 합 / 최대(A) 최대값
+  </p>
+
+  {% for sec in yearly.sections %}
+  <div class="hs-sheet">
+    <div class="hs-sheet-title">{{ sec.title }}</div>
+    <div class="hs-table-wrap">
+      <table class="hs-excel hs-month-grid">
+        <thead>
+          <tr>
+            <th class="hs-corner" rowspan="3">구분</th>
+            {% for br in sec.breakers %}
+            <th class="hs-group-head hs-month-unit" colspan="3">{{ br.name }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for br in sec.breakers %}
+            <th class="hs-mult" colspan="3">적산량×{{ br.multiplier }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for br in sec.breakers %}
+            <th class="hs-metric">지침(KW)</th>
+            <th class="hs-metric">사용량(KWH)</th>
+            <th class="hs-metric">최대(A)</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="hs-prev-row">
+            <th class="hs-time-label">전년</th>
+            {% for br in sec.prev_year %}
+            <td class="hs-yellow-cell hs-data-cell">{{ br.reading }}</td>
+            <td class="hs-data-cell"></td>
+            <td class="hs-data-cell"></td>
+            {% endfor %}
+          </tr>
+          {% for mon in sec.months %}
+          <tr>
+            <th class="hs-time-label">{{ mon.month }}월</th>
+            {% for br in mon.breakers %}
             <td class="hs-data-cell">{{ br.reading }}</td>
             <td class="hs-data-cell">{{ br.usage }}</td>
             <td class="hs-data-cell">{{ br.max_a }}</td>

@@ -8105,6 +8105,7 @@ async def housing_substation_page(
     from housing_substation import (
         build_all_daily_layouts,
         compute_monthly_report,
+        fetch_yearly_report_data,
         get_or_create_daily,
         is_housing_substation_building,
         load_schema,
@@ -8174,6 +8175,17 @@ async def housing_substation_page(
         monthly = compute_monthly_report(
             building_id, year, month, list(daily_rows), prev_month_row
         )
+        yearly = {"sections": []}
+        log_date = today
+        daily_data = {}
+    elif tab == "yearly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+        except ValueError:
+            year = today.year
+        yearly = await fetch_yearly_report_data(db, building_id, year)
+        month = today.month
+        monthly = {"sections": []}
         log_date = today
         daily_data = {}
     else:
@@ -8188,6 +8200,7 @@ async def housing_substation_page(
         daily_data = daily_row.data or {}
         year, month = log_date.year, log_date.month
         monthly = {"sections": []}
+        yearly = {"sections": []}
 
     return templates.TemplateResponse(
         request,
@@ -8204,6 +8217,7 @@ async def housing_substation_page(
             "month": month,
             "daily_data": daily_data,
             "monthly": monthly,
+            "yearly": yearly,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -8323,6 +8337,30 @@ async def housing_substation_export_daily(
     await db.commit()
     xbytes = export_daily_to_excel(row.data or {}, d)
     fname = quote(f"주택변전소_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/housing/export/yearly")
+async def housing_substation_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from housing_substation import export_yearly_to_excel, fetch_yearly_report_data, is_housing_substation_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_housing_substation_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"주택변전소_년보_{year}.xlsx")
     return StreamingResponse(
         BytesIO(xbytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

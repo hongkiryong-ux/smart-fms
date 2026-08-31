@@ -402,6 +402,170 @@ def compute_monthly_report(
     return {"year": year, "month": month, "sections": sections_out}
 
 
+def build_yearly_sections(schema: dict | None = None) -> list[dict[str, Any]]:
+    """월보와 동일한 설비·열 구성."""
+    schema = schema or load_schema()
+    roman = {"no1": "Ⅰ", "no2": "Ⅱ", "no3": "Ⅲ"}
+    order = {"no1": 0, "no2": 1, "no3": 2}
+    blocks = sorted(schema.get("daily_blocks") or [], key=lambda b: order.get(b["id"], 99))
+    sections: list[dict[str, Any]] = []
+    for block in blocks:
+        bid = block["id"]
+        breakers = []
+        for m in block.get("meters") or []:
+            breakers.append(
+                {
+                    "meter_id": m["id"],
+                    "name": m["name"],
+                    "multiplier": m.get("multiplier") or 4800,
+                    "reading_col": m["reading_col"],
+                    "current_col": m.get("current_col"),
+                }
+            )
+        sections.append(
+            {
+                "id": bid,
+                "title": f"주택변전소 년보[{roman.get(bid, bid)}]",
+                "breakers": breakers,
+            }
+        )
+    return sections
+
+
+def _end_of_month_readings(
+    year: int,
+    month: int,
+    sec_id: str,
+    breakers: list[dict],
+    rows_by_date: dict[date, HousingSubstationDaily],
+) -> dict[str, Any]:
+    """해당 월 말일(또는 마지막 입력일) 22:00 지침."""
+    import calendar
+
+    out = {br["meter_id"]: "" for br in breakers}
+    last_day = calendar.monthrange(year, month)[1]
+    for day in range(last_day, 0, -1):
+        dt = date(year, month, day)
+        row = rows_by_date.get(dt)
+        if not row:
+            continue
+        block_data = (row.data or {}).get(sec_id) or {}
+        t2200 = (block_data.get("times") or {}).get("22:00") or {}
+        found = False
+        for br in breakers:
+            val = t2200.get(br["reading_col"], "")
+            if val not in (None, ""):
+                out[br["meter_id"]] = val
+                found = True
+        if found:
+            break
+    return out
+
+
+def compute_yearly_report(
+    building_id: int,
+    year: int,
+    daily_rows: list[HousingSubstationDaily],
+    prev_year_last_row: HousingSubstationDaily | None = None,
+) -> dict[str, Any]:
+    """년보: 전년(12/31) · 1~12월 · 계(사용량 합·최대A)."""
+    del building_id
+    rows_by_date = {r.log_date: r for r in daily_rows}
+    if prev_year_last_row:
+        rows_by_date[prev_year_last_row.log_date] = prev_year_last_row
+    sections_out = []
+    for sec in build_yearly_sections():
+        sec_id = sec["id"]
+        breakers = sec["breakers"]
+        prev_year_data = (
+            (prev_year_last_row.data or {}).get(sec_id, {}) if prev_year_last_row else {}
+        )
+        prev_year_cells: list[dict[str, Any]] = []
+        for br in breakers:
+            val = _parse_num(_meter_reading_at_2200(prev_year_data, br))
+            prev_year_cells.append(
+                {
+                    "meter_id": br["meter_id"],
+                    "name": br["name"],
+                    "multiplier": br["multiplier"],
+                    "reading": val if val is not None else "",
+                    "usage": "",
+                    "max_a": "",
+                }
+            )
+        months: list[dict[str, Any]] = []
+        usage_sums_year: dict[str, float] = {b["meter_id"]: 0.0 for b in breakers}
+        max_a_year: dict[str, float | None] = {b["meter_id"]: None for b in breakers}
+        for month in range(1, 13):
+            month_rows = [r for r in daily_rows if r.log_date.year == year and r.log_date.month == month]
+            prev_month_last = date(year, month, 1) - timedelta(days=1)
+            prev_month_row = rows_by_date.get(prev_month_last)
+            monthly = compute_monthly_report(
+                0, year, month, month_rows, prev_month_row
+            )
+            msec = next((s for s in monthly["sections"] if s["id"] == sec_id), None)
+            end_readings = _end_of_month_readings(year, month, sec_id, breakers, rows_by_date)
+            breaker_rows = []
+            if msec:
+                for i, br in enumerate(breakers):
+                    mid = br["meter_id"]
+                    tot = msec["totals"][i]
+                    usage = tot.get("usage_sum", "")
+                    max_a = tot.get("max_a_max", "")
+                    breaker_rows.append(
+                        {
+                            "meter_id": mid,
+                            "name": br["name"],
+                            "multiplier": br["multiplier"],
+                            "reading": end_readings.get(mid, ""),
+                            "usage": usage,
+                            "max_a": max_a,
+                        }
+                    )
+                    if usage != "":
+                        usage_sums_year[mid] += float(usage)
+                    if max_a != "":
+                        mv = float(max_a)
+                        cur = max_a_year[mid]
+                        max_a_year[mid] = mv if cur is None else max(cur, mv)
+            else:
+                for br in breakers:
+                    breaker_rows.append(
+                        {
+                            "meter_id": br["meter_id"],
+                            "name": br["name"],
+                            "multiplier": br["multiplier"],
+                            "reading": end_readings.get(br["meter_id"], ""),
+                            "usage": "",
+                            "max_a": "",
+                        }
+                    )
+            months.append({"month": month, "breakers": breaker_rows})
+        totals = []
+        for br in breakers:
+            mid = br["meter_id"]
+            u_sum = usage_sums_year[mid]
+            peak = max_a_year[mid]
+            totals.append(
+                {
+                    "meter_id": mid,
+                    "usage_sum": round(u_sum, 2) if u_sum else "",
+                    "max_a_max": peak if peak is not None else "",
+                }
+            )
+        sections_out.append(
+            {
+                "id": sec_id,
+                "title": sec["title"],
+                "breakers": breakers,
+                "prev_year": prev_year_cells,
+                "months": months,
+                "totals": totals,
+            }
+        )
+    return {"year": year, "sections": sections_out}
+
+
 def _norm_name(s: str) -> str:
     return re.sub(r"\s+", "", (s or "").upper().replace(".", ""))
 
@@ -496,6 +660,85 @@ def export_monthly_to_excel(monthly_report: dict) -> bytes:
     return buf.getvalue()
 
 
+def export_yearly_to_excel(yearly_report: dict) -> bytes:
+    """년보 집계 결과를 년보 시트로 생성."""
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    if TEMPLATE_XLSX.is_file():
+        wb = load_workbook(TEMPLATE_XLSX)
+    else:
+        wb = load_workbook()
+    if "년보" in wb.sheetnames:
+        del wb["년보"]
+    ws = wb.create_sheet("년보")
+    thin = Side(style="thin", color="000000")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    head_fill = PatternFill("solid", fgColor="DCE6F1")
+    yellow_fill = PatternFill("solid", fgColor="FFFF00")
+    green_fill = PatternFill("solid", fgColor="C6EFCE")
+
+    row_ptr = 1
+    for sec in yearly_report.get("sections") or []:
+        ws.cell(row_ptr, 1, sec.get("title", "")).font = Font(bold=True)
+        row_ptr += 1
+        breakers = sec.get("breakers") or []
+        col = 2
+        for br in breakers:
+            c = ws.cell(row_ptr, col, br.get("name", ""))
+            c.font = Font(bold=True)
+            c.fill = head_fill
+            c.alignment = Alignment(horizontal="center")
+            ws.merge_cells(start_row=row_ptr, start_column=col, end_row=row_ptr, end_column=col + 2)
+            col += 3
+        row_ptr += 1
+        col = 2
+        for br in breakers:
+            ws.cell(row_ptr, col, f"적산량×{br.get('multiplier', '')}")
+            ws.merge_cells(start_row=row_ptr, start_column=col, end_row=row_ptr, end_column=col + 2)
+            col += 3
+        row_ptr += 1
+        ws.cell(row_ptr, 1, "구분").font = Font(bold=True)
+        col = 2
+        for _br in breakers:
+            for label in ("지침(KW)", "사용량(KWH)", "최대(A)"):
+                ws.cell(row_ptr, col, label).font = Font(bold=True)
+                col += 1
+        row_ptr += 1
+        ws.cell(row_ptr, 1, "전년")
+        col = 2
+        for cell in sec.get("prev_year") or []:
+            c = ws.cell(row_ptr, col, cell.get("reading", ""))
+            c.fill = yellow_fill
+            col += 3
+        row_ptr += 1
+        for mon in sec.get("months") or []:
+            ws.cell(row_ptr, 1, f"{mon['month']}월")
+            col = 2
+            for br in mon.get("breakers") or []:
+                ws.cell(row_ptr, col, br.get("reading", ""))
+                ws.cell(row_ptr, col + 1, br.get("usage", ""))
+                ws.cell(row_ptr, col + 2, br.get("max_a", ""))
+                col += 3
+            row_ptr += 1
+        ws.cell(row_ptr, 1, "계").font = Font(bold=True)
+        col = 2
+        for tot in sec.get("totals") or []:
+            ws.cell(row_ptr, col + 1, tot.get("usage_sum", "")).fill = green_fill
+            ws.cell(row_ptr, col + 2, tot.get("max_a_max", "")).fill = green_fill
+            col += 3
+        row_ptr += 2
+
+    max_col = ws.max_column or 2
+    for r in ws.iter_rows(min_row=1, max_row=max(1, row_ptr - 1), min_col=1, max_col=max_col):
+        for cell in r:
+            cell.border = border
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 async def fetch_monthly_report_data(
     session: AsyncSession,
     building_id: int,
@@ -527,6 +770,36 @@ async def fetch_monthly_report_data(
     ).scalar_one_or_none()
     return compute_monthly_report(
         building_id, year, month, list(daily_rows), prev_month_row
+    )
+
+
+async def fetch_yearly_report_data(
+    session: AsyncSession,
+    building_id: int,
+    year: int,
+) -> dict[str, Any]:
+    d_from = date(year, 1, 1)
+    d_to = date(year, 12, 31)
+    daily_rows = (
+        await session.execute(
+            select(HousingSubstationDaily).where(
+                HousingSubstationDaily.building_id == building_id,
+                HousingSubstationDaily.log_date >= d_from,
+                HousingSubstationDaily.log_date <= d_to,
+            )
+        )
+    ).scalars().all()
+    prev_year_last = date(year - 1, 12, 31)
+    prev_year_row = (
+        await session.execute(
+            select(HousingSubstationDaily).where(
+                HousingSubstationDaily.building_id == building_id,
+                HousingSubstationDaily.log_date == prev_year_last,
+            )
+        )
+    ).scalar_one_or_none()
+    return compute_yearly_report(
+        building_id, year, list(daily_rows), prev_year_row
     )
 
 
