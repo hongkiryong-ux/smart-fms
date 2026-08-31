@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/ccr_facility.css?v=1" />
+<link rel="stylesheet" href="/static/css/ccr_facility.css?v=2" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -52,6 +52,8 @@
     <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/ccr-facility/export/daily?log_date={{ log_date.isoformat() }}">엑셀 다운로드</a>
     {% endif %}
   </form>
+
+  <p class="text-muted cf-hint">입력 시 자동 저장 · 셀 드래그 선택 후 <kbd>Delete</kbd> 삭제 · 엑셀에서 복사(<kbd>Ctrl+C</kbd>) 후 붙여넣기(<kbd>Ctrl+V</kbd>) 가능</p>
 
   <form method="post" action="{{ save_url }}" class="cf-daily-form" id="cf-daily-form">
     <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
@@ -322,7 +324,7 @@
     {% endif %}
   </form>
 </section>
-{% if can_write %}<script src="/static/js/ccr_facility.js?v=1"></script>{% endif %}
+{% if can_write %}<script src="/static/js/ccr_facility.js?v=2"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">
