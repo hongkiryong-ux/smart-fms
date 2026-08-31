@@ -121,6 +121,24 @@
           "range": "0~200",
           "multiplier": 2400,
           "is_cumulative": false
+        },
+        {
+          "col": "W",
+          "group": "제철회관",
+          "metric": "전력",
+          "unit": "kW",
+          "range": "0~2400",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "X",
+          "group": "제철회관",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~200",
+          "multiplier": 2400,
+          "is_cumulative": false
         }
       ],
       "meters": [
@@ -150,6 +168,13 @@
           "name": "56 S/S",
           "reading_col": "U",
           "current_col": "T",
+          "multiplier": 2400
+        },
+        {
+          "id": "no3_Y",
+          "name": "제철회관",
+          "reading_col": "Y",
+          "current_col": "X",
           "multiplier": 2400
         }
       ]
@@ -694,11 +719,20 @@
         },
         {
           "name": "몰오브광양",
-          "multiplier": null,
+          "multiplier": 3600,
           "cols": {
             "reading": "F",
             "usage": "G",
             "max_a": "H"
+          }
+        },
+        {
+          "name": "18 S/S",
+          "multiplier": 1800,
+          "cols": {
+            "reading": "H",
+            "usage": "I",
+            "max_a": "J"
           }
         },
         {
@@ -735,15 +769,6 @@
             "reading": "T",
             "usage": "U",
             "max_a": "V"
-          }
-        },
-        {
-          "name": "spare",
-          "multiplier": null,
-          "cols": {
-            "reading": "X",
-            "usage": "Y",
-            "max_a": "Z"
           }
         }
       ]
@@ -884,11 +909,20 @@
         },
         {
           "name": "기술교육센터",
-          "multiplier": null,
+          "multiplier": 1800,
           "cols": {
             "reading": "U",
             "usage": "V",
             "max_a": "W"
+          }
+        },
+        {
+          "name": "제철회관",
+          "multiplier": 2400,
+          "cols": {
+            "reading": "W",
+            "usage": "X",
+            "max_a": "Y"
           }
         }
       ]

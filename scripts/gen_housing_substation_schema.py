@@ -132,28 +132,27 @@ def main() -> None:
     monthly = []
     for start, sec_id in [(5, "no1"), (44, "no2"), (83, "no3")]:
         br = []
-        c = 2
-        while c < 40:
+        for c in range(2, 40):
             name = ws2.cell(start, c).value
+            if not name or not str(name).strip():
+                continue
+            name_s = str(name).strip()
+            if name_s.lower() == "spare":
+                continue
             mult = parse_mult(ws2.cell(start + 1, c).value)
-            h1 = ws2.cell(start + 2, c).value
-            if name and str(name).strip():
-                br.append(
-                    {
-                        "name": str(name).strip(),
-                        "multiplier": mult,
-                        "cols": {
-                            "reading": get_column_letter(c),
-                            "usage": get_column_letter(c + 1),
-                            "max_a": get_column_letter(c + 2),
-                        },
-                    }
-                )
-                c += 3
-            elif h1:
-                c += 1
-            else:
-                c += 1
+            if mult is None and c > 2:
+                mult = parse_mult(ws2.cell(start + 1, c - 1).value)
+            br.append(
+                {
+                    "name": name_s,
+                    "multiplier": mult,
+                    "cols": {
+                        "reading": get_column_letter(c),
+                        "usage": get_column_letter(c + 1),
+                        "max_a": get_column_letter(c + 2),
+                    },
+                }
+            )
         monthly.append({"id": sec_id, "breakers": br})
 
     cfg = {
