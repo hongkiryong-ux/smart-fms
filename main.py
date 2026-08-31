@@ -9797,9 +9797,9 @@ async def steelworks_hq_save(
     db: AsyncSession = Depends(get_db),
 ):
     from steelworks_hq import (
+        finalize_daily_save,
         get_or_create_daily,
         is_steelworks_hq_building,
-        merge_daily_save,
         parse_daily_form,
         propagate_to_next_day,
     )
@@ -9811,7 +9811,7 @@ async def steelworks_hq_save(
     d = date.fromisoformat(str(form.get("log_date")))
     posted = parse_daily_form(form)
     row = await get_or_create_daily(db, building_id, d)
-    row.data = merge_daily_save(row.data or {}, posted)
+    row.data = await finalize_daily_save(db, building_id, d, row.data or {}, posted)
     row.updated_at = datetime.utcnow()
     await propagate_to_next_day(db, building_id, d, row.data)
     await db.commit()
@@ -9838,9 +9838,9 @@ async def steelworks_hq_close_day(
 
     from steelworks_hq import (
         archive_daily_excel,
+        finalize_daily_save,
         get_or_create_daily,
         is_steelworks_hq_building,
-        merge_daily_save,
         parse_daily_form,
         propagate_to_next_day,
     )
@@ -9852,7 +9852,7 @@ async def steelworks_hq_close_day(
     d = date.fromisoformat(str(form.get("log_date")))
     posted = parse_daily_form(form)
     row = await get_or_create_daily(db, building_id, d)
-    row.data = merge_daily_save(row.data or {}, posted)
+    row.data = await finalize_daily_save(db, building_id, d, row.data or {}, posted)
     await archive_daily_excel(db, building_id, d)
     tomorrow = d + timedelta(days=1)
     await propagate_to_next_day(db, building_id, d, row.data)
@@ -9956,9 +9956,9 @@ async def steelworks_hq_qr_save(
     from urllib.parse import quote
 
     from steelworks_hq import (
+        finalize_daily_save,
         get_building_for_qr,
         get_or_create_daily,
-        merge_daily_save,
         parse_daily_form,
         propagate_to_next_day,
     )
@@ -9970,7 +9970,7 @@ async def steelworks_hq_qr_save(
     d = date.fromisoformat(str(form.get("log_date")))
     posted = parse_daily_form(form)
     row = await get_or_create_daily(db, building.id, d)
-    row.data = merge_daily_save(row.data or {}, posted)
+    row.data = await finalize_daily_save(db, building.id, d, row.data or {}, posted)
     await propagate_to_next_day(db, building.id, d, row.data)
     await db.commit()
     if request.headers.get("X-SWHQ-Autosave") == "1":

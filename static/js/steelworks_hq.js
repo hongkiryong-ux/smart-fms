@@ -36,8 +36,22 @@
       let daily = null;
       if (prev != null && today != null) daily = (today - prev) * scale;
       const dailyIn = row.querySelector('[name="f__utility__' + uid + '__daily"]');
+      const monthlyIn = row.querySelector('[name="f__utility__' + uid + '__monthly"]');
       if (dailyIn && daily != null) dailyIn.value = fmtNum(daily);
+      if (monthlyIn && daily != null) {
+        const monthBase = parseNum(row.dataset.monthBase);
+        monthlyIn.value = fmtNum((monthBase != null ? monthBase : 0) + daily);
+      }
     });
+  }
+
+  function syncMonthBase(row) {
+    const uid = row.dataset.utility;
+    const daily = parseNum(row.querySelector('[name="f__utility__' + uid + '__daily"]')?.value);
+    const monthly = parseNum(row.querySelector('[name="f__utility__' + uid + '__monthly"]')?.value);
+    if (daily != null && monthly != null) row.dataset.monthBase = String(monthly - daily);
+    else if (monthly != null) row.dataset.monthBase = String(monthly);
+    else row.dataset.monthBase = "0";
   }
 
   function applyServerData(data) {
@@ -51,9 +65,12 @@
       const mIn = row.querySelector('[name="f__utility__' + uid + '__monthly"]');
       if (dIn) dIn.value = u.daily || "";
       if (mIn) mIn.value = u.monthly || "";
+      syncMonthBase(row);
     });
     calcUtility();
   }
+
+  form.querySelectorAll(".sw-utility-row").forEach(syncMonthBase);
 
   async function doSave() {
     if (!statusEl) return;

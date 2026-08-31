@@ -379,20 +379,35 @@ def _incoming_meter_today(data: dict, meter_id: str) -> str:
     return ""
 
 
-def recompute_daily(data: dict) -> dict:
+def _utility_prev_monthly_map(prev_row_data: dict | None, log_date: date) -> dict[str, str]:
+    """전일 월누계 → 오늘 월누계 누적 기준. 월초(전일이 전월)면 빈 dict."""
+    prev_date = log_date - timedelta(days=1)
+    if prev_date.month != log_date.month or prev_date.year != log_date.year:
+        return {}
+    if not prev_row_data:
+        return {}
+    util = ((prev_row_data.get("facility") or {}).get("utility") or {})
+    return {uid: str((row or {}).get("monthly", "") or "") for uid, row in util.items()}
+
+
+def recompute_daily(
+    data: dict, prev_utility_monthly: dict[str, str] | None = None
+) -> dict:
     data = deepcopy(data or empty_daily_payload())
     fac = data.setdefault("facility", _empty_facility_payload())
     utility = fac.setdefault("utility", {})
+    prev_monthly = prev_utility_monthly or {}
 
     for uid, row in utility.items():
-        prev_m = ""
         if uid in ("pwr1", "pwr2"):
             mid = "m_J" if uid == "pwr1" else "m_S"
             auto = _incoming_meter_today(data, mid)
             if auto and not row.get("today"):
                 row["today"] = auto
+        scale = _utility_multiplier(uid)
+        prev_m = prev_monthly.get(uid, "")
         daily, monthly = _calc_meter(
-            row.get("prev", ""), row.get("today", ""), prev_m, _utility_multiplier(uid)
+            row.get("prev", ""), row.get("today", ""), prev_m, scale
         )
         row["daily"] = daily
         row["monthly"] = monthly
@@ -464,18 +479,20 @@ async def sync_prev_values(
     session: AsyncSession, building_id: int, log_date: date, data: dict
 ) -> tuple[dict, bool]:
     """전일 22:00 전기 지침 + 설비 utility prev/monthly 동기화."""
-    merged = merge_daily_save(empty_daily_payload(), data)
-    changed = False
-
     prev_date = log_date - timedelta(days=1)
     prev_row = await get_daily_row(session, building_id, prev_date)
+    prev_monthly_map = _utility_prev_monthly_map(
+        prev_row.data if prev_row else None, log_date
+    )
+    merged = merge_daily_save(empty_daily_payload(), data, prev_monthly_map)
+    changed = False
+
     if prev_row and prev_row.data:
         prev_elec = prev_electrical_from_daily_data(prev_row.data)
         if apply_electrical_prev(merged, prev_elec):
             changed = True
 
-        prev_data = recompute_daily(prev_row.data)
-        prev_fac = (prev_data.get("facility") or {}).get("utility") or {}
+        prev_fac = ((prev_row.data.get("facility") or {}).get("utility") or {})
         fac_util = merged.setdefault("facility", {}).setdefault("utility", {})
         for uid in fac_util:
             row = fac_util.setdefault(uid, {})
@@ -485,24 +502,18 @@ async def sync_prev_values(
                 if row.get("prev") != pt:
                     row["prev"] = pt
                     changed = True
-            scale = _utility_multiplier(uid)
-            daily, monthly = _calc_meter(row.get("prev", ""), row.get("today", ""), "", scale)
-            if row.get("daily") != daily:
-                row["daily"] = daily
-                changed = True
-            pm = prev_u.get("monthly", "")
-            _, monthly2 = _calc_meter(row.get("prev", ""), row.get("today", ""), pm, scale)
-            if row.get("monthly") != monthly2:
-                row["monthly"] = monthly2
-                changed = True
 
-    recomputed = recompute_daily(merged)
+    recomputed = recompute_daily(merged, prev_monthly_map)
     if recomputed != merged:
         changed = True
     return recomputed, changed
 
 
-def merge_daily_save(existing: dict, posted: dict) -> dict:
+def merge_daily_save(
+    existing: dict,
+    posted: dict,
+    prev_utility_monthly: dict[str, str] | None = None,
+) -> dict:
     base = deepcopy(existing) if existing else empty_daily_payload()
     posted = posted or {}
 
@@ -553,7 +564,19 @@ def merge_daily_save(existing: dict, posted: dict) -> dict:
         if "notes" in fac_post:
             fac["notes"] = fac_post["notes"]
 
-    return recompute_daily(base)
+    return recompute_daily(base, prev_utility_monthly)
+
+
+async def finalize_daily_save(
+    session: AsyncSession,
+    building_id: int,
+    log_date: date,
+    existing: dict,
+    posted: dict,
+) -> dict:
+    prev_row = await get_daily_row(session, building_id, log_date - timedelta(days=1))
+    prev_monthly = _utility_prev_monthly_map(prev_row.data if prev_row else None, log_date)
+    return merge_daily_save(existing, posted, prev_monthly)
 
 
 def _deep_merge(base: dict, patch: dict) -> None:
