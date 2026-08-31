@@ -16,7 +16,7 @@
       "input_columns": [
         {
           "col": "B",
-          "group": "한전 / 수전 LINE INCOMING",
+          "group": "압연 / 수전 LINE INCOMING",
           "metric": "전압",
           "unit": "V",
           "range": "6300~6600",
@@ -25,7 +25,7 @@
         },
         {
           "col": "C",
-          "group": "한전 / 수전 LINE INCOMING",
+          "group": "압연 / 수전 LINE INCOMING",
           "metric": "전류",
           "unit": "A",
           "range": "0~800",
@@ -34,7 +34,7 @@
         },
         {
           "col": "D",
-          "group": "한전 / 수전 LINE INCOMING",
+          "group": "압연 / 수전 LINE INCOMING",
           "metric": "유효",
           "unit": "KW",
           "range": "0~4800",
@@ -43,7 +43,7 @@
         },
         {
           "col": "E",
-          "group": "한전 / 수전 LINE INCOMING",
+          "group": "압연 / 수전 LINE INCOMING",
           "metric": "무효",
           "unit": "KVAR",
           "range": "0~4800",
@@ -52,7 +52,7 @@
         },
         {
           "col": "F",
-          "group": "한전 / 수전 LINE INCOMING",
+          "group": "압연 / 수전 LINE INCOMING",
           "metric": "역률",
           "unit": "COS",
           "range": "0.9±0.1",
@@ -61,7 +61,7 @@
         },
         {
           "col": "G",
-          "group": "한전 / 수전 LINE INCOMING",
+          "group": "압연 / 수전 LINE INCOMING",
           "metric": "주파수",
           "unit": "HZ",
           "range": "59.5~60.5",
@@ -88,7 +88,7 @@
         },
         {
           "col": "L",
-          "group": "SC I TR",
+          "group": "NO.1 TR",
           "metric": "유효",
           "unit": "KW",
           "range": "0~2400",
@@ -97,7 +97,7 @@
         },
         {
           "col": "M",
-          "group": "SC I TR",
+          "group": "NO.1 TR",
           "metric": "전류",
           "unit": "A",
           "range": "0~200",
@@ -160,7 +160,7 @@
         },
         {
           "col": "X",
-          "group": "아르폴, 그린, 교육센터",
+          "group": "아트홀,그린,교육센타",
           "metric": "유효",
           "unit": "KW",
           "range": "0~2400",
@@ -169,7 +169,7 @@
         },
         {
           "col": "Y",
-          "group": "아르폴, 그린, 교육센터",
+          "group": "아트홀,그린,교육센타",
           "metric": "전류",
           "unit": "A",
           "range": "0~200",
@@ -198,10 +198,10 @@
       "meters": [
         {
           "id": "main_H",
-          "name": "한전 / 수전 LINE INCOMING",
+          "name": "압연 / 수전 LINE INCOMING",
           "reading_col": "H",
           "current_col": "C",
-          "multiplier": 4800
+          "multiplier": 1000
         },
         {
           "id": "main_K",
@@ -212,35 +212,35 @@
         },
         {
           "id": "main_N",
-          "name": "SC I TR",
+          "name": "NO.1 TR",
           "reading_col": "N",
           "current_col": "M",
-          "multiplier": 2400
+          "multiplier": 1200
         },
         {
           "id": "main_Q",
           "name": "백운플라자",
           "reading_col": "Q",
           "current_col": "P",
-          "multiplier": 2400
+          "multiplier": 1200
         },
         {
           "id": "main_T",
           "name": "NO.2 TR",
           "reading_col": "T",
           "current_col": "S",
-          "multiplier": 2400
+          "multiplier": 1200
         },
         {
           "id": "main_W",
           "name": "NO.3 TR",
           "reading_col": "W",
           "current_col": "V",
-          "multiplier": 2400
+          "multiplier": 1200
         },
         {
           "id": "main_Z",
-          "name": "아르폴, 그린, 교육센터",
+          "name": "아트홀,그린,교육센타",
           "reading_col": "Z",
           "current_col": "Y",
           "multiplier": 2400
@@ -250,7 +250,7 @@
           "name": "휴먼스 세탁소",
           "reading_col": "AC",
           "current_col": "AB",
-          "multiplier": 2400
+          "multiplier": 1200
         }
       ]
     }
@@ -260,8 +260,8 @@
       "id": "main",
       "breakers": [
         {
-          "name": "한전 / 수전 LINE INCOMING",
-          "multiplier": 4800,
+          "name": "압연 / 수전 LINE INCOMING",
+          "multiplier": 1000,
           "cols": {
             "reading": "B",
             "usage": "C",
@@ -278,8 +278,8 @@
           }
         },
         {
-          "name": "SC I TR",
-          "multiplier": 2400,
+          "name": "NO.1 TR",
+          "multiplier": 1200,
           "cols": {
             "reading": "H",
             "usage": "I",
@@ -288,7 +288,7 @@
         },
         {
           "name": "백운플라자",
-          "multiplier": 2400,
+          "multiplier": 1200,
           "cols": {
             "reading": "K",
             "usage": "L",
@@ -297,7 +297,7 @@
         },
         {
           "name": "NO.2 TR",
-          "multiplier": 2400,
+          "multiplier": 1200,
           "cols": {
             "reading": "N",
             "usage": "O",
@@ -306,7 +306,7 @@
         },
         {
           "name": "NO.3 TR",
-          "multiplier": 2400,
+          "multiplier": 1200,
           "cols": {
             "reading": "Q",
             "usage": "R",
@@ -314,7 +314,7 @@
           }
         },
         {
-          "name": "아르폴, 그린, 교육센터",
+          "name": "아트홀,그린,교육센타",
           "multiplier": 2400,
           "cols": {
             "reading": "T",
@@ -324,7 +324,7 @@
         },
         {
           "name": "휴먼스 세탁소",
-          "multiplier": 2400,
+          "multiplier": 1200,
           "cols": {
             "reading": "W",
             "usage": "X",
