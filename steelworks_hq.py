@@ -339,11 +339,20 @@ def _fmt_num(n: float | None) -> str:
     return str(round(n, 1))
 
 
-def _calc_meter(prev: str, today: str, prev_monthly: str = "") -> tuple[str, str]:
+def _utility_multiplier(uid: str) -> float:
+    for row in (_facility_schema().get("utility") or {}).get("rows") or []:
+        if row.get("id") == uid:
+            return float(row.get("multiplier") or 1)
+    return 1.0
+
+
+def _calc_meter(
+    prev: str, today: str, prev_monthly: str = "", multiplier: float = 1.0
+) -> tuple[str, str]:
     p, t = _parse_num(prev), _parse_num(today)
     daily = ""
     if p is not None and t is not None:
-        daily = _fmt_num(t - p)
+        daily = _fmt_num((t - p) * multiplier)
     pm = _parse_num(prev_monthly)
     monthly = ""
     d = _parse_num(daily)
@@ -382,7 +391,9 @@ def recompute_daily(data: dict) -> dict:
             auto = _incoming_meter_today(data, mid)
             if auto and not row.get("today"):
                 row["today"] = auto
-        daily, monthly = _calc_meter(row.get("prev", ""), row.get("today", ""), prev_m)
+        daily, monthly = _calc_meter(
+            row.get("prev", ""), row.get("today", ""), prev_m, _utility_multiplier(uid)
+        )
         row["daily"] = daily
         row["monthly"] = monthly
 
@@ -474,12 +485,13 @@ async def sync_prev_values(
                 if row.get("prev") != pt:
                     row["prev"] = pt
                     changed = True
-            daily, monthly = _calc_meter(row.get("prev", ""), row.get("today", ""), "")
+            scale = _utility_multiplier(uid)
+            daily, monthly = _calc_meter(row.get("prev", ""), row.get("today", ""), "", scale)
             if row.get("daily") != daily:
                 row["daily"] = daily
                 changed = True
             pm = prev_u.get("monthly", "")
-            _, monthly2 = _calc_meter(row.get("prev", ""), row.get("today", ""), pm)
+            _, monthly2 = _calc_meter(row.get("prev", ""), row.get("today", ""), pm, scale)
             if row.get("monthly") != monthly2:
                 row["monthly"] = monthly2
                 changed = True

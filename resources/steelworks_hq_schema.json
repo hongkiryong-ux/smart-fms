@@ -723,12 +723,16 @@
         {
           "id": "pwr1",
           "label": "전력 NO.1 수전",
-          "unit": "Mwh"
+          "unit": "Mwh",
+          "multiplier": 12000,
+          "daily_unit": "kWh"
         },
         {
           "id": "pwr2",
           "label": "전력 NO.2 수전",
-          "unit": "Mwh"
+          "unit": "Mwh",
+          "multiplier": 12000,
+          "daily_unit": "kWh"
         },
         {
           "id": "heat",

@@ -30,10 +30,11 @@
   function calcUtility() {
     form.querySelectorAll(".sw-utility-row").forEach(function (row) {
       const uid = row.dataset.utility;
+      const scale = parseFloat(row.dataset.multiplier || "1") || 1;
       const prev = parseNum(form.querySelector('[name="f__utility__' + uid + '__prev"]')?.value);
       const today = parseNum(form.querySelector('[name="f__utility__' + uid + '__today"]')?.value);
       let daily = null;
-      if (prev != null && today != null) daily = today - prev;
+      if (prev != null && today != null) daily = (today - prev) * scale;
       const dailyIn = row.querySelector('[name="f__utility__' + uid + '__daily"]');
       if (dailyIn && daily != null) dailyIn.value = fmtNum(daily);
     });
