@@ -312,7 +312,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for item in daily_footer.checklist.items %}
+            {% for item in daily_footer.checklist['items'] %}
             {% set row = checklist_data.get(item.id, {}) %}
             <tr>
               <th class="hs-time-label hs-check-label">{{ item.name }}</th>
