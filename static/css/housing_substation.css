@@ -164,6 +164,19 @@
   background: #f0f8ff;
 }
 
+.hs-cell.hs-cell-selected {
+  background: #dbeafe !important;
+  outline: 2px solid #003876;
+}
+
+.hs-drag-selecting {
+  user-select: none;
+}
+
+.hs-drag-selecting .hs-cell {
+  cursor: cell;
+}
+
 .hs-form-actions {
   display: flex;
   gap: 0.75rem;
