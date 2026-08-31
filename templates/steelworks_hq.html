@@ -1,0 +1,908 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/steelworks_hq.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/steelworks-hq/save') %}
+{% set elec_data = daily_data.get('electrical', {}) if daily_data else {} %}
+{% set fac_data = daily_data.get('facility', {}) if daily_data else {} %}
+{% set fac_schema = schema.facility %}
+{% set util_data = fac_data.get('utility', {}) %}
+{% set heat_data = fac_data.get('heating', {}) %}
+{% set fire_data = fac_data.get('fire', {}) %}
+{% set ahu_data = fac_data.get('ahu', {}) %}
+{% set outdoor_data = fac_data.get('outdoor', {}) %}
+{% set chiller_data = fac_data.get('chiller', {}) %}
+
+<header class="page-header sw-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{% if qr_mode %}QR · {{ building.name }} · 1일 · 자동 저장{% else %}{{ building.name }} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}
+  <div class="sw-header-actions">
+    <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>
+  </div>
+  {% endif %}
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="sw-tabs" aria-label="제철소본부 탭">
+  <a href="?tab=daily&date={{ log_date.isoformat() }}" class="sw-tab{% if tab == 'daily' %} active{% endif %}">1일</a>
+  {% if not qr_mode %}
+  <a href="?tab=monthly&year={{ year }}&month={{ month }}" class="sw-tab{% if tab == 'monthly' %} active{% endif %}">월보</a>
+  <a href="?tab=yearly&year={{ year }}" class="sw-tab{% if tab == 'yearly' %} active{% endif %}">년보</a>
+  <a href="?tab=notes&year={{ year }}&month={{ month }}" class="sw-tab{% if tab == 'notes' %} active{% endif %}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide sw-daily">
+  <form method="get" class="sw-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜
+      <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="location.href='/swhq/{{ building.code }}/daily?date='+this.value" />
+    </label>
+    <a class="btn btn-secondary btn-sm" href="/swhq/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜
+      <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" />
+    </label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    <a class="btn btn-secondary btn-sm"
+       href="/admin/inspection-logs2/{{ building.id }}/steelworks-hq/export/daily?log_date={{ log_date.isoformat() }}">
+      엑셀 다운로드
+    </a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="sw-qr-box">
+    <h3 class="sw-qr-title">1일 점검 QR</h3>
+    <p class="text-muted sw-hint">현장에서 QR 스캔 시 1일 점검일지가 열립니다 (로그인 불필요 · 자동 저장).</p>
+    <div class="sw-qr-inner">
+      <img class="sw-qr-img"
+           src="/admin/inspection-logs2/{{ building.id }}/steelworks-hq/qr.png"
+           alt="{{ building.name }} 1일 QR" />
+      <div class="sw-qr-meta">
+        <p class="sw-qr-url"><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a></p>
+        <a class="btn btn-secondary btn-sm"
+           href="/admin/inspection-logs2/{{ building.id }}/steelworks-hq/qr.png?download=1">QR 다운로드</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted sw-hint">
+    전기·설비 1일 통합 입력 · 노란 칸 = 전일 지침(자동 반영 · 수기 입력 가능) · 입력 시 자동 저장
+    {% if not qr_mode %} · 23:59(KST) 일별 마감{% endif %}
+  </p>
+
+  <form method="post" action="{{ save_url }}" class="sw-daily-form" id="sw-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    {# ── TOP: 전기 ── #}
+    <div class="sw-daily-part sw-daily-electric">
+      <h2 class="sw-part-title">{{ schema.electrical.sheet_title }}</h2>
+
+      {% for bid in ['incoming', 'turbo', 'room', 'hv'] %}
+      {% set layout = electrical_layouts.get(bid, {}) %}
+      {% set block_schema = (schema.electrical.blocks | selectattr('id', 'equalto', bid) | list | first) %}
+      {% if not block_schema %}{% continue %}{% endif %}
+      {% set bdata = elec_data.get(bid, {}) %}
+      {% set times_map = bdata.get('times', {}) %}
+      {% set notes_map = bdata.get('notes', {}) %}
+
+      <div class="sw-sheet" data-block="{{ bid }}">
+        <div class="sw-sheet-title">{{ layout.title or block_schema.title }}</div>
+        <div class="sw-table-wrap">
+          {% if bid != 'hv' %}
+          {% set prev = bdata.get('prev', {}) %}
+          {% set prev_manual = bdata.get('prev_manual', {}) %}
+          <table class="sw-excel">
+            <thead>
+              <tr>
+                <th class="sw-corner" rowspan="4">구분</th>
+                {% for sec in layout.sections %}
+                <th class="sw-group-head" colspan="{{ sec.columns|length }}">{{ sec.name }}</th>
+                {% endfor %}
+              </tr>
+              <tr>
+                {% for sec in layout.sections %}
+                {% for col in sec.columns %}
+                <th class="sw-metric">{{ col.metric }}</th>
+                {% endfor %}
+                {% endfor %}
+              </tr>
+              <tr>
+                {% for sec in layout.sections %}
+                {% for col in sec.columns %}
+                {% if col.kind == 'cumulative' %}
+                <th class="sw-unit sw-yellow-head">전일 지침</th>
+                {% else %}
+                <th class="sw-unit">{{ col.unit }}</th>
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+              </tr>
+              <tr>
+                {% for sec in layout.sections %}
+                {% for col in sec.columns %}
+                {% if col.kind == 'cumulative' %}
+                <td class="sw-yellow-cell">
+                  <input type="text"
+                         name="eprev__{{ bid }}__{{ col.meter_id }}"
+                         value="{{ prev.get(col.meter_id, '') }}"
+                         inputmode="decimal"
+                         class="sw-prev-input sw-cell"
+                         data-prev-manual="{{ '1' if prev_manual.get(col.meter_id) else '0' }}"
+                         title="전일 지침 (자동 반영 · 수기 입력 가능)" />
+                  <input type="hidden"
+                         name="eprev__{{ bid }}__{{ col.meter_id }}__manual"
+                         value="{{ '1' if prev_manual.get(col.meter_id) else '' }}"
+                         class="sw-prev-manual-flag" />
+                </td>
+                {% else %}
+                <td class="sw-range">{{ col.range }}</td>
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in block_schema.times %}
+              {% set cells = times_map.get(t, {}) %}
+              <tr>
+                <th class="sw-time-label">{{ t }}</th>
+                {% for sec in layout.sections %}
+                {% for col in sec.columns %}
+                <td class="sw-data-cell">
+                  <input type="text"
+                         name="e__{{ bid }}__{{ t }}__{{ col.col }}"
+                         value="{{ cells.get(col.col, '') }}"
+                         inputmode="decimal"
+                         class="sw-cell" />
+                </td>
+                {% endfor %}
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          {% else %}
+          {# HV block: 10:00 / 14:00, groups + TR temps + notes #}
+          <table class="sw-excel">
+            <thead>
+              <tr>
+                <th class="sw-corner" rowspan="3">구분</th>
+                {% for sec in layout.sections %}
+                <th class="sw-group-head" colspan="{{ sec.columns|length }}">{{ sec.name }}</th>
+                {% endfor %}
+              </tr>
+              <tr>
+                {% for sec in layout.sections %}
+                {% for col in sec.columns %}
+                <th class="sw-metric">{{ col.metric }}{% if col.range %}<br><small class="sw-range">{{ col.range }}</small>{% endif %}</th>
+                {% endfor %}
+                {% endfor %}
+              </tr>
+              <tr>
+                {% for sec in layout.sections %}
+                {% for col in sec.columns %}
+                <th class="sw-unit">{% if col.kind == 'notes' %}내용{% else %}{{ col.unit }}{% endif %}</th>
+                {% endfor %}
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in block_schema.times %}
+              {% set cells = times_map.get(t, {}) %}
+              <tr>
+                <th class="sw-time-label">{{ t }}</th>
+                {% for sec in layout.sections %}
+                {% for col in sec.columns %}
+                <td class="sw-data-cell{% if col.kind == 'notes' %} sw-notes-cell{% endif %}">
+                  {% if col.kind == 'notes' %}
+                  <input type="text"
+                         name="e__hv__{{ t }}__notes"
+                         value="{{ notes_map.get(t, '') }}"
+                         class="sw-cell sw-note" />
+                  {% else %}
+                  <input type="text"
+                         name="e__hv__{{ t }}__{{ col.col }}"
+                         value="{{ cells.get(col.col, '') }}"
+                         inputmode="decimal"
+                         class="sw-cell" />
+                  {% endif %}
+                </td>
+                {% endfor %}
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── BOTTOM: 설비 ── #}
+    <div class="sw-daily-part sw-daily-facility">
+      <h2 class="sw-part-title">{{ fac_schema.sheet_title }}</h2>
+
+      {# 1. Utility 사용량 #}
+      <div class="sw-sheet">
+        <div class="sw-sheet-title">{{ fac_schema.utility.title }}</div>
+        <div class="sw-table-wrap">
+          <table class="sw-excel">
+            <thead>
+              <tr>
+                <th class="sw-corner">구분</th>
+                <th>단위</th>
+                <th class="sw-yellow-head">전일지침</th>
+                <th>금일지침</th>
+                <th>일사용량</th>
+                <th>월누계량</th>
+                <th>비고</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in fac_schema.utility.rows %}
+              {% set ud = util_data.get(row.id, {}) %}
+              <tr class="sw-utility-row" data-utility="{{ row.id }}">
+                <th class="sw-time-label">{{ row.label }}</th>
+                <td class="sw-unit">{{ row.unit }}</td>
+                <td class="sw-yellow-cell">
+                  <input type="text"
+                         name="f__utility__{{ row.id }}__prev"
+                         value="{{ ud.get('prev', '') }}"
+                         inputmode="decimal"
+                         class="sw-cell sw-prev"
+                         data-prev-manual="{{ '1' if ud.get('prev_manual') else '0' }}" />
+                  <input type="hidden"
+                         name="f__utility__{{ row.id }}__prev_manual"
+                         value="{{ '1' if ud.get('prev_manual') else '' }}"
+                         class="sw-prev-flag" />
+                </td>
+                <td>
+                  <input type="text"
+                         name="f__utility__{{ row.id }}__today"
+                         value="{{ ud.get('today', '') }}"
+                         inputmode="decimal"
+                         class="sw-cell sw-utility-today"
+                         data-utility="{{ row.id }}" />
+                </td>
+                <td class="sw-calc-out" data-out="utility-{{ row.id }}-daily">
+                  <input name="f__utility__{{ row.id }}__daily"
+                         value="{{ ud.get('daily', '') }}"
+                         class="sw-cell sw-readonly-field"
+                         readonly tabindex="-1" />
+                </td>
+                <td class="sw-calc-out" data-out="utility-{{ row.id }}-monthly">
+                  <input name="f__utility__{{ row.id }}__monthly"
+                         value="{{ ud.get('monthly', '') }}"
+                         class="sw-cell sw-readonly-field"
+                         readonly tabindex="-1" />
+                </td>
+                <td>
+                  <input type="text"
+                         name="f__utility__{{ row.id }}__notes"
+                         value="{{ ud.get('notes', '') }}"
+                         class="sw-cell sw-note" />
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {# 2. 난방(동절기) #}
+      <div class="sw-sheet">
+        <div class="sw-sheet-title">{{ fac_schema.heating.title }}</div>
+        <div class="sw-table-wrap">
+          <table class="sw-excel">
+            <thead>
+              <tr>
+                <th class="sw-corner" rowspan="2">구분</th>
+                <th colspan="2">공급 (95~120℃ / ㎏/㎠)</th>
+                <th colspan="2">환수 (55~65℃ / ㎏/㎠)</th>
+                <th colspan="3">현장온도·압력</th>
+              </tr>
+              <tr>
+                <th>온도</th><th>압력</th>
+                <th>온도</th><th>압력</th>
+                <th>위치</th><th>온도</th><th>압력</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in fac_schema.heating.rows %}
+              {% set hd = heat_data.get(row.id, {}) %}
+              <tr>
+                <th class="sw-time-label">{{ row.label }}</th>
+                <td><input name="f__heating__{{ row.id }}__supply_temp" value="{{ hd.get('supply_temp','') }}" class="sw-cell" /></td>
+                <td><input name="f__heating__{{ row.id }}__supply_pressure" value="{{ hd.get('supply_pressure','') }}" class="sw-cell" /></td>
+                <td><input name="f__heating__{{ row.id }}__return_temp" value="{{ hd.get('return_temp','') }}" class="sw-cell" /></td>
+                <td><input name="f__heating__{{ row.id }}__return_pressure" value="{{ hd.get('return_pressure','') }}" class="sw-cell" /></td>
+                <td><input name="f__heating__{{ row.id }}__location" value="{{ hd.get('location','') }}" class="sw-cell" /></td>
+                <td><input name="f__heating__{{ row.id }}__location_temp" value="{{ hd.get('location_temp','') }}" class="sw-cell" /></td>
+                <td><input name="f__heating__{{ row.id }}__location_pressure" value="{{ hd.get('location_pressure','') }}" class="sw-cell" /></td>
+              </tr>
+              {% endfor %}
+              {% set tank = heat_data.get('_tank', {}) %}
+              <tr>
+                <th class="sw-time-label">급탕탱크</th>
+                <td colspan="2"><input name="f__heating___tank__tank" value="{{ tank.get('tank','') }}" class="sw-cell" placeholder="탱크" /></td>
+                <td colspan="2"><input name="f__heating___tank__level" value="{{ tank.get('level','') }}" class="sw-cell" placeholder="수위" /></td>
+                <td colspan="3"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {# 소화전 #}
+      <div class="sw-sheet">
+        <div class="sw-sheet-title">{{ fac_schema.fire.title }}</div>
+        <div class="sw-table-wrap">
+          <table class="sw-excel">
+            <thead>
+              <tr>
+                <th class="sw-corner">구분</th>
+                <th>점검시간</th>
+                <th>압력 (㎏/㎠)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in fac_schema.fire.rows %}
+              {% set fd = fire_data.get(row.id, {}) %}
+              <tr>
+                <th class="sw-time-label">{{ row.label }}</th>
+                <td><input name="f__fire__{{ row.id }}__time" value="{{ fd.get('time','') }}" class="sw-cell" /></td>
+                <td><input name="f__fire__{{ row.id }}__pressure" value="{{ fd.get('pressure','') }}" class="sw-cell" /></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {# 공조온도(S/R) #}
+      <div class="sw-sheet">
+        <div class="sw-sheet-title">{{ fac_schema.ahu.title }}</div>
+        <div class="sw-table-wrap">
+          <table class="sw-excel">
+            <thead>
+              <tr>
+                <th class="sw-corner" rowspan="2">구분</th>
+                {% for unit in fac_schema.ahu.units %}
+                <th class="sw-group-head" colspan="2">{{ unit }}</th>
+                {% endfor %}
+              </tr>
+              <tr>
+                {% for unit in fac_schema.ahu.units %}
+                <th>공급</th><th>환수</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in fac_schema.ahu.times %}
+              {% set slot = ahu_data.get(t, {}) %}
+              <tr>
+                <th class="sw-time-label">{{ t }}</th>
+                {% for unit in fac_schema.ahu.units %}
+                {% set ud = slot.get(unit, {}) %}
+                <td><input name="f__ahu__{{ t }}__{{ unit }}__supply" value="{{ ud.get('supply','') }}" class="sw-cell" /></td>
+                <td><input name="f__ahu__{{ t }}__{{ unit }}__return" value="{{ ud.get('return','') }}" class="sw-cell" /></td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {# 외기온도 #}
+      <div class="sw-sheet">
+        <div class="sw-sheet-title">{{ fac_schema.outdoor.title }}</div>
+        {% for grp in fac_schema.outdoor.groups %}
+        <div class="sw-table-wrap{% if not loop.first %} sw-table-wrap-spaced{% endif %}">
+          <table class="sw-excel">
+            <thead>
+              <tr>
+                <th class="sw-corner">{{ grp.label }}</th>
+                {% for fld in grp.fields %}
+                <th class="sw-group-head">{{ fld }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in fac_schema.outdoor.times %}
+              {% set slot = outdoor_data.get(t, {}) %}
+              {% set gd = slot.get(grp.id, {}) %}
+              <tr>
+                <th class="sw-time-label">{{ t }}</th>
+                {% for fld in grp.fields %}
+                <td><input name="f__outdoor__{{ t }}__{{ grp.id }}__{{ fld }}" value="{{ gd.get(fld,'') }}" class="sw-cell" /></td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
+      </div>
+
+      {# 냉동기(하절기) #}
+      <div class="sw-sheet">
+        <div class="sw-sheet-title">{{ fac_schema.chiller.title }}</div>
+        {% for unit in fac_schema.chiller.units %}
+        {% set uid = unit.id %}
+        {% set unit_data = chiller_data.get(uid, {}) %}
+        {% if unit.times is number %}
+          {% set fields = fac_schema.chiller.fields_260 %}
+          {% set slots = range(1, unit.times + 1) | list %}
+        {% elif uid == 'c300' %}
+          {% set fields = fac_schema.chiller.fields_300 %}
+          {% set slots = unit.times %}
+        {% else %}
+          {% set fields = fac_schema.chiller.fields_260 %}
+          {% set slots = unit.times %}
+        {% endif %}
+        <div class="sw-table-wrap{% if not loop.first %} sw-table-wrap-spaced{% endif %}">
+          <div class="sw-subtitle">{{ unit.label }}</div>
+          <table class="sw-excel sw-chiller-table">
+            <thead>
+              <tr>
+                <th class="sw-corner">점검</th>
+                {% for field in fields %}
+                <th class="sw-metric"><small>{{ field }}</small></th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% if unit.times is number %}
+              {% for i in slots %}
+              {% set slot_key = 't' ~ i %}
+              {% set cells = unit_data.get(slot_key, {}) %}
+              <tr>
+                <th class="sw-time-label">{{ i }}차</th>
+                {% for field in fields %}
+                <td><input name="f__chiller__{{ uid }}__{{ slot_key }}__{{ field }}" value="{{ cells.get(field,'') }}" class="sw-cell" /></td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+              {% else %}
+              {% for slot_key in slots %}
+              {% set cells = unit_data.get(slot_key, {}) %}
+              <tr>
+                <th class="sw-time-label">{{ slot_key }}</th>
+                {% for field in fields %}
+                <td><input name="f__chiller__{{ uid }}__{{ slot_key }}__{{ field }}" value="{{ cells.get(field,'') }}" class="sw-cell" /></td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
+      </div>
+
+      {# 설비 특이사항 #}
+      <div class="sw-sheet">
+        <div class="sw-sheet-title">특이사항</div>
+        <div class="sw-table-wrap">
+          <table class="sw-excel">
+            <tbody>
+              <tr>
+                <th class="sw-time-label">내용</th>
+                <td class="sw-data-cell sw-notes-cell">
+                  <input type="text"
+                         name="f__notes__text"
+                         value="{{ fac_data.get('notes', '') }}"
+                         class="sw-cell sw-note sw-facility-notes" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {% if can_write %}
+    <div class="sw-form-actions">
+      <span id="sw-save-status" class="sw-save-status" aria-live="polite">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button type="submit"
+              formaction="/admin/inspection-logs2/{{ building.id }}/steelworks-hq/close-day"
+              formmethod="post"
+              class="btn btn-secondary"
+              onclick="return confirm('{{ log_date.isoformat() }} 일지를 마감하고 엑셀로 저장할까요?\n(내일 일지가 준비됩니다)');">
+        이 날짜 마감 · 엑셀 저장
+      </button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+{% if can_write %}
+<script src="/static/js/steelworks_hq.js?v=1"></script>
+{% endif %}
+
+{% elif tab == 'monthly' %}
+{% set monthly_sections = monthly.get('electrical_sections') or monthly.get('sections') or [] %}
+<section class="card card-wide sw-monthly">
+  <form method="get" class="sw-date-nav inline-form">
+    <input type="hidden" name="tab" value="monthly" />
+    <label>연월
+      <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
+      <input type="number" name="month" value="{{ month }}" min="1" max="12" style="width:3rem" />
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  <p class="text-muted sw-hint">
+    1일 전기·설비와 동일한 순서 · 노란 칸 = 전일 지침(전월 말 22:00) ·
+    사용량 = (당일 22:00 지침 − 전일 지침) × 배율 · 계 = 1~31일 사용량 합 / 최대(A) 최대값
+  </p>
+
+  {% for sec in monthly_sections %}
+  <div class="sw-sheet">
+    <div class="sw-sheet-title">{{ sec.title }}</div>
+    <div class="sw-table-wrap">
+      <table class="sw-excel sw-month-grid">
+        <thead>
+          <tr>
+            <th class="sw-corner" rowspan="3">구분</th>
+            {% for br in sec.breakers %}
+            <th class="sw-group-head sw-month-unit" colspan="3">{{ br.name }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for br in sec.breakers %}
+            <th class="sw-mult" colspan="3">적산량×{{ br.multiplier }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for br in sec.breakers %}
+            <th class="sw-metric">지침(KW)</th>
+            <th class="sw-metric">사용량(KWH)</th>
+            <th class="sw-metric">최대(A)</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="sw-prev-row">
+            <th class="sw-time-label">전일</th>
+            {% for br in sec.prev_day %}
+            <td class="sw-yellow-cell sw-data-cell">{{ br.reading }}</td>
+            <td class="sw-data-cell"></td>
+            <td class="sw-data-cell"></td>
+            {% endfor %}
+          </tr>
+          {% for day in sec.days %}
+          <tr>
+            <th class="sw-time-label">{{ day.day }}일</th>
+            {% for br in day.breakers %}
+            <td class="sw-data-cell">{{ br.reading }}</td>
+            <td class="sw-data-cell">{{ br.usage }}</td>
+            <td class="sw-data-cell">{{ br.max_a }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="sw-total-row">
+            <th class="sw-time-label">계</th>
+            {% for br in sec.breakers %}
+            {% set tot = sec.totals[loop.index0] %}
+            <td class="sw-data-cell"></td>
+            <td class="sw-green-cell">{{ tot.usage_sum }}</td>
+            <td class="sw-green-cell">{{ tot.max_a_max }}</td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% set tr = monthly.get('transformer') or monthly.get('tr_temps') %}
+  {% if tr %}
+  <div class="sw-sheet">
+    <div class="sw-sheet-title">{{ tr.title }}{% if tr.subtitle %} {{ tr.subtitle }}{% endif %}</div>
+    <div class="sw-table-wrap">
+      <table class="sw-excel sw-month-grid">
+        <thead>
+          <tr>
+            <th class="sw-corner" rowspan="2">구분</th>
+            {% for field in tr.fields %}
+            <th class="sw-group-head">{{ field.name }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for field in tr.fields %}
+            <th class="sw-range">{{ field.range }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in tr.days %}
+          <tr>
+            <th class="sw-time-label">{{ day.day }}일</th>
+            {% for field in tr.fields %}
+            <td class="sw-data-cell">{{ day['values'].get(field.col, '') }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="sw-total-row">
+            <th class="sw-time-label">계(최대)</th>
+            {% for field in tr.fields %}
+            <td class="sw-green-cell">{{ tr.totals.get(field.col, '') }}</td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% set fac_util = monthly.get('facility_utility', {}) %}
+  {% if fac_util.days %}
+  <div class="sw-sheet">
+    <div class="sw-sheet-title">설비 Utility 일사용량 / 월누계</div>
+    <div class="sw-table-wrap">
+      <table class="sw-excel sw-month-grid">
+        <thead>
+          <tr>
+            <th class="sw-corner">일</th>
+            {% for row in fac_schema.utility.rows %}
+            <th class="sw-group-head" colspan="2">{{ row.label }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            <th></th>
+            {% for row in fac_schema.utility.rows %}
+            <th class="sw-metric">일사용</th>
+            <th class="sw-metric">월누계</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in fac_util.days %}
+          <tr>
+            <th class="sw-time-label">{{ day.day }}일</th>
+            {% for row in fac_schema.utility.rows %}
+            {% set uv = (day.utility or {}).get(row.id, {}) %}
+            <td class="sw-data-cell">{{ uv.get('daily', '') }}</td>
+            <td class="sw-data-cell">{{ uv.get('monthly', '') }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{% elif tab == 'yearly' %}
+{% set yearly_sections = yearly.get('sections') or [] %}
+<section class="card card-wide sw-monthly sw-yearly">
+  <form method="get" class="sw-date-nav inline-form">
+    <input type="hidden" name="tab" value="yearly" />
+    <label>연도
+      <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  <p class="text-muted sw-hint">
+    월보 합계 기준 · 각 월 = 해당 월 전기 사용량 합계 · 계 = 1~12월 사용량 합
+  </p>
+
+  {% if yearly_sections %}
+  {% for sec in yearly_sections %}
+  <div class="sw-sheet">
+    <div class="sw-sheet-title">{{ sec.title }}</div>
+    <div class="sw-table-wrap">
+      <table class="sw-excel sw-month-grid">
+        <thead>
+          <tr>
+            <th class="sw-corner" rowspan="3">구분</th>
+            {% for br in sec.breakers %}
+            <th class="sw-group-head sw-month-unit" colspan="3">{{ br.name }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for br in sec.breakers %}
+            <th class="sw-mult" colspan="3">적산량×{{ br.multiplier }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for br in sec.breakers %}
+            <th class="sw-metric">지침(KW)</th>
+            <th class="sw-metric">사용량(KWH)</th>
+            <th class="sw-metric">최대(A)</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="sw-prev-row">
+            <th class="sw-time-label">전년</th>
+            {% for br in sec.prev_year %}
+            <td class="sw-yellow-cell sw-data-cell">{{ br.reading }}</td>
+            <td class="sw-data-cell"></td>
+            <td class="sw-data-cell"></td>
+            {% endfor %}
+          </tr>
+          {% for mon in sec.months %}
+          <tr>
+            <th class="sw-time-label">{{ mon.month }}월</th>
+            {% for br in mon.breakers %}
+            <td class="sw-data-cell">{{ br.reading }}</td>
+            <td class="sw-data-cell">{{ br.usage }}</td>
+            <td class="sw-data-cell">{{ br.max_a }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="sw-total-row">
+            <th class="sw-time-label">계</th>
+            {% for br in sec.breakers %}
+            {% set tot = sec.totals[loop.index0] %}
+            <td class="sw-data-cell"></td>
+            <td class="sw-green-cell">{{ tot.usage_sum }}</td>
+            <td class="sw-green-cell">{{ tot.max_a_max }}</td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  {# yearly.months 집계 (백엔드 fetch_yearly_report_data) #}
+  {% for block in schema.electrical.blocks if block.id != 'hv' %}
+  {% set meters = block.meters if block.meters else (block.groups | map(attribute='meter') | select | list) %}
+  {% if meters %}
+  <div class="sw-sheet">
+    <div class="sw-sheet-title">제철소본부 년보[{{ block.title }}]</div>
+    <div class="sw-table-wrap">
+      <table class="sw-excel sw-month-grid">
+        <thead>
+          <tr>
+            <th class="sw-corner">월</th>
+            {% for m in meters %}
+            <th class="sw-group-head">{{ m.name }}<br><small>×{{ m.multiplier }}</small></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for mon in yearly.get('months', []) %}
+          <tr>
+            <th class="sw-time-label">{{ mon.month }}월</th>
+            {% for m in meters %}
+            <td class="sw-data-cell">{{ (mon.electrical_usage or {}).get(m.id, '') }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="sw-total-row">
+            <th class="sw-time-label">계</th>
+            {% for m in meters %}
+            {% set ns = namespace(total=0, has=false) %}
+            {% for mon in yearly.get('months', []) %}
+              {% set v = (mon.electrical_usage or {}).get(m.id) %}
+              {% if v != '' and v is not none %}
+                {% set ns.has = true %}
+                {% set ns.total = ns.total + (v | float) %}
+              {% endif %}
+            {% endfor %}
+            <td class="sw-green-cell">{% if ns.has %}{{ '%.2f' | format(ns.total) }}{% endif %}</td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="sw-sheet">
+    <div class="sw-sheet-title">설비 Utility 월별 사용량</div>
+    <div class="sw-table-wrap">
+      <table class="sw-excel sw-month-grid">
+        <thead>
+          <tr>
+            <th class="sw-corner">월</th>
+            {% for row in fac_schema.utility.rows %}
+            <th class="sw-group-head">{{ row.label }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for mon in yearly.get('months', []) %}
+          <tr>
+            <th class="sw-time-label">{{ mon.month }}월</th>
+            {% for row in fac_schema.utility.rows %}
+            <td class="sw-data-cell">{{ (mon.facility_usage or {}).get(row.id, '') }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% set tr_fields = (schema.electrical.blocks | selectattr('id', 'equalto', 'hv') | list | first).tr_temps %}
+  {% if tr_fields and yearly.get('months') %}
+  <div class="sw-sheet">
+    <div class="sw-sheet-title">TR온도 월별 최대</div>
+    <div class="sw-table-wrap">
+      <table class="sw-excel sw-month-grid">
+        <thead>
+          <tr>
+            <th class="sw-corner">월</th>
+            {% for field in tr_fields %}
+            <th class="sw-group-head">{{ field.name }}<br><small>{{ field.range }}</small></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for mon in yearly.months %}
+          <tr>
+            <th class="sw-time-label">{{ mon.month }}월</th>
+            {% for field in tr_fields %}
+            <td class="sw-data-cell">{{ (mon.tr_temp_peaks or {}).get(field.col, '') }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide sw-notes">
+  <form method="get" class="sw-date-nav inline-form">
+    <input type="hidden" name="tab" value="notes" />
+    <label>연월
+      <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
+      <input type="number" name="month" value="{{ month }}" min="1" max="12" style="width:3rem" />
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  <p class="text-muted sw-hint">1일 일지에 작성된 특이사항을 날짜·구분별로 모아서 보여줍니다.</p>
+
+  {% if notes_list['entries'] %}
+  <div class="sw-notes-list">
+    {% for entry in notes_list['entries'] %}
+    <article class="sw-notes-day">
+      <h3 class="sw-notes-date">
+        <a href="?tab=daily&date={{ entry.date }}">{{ entry.date }} ({{ entry.day }}일)</a>
+      </h3>
+      <ul>
+        {% for item in entry['items'] %}
+        <li>
+          {% if item.section %}<strong>{{ item.section }}</strong>{% endif %}
+          {% if item.time %}<strong>{{ item.time }}</strong>{% endif %}
+          {% if item.section or item.time %} — {% endif %}{{ item.text }}
+        </li>
+        {% endfor %}
+      </ul>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

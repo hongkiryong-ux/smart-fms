@@ -1,0 +1,885 @@
+{
+  "building_name": "제철소본부",
+  "title": "제철소본부 일지",
+  "electrical": {
+    "sheet_title": "제철소본부 전기설비 점검일지",
+    "blocks": [
+      {
+        "id": "incoming",
+        "title": "수전",
+        "times": [
+          "06:00",
+          "10:00",
+          "14:00",
+          "18:00",
+          "22:00"
+        ],
+        "groups": [
+          {
+            "name": "NO.1 Incomming",
+            "columns": [
+              {
+                "col": "C",
+                "metric": "전압",
+                "unit": "V",
+                "range": "6171~6765"
+              },
+              {
+                "col": "E",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~1000"
+              },
+              {
+                "col": "F",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~1200"
+              },
+              {
+                "col": "G",
+                "metric": "무효",
+                "unit": "kVar",
+                "range": "57~61"
+              },
+              {
+                "col": "H",
+                "metric": "주파수",
+                "unit": "Hz",
+                "range": "57~61"
+              },
+              {
+                "col": "I",
+                "metric": "역률",
+                "unit": "%",
+                "range": "0.8~1.0"
+              },
+              {
+                "col": "J",
+                "metric": "적산량",
+                "unit": "Mwh",
+                "range": "",
+                "is_cumulative": true,
+                "multiplier": 1000
+              }
+            ],
+            "meter": {
+              "id": "m_J",
+              "name": "NO.1 Incomming",
+              "reading_col": "J",
+              "multiplier": 1000
+            }
+          },
+          {
+            "name": "NO.2 Incomming",
+            "columns": [
+              {
+                "col": "L",
+                "metric": "전압",
+                "unit": "V",
+                "range": "6171~6765"
+              },
+              {
+                "col": "N",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~1000"
+              },
+              {
+                "col": "O",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~1200"
+              },
+              {
+                "col": "P",
+                "metric": "무효",
+                "unit": "kVar",
+                "range": "57~61"
+              },
+              {
+                "col": "Q",
+                "metric": "주파수",
+                "unit": "Hz",
+                "range": "57~61"
+              },
+              {
+                "col": "R",
+                "metric": "역률",
+                "unit": "%",
+                "range": "0.8~1.0"
+              },
+              {
+                "col": "S",
+                "metric": "적산량",
+                "unit": "Mwh",
+                "range": "",
+                "is_cumulative": true,
+                "multiplier": 1000
+              }
+            ],
+            "meter": {
+              "id": "m_S",
+              "name": "NO.2 Incomming",
+              "reading_col": "S",
+              "multiplier": 1000
+            }
+          }
+        ]
+      },
+      {
+        "id": "turbo",
+        "title": "터보·TR",
+        "times": [
+          "06:00",
+          "10:00",
+          "14:00",
+          "18:00",
+          "22:00"
+        ],
+        "groups": [
+          {
+            "name": "NO.1 Turbo",
+            "columns": [
+              {
+                "col": "C",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~360"
+              },
+              {
+                "col": "D",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~30"
+              },
+              {
+                "col": "E",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×360",
+                "is_cumulative": true,
+                "multiplier": 360
+              }
+            ],
+            "meter": {
+              "id": "m_E",
+              "name": "NO.1 Turbo",
+              "reading_col": "E",
+              "multiplier": 360
+            }
+          },
+          {
+            "name": "NO.2 Turbo",
+            "columns": [
+              {
+                "col": "F",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~360"
+              },
+              {
+                "col": "G",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~30"
+              },
+              {
+                "col": "H",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×360",
+                "is_cumulative": true,
+                "multiplier": 360
+              }
+            ],
+            "meter": {
+              "id": "m_H",
+              "name": "NO.2 Turbo",
+              "reading_col": "H",
+              "multiplier": 360
+            }
+          },
+          {
+            "name": "NO.1 300kVA TR",
+            "columns": [
+              {
+                "col": "I",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~480"
+              },
+              {
+                "col": "J",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~40"
+              },
+              {
+                "col": "K",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×480",
+                "is_cumulative": true,
+                "multiplier": 480
+              }
+            ],
+            "meter": {
+              "id": "m_K",
+              "name": "NO.1 300kVA TR",
+              "reading_col": "K",
+              "multiplier": 480
+            }
+          },
+          {
+            "name": "백운대",
+            "columns": [
+              {
+                "col": "L",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~1200"
+              },
+              {
+                "col": "M",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~100"
+              },
+              {
+                "col": "N",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×900",
+                "is_cumulative": true,
+                "multiplier": 900
+              }
+            ],
+            "meter": {
+              "id": "m_N",
+              "name": "백운대",
+              "reading_col": "N",
+              "multiplier": 900
+            }
+          },
+          {
+            "name": "NO.3 500kVA TR",
+            "columns": [
+              {
+                "col": "O",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~900"
+              },
+              {
+                "col": "P",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~75"
+              },
+              {
+                "col": "Q",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×900",
+                "is_cumulative": true,
+                "multiplier": 900
+              }
+            ],
+            "meter": {
+              "id": "m_Q",
+              "name": "NO.3 500kVA TR",
+              "reading_col": "Q",
+              "multiplier": 900
+            }
+          },
+          {
+            "name": "NO.6 300kVA TR",
+            "columns": [
+              {
+                "col": "R",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~1200"
+              },
+              {
+                "col": "S",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~100"
+              },
+              {
+                "col": "T",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×1200",
+                "is_cumulative": true,
+                "multiplier": 1200
+              }
+            ],
+            "meter": {
+              "id": "m_T",
+              "name": "NO.6 300kVA TR",
+              "reading_col": "T",
+              "multiplier": 1200
+            }
+          }
+        ],
+        "meters": [
+          {
+            "id": "m_E",
+            "name": "NO.1 Turbo",
+            "reading_col": "E",
+            "multiplier": 360
+          },
+          {
+            "id": "m_H",
+            "name": "NO.2 Turbo",
+            "reading_col": "H",
+            "multiplier": 360
+          },
+          {
+            "id": "m_K",
+            "name": "NO.1 300kVA TR",
+            "reading_col": "K",
+            "multiplier": 480
+          },
+          {
+            "id": "m_N",
+            "name": "백운대",
+            "reading_col": "N",
+            "multiplier": 900
+          },
+          {
+            "id": "m_Q",
+            "name": "NO.3 500kVA TR",
+            "reading_col": "Q",
+            "multiplier": 900
+          },
+          {
+            "id": "m_T",
+            "name": "NO.6 300kVA TR",
+            "reading_col": "T",
+            "multiplier": 1200
+          }
+        ]
+      },
+      {
+        "id": "room",
+        "title": "전기실·TR",
+        "times": [
+          "06:00",
+          "10:00",
+          "14:00",
+          "18:00",
+          "22:00"
+        ],
+        "groups": [
+          {
+            "name": "3동 전기실",
+            "columns": [
+              {
+                "col": "C",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~1800"
+              },
+              {
+                "col": "D",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~150"
+              },
+              {
+                "col": "E",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×1800",
+                "is_cumulative": true,
+                "multiplier": 1800
+              }
+            ],
+            "meter": {
+              "id": "m_E",
+              "name": "3동 전기실",
+              "reading_col": "E",
+              "multiplier": 1800
+            }
+          },
+          {
+            "name": "전용구장",
+            "columns": [
+              {
+                "col": "F",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~4800"
+              },
+              {
+                "col": "G",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~400"
+              },
+              {
+                "col": "H",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×4800",
+                "is_cumulative": true,
+                "multiplier": 4800
+              }
+            ],
+            "meter": {
+              "id": "m_H",
+              "name": "전용구장",
+              "reading_col": "H",
+              "multiplier": 4800
+            }
+          },
+          {
+            "name": "NO.2 300kVA TR",
+            "columns": [
+              {
+                "col": "I",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~480"
+              },
+              {
+                "col": "J",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~40"
+              },
+              {
+                "col": "K",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×480",
+                "is_cumulative": true,
+                "multiplier": 480
+              }
+            ],
+            "meter": {
+              "id": "m_K",
+              "name": "NO.2 300kVA TR",
+              "reading_col": "K",
+              "multiplier": 480
+            }
+          },
+          {
+            "name": "Spare",
+            "columns": [
+              {
+                "col": "L",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~7200"
+              },
+              {
+                "col": "M",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~600"
+              },
+              {
+                "col": "N",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×7200",
+                "is_cumulative": true,
+                "multiplier": 7200
+              }
+            ],
+            "meter": {
+              "id": "m_N",
+              "name": "Spare",
+              "reading_col": "N",
+              "multiplier": 7200
+            }
+          },
+          {
+            "name": "NO.4 300kVA TR",
+            "columns": [
+              {
+                "col": "O",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~480"
+              },
+              {
+                "col": "P",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~40"
+              },
+              {
+                "col": "Q",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×480",
+                "is_cumulative": true,
+                "multiplier": 480
+              }
+            ],
+            "meter": {
+              "id": "m_Q",
+              "name": "NO.4 300kVA TR",
+              "reading_col": "Q",
+              "multiplier": 480
+            }
+          },
+          {
+            "name": "NO.5 400kVA TR",
+            "columns": [
+              {
+                "col": "R",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~600"
+              },
+              {
+                "col": "S",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~50"
+              },
+              {
+                "col": "T",
+                "metric": "적산량",
+                "unit": "",
+                "range": "×600",
+                "is_cumulative": true,
+                "multiplier": 600
+              }
+            ],
+            "meter": {
+              "id": "m_T",
+              "name": "NO.5 400kVA TR",
+              "reading_col": "T",
+              "multiplier": 600
+            }
+          }
+        ],
+        "meters": [
+          {
+            "id": "m_E",
+            "name": "3동 전기실",
+            "reading_col": "E",
+            "multiplier": 1800
+          },
+          {
+            "id": "m_H",
+            "name": "전용구장",
+            "reading_col": "H",
+            "multiplier": 4800
+          },
+          {
+            "id": "m_K",
+            "name": "NO.2 300kVA TR",
+            "reading_col": "K",
+            "multiplier": 480
+          },
+          {
+            "id": "m_N",
+            "name": "Spare",
+            "reading_col": "N",
+            "multiplier": 7200
+          },
+          {
+            "id": "m_Q",
+            "name": "NO.4 300kVA TR",
+            "reading_col": "Q",
+            "multiplier": 480
+          },
+          {
+            "id": "m_T",
+            "name": "NO.5 400kVA TR",
+            "reading_col": "T",
+            "multiplier": 600
+          }
+        ]
+      },
+      {
+        "id": "hv",
+        "title": "HV·TR온도·특이사항",
+        "times": [
+          "10:00",
+          "14:00"
+        ],
+        "groups": [
+          {
+            "name": "HV (상) 400kVA",
+            "columns": [
+              {
+                "col": "C",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~1800"
+              },
+              {
+                "col": "D",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~150"
+              },
+              {
+                "col": "E",
+                "metric": "TR온도",
+                "unit": "℃",
+                "range": ""
+              }
+            ]
+          },
+          {
+            "name": "HV 2(하) 450kVA",
+            "columns": [
+              {
+                "col": "F",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~4800"
+              },
+              {
+                "col": "G",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~400"
+              },
+              {
+                "col": "H",
+                "metric": "TR온도",
+                "unit": "℃",
+                "range": ""
+              }
+            ]
+          },
+          {
+            "name": "HV 3(상) 500kVA",
+            "columns": [
+              {
+                "col": "I",
+                "metric": "유효",
+                "unit": "kW",
+                "range": "0~480"
+              },
+              {
+                "col": "J",
+                "metric": "전류",
+                "unit": "A",
+                "range": "0~40"
+              },
+              {
+                "col": "K",
+                "metric": "TR온도",
+                "unit": "℃",
+                "range": ""
+              }
+            ]
+          }
+        ],
+        "tr_temps": [
+          {
+            "col": "L",
+            "name": "NO.1",
+            "range": "300kVA"
+          },
+          {
+            "col": "M",
+            "name": "NO.2",
+            "range": "300kVA"
+          },
+          {
+            "col": "N",
+            "name": "NO.3",
+            "range": "500kVA"
+          },
+          {
+            "col": "O",
+            "name": "NO.4",
+            "range": "300kVA"
+          },
+          {
+            "col": "P",
+            "name": "NO.5",
+            "range": "400kVA"
+          },
+          {
+            "col": "Q",
+            "name": "NO.6",
+            "range": "300kVA"
+          }
+        ],
+        "notes_col": "R"
+      }
+    ]
+  },
+  "facility": {
+    "sheet_title": "제철소본부 운영일보",
+    "utility": {
+      "title": "1. Utility 사용량",
+      "rows": [
+        {
+          "id": "pwr1",
+          "label": "전력 NO.1 수전",
+          "unit": "Mwh"
+        },
+        {
+          "id": "pwr2",
+          "label": "전력 NO.2 수전",
+          "unit": "Mwh"
+        },
+        {
+          "id": "heat",
+          "label": "중온수 열량",
+          "unit": "Mwh"
+        },
+        {
+          "id": "flow",
+          "label": "중온수 유량",
+          "unit": "㎥"
+        },
+        {
+          "id": "water1",
+          "label": "급수 1동 고가수조",
+          "unit": "㎥"
+        },
+        {
+          "id": "water_main",
+          "label": "급수 Main",
+          "unit": "㎥"
+        }
+      ]
+    },
+    "heating": {
+      "title": "2. Utility 점검 — 난방(동절기)",
+      "rows": [
+        {
+          "id": "b1",
+          "label": "1동"
+        },
+        {
+          "id": "b3",
+          "label": "3동"
+        }
+      ]
+    },
+    "fire": {
+      "title": "소화전",
+      "rows": [
+        {
+          "id": "b1",
+          "label": "1동"
+        },
+        {
+          "id": "b3",
+          "label": "3동"
+        }
+      ]
+    },
+    "ahu": {
+      "title": "공조온도(S/R)",
+      "times": [
+        "09:50",
+        "13:30"
+      ],
+      "units": [
+        "AHU-1",
+        "AHU-2",
+        "AHU-3",
+        "AHU-4",
+        "AHU-5",
+        "AHU-6"
+      ]
+    },
+    "outdoor": {
+      "title": "외기온도",
+      "times": [
+        "09:50",
+        "13:30"
+      ],
+      "groups": [
+        {
+          "id": "g1",
+          "label": "1차",
+          "fields": [
+            "제철소장실",
+            "행정부소장실",
+            "안전환경부소장실",
+            "환경기획실장실"
+          ]
+        },
+        {
+          "id": "g2",
+          "label": "2차",
+          "fields": [
+            "회장실",
+            "본부장실",
+            "대응접실",
+            "영상회의실"
+          ]
+        }
+      ]
+    },
+    "chiller": {
+      "title": "3. 냉동기(하절기)",
+      "units": [
+        {
+          "id": "c260_1",
+          "label": "260RT #1",
+          "times": 2
+        },
+        {
+          "id": "c260_2",
+          "label": "260RT #2",
+          "times": 2
+        },
+        {
+          "id": "c80",
+          "label": "80RT",
+          "times": [
+            "09:50",
+            "13:30"
+          ]
+        },
+        {
+          "id": "c300",
+          "label": "300RT",
+          "times": [
+            "09:00",
+            "13:10"
+          ]
+        }
+      ],
+      "fields_260": [
+        "전압kV",
+        "전류A",
+        "유압",
+        "Oil℃",
+        "Vane%",
+        "응축압력",
+        "응축입구",
+        "응축출구",
+        "냉매%",
+        "증발압력",
+        "증발입구",
+        "증발출구"
+      ],
+      "fields_300": [
+        "전류A",
+        "IGV%",
+        "D.P%",
+        "입력KW",
+        "압력비",
+        "응축압력",
+        "응축입구",
+        "응축출구",
+        "냉매%",
+        "증발압력",
+        "증발입구",
+        "증발출구"
+      ]
+    }
+  }
+}
