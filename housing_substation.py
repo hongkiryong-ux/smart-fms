@@ -132,6 +132,239 @@ def build_all_daily_layouts(schema: dict | None = None) -> dict[str, dict]:
     return {b["id"]: build_daily_block_layout(b) for b in schema.get("daily_blocks") or []}
 
 
+def get_daily_footer_schema(schema: dict | None = None) -> dict:
+    schema = schema or load_schema()
+    return schema.get("daily_footer") or {}
+
+
+def empty_footer_payload(footer_schema: dict | None = None) -> dict[str, Any]:
+    footer_schema = footer_schema or get_daily_footer_schema()
+    times = footer_schema.get("times") or []
+    out: dict[str, Any] = {
+        "facilities": {"prev": {}, "times": {t: {} for t in times}},
+        "main": {"times": {t: {} for t in times}},
+        "transformer": {"times": {t: {} for t in times}},
+        "notes": {t: "" for t in times},
+    }
+    for grp in (footer_schema.get("facilities") or {}).get("groups") or []:
+        prev = grp.get("prev")
+        if prev:
+            out["facilities"]["prev"][f"{grp['id']}__{prev['id']}"] = ""
+    return out
+
+
+def build_daily_footer_layout(schema: dict | None = None) -> dict:
+    footer = get_daily_footer_schema(schema)
+    return footer
+
+
+def _footer_times(footer_schema: dict) -> list[str]:
+    return footer_schema.get("times") or [
+        "06:00",
+        "10:00",
+        "14:00",
+        "17:00",
+        "20:00",
+        "22:00",
+    ]
+
+
+def _footer_transformer_fields(footer_schema: dict) -> list[dict]:
+    return (footer_schema.get("transformer") or {}).get("fields") or []
+
+
+def _max_numeric(values: list[Any]) -> Any:
+    nums = [_parse_num(v) for v in values]
+    nums = [n for n in nums if n is not None]
+    return round(max(nums), 1) if nums else ""
+
+
+def _transformer_values_for_day(day_data: dict, footer_schema: dict) -> dict[str, Any]:
+    times = _footer_times(footer_schema)
+    fields = _footer_transformer_fields(footer_schema)
+    tf_times = (day_data.get("footer") or {}).get("transformer", {}).get("times") or {}
+    out: dict[str, Any] = {}
+    for field in fields:
+        col = field["col"]
+        vals = [(tf_times.get(t) or {}).get(col, "") for t in times]
+        out[col] = _max_numeric(vals)
+    return out
+
+
+def compute_transformer_monthly_report(
+    year: int,
+    month: int,
+    daily_rows: list[HousingSubstationDaily],
+) -> dict[str, Any]:
+    footer_schema = get_daily_footer_schema()
+    fields = _footer_transformer_fields(footer_schema)
+    by_date = {r.log_date: r.data or {} for r in daily_rows}
+    days = []
+    peaks: dict[str, float | None] = {f["col"]: None for f in fields}
+    for day in range(1, 32):
+        try:
+            d = date(year, month, day)
+        except ValueError:
+            break
+        values = _transformer_values_for_day(by_date.get(d, {}), footer_schema)
+        days.append({"day": day, "date": d.isoformat(), "values": values})
+        for field in fields:
+            col = field["col"]
+            val = _parse_num(values.get(col))
+            if val is None:
+                continue
+            cur = peaks[col]
+            peaks[col] = val if cur is None else max(cur, val)
+    totals = {col: (round(peaks[col], 1) if peaks[col] is not None else "") for col in peaks}
+    return {
+        "title": (footer_schema.get("transformer") or {}).get("title", "변압기온도"),
+        "subtitle": (footer_schema.get("transformer") or {}).get("subtitle", ""),
+        "fields": fields,
+        "days": days,
+        "totals": totals,
+    }
+
+
+def compute_transformer_yearly_report(
+    year: int,
+    daily_rows: list[HousingSubstationDaily],
+) -> dict[str, Any]:
+    footer_schema = get_daily_footer_schema()
+    fields = _footer_transformer_fields(footer_schema)
+    rows_by_date = {r.log_date: r for r in daily_rows}
+    months = []
+    year_peaks: dict[str, float | None] = {f["col"]: None for f in fields}
+    for month in range(1, 13):
+        month_rows = [r for r in daily_rows if r.log_date.year == year and r.log_date.month == month]
+        monthly = compute_transformer_monthly_report(year, month, month_rows)
+        values = monthly.get("totals") or {}
+        months.append({"month": month, "values": values})
+        for field in fields:
+            col = field["col"]
+            val = _parse_num(values.get(col))
+            if val is None:
+                continue
+            cur = year_peaks[col]
+            year_peaks[col] = val if cur is None else max(cur, val)
+    totals = {
+        col: (round(year_peaks[col], 1) if year_peaks[col] is not None else "")
+        for col in year_peaks
+    }
+    return {
+        "title": (footer_schema.get("transformer") or {}).get("title", "변압기온도"),
+        "subtitle": (footer_schema.get("transformer") or {}).get("subtitle", ""),
+        "fields": fields,
+        "months": months,
+        "totals": totals,
+    }
+
+
+async def fetch_notes_list(
+    session: AsyncSession,
+    building_id: int,
+    year: int,
+    month: int,
+) -> dict[str, Any]:
+    import calendar
+
+    footer_schema = get_daily_footer_schema()
+    times = _footer_times(footer_schema)
+    last_day = calendar.monthrange(year, month)[1]
+    d_from = date(year, month, 1)
+    d_to = date(year, month, last_day)
+    rows = (
+        await session.execute(
+            select(HousingSubstationDaily)
+            .where(
+                HousingSubstationDaily.building_id == building_id,
+                HousingSubstationDaily.log_date >= d_from,
+                HousingSubstationDaily.log_date <= d_to,
+            )
+            .order_by(HousingSubstationDaily.log_date.asc())
+        )
+    ).scalars().all()
+    entries: list[dict[str, Any]] = []
+    for row in rows:
+        notes = ((row.data or {}).get("footer") or {}).get("notes") or {}
+        day_notes = []
+        for t in times:
+            text = (notes.get(t) or "").strip()
+            if text:
+                day_notes.append({"time": t, "text": text})
+        if day_notes:
+            entries.append(
+                {
+                    "date": row.log_date.isoformat(),
+                    "day": row.log_date.day,
+                    "items": day_notes,
+                }
+            )
+    return {"year": year, "month": month, "entries": entries}
+
+
+def prev_facility_readings_from_daily_data(source_data: dict) -> dict[str, str]:
+    footer_schema = get_daily_footer_schema()
+    tf_times = ((source_data or {}).get("footer") or {}).get("facilities", {}).get("times") or {}
+    t2200 = tf_times.get("22:00") or {}
+    out: dict[str, str] = {}
+    for grp in (footer_schema.get("facilities") or {}).get("groups") or []:
+        prev = grp.get("prev")
+        if not prev:
+            continue
+        key = f"{grp['id']}__{prev['id']}"
+        field_key = f"{grp['id']}__{prev['id']}"
+        out[key] = t2200.get(field_key, "")
+    return out
+
+
+def apply_footer_prev_readings(data: dict, prev_vals: dict[str, str]) -> bool:
+    if not prev_vals:
+        return False
+    data.setdefault("footer", empty_footer_payload())
+    data["footer"].setdefault("facilities", {"prev": {}, "times": {}})
+    data["footer"]["facilities"].setdefault("prev", {})
+    changed = False
+    for key, val in prev_vals.items():
+        if data["footer"]["facilities"]["prev"].get(key) != val:
+            data["footer"]["facilities"]["prev"][key] = val
+            changed = True
+    return changed
+
+
+async def sync_footer_prev(
+    session: AsyncSession, building_id: int, log_date: date, data: dict
+) -> tuple[dict, bool]:
+    prev_date = log_date - timedelta(days=1)
+    row = await get_daily_row(session, building_id, prev_date)
+    if not row or not row.data:
+        return data, False
+    prev_vals = prev_facility_readings_from_daily_data(row.data)
+    changed = apply_footer_prev_readings(data, prev_vals)
+    return data, changed
+
+
+async def propagate_footer_prev_to_next_day(
+    session: AsyncSession, building_id: int, log_date: date, saved_data: dict
+) -> None:
+    next_date = log_date + timedelta(days=1)
+    next_row = await get_daily_row(session, building_id, next_date)
+    if not next_row:
+        return
+    footer_schema = get_daily_footer_schema()
+    tf_times = ((saved_data or {}).get("footer") or {}).get("facilities", {}).get("times") or {}
+    t2200 = tf_times.get("22:00") or {}
+    prev_vals: dict[str, str] = {}
+    for grp in (footer_schema.get("facilities") or {}).get("groups") or []:
+        prev = grp.get("prev")
+        if not prev:
+            continue
+        key = f"{grp['id']}__{prev['id']}"
+        prev_vals[key] = t2200.get(key, "")
+    next_data = merge_daily_save(next_row.data or {}, {})
+    if apply_footer_prev_readings(next_data, prev_vals):
+        next_row.data = next_data
+
+
 def build_monthly_sections(schema: dict | None = None) -> list[dict[str, Any]]:
     """1일 시트 meters 순서·명칭과 동일한 월보 열 구성."""
     schema = schema or load_schema()
@@ -179,6 +412,8 @@ def empty_daily_payload() -> dict:
         for m in block["meters"]:
             prev[m["id"]] = ""
         out[bid] = {"prev": prev, "times": {t: {} for t in block["times"]}}
+    if schema.get("daily_footer"):
+        out["footer"] = empty_footer_payload(schema["daily_footer"])
     return out
 
 
@@ -256,7 +491,8 @@ async def sync_daily_prev(
     merged = merge_daily_save(empty_daily_payload(), data)
     prev_vals = await _prev_day_readings(session, building_id, log_date)
     changed = apply_prev_readings(merged, prev_vals)
-    return merged, changed
+    merged, footer_changed = await sync_footer_prev(session, building_id, log_date, merged)
+    return merged, changed or footer_changed
 
 
 async def propagate_prev_to_next_day(
@@ -271,6 +507,7 @@ async def propagate_prev_to_next_day(
     next_data = merge_daily_save(empty_daily_payload(), next_row.data or {})
     if apply_prev_readings(next_data, prev_vals):
         next_row.data = next_data
+    await propagate_footer_prev_to_next_day(session, building_id, log_date, saved_data)
 
 
 async def get_or_create_daily(
@@ -297,6 +534,8 @@ async def get_or_create_daily(
 def merge_daily_save(existing: dict, posted: dict) -> dict:
     data = deepcopy(existing) if existing else empty_daily_payload()
     for bid, block_post in (posted or {}).items():
+        if bid == "footer":
+            continue
         if bid not in data:
             data[bid] = {"prev": {}, "times": {}}
         if "prev" in block_post:
@@ -304,6 +543,26 @@ def merge_daily_save(existing: dict, posted: dict) -> dict:
         for t, cells in (block_post.get("times") or {}).items():
             data[bid]["times"].setdefault(t, {})
             data[bid]["times"][t].update(cells or {})
+    footer_post = (posted or {}).get("footer") or {}
+    if footer_post or "footer" in data:
+        data.setdefault("footer", empty_footer_payload())
+        fac = footer_post.get("facilities") or {}
+        if "prev" in fac:
+            data["footer"]["facilities"].setdefault("prev", {})
+            data["footer"]["facilities"]["prev"].update(fac.get("prev") or {})
+        for t, cells in (fac.get("times") or {}).items():
+            data["footer"]["facilities"]["times"].setdefault(t, {})
+            data["footer"]["facilities"]["times"][t].update(cells or {})
+        main = footer_post.get("main") or {}
+        for t, cells in (main.get("times") or {}).items():
+            data["footer"]["main"]["times"].setdefault(t, {})
+            data["footer"]["main"]["times"][t].update(cells or {})
+        tf = footer_post.get("transformer") or {}
+        for t, cells in (tf.get("times") or {}).items():
+            data["footer"]["transformer"]["times"].setdefault(t, {})
+            data["footer"]["transformer"]["times"][t].update(cells or {})
+        notes = footer_post.get("notes") or {}
+        data["footer"]["notes"].update(notes)
     return data
 
 
@@ -933,6 +1192,34 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
                 val = cells.get(col_letter)
                 if val not in (None, ""):
                     ws[f"{col_letter}{row}"] = val
+
+    footer = data.get("footer") or {}
+    footer_schema = schema.get("daily_footer") or {}
+    footer_times = footer_schema.get("times") or list(time_index.keys())
+    footer_row_map = {t: 44 + i for i, t in enumerate(footer_times)}
+    main_times = (footer.get("main") or {}).get("times") or {}
+    tf_times = (footer.get("transformer") or {}).get("times") or {}
+    notes = footer.get("notes") or {}
+    main_cols = []
+    for grp in (footer_schema.get("main") or {}).get("groups") or []:
+        for col in grp.get("columns") or []:
+            main_cols.append(col["id"])
+    tf_cols = [f["col"] for f in (footer_schema.get("transformer") or {}).get("fields") or []]
+    for t in footer_times:
+        row = footer_row_map.get(t)
+        if not row:
+            continue
+        for col in main_cols:
+            val = (main_times.get(t) or {}).get(col)
+            if val not in (None, ""):
+                ws[f"{col}{row}"] = val
+        for col in tf_cols:
+            val = (tf_times.get(t) or {}).get(col)
+            if val not in (None, ""):
+                ws[f"{col}{row}"] = val
+        note = notes.get(t)
+        if note not in (None, ""):
+            ws[f"S{row}"] = note
 
     buf = io.BytesIO()
     wb.save(buf)

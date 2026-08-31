@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/housing_substation.css?v=8" />
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=9" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -27,10 +27,12 @@
   {% if not qr_mode %}
   <a href="?tab=monthly&year={{ year }}&month={{ month }}" class="hs-tab{% if tab == 'monthly' %} active{% endif %}">월보</a>
   <a href="?tab=yearly&year={{ year }}" class="hs-tab{% if tab == 'yearly' %} active{% endif %}">년보</a>
+  <a href="?tab=notes&year={{ year }}&month={{ month }}" class="hs-tab{% if tab == 'notes' %} active{% endif %}">특이사항</a>
   {% endif %}
 </nav>
 
 {% if tab == 'daily' %}
+{% set daily_footer = daily_footer|default({}) %}
 <section class="card card-wide hs-daily">
   <form method="get" class="hs-date-nav inline-form">
     {% if qr_mode %}
@@ -153,6 +155,179 @@
     </div>
     {% endfor %}
 
+    {% set footer_data = daily_data.get('footer', {}) %}
+    {% set fac_data = footer_data.get('facilities', {}) %}
+    {% set fac_prev = fac_data.get('prev', {}) %}
+    {% set fac_times = fac_data.get('times', {}) %}
+    {% set main_data = footer_data.get('main', {}).get('times', {}) %}
+    {% set tf_data = footer_data.get('transformer', {}).get('times', {}) %}
+    {% set notes_data = footer_data.get('notes', {}) %}
+
+    {% if daily_footer.facilities %}
+    <div class="hs-sheet hs-footer-sheet">
+      <div class="hs-sheet-title">{{ daily_footer.facilities.title }}</div>
+      <div class="hs-table-wrap">
+        <table class="hs-excel">
+          <thead>
+            <tr>
+              <th class="hs-corner" rowspan="4">구분</th>
+              {% for grp in daily_footer.facilities.groups %}
+              <th class="hs-group-head" colspan="{{ grp.columns|length + (1 if grp.prev else 0) }}">{{ grp.name }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for grp in daily_footer.facilities.groups %}
+              {% for col in grp.columns %}
+              <th class="hs-metric">{{ col.metric }}</th>
+              {% endfor %}
+              {% if grp.prev %}
+              <th class="hs-metric">{{ grp.prev.label }}</th>
+              {% endif %}
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for grp in daily_footer.facilities.groups %}
+              {% for col in grp.columns %}
+              <th class="hs-unit">{{ col.unit }}</th>
+              {% endfor %}
+              {% if grp.prev %}
+              <th class="hs-unit hs-yellow-head">전일 지침</th>
+              {% endif %}
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for grp in daily_footer.facilities.groups %}
+              {% for col in grp.columns %}
+              <td class="hs-range">{{ col.range }}</td>
+              {% endfor %}
+              {% if grp.prev %}
+              <td class="hs-yellow-cell">
+                <input type="text"
+                       name="footer__facilities__prev__{{ grp.id }}__{{ grp.prev.id }}"
+                       value="{{ fac_prev.get(grp.id ~ '__' ~ grp.prev.id, '') }}"
+                       readonly
+                       class="hs-prev-input"
+                       title="전일 22:00 지침 (자동)" />
+              </td>
+              {% endif %}
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in daily_footer.times %}
+            {% set cells = fac_times.get(t, {}) %}
+            <tr>
+              <th class="hs-time-label">{{ t }}</th>
+              {% for grp in daily_footer.facilities.groups %}
+              {% for col in grp.columns %}
+              <td class="hs-data-cell">
+                <input type="text"
+                       name="footer__facilities__{{ t }}__{{ grp.id }}__{{ col.id }}"
+                       value="{{ cells.get(grp.id ~ '__' ~ col.id, '') }}"
+                       inputmode="decimal"
+                       class="hs-cell" />
+              </td>
+              {% endfor %}
+              {% if grp.prev %}
+              <td class="hs-data-cell">
+                <input type="text"
+                       name="footer__facilities__{{ t }}__{{ grp.id }}__{{ grp.prev.id }}"
+                       value="{{ cells.get(grp.id ~ '__' ~ grp.prev.id, '') }}"
+                       inputmode="decimal"
+                       class="hs-cell" />
+              </td>
+              {% endif %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if daily_footer %}
+    <div class="hs-sheet hs-footer-sheet">
+      <div class="hs-table-wrap">
+        <table class="hs-excel hs-footer-combined">
+          <thead>
+            <tr>
+              <th class="hs-corner" rowspan="4">구분</th>
+              <th class="hs-group-head" colspan="6">{{ daily_footer.main.title }}</th>
+              <th class="hs-corner" rowspan="4">구분</th>
+              <th class="hs-group-head" colspan="5">{{ daily_footer.transformer.title }}</th>
+              <th class="hs-group-head hs-notes-head" rowspan="4">{{ daily_footer.notes.title }}</th>
+            </tr>
+            <tr>
+              {% for grp in daily_footer.main.groups %}
+              {% for col in grp.columns %}
+              <th class="hs-metric">{{ col.metric }}</th>
+              {% endfor %}
+              {% endfor %}
+              <th class="hs-metric" colspan="5">{{ daily_footer.transformer.subtitle }}</th>
+            </tr>
+            <tr>
+              {% for grp in daily_footer.main.groups %}
+              {% for col in grp.columns %}
+              <th class="hs-unit">{{ col.unit }}</th>
+              {% endfor %}
+              {% endfor %}
+              {% for field in daily_footer.transformer.fields %}
+              <th class="hs-unit">{{ field.name }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for grp in daily_footer.main.groups %}
+              {% for col in grp.columns %}
+              <td class="hs-range">{{ col.range }}</td>
+              {% endfor %}
+              {% endfor %}
+              {% for field in daily_footer.transformer.fields %}
+              <td class="hs-range">{{ field.range }}</td>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in daily_footer.times %}
+            {% set main_cells = main_data.get(t, {}) %}
+            {% set tf_cells = tf_data.get(t, {}) %}
+            <tr>
+              <th class="hs-time-label">{{ t }}</th>
+              {% for grp in daily_footer.main.groups %}
+              {% for col in grp.columns %}
+              <td class="hs-data-cell">
+                <input type="text"
+                       name="footer__main__{{ t }}__{{ col.id }}"
+                       value="{{ main_cells.get(col.id, '') }}"
+                       inputmode="decimal"
+                       class="hs-cell" />
+              </td>
+              {% endfor %}
+              {% endfor %}
+              <th class="hs-time-label">{{ t }}</th>
+              {% for field in daily_footer.transformer.fields %}
+              <td class="hs-data-cell">
+                <input type="text"
+                       name="footer__transformer__{{ t }}__{{ field.col }}"
+                       value="{{ tf_cells.get(field.col, '') }}"
+                       inputmode="decimal"
+                       class="hs-cell" />
+              </td>
+              {% endfor %}
+              <td class="hs-data-cell hs-notes-cell">
+                <input type="text"
+                       name="footer__notes__{{ t }}"
+                       value="{{ notes_data.get(t, '') }}"
+                       class="hs-cell hs-note" />
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
     {% if can_write %}
     <div class="hs-form-actions">
       <span id="hs-save-status" class="hs-save-status" aria-live="polite">자동 저장</span>
@@ -170,7 +345,7 @@
   </form>
 </section>
 {% if can_write %}
-<script src="/static/js/housing_substation.js?v=3"></script>
+<script src="/static/js/housing_substation.js?v=4"></script>
 {% endif %}
 
 {% elif tab == 'monthly' %}
@@ -250,6 +425,45 @@
     </div>
   </div>
   {% endfor %}
+
+  {% if monthly.transformer %}
+  <div class="hs-sheet">
+    <div class="hs-sheet-title">{{ monthly.transformer.title }}{% if monthly.transformer.subtitle %} {{ monthly.transformer.subtitle }}{% endif %}</div>
+    <div class="hs-table-wrap">
+      <table class="hs-excel hs-month-grid">
+        <thead>
+          <tr>
+            <th class="hs-corner" rowspan="2">구분</th>
+            {% for field in monthly.transformer.fields %}
+            <th class="hs-group-head">{{ field.name }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for field in monthly.transformer.fields %}
+            <th class="hs-range">{{ field.range }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in monthly.transformer.days %}
+          <tr>
+            <th class="hs-time-label">{{ day.day }}일</th>
+            {% for field in monthly.transformer.fields %}
+            <td class="hs-data-cell">{{ day.values.get(field.col, '') }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="hs-total-row">
+            <th class="hs-time-label">계(최대)</th>
+            {% for field in monthly.transformer.fields %}
+            <td class="hs-green-cell">{{ monthly.transformer.totals.get(field.col, '') }}</td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 </section>
 
 {% elif tab == 'yearly' %}
@@ -328,6 +542,77 @@
     </div>
   </div>
   {% endfor %}
+
+  {% if yearly.transformer %}
+  <div class="hs-sheet">
+    <div class="hs-sheet-title">{{ yearly.transformer.title }}{% if yearly.transformer.subtitle %} {{ yearly.transformer.subtitle }}{% endif %}</div>
+    <div class="hs-table-wrap">
+      <table class="hs-excel hs-month-grid">
+        <thead>
+          <tr>
+            <th class="hs-corner" rowspan="2">구분</th>
+            {% for field in yearly.transformer.fields %}
+            <th class="hs-group-head">{{ field.name }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for field in yearly.transformer.fields %}
+            <th class="hs-range">{{ field.range }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for mon in yearly.transformer.months %}
+          <tr>
+            <th class="hs-time-label">{{ mon.month }}월</th>
+            {% for field in yearly.transformer.fields %}
+            <td class="hs-data-cell">{{ mon.values.get(field.col, '') }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="hs-total-row">
+            <th class="hs-time-label">계(최대)</th>
+            {% for field in yearly.transformer.fields %}
+            <td class="hs-green-cell">{{ yearly.transformer.totals.get(field.col, '') }}</td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide hs-notes">
+  <form method="get" class="hs-date-nav inline-form">
+    <input type="hidden" name="tab" value="notes" />
+    <label>연월
+      <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
+      <input type="number" name="month" value="{{ month }}" min="1" max="12" style="width:3rem" />
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  <p class="text-muted hs-hint">1일 일지에 작성된 특이사항을 날짜·시간별로 모아서 보여줍니다.</p>
+
+  {% if notes_list.entries %}
+  <div class="hs-notes-list">
+    {% for entry in notes_list.entries %}
+    <article class="hs-notes-day">
+      <h3 class="hs-notes-date">
+        <a href="?tab=daily&date={{ entry.date }}">{{ entry.date }} ({{ entry.day }}일)</a>
+      </h3>
+      <ul>
+        {% for item in entry.items %}
+        <li><strong>{{ item.time }}</strong> — {{ item.text }}</li>
+        {% endfor %}
+      </ul>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>
+  {% endif %}
 </section>
 {% endif %}
 {% endblock %}

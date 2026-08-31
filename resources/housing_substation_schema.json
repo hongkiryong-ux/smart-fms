@@ -927,5 +927,83 @@
         }
       ]
     }
-  ]
+  ],
+  "daily_footer": {
+    "times": ["06:00", "10:00", "14:00", "17:00", "20:00", "22:00"],
+    "facilities": {
+      "title": "부대 설비 (1일 전용)",
+      "groups": [
+        {
+          "id": "art_hall",
+          "name": "백운아트홀, 부덕사",
+          "columns": [
+            {"id": "voltage", "metric": "전압", "unit": "V", "range": "6300~7200"},
+            {"id": "power", "metric": "전력", "unit": "kW", "range": "0~2400"},
+            {"id": "current", "metric": "전류", "unit": "A", "range": "0~200"}
+          ],
+          "prev": {"id": "reading", "multiplier": 1800, "label": "적산량×1800"}
+        },
+        {
+          "id": "baekun_gl",
+          "name": "백운 G/L",
+          "columns": [
+            {"id": "power", "metric": "전력", "unit": "kW", "range": "0~2400"},
+            {"id": "current", "metric": "전류", "unit": "A", "range": "0~200"}
+          ]
+        },
+        {
+          "id": "tech_center",
+          "name": "기술교육센터",
+          "columns": [
+            {"id": "power", "metric": "전력", "unit": "kW", "range": "0~1800"},
+            {"id": "current", "metric": "전류", "unit": "A", "range": "0~150"}
+          ],
+          "prev": {"id": "reading", "multiplier": 1800, "label": "적산량×1800"}
+        }
+      ]
+    },
+    "main": {
+      "title": "Main",
+      "groups": [
+        {
+          "id": "no3_main",
+          "name": "No.3 MAIN",
+          "columns": [
+            {"id": "F", "metric": "전압", "unit": "kV", "range": "21.0~23.9"},
+            {"id": "G", "metric": "전류", "unit": "A", "range": "0~105"}
+          ]
+        },
+        {
+          "id": "giga_town",
+          "name": "기가타운",
+          "columns": [
+            {"id": "H", "metric": "전압", "unit": "kV", "range": "21.0~23.9"},
+            {"id": "I", "metric": "전류", "unit": "A", "range": "0~105"}
+          ]
+        },
+        {
+          "id": "no12_main",
+          "name": "No.1,2 MAIN",
+          "columns": [
+            {"id": "J", "metric": "전압", "unit": "kV", "range": "21.0~23.9"},
+            {"id": "K", "metric": "전류", "unit": "A", "range": "0~105"}
+          ]
+        }
+      ]
+    },
+    "transformer": {
+      "title": "변압기온도",
+      "subtitle": "(오일/권선)",
+      "fields": [
+        {"id": "no1", "name": "NO.1", "col": "N", "range": "0~55℃"},
+        {"id": "no2", "name": "NO.2", "col": "O", "range": "0~55℃"},
+        {"id": "no3", "name": "NO.3", "col": "P", "range": "0~55℃"},
+        {"id": "dongbaek", "name": "동백", "col": "Q", "range": "0~85℃"},
+        {"id": "indoor", "name": "실내온도", "col": "R", "range": "10~30℃"}
+      ]
+    },
+    "notes": {
+      "title": "특이사항"
+    }
+  }
 }

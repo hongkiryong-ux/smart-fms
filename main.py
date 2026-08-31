@@ -8070,7 +8070,7 @@ async def inspection_logs2_building_detail(
 
 
 def _parse_housing_daily_form(form) -> dict:
-    from housing_substation import empty_daily_payload
+    from housing_substation import empty_daily_payload, empty_footer_payload
 
     data = empty_daily_payload()
     if hasattr(form, "multi_items"):
@@ -8089,6 +8089,30 @@ def _parse_housing_daily_form(form) -> dict:
             if bid in data:
                 data[bid]["times"].setdefault(t, {})
                 data[bid]["times"][t][col] = raw
+        elif key.startswith("footer__"):
+            parts = key.split("__")
+            if len(parts) < 3:
+                continue
+            section = parts[1]
+            data.setdefault("footer", empty_footer_payload())
+            if section == "notes":
+                t = parts[2]
+                data["footer"]["notes"][t] = raw
+            elif section == "facilities":
+                if parts[2] == "prev" and len(parts) >= 5:
+                    data["footer"]["facilities"]["prev"][f"{parts[3]}__{parts[4]}"] = raw
+                elif len(parts) >= 5:
+                    t, gid, fid = parts[2], parts[3], parts[4]
+                    data["footer"]["facilities"]["times"].setdefault(t, {})
+                    data["footer"]["facilities"]["times"][t][f"{gid}__{fid}"] = raw
+            elif section == "main" and len(parts) >= 4:
+                t, col = parts[2], parts[3]
+                data["footer"]["main"]["times"].setdefault(t, {})
+                data["footer"]["main"]["times"][t][col] = raw
+            elif section == "transformer" and len(parts) >= 4:
+                t, col = parts[2], parts[3]
+                data["footer"]["transformer"]["times"].setdefault(t, {})
+                data["footer"]["transformer"]["times"][t][col] = raw
     return data
 
 
@@ -8104,7 +8128,11 @@ async def housing_substation_page(
 
     from housing_substation import (
         build_all_daily_layouts,
+        build_daily_footer_layout,
         compute_monthly_report,
+        compute_transformer_monthly_report,
+        compute_transformer_yearly_report,
+        fetch_notes_list,
         fetch_yearly_report_data,
         get_or_create_daily,
         is_housing_substation_building,
@@ -8144,6 +8172,7 @@ async def housing_substation_page(
     today = _today_kst()
     schema = load_schema()
     daily_layouts = build_all_daily_layouts(schema)
+    daily_footer = build_daily_footer_layout(schema)
     from housing_substation import housing_daily_qr_url
 
     qr_url = housing_daily_qr_url(building.code or "", request) if building.code else ""
@@ -8178,7 +8207,11 @@ async def housing_substation_page(
         monthly = compute_monthly_report(
             building_id, year, month, list(daily_rows), prev_month_row
         )
+        monthly["transformer"] = compute_transformer_monthly_report(
+            year, month, list(daily_rows)
+        )
         yearly = {"sections": []}
+        notes_list = {"entries": []}
         log_date = today
         daily_data = {}
     elif tab == "yearly":
@@ -8187,8 +8220,32 @@ async def housing_substation_page(
         except ValueError:
             year = today.year
         yearly = await fetch_yearly_report_data(db, building_id, year)
+        yearly["transformer"] = compute_transformer_yearly_report(
+            year,
+            (
+                await db.execute(
+                    select(HousingSubstationDaily).where(
+                        HousingSubstationDaily.building_id == building_id,
+                        HousingSubstationDaily.log_date >= date(year, 1, 1),
+                        HousingSubstationDaily.log_date <= date(year, 12, 31),
+                    )
+                )
+            ).scalars().all(),
+        )
         month = today.month
         monthly = {"sections": []}
+        notes_list = {"entries": []}
+        log_date = today
+        daily_data = {}
+    elif tab == "notes":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        notes_list = await fetch_notes_list(db, building_id, year, month)
+        monthly = {"sections": []}
+        yearly = {"sections": []}
         log_date = today
         daily_data = {}
     else:
@@ -8204,6 +8261,7 @@ async def housing_substation_page(
         year, month = log_date.year, log_date.month
         monthly = {"sections": []}
         yearly = {"sections": []}
+        notes_list = {"entries": []}
 
     return templates.TemplateResponse(
         request,
@@ -8213,6 +8271,7 @@ async def housing_substation_page(
             "building": building,
             "schema": schema,
             "daily_layouts": daily_layouts,
+            "daily_footer": daily_footer,
             "tab": tab,
             "log_date": log_date,
             "today": today,
@@ -8221,6 +8280,7 @@ async def housing_substation_page(
             "daily_data": daily_data,
             "monthly": monthly,
             "yearly": yearly,
+            "notes_list": notes_list,
             "qr_url": qr_url,
             "qr_mode": False,
             "daily_save_url": f"/admin/inspection-logs2/{building_id}/housing/save",
@@ -8290,6 +8350,7 @@ async def housing_qr_daily_page(
 ):
     from housing_substation import (
         build_all_daily_layouts,
+        build_daily_footer_layout,
         ensure_tables as ensure_housing_tables,
         get_housing_building_for_qr,
         get_or_create_daily,
@@ -8325,6 +8386,7 @@ async def housing_qr_daily_page(
             "building": building,
             "schema": schema,
             "daily_layouts": build_all_daily_layouts(schema),
+            "daily_footer": build_daily_footer_layout(schema),
             "tab": "daily",
             "log_date": log_date,
             "today": today,
@@ -8333,6 +8395,7 @@ async def housing_qr_daily_page(
             "daily_data": daily_row.data or {},
             "monthly": {"sections": []},
             "yearly": {"sections": []},
+            "notes_list": {"entries": []},
             "qr_url": housing_daily_qr_url(building.code or "", request),
             "qr_mode": True,
             "daily_save_url": f"/hs/{building.code}/daily/save",
