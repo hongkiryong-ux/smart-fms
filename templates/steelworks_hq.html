@@ -94,7 +94,7 @@
       {% for bid in ['incoming', 'turbo', 'room', 'hv'] %}
       {% set layout = electrical_layouts.get(bid, {}) %}
       {% set block_schema = (schema.electrical.blocks | selectattr('id', 'equalto', bid) | list | first) %}
-      {% if not block_schema %}{% continue %}{% endif %}
+      {% if block_schema %}
       {% set bdata = elec_data.get(bid, {}) %}
       {% set times_map = bdata.get('times', {}) %}
       {% set notes_map = bdata.get('notes', {}) %}
@@ -231,6 +231,7 @@
           {% endif %}
         </div>
       </div>
+      {% endif %}
       {% endfor %}
     </div>
 
