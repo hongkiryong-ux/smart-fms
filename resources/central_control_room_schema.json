@@ -1,0 +1,419 @@
+{
+  "building_name": "중앙관제실",
+  "daily_blocks": [
+    {
+      "id": "main",
+      "title": "중앙관제실 전기운전 및 설비점검 일지",
+      "monthly_section": 1,
+      "times": [
+        "06:00",
+        "10:00",
+        "14:00",
+        "16:00",
+        "20:00",
+        "22:00"
+      ],
+      "input_columns": [
+        {
+          "col": "B",
+          "group": "한전 / 수전 LINE INCOMING",
+          "metric": "전압",
+          "unit": "V",
+          "range": "6300~6600",
+          "multiplier": 4800,
+          "is_cumulative": false
+        },
+        {
+          "col": "C",
+          "group": "한전 / 수전 LINE INCOMING",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~800",
+          "multiplier": 4800,
+          "is_cumulative": false
+        },
+        {
+          "col": "D",
+          "group": "한전 / 수전 LINE INCOMING",
+          "metric": "유효",
+          "unit": "KW",
+          "range": "0~4800",
+          "multiplier": 4800,
+          "is_cumulative": false
+        },
+        {
+          "col": "E",
+          "group": "한전 / 수전 LINE INCOMING",
+          "metric": "무효",
+          "unit": "KVAR",
+          "range": "0~4800",
+          "multiplier": 4800,
+          "is_cumulative": false
+        },
+        {
+          "col": "F",
+          "group": "한전 / 수전 LINE INCOMING",
+          "metric": "역률",
+          "unit": "COS",
+          "range": "0.9±0.1",
+          "multiplier": 4800,
+          "is_cumulative": false
+        },
+        {
+          "col": "G",
+          "group": "한전 / 수전 LINE INCOMING",
+          "metric": "주파수",
+          "unit": "HZ",
+          "range": "59.5~60.5",
+          "multiplier": 4800,
+          "is_cumulative": false
+        },
+        {
+          "col": "I",
+          "group": "백운생활관",
+          "metric": "유효",
+          "unit": "KW",
+          "range": "0~2400",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "J",
+          "group": "백운생활관",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~200",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "L",
+          "group": "SC I TR",
+          "metric": "유효",
+          "unit": "KW",
+          "range": "0~2400",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "M",
+          "group": "SC I TR",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~200",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "O",
+          "group": "백운플라자",
+          "metric": "유효",
+          "unit": "KW",
+          "range": "0~2400",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "P",
+          "group": "백운플라자",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~200",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "R",
+          "group": "NO.2 TR",
+          "metric": "유효",
+          "unit": "KW",
+          "range": "0~2400",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "S",
+          "group": "NO.2 TR",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~200",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "U",
+          "group": "NO.3 TR",
+          "metric": "유효",
+          "unit": "KW",
+          "range": "0~2400",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "V",
+          "group": "NO.3 TR",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~200",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "X",
+          "group": "아르폴, 그린, 교육센터",
+          "metric": "유효",
+          "unit": "KW",
+          "range": "0~2400",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "Y",
+          "group": "아르폴, 그린, 교육센터",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~200",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "AA",
+          "group": "휴먼스 세탁소",
+          "metric": "유효",
+          "unit": "KW",
+          "range": "0~2400",
+          "multiplier": 2400,
+          "is_cumulative": false
+        },
+        {
+          "col": "AB",
+          "group": "휴먼스 세탁소",
+          "metric": "전류",
+          "unit": "A",
+          "range": "0~200",
+          "multiplier": 2400,
+          "is_cumulative": false
+        }
+      ],
+      "meters": [
+        {
+          "id": "main_H",
+          "name": "한전 / 수전 LINE INCOMING",
+          "reading_col": "H",
+          "current_col": "C",
+          "multiplier": 4800
+        },
+        {
+          "id": "main_K",
+          "name": "백운생활관",
+          "reading_col": "K",
+          "current_col": "J",
+          "multiplier": 2400
+        },
+        {
+          "id": "main_N",
+          "name": "SC I TR",
+          "reading_col": "N",
+          "current_col": "M",
+          "multiplier": 2400
+        },
+        {
+          "id": "main_Q",
+          "name": "백운플라자",
+          "reading_col": "Q",
+          "current_col": "P",
+          "multiplier": 2400
+        },
+        {
+          "id": "main_T",
+          "name": "NO.2 TR",
+          "reading_col": "T",
+          "current_col": "S",
+          "multiplier": 2400
+        },
+        {
+          "id": "main_W",
+          "name": "NO.3 TR",
+          "reading_col": "W",
+          "current_col": "V",
+          "multiplier": 2400
+        },
+        {
+          "id": "main_Z",
+          "name": "아르폴, 그린, 교육센터",
+          "reading_col": "Z",
+          "current_col": "Y",
+          "multiplier": 2400
+        },
+        {
+          "id": "main_AC",
+          "name": "휴먼스 세탁소",
+          "reading_col": "AC",
+          "current_col": "AB",
+          "multiplier": 2400
+        }
+      ]
+    }
+  ],
+  "monthly_sections": [
+    {
+      "id": "main",
+      "breakers": [
+        {
+          "name": "한전 / 수전 LINE INCOMING",
+          "multiplier": 4800,
+          "cols": {
+            "reading": "B",
+            "usage": "C",
+            "max_a": "D"
+          }
+        },
+        {
+          "name": "백운생활관",
+          "multiplier": 2400,
+          "cols": {
+            "reading": "E",
+            "usage": "F",
+            "max_a": "G"
+          }
+        },
+        {
+          "name": "SC I TR",
+          "multiplier": 2400,
+          "cols": {
+            "reading": "H",
+            "usage": "I",
+            "max_a": "J"
+          }
+        },
+        {
+          "name": "백운플라자",
+          "multiplier": 2400,
+          "cols": {
+            "reading": "K",
+            "usage": "L",
+            "max_a": "M"
+          }
+        },
+        {
+          "name": "NO.2 TR",
+          "multiplier": 2400,
+          "cols": {
+            "reading": "N",
+            "usage": "O",
+            "max_a": "P"
+          }
+        },
+        {
+          "name": "NO.3 TR",
+          "multiplier": 2400,
+          "cols": {
+            "reading": "Q",
+            "usage": "R",
+            "max_a": "S"
+          }
+        },
+        {
+          "name": "아르폴, 그린, 교육센터",
+          "multiplier": 2400,
+          "cols": {
+            "reading": "T",
+            "usage": "U",
+            "max_a": "V"
+          }
+        },
+        {
+          "name": "휴먼스 세탁소",
+          "multiplier": 2400,
+          "cols": {
+            "reading": "W",
+            "usage": "X",
+            "max_a": "Y"
+          }
+        }
+      ]
+    }
+  ],
+  "daily_footer": {
+    "times": [
+      "06:00",
+      "10:00",
+      "14:00",
+      "16:00",
+      "20:00",
+      "22:00"
+    ],
+    "transformer": {
+      "title": "변압기온도(105℃이하)",
+      "subtitle": "",
+      "fields": [
+        {
+          "id": "tr1",
+          "name": "#1",
+          "col": "N",
+          "range": "105℃이하"
+        },
+        {
+          "id": "tr2",
+          "name": "#2",
+          "col": "O",
+          "range": "105℃이하"
+        },
+        {
+          "id": "tr3",
+          "name": "#3",
+          "col": "P",
+          "range": "105℃이하"
+        }
+      ]
+    },
+    "checklist": {
+      "title": "점검사항",
+      "shifts": [
+        "주간",
+        "야간"
+      ],
+      "items": [
+        {
+          "id": "vcb",
+          "name": "VCB 상태 및 계기 이상유무"
+        },
+        {
+          "id": "ct_pt",
+          "name": "CT, PT 및 각 계기 정상동작 유무"
+        },
+        {
+          "id": "ct_pt_bus",
+          "name": "CT, PT 단자조임 및 BUS-BAR 열화상태"
+        },
+        {
+          "id": "relay",
+          "name": "보호계전기 상태"
+        },
+        {
+          "id": "meter_relay",
+          "name": "계기지시 및 보호계전기 상태"
+        },
+        {
+          "id": "cable",
+          "name": "CABLE 단말부 및 접속부 열화상태"
+        },
+        {
+          "id": "acb",
+          "name": "ACB, MCCB 및 CABLE 접속부 열화상태"
+        },
+        {
+          "id": "battery",
+          "name": "BATTERY CHARGER PANEL 정상동작 유무"
+        },
+        {
+          "id": "plc",
+          "name": "PLC PANEL 및 UPS 이상유무"
+        }
+      ]
+    },
+    "notes": {
+      "title": "특이사항"
+    }
+  }
+}

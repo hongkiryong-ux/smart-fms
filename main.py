@@ -75,6 +75,8 @@ from models import (
     EquipmentTemplate,
     EquipmentType,
     Floor,
+    CentralControlRoomArchive,
+    CentralControlRoomDaily,
     HousingSubstationArchive,
     HousingSubstationDaily,
     InspectionLogBuilding,
@@ -1080,8 +1082,10 @@ async def lifespan(app: FastAPI):
         try:
             await reschedule_daily_report_job(scheduler)
             from housing_substation import register_scheduler as register_housing_scheduler
+            from central_control_room import register_scheduler as register_ccr_scheduler
 
             register_housing_scheduler(scheduler, AsyncSessionLocal, KST)
+            register_ccr_scheduler(scheduler, AsyncSessionLocal, KST)
             scheduler.start()
         except Exception as e:
             print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
@@ -8057,6 +8061,13 @@ async def inspection_logs2_building_detail(
             f"/admin/inspection-logs2/{building_id}/housing",
             status_code=303,
         )
+    from central_control_room import is_central_control_room_building
+
+    if is_central_control_room_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/central-control-room",
+            status_code=303,
+        )
     return templates.TemplateResponse(
         request,
         "inspection_log2_detail.html",
@@ -8139,6 +8150,67 @@ def _parse_housing_daily_form(form) -> dict:
                 t, col = parts[2], parts[3]
                 data["footer"]["transformer"]["times"].setdefault(t, {})
                 data["footer"]["transformer"]["times"][t][col] = raw
+    return data
+
+
+
+
+def _parse_ccr_daily_form(form) -> dict:
+    from central_control_room import empty_daily_payload, empty_footer_payload
+
+    data = empty_daily_payload()
+    if hasattr(form, "multi_items"):
+        items = form.multi_items()
+    else:
+        items = form.items()
+    for key, val in items:
+        if not isinstance(key, str):
+            continue
+        raw = (val or "").strip() if isinstance(val, str) else str(val or "")
+        if key.startswith("cell__"):
+            parts = key.split("__", 3)
+            if len(parts) != 4:
+                continue
+            _, bid, t, col = parts
+            if bid in data:
+                data[bid]["times"].setdefault(t, {})
+                data[bid]["times"][t][col] = raw
+        elif key.startswith("prev_manual__"):
+            parts = key.split("__")
+            if len(parts) < 3:
+                continue
+            bid, mid = parts[1], parts[2]
+            if bid in data and raw == "1":
+                data[bid].setdefault("prev_manual", {})
+                data[bid]["prev_manual"][mid] = True
+            elif bid in data:
+                data[bid].setdefault("prev_manual", {})
+                data[bid]["prev_manual"].pop(mid, None)
+        elif key.startswith("prev__"):
+            parts = key.split("__")
+            if len(parts) < 3:
+                continue
+            bid, mid = parts[1], parts[2]
+            if bid in data:
+                data[bid].setdefault("prev", {})
+                data[bid]["prev"][mid] = raw
+        elif key.startswith("footer__"):
+            parts = key.split("__")
+            if len(parts) < 3:
+                continue
+            section = parts[1]
+            data.setdefault("footer", empty_footer_payload())
+            if section == "notes":
+                t = parts[2]
+                data["footer"]["notes"][t] = raw
+            elif section == "transformer" and len(parts) >= 4:
+                t, col = parts[2], parts[3]
+                data["footer"]["transformer"]["times"].setdefault(t, {})
+                data["footer"]["transformer"]["times"][t][col] = raw
+            elif section == "checklist" and len(parts) >= 4:
+                item_id, shift = parts[2], parts[3]
+                data["footer"]["checklist"].setdefault(item_id, {})
+                data["footer"]["checklist"][item_id][shift] = raw
     return data
 
 
@@ -8637,6 +8709,505 @@ async def housing_substation_archive_download(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
+
+
+
+@app.get("/admin/inspection-logs2/{building_id}/central-control-room")
+async def central_control_room_page(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+    import calendar
+
+    from central_control_room import (
+        build_all_daily_layouts,
+        build_daily_footer_layout,
+        compute_monthly_report,
+        compute_transformer_monthly_report,
+        compute_transformer_yearly_report,
+        fetch_notes_list,
+        fetch_yearly_report_data,
+        get_or_create_daily,
+        is_central_control_room_building,
+        load_schema,
+    )
+    from central_control_room import ensure_tables as ensure_ccr_tables
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_ccr_tables(engine)
+    except Exception as e:
+        print(f"[ccr] ensure: {e}", flush=True)
+
+    row = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(
+                InspectionLogBuilding2.building_id == building_id,
+                Building.is_active == True,  # noqa: E712
+            )
+        )
+    ).first()
+    if not row:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    _, building = row
+    if not is_central_control_room_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}",
+            status_code=303,
+        )
+
+    tab = request.query_params.get("tab") or "daily"
+    today = _today_kst()
+    schema = load_schema()
+    daily_layouts = build_all_daily_layouts(schema)
+    daily_footer = build_daily_footer_layout(schema)
+    from central_control_room import ccr_daily_qr_url
+
+    qr_url = ccr_daily_qr_url(building.code or "", request) if building.code else ""
+
+    if tab == "monthly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        last_day = calendar.monthrange(year, month)[1]
+        d_from = date(year, month, 1)
+        d_to = date(year, month, last_day)
+        daily_rows = (
+            await db.execute(
+                select(CentralControlRoomDaily).where(
+                    CentralControlRoomDaily.building_id == building_id,
+                    CentralControlRoomDaily.log_date >= d_from,
+                    CentralControlRoomDaily.log_date <= d_to,
+                )
+            )
+        ).scalars().all()
+        prev_month_last = d_from - timedelta(days=1)
+        prev_month_row = (
+            await db.execute(
+                select(CentralControlRoomDaily).where(
+                    CentralControlRoomDaily.building_id == building_id,
+                    CentralControlRoomDaily.log_date == prev_month_last,
+                )
+            )
+        ).scalar_one_or_none()
+        monthly = compute_monthly_report(
+            building_id, year, month, list(daily_rows), prev_month_row
+        )
+        monthly["transformer"] = compute_transformer_monthly_report(
+            year, month, list(daily_rows)
+        )
+        yearly = {"sections": []}
+        notes_list = {"entries": []}
+        log_date = today
+        daily_data = {}
+    elif tab == "yearly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+        except ValueError:
+            year = today.year
+        yearly = await fetch_yearly_report_data(db, building_id, year)
+        yearly["transformer"] = compute_transformer_yearly_report(
+            year,
+            (
+                await db.execute(
+                    select(CentralControlRoomDaily).where(
+                        CentralControlRoomDaily.building_id == building_id,
+                        CentralControlRoomDaily.log_date >= date(year, 1, 1),
+                        CentralControlRoomDaily.log_date <= date(year, 12, 31),
+                    )
+                )
+            ).scalars().all(),
+        )
+        month = today.month
+        monthly = {"sections": []}
+        notes_list = {"entries": []}
+        log_date = today
+        daily_data = {}
+    elif tab == "notes":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        notes_list = await fetch_notes_list(db, building_id, year, month)
+        monthly = {"sections": []}
+        yearly = {"sections": []}
+        log_date = today
+        daily_data = {}
+    else:
+        tab = "daily"
+        raw_date = request.query_params.get("date")
+        try:
+            log_date = date.fromisoformat(raw_date) if raw_date else today
+        except ValueError:
+            log_date = today
+        daily_row = await get_or_create_daily(db, building_id, log_date)
+        await db.commit()
+        daily_data = daily_row.data or {}
+        year, month = log_date.year, log_date.month
+        monthly = {"sections": []}
+        yearly = {"sections": []}
+        notes_list = {"entries": []}
+
+    return templates.TemplateResponse(
+        request,
+        "central_control_room.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": schema,
+            "daily_layouts": daily_layouts,
+            "daily_footer": daily_footer,
+            "tab": tab,
+            "log_date": log_date,
+            "today": today,
+            "year": year,
+            "month": month,
+            "daily_data": daily_data,
+            "monthly": monthly,
+            "yearly": yearly,
+            "notes_list": notes_list,
+            "qr_url": qr_url,
+            "qr_mode": False,
+            "daily_save_url": f"/admin/inspection-logs2/{building_id}/central-control-room/save",
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+async def _ccr_save_daily_data(
+    db: AsyncSession,
+    building_id: int,
+    d: date,
+    posted: dict,
+) -> None:
+    from central_control_room import (
+        get_or_create_daily,
+        merge_daily_save,
+        propagate_prev_to_next_day,
+        sync_daily_prev,
+    )
+
+    row = await get_or_create_daily(db, building_id, d)
+    row.data = merge_daily_save(row.data or {}, posted)
+    synced, _ = await sync_daily_prev(db, building_id, d, row.data)
+    row.data = synced
+    await propagate_prev_to_next_day(db, building_id, d, row.data)
+    row.updated_at = datetime.utcnow()
+
+
+@app.get("/admin/inspection-logs2/{building_id}/central-control-room/qr.png")
+async def central_control_room_qr_png(
+    building_id: int,
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import re
+    from urllib.parse import quote
+
+    from central_control_room import ccr_daily_qr_url, is_central_control_room_building, qr_png_bytes
+
+    building = await db.get(Building, building_id)
+    if not building or not is_central_control_room_building(building) or not building.code:
+        raise HTTPException(404)
+    url = ccr_daily_qr_url(building.code, request)
+    data = qr_png_bytes(url)
+    safe = re.sub(r"[^\w가-힣.\-]+", "_", (building.code or "ccr").strip()) or "ccr"
+    filename = f"{safe}_1일QR.png"
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename*=UTF-8''{quote(filename)}"
+            if download
+            else f"inline; filename*=UTF-8''{quote(filename)}"
+        )
+    }
+    return StreamingResponse(iter([data]), media_type="image/png", headers=headers)
+
+
+@app.get("/ccr/{code}/daily")
+async def housing_qr_daily_page(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    from central_control_room import (
+        build_all_daily_layouts,
+        build_daily_footer_layout,
+        ensure_tables as ensure_ccr_tables,
+        get_ccr_building_for_qr,
+        get_or_create_daily,
+        ccr_daily_qr_url,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_ccr_tables(engine)
+    except Exception as e:
+        print(f"[ccr] ensure: {e}", flush=True)
+
+    building = await get_ccr_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404, detail="중앙관제실 점검일지를 찾을 수 없습니다.")
+
+    today = _today_kst()
+    raw_date = request.query_params.get("date")
+    try:
+        log_date = date.fromisoformat(raw_date) if raw_date else today
+    except ValueError:
+        log_date = today
+    daily_row = await get_or_create_daily(db, building.id, log_date)
+    await db.commit()
+
+    schema = load_schema()
+    return templates.TemplateResponse(
+        request,
+        "central_control_room.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": schema,
+            "daily_layouts": build_all_daily_layouts(schema),
+            "daily_footer": build_daily_footer_layout(schema),
+            "tab": "daily",
+            "log_date": log_date,
+            "today": today,
+            "year": log_date.year,
+            "month": log_date.month,
+            "daily_data": daily_row.data or {},
+            "monthly": {"sections": []},
+            "yearly": {"sections": []},
+            "notes_list": {"entries": []},
+            "qr_url": ccr_daily_qr_url(building.code or "", request),
+            "qr_mode": True,
+            "daily_save_url": f"/ccr/{building.code}/daily/save",
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/ccr/{code}/daily/save")
+async def housing_qr_daily_save(
+    code: str,
+    request: Request,
+    log_date: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    from central_control_room import get_ccr_building_for_qr
+
+    building = await get_ccr_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, detail="날짜 형식 오류")
+    form = await request.form()
+    posted = _parse_ccr_daily_form(form)
+    await _ccr_save_daily_data(db, building.id, d, posted)
+    await db.commit()
+    if request.headers.get("X-CCR-Autosave") == "1":
+        return JSONResponse({"ok": True, "log_date": d.isoformat()})
+    from urllib.parse import quote
+
+    return RedirectResponse(
+        f"/ccr/{code}/daily?date={d.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/central-control-room/save")
+async def central_control_room_save(
+    building_id: int,
+    request: Request,
+    log_date: str = Form(...),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from central_control_room import is_central_control_room_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_central_control_room_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/central-control-room?error={quote('날짜 형식 오류')}",
+            status_code=303,
+        )
+    form = await request.form()
+    posted = _parse_ccr_daily_form(form)
+    await _ccr_save_daily_data(db, building_id, d, posted)
+    await db.commit()
+    if request.headers.get("X-CCR-Autosave") == "1":
+        return JSONResponse({"ok": True, "log_date": d.isoformat()})
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/central-control-room?tab=daily&date={d.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/central-control-room/close-day")
+async def central_control_room_close_day(
+    building_id: int,
+    request: Request,
+    log_date: str = Form(...),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from central_control_room import (
+        archive_daily_excel,
+        get_or_create_daily,
+        is_central_control_room_building,
+        merge_daily_save,
+        propagate_prev_to_next_day,
+        sync_daily_prev,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_central_control_room_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/central-control-room?error={quote('날짜 형식 오류')}",
+            status_code=303,
+        )
+    form = await request.form()
+    posted = _parse_ccr_daily_form(form)
+    row = await get_or_create_daily(db, building_id, d)
+    row.data = merge_daily_save(row.data or {}, posted)
+    synced, _ = await sync_daily_prev(db, building_id, d, row.data)
+    row.data = synced
+    await archive_daily_excel(db, building_id, d)
+    tomorrow = d + timedelta(days=1)
+    await propagate_prev_to_next_day(db, building_id, d, row.data)
+    await get_or_create_daily(db, building_id, tomorrow)
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/central-control-room?tab=daily&date={tomorrow.isoformat()}&message={quote('마감·엑셀 저장 완료. 다음 날짜가 열렸습니다.')}",
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/central-control-room/export/daily")
+async def central_control_room_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from central_control_room import export_daily_to_excel, get_or_create_daily, is_central_control_room_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_central_control_room_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"중앙관제실_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/central-control-room/export/yearly")
+async def central_control_room_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from central_control_room import export_yearly_to_excel, fetch_yearly_report_data, is_central_control_room_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_central_control_room_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"중앙관제실_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/central-control-room/export/monthly")
+async def central_control_room_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from central_control_room import export_monthly_to_excel, fetch_monthly_report_data, is_central_control_room_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_central_control_room_building(building):
+        raise HTTPException(404)
+    report = await fetch_monthly_report_data(db, building_id, year, month)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"중앙관제실_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/central-control-room/archive/{archive_id}/download")
+async def central_control_room_archive_download(
+    building_id: int,
+    archive_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    arch = await db.get(CentralControlRoomArchive, archive_id)
+    if not arch or arch.building_id != building_id or not arch.file_data:
+        raise HTTPException(404)
+    fname = quote(arch.original_name or f"ccr_{arch.log_date}.xlsx")
+    return StreamingResponse(
+        BytesIO(arch.file_data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
 
 
 @app.get("/admin/inspection-logs/{building_id}")

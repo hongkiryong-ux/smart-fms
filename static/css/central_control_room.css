@@ -1,0 +1,343 @@
+/* 중앙관제실 점검일지 — 엑셀 양식 유사 레이아웃 */
+.hs-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.hs-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.hs-tab {
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #d8dee8);
+  text-decoration: none;
+  color: var(--text, #333);
+  font-size: 0.95rem;
+}
+
+.hs-tab.active {
+  background: var(--primary, #003876);
+  color: #fff;
+  border-color: var(--primary, #003876);
+}
+
+.hs-hint {
+  margin: 0.75rem 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+.hs-sheet {
+  margin-bottom: 2.5rem;
+}
+
+.hs-sheet-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #000;
+  border-bottom: none;
+  background: #fff;
+  color: #000;
+}
+
+.hs-block h2 {
+  font-size: 1.05rem;
+  color: var(--primary, #003876);
+  margin-bottom: 0.75rem;
+}
+
+.hs-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #000;
+  background: #fff;
+}
+
+/* 엑셀형 그리드 */
+.hs-excel {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 0.78rem;
+  color: #000;
+  background: #fff;
+}
+
+.hs-excel th,
+.hs-excel td {
+  border: 1px solid #000;
+  padding: 0.15rem 0.25rem;
+  vertical-align: middle;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hs-corner {
+  background: #fff;
+  font-weight: 700;
+  min-width: 3.2rem;
+  vertical-align: middle;
+}
+
+.hs-group-head {
+  background: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.hs-metric {
+  background: #fff;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.hs-unit {
+  background: #fff;
+  font-weight: 500;
+  font-size: 0.72rem;
+}
+
+.hs-yellow-head {
+  background: #ffff00 !important;
+  font-weight: 700;
+}
+
+.hs-range {
+  background: #fff;
+  font-size: 0.7rem;
+  color: #333;
+}
+
+.hs-yellow-cell {
+  background: #ffff00 !important;
+  padding: 0.1rem !important;
+}
+
+.hs-prev-input {
+  width: 100%;
+  min-width: 4.5rem;
+  max-width: 6rem;
+  border: 1px solid #c9a800;
+  background: #ffff00 !important;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.15rem 0.2rem;
+  color: #000;
+}
+
+.hs-time-label {
+  background: #fff;
+  font-weight: 600;
+  text-align: center;
+  min-width: 3.2rem;
+}
+
+.hs-data-cell {
+  background: #fff;
+  padding: 0.1rem !important;
+}
+
+.hs-cell {
+  width: 100%;
+  min-width: 3.8rem;
+  max-width: 5.5rem;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.15rem;
+  color: #000;
+}
+
+.hs-cell:focus {
+  outline: 2px solid #003876;
+  background: #f0f8ff;
+}
+
+.hs-cell.hs-cell-selected {
+  background: #dbeafe !important;
+  outline: 2px solid #003876;
+}
+
+.hs-drag-selecting {
+  user-select: none;
+}
+
+.hs-prev-input.hs-cell-selected {
+  background: #fef9c3 !important;
+}
+
+.hs-footer-sheet {
+  margin-top: 1.5rem;
+}
+
+.hs-footer-combined .hs-notes-head {
+  min-width: 12rem;
+}
+
+.hs-notes-cell .hs-note {
+  min-width: 10rem;
+  max-width: none;
+  text-align: left;
+}
+
+.hs-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hs-notes-day {
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  background: #fff;
+}
+
+.hs-notes-date {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.hs-notes-day ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.hs-notes-day li {
+  margin-bottom: 0.35rem;
+}
+
+.hs-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border, #d8dee8);
+}
+
+.ccr-save-status {
+  font-size: 0.88rem;
+  color: var(--text-muted, #666);
+  min-width: 6rem;
+}
+
+.ccr-save-status.dirty {
+  color: #856404;
+}
+
+.ccr-save-status.saving {
+  color: var(--primary, #003876);
+}
+
+.ccr-save-status.saved {
+  color: #1a7f37;
+  font-weight: 600;
+}
+
+.ccr-save-status.error {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.hs-date-nav {
+  margin-bottom: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hs-month-grid .hs-data-cell {
+  min-width: 3.2rem;
+  font-size: 0.75rem;
+}
+
+.hs-month-unit {
+  background: #dce6f1 !important;
+}
+
+.hs-mult {
+  background: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.hs-prev-row .hs-yellow-cell {
+  font-weight: 600;
+}
+
+.hs-green-cell {
+  background: #c6efce !important;
+  font-weight: 700;
+}
+
+.hs-total-row th {
+  font-weight: 700;
+}
+
+.hs-total-row th {
+  font-weight: 700;
+}
+
+.hs-qr-box {
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.hs-qr-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.hs-qr-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-top: 0.75rem;
+}
+
+.hs-qr-img {
+  width: 140px;
+  height: 140px;
+  border: 1px solid #ccc;
+  background: #fff;
+  padding: 0.35rem;
+}
+
+.hs-qr-meta {
+  flex: 1;
+  min-width: 200px;
+}
+
+.hs-qr-url {
+  word-break: break-all;
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .hs-cell {
+    min-width: 3rem;
+    font-size: 0.72rem;
+  }
+
+  .hs-prev-input {
+    min-width: 3.5rem;
+    font-size: 0.72rem;
+  }
+}
