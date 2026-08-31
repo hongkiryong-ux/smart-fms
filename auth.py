@@ -456,7 +456,7 @@ async def get_current_user(request: Request) -> User | None:
                 request.state.current_user = user
     if not hasattr(request.state, "nav_buildings"):
         path = request.url.path or ""
-        if user and not path.startswith("/eq/"):
+        if user and not path.startswith("/eq/") and not path.startswith("/hs/"):
             now = time.monotonic()
             async with AsyncSessionLocal() as session:
                 if now - _nav_cache["at"] < _NAV_CACHE_TTL_SEC:

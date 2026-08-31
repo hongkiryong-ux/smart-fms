@@ -1,17 +1,22 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/housing_substation.css?v=6" />
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=7" />
 {% endblock %}
 {% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/housing/save') %}
 <header class="page-header hs-page-header">
   <div>
     <h1>주택변전소 점검일지</h1>
-    <p>{{ building.name }} · 1일 입력 · 월보 · 년보 · 엑셀 다운로드</p>
+    <p>{% if qr_mode %}QR · {{ building.name }} · 1일 입력 · 자동 저장{% else %}{{ building.name }} · 1일 입력 · 월보 · 년보 · 엑셀 다운로드{% endif %}</p>
   </div>
+  {% if not qr_mode %}
   <div class="hs-header-actions">
     <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>
   </div>
+  {% endif %}
 </header>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -19,13 +24,21 @@
 
 <nav class="hs-tabs" aria-label="점검일지2 탭">
   <a href="?tab=daily&date={{ log_date.isoformat() }}" class="hs-tab{% if tab == 'daily' %} active{% endif %}">1일</a>
+  {% if not qr_mode %}
   <a href="?tab=monthly&year={{ year }}&month={{ month }}" class="hs-tab{% if tab == 'monthly' %} active{% endif %}">월보</a>
   <a href="?tab=yearly&year={{ year }}" class="hs-tab{% if tab == 'yearly' %} active{% endif %}">년보</a>
+  {% endif %}
 </nav>
 
 {% if tab == 'daily' %}
 <section class="card card-wide hs-daily">
   <form method="get" class="hs-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜
+      <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="location.href='/hs/{{ building.code }}/daily?date='+this.value" />
+    </label>
+    <a class="btn btn-secondary btn-sm" href="/hs/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
     <input type="hidden" name="tab" value="daily" />
     <label>날짜
       <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" />
@@ -35,12 +48,31 @@
        href="/admin/inspection-logs2/{{ building.id }}/housing/export/daily?log_date={{ log_date.isoformat() }}">
       엑셀 다운로드
     </a>
+    {% endif %}
   </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="hs-qr-box">
+    <h3 class="hs-qr-title">1일 점검 QR</h3>
+    <p class="text-muted hs-hint">현장에서 QR 스캔 시 1일 점검일지가 열립니다 (로그인 불필요 · 자동 저장).</p>
+    <div class="hs-qr-inner">
+      <img class="hs-qr-img"
+           src="/admin/inspection-logs2/{{ building.id }}/housing/qr.png"
+           alt="{{ building.name }} 1일 QR" />
+      <div class="hs-qr-meta">
+        <p class="hs-qr-url"><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a></p>
+        <a class="btn btn-secondary btn-sm"
+           href="/admin/inspection-logs2/{{ building.id }}/housing/qr.png?download=1">QR 다운로드</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <p class="text-muted hs-hint">
-    엑셀 양식과 동일한 표 · 노란 칸 = 전일지침(전날 22:00 자동) · 입력 시 자동 저장 · 23:59(KST) 일별 마감
+    엑셀 양식과 동일한 표 · 노란 칸 = 전일지침(전날 22:00 자동) · 입력 시 자동 저장{% if not qr_mode %} · 23:59(KST) 일별 마감{% endif %}
   </p>
 
-  <form method="post" action="/admin/inspection-logs2/{{ building.id }}/housing/save" class="hs-daily-form" id="hs-daily-form">
+  <form method="post" action="{{ save_url }}" class="hs-daily-form" id="hs-daily-form">
     <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
 
     {% for block in schema.daily_blocks %}
@@ -121,9 +153,10 @@
     </div>
     {% endfor %}
 
-    {% if user_can_edit(user) %}
+    {% if can_write %}
     <div class="hs-form-actions">
       <span id="hs-save-status" class="hs-save-status" aria-live="polite">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
       <button type="submit"
               formaction="/admin/inspection-logs2/{{ building.id }}/housing/close-day"
               formmethod="post"
@@ -131,12 +164,13 @@
               onclick="return confirm('{{ log_date.isoformat() }} 일지를 마감하고 엑셀로 저장할까요?\n(내일 일지가 준비됩니다)');">
         이 날짜 마감 · 엑셀 저장
       </button>
+      {% endif %}
     </div>
     {% endif %}
   </form>
 </section>
-{% if user_can_edit(user) %}
-<script src="/static/js/housing_substation.js?v=1"></script>
+{% if can_write %}
+<script src="/static/js/housing_substation.js?v=2"></script>
 {% endif %}
 
 {% elif tab == 'monthly' %}
@@ -218,7 +252,7 @@
   {% endfor %}
 </section>
 
-{% else %}
+{% elif tab == 'yearly' %}
 <section class="card card-wide hs-monthly hs-yearly">
   <form method="get" class="hs-date-nav inline-form">
     <input type="hidden" name="tab" value="yearly" />

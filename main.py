@@ -8144,6 +8144,9 @@ async def housing_substation_page(
     today = _today_kst()
     schema = load_schema()
     daily_layouts = build_all_daily_layouts(schema)
+    from housing_substation import housing_daily_qr_url
+
+    qr_url = housing_daily_qr_url(building.code or "", request) if building.code else ""
 
     if tab == "monthly":
         try:
@@ -8218,9 +8221,154 @@ async def housing_substation_page(
             "daily_data": daily_data,
             "monthly": monthly,
             "yearly": yearly,
+            "qr_url": qr_url,
+            "qr_mode": False,
+            "daily_save_url": f"/admin/inspection-logs2/{building_id}/housing/save",
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
+    )
+
+
+async def _housing_save_daily_data(
+    db: AsyncSession,
+    building_id: int,
+    d: date,
+    posted: dict,
+) -> None:
+    from housing_substation import (
+        get_or_create_daily,
+        merge_daily_save,
+        propagate_prev_to_next_day,
+        sync_daily_prev,
+    )
+
+    row = await get_or_create_daily(db, building_id, d)
+    row.data = merge_daily_save(row.data or {}, posted)
+    synced, _ = await sync_daily_prev(db, building_id, d, row.data)
+    row.data = synced
+    await propagate_prev_to_next_day(db, building_id, d, row.data)
+    row.updated_at = datetime.utcnow()
+
+
+@app.get("/admin/inspection-logs2/{building_id}/housing/qr.png")
+async def housing_substation_qr_png(
+    building_id: int,
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import re
+    from urllib.parse import quote
+
+    from housing_substation import housing_daily_qr_url, is_housing_substation_building, qr_png_bytes
+
+    building = await db.get(Building, building_id)
+    if not building or not is_housing_substation_building(building) or not building.code:
+        raise HTTPException(404)
+    url = housing_daily_qr_url(building.code, request)
+    data = qr_png_bytes(url)
+    safe = re.sub(r"[^\w가-힣.\-]+", "_", (building.code or "housing").strip()) or "housing"
+    filename = f"{safe}_1일QR.png"
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename*=UTF-8''{quote(filename)}"
+            if download
+            else f"inline; filename*=UTF-8''{quote(filename)}"
+        )
+    }
+    return StreamingResponse(iter([data]), media_type="image/png", headers=headers)
+
+
+@app.get("/hs/{code}/daily")
+async def housing_qr_daily_page(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    from housing_substation import (
+        build_all_daily_layouts,
+        ensure_tables as ensure_housing_tables,
+        get_housing_building_for_qr,
+        get_or_create_daily,
+        housing_daily_qr_url,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_housing_tables(engine)
+    except Exception as e:
+        print(f"[housing_sub] ensure: {e}", flush=True)
+
+    building = await get_housing_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404, detail="주택변전소 점검일지를 찾을 수 없습니다.")
+
+    today = _today_kst()
+    raw_date = request.query_params.get("date")
+    try:
+        log_date = date.fromisoformat(raw_date) if raw_date else today
+    except ValueError:
+        log_date = today
+    daily_row = await get_or_create_daily(db, building.id, log_date)
+    await db.commit()
+
+    schema = load_schema()
+    return templates.TemplateResponse(
+        request,
+        "housing_substation.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": schema,
+            "daily_layouts": build_all_daily_layouts(schema),
+            "tab": "daily",
+            "log_date": log_date,
+            "today": today,
+            "year": log_date.year,
+            "month": log_date.month,
+            "daily_data": daily_row.data or {},
+            "monthly": {"sections": []},
+            "yearly": {"sections": []},
+            "qr_url": housing_daily_qr_url(building.code or "", request),
+            "qr_mode": True,
+            "daily_save_url": f"/hs/{building.code}/daily/save",
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/hs/{code}/daily/save")
+async def housing_qr_daily_save(
+    code: str,
+    request: Request,
+    log_date: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    from housing_substation import get_housing_building_for_qr
+
+    building = await get_housing_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, detail="날짜 형식 오류")
+    form = await request.form()
+    posted = _parse_housing_daily_form(form)
+    await _housing_save_daily_data(db, building.id, d, posted)
+    await db.commit()
+    if request.headers.get("X-HS-Autosave") == "1":
+        return JSONResponse({"ok": True, "log_date": d.isoformat()})
+    from urllib.parse import quote
+
+    return RedirectResponse(
+        f"/hs/{code}/daily?date={d.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
     )
 
 
@@ -8234,13 +8382,7 @@ async def housing_substation_save(
 ):
     from urllib.parse import quote
 
-    from housing_substation import (
-        get_or_create_daily,
-        is_housing_substation_building,
-        merge_daily_save,
-        propagate_prev_to_next_day,
-        sync_daily_prev,
-    )
+    from housing_substation import is_housing_substation_building
 
     building = await db.get(Building, building_id)
     if not building or not is_housing_substation_building(building):
@@ -8254,12 +8396,7 @@ async def housing_substation_save(
         )
     form = await request.form()
     posted = _parse_housing_daily_form(form)
-    row = await get_or_create_daily(db, building_id, d)
-    row.data = merge_daily_save(row.data or {}, posted)
-    synced, _ = await sync_daily_prev(db, building_id, d, row.data)
-    row.data = synced
-    await propagate_prev_to_next_day(db, building_id, d, row.data)
-    row.updated_at = datetime.utcnow()
+    await _housing_save_daily_data(db, building_id, d, posted)
     await db.commit()
     if request.headers.get("X-HS-Autosave") == "1":
         return JSONResponse({"ok": True, "log_date": d.isoformat()})

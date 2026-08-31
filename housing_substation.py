@@ -23,6 +23,51 @@ TEMPLATE_XLSX = ROOT / "resources" / "housing_substation_template.xlsx"
 _schema_cache: dict | None = None
 
 
+def public_base_url(request: Any | None = None) -> str:
+    import os
+
+    env = (os.environ.get("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if env:
+        return env
+    if request is not None:
+        return str(request.base_url).rstrip("/")
+    return "http://127.0.0.1:8000"
+
+
+def housing_daily_qr_url(building_code: str, request: Any | None = None) -> str:
+    code = (building_code or "").strip()
+    return f"{public_base_url(request)}/hs/{code}/daily"
+
+
+def qr_png_bytes(url: str) -> bytes:
+    import qrcode
+
+    img = qrcode.make(url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+async def get_housing_building_for_qr(
+    session: AsyncSession, code: str
+) -> Building | None:
+    from models import InspectionLogBuilding2
+
+    building = (
+        await session.execute(
+            select(Building)
+            .join(InspectionLogBuilding2, InspectionLogBuilding2.building_id == Building.id)
+            .where(
+                Building.code == (code or "").strip(),
+                Building.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalar_one_or_none()
+    if not building or not is_housing_substation_building(building):
+        return None
+    return building
+
+
 def load_schema() -> dict:
     global _schema_cache
     if _schema_cache is None:
