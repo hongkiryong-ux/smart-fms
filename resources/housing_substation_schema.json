@@ -356,7 +356,7 @@
         },
         {
           "col": "AE",
-          "group": "57,60 S/S",
+          "group": "휴먼센터",
           "metric": "전력",
           "unit": "kW",
           "range": "0~1200",
@@ -365,7 +365,7 @@
         },
         {
           "col": "AF",
-          "group": "57,60 S/S",
+          "group": "휴먼센터",
           "metric": "전류",
           "unit": "A",
           "range": "0~100",
@@ -443,7 +443,7 @@
         },
         {
           "id": "no2_AG",
-          "name": "57,60 S/S",
+          "name": "휴먼센터",
           "reading_col": "AG",
           "current_col": "AF",
           "multiplier": 1200
