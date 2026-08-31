@@ -88,7 +88,7 @@
         },
         {
           "col": "L",
-          "group": "NO.1 TR",
+          "group": "No.1 TR",
           "metric": "유효",
           "unit": "KW",
           "range": "0~2400",
@@ -97,7 +97,7 @@
         },
         {
           "col": "M",
-          "group": "NO.1 TR",
+          "group": "No.1 TR",
           "metric": "전류",
           "unit": "A",
           "range": "0~200",
@@ -160,7 +160,7 @@
         },
         {
           "col": "X",
-          "group": "아트홀,그린,교육센타",
+          "group": "아트홀,그린,교육센터",
           "metric": "유효",
           "unit": "KW",
           "range": "0~2400",
@@ -169,7 +169,7 @@
         },
         {
           "col": "Y",
-          "group": "아트홀,그린,교육센타",
+          "group": "아트홀,그린,교육센터",
           "metric": "전류",
           "unit": "A",
           "range": "0~200",
@@ -212,7 +212,7 @@
         },
         {
           "id": "main_N",
-          "name": "NO.1 TR",
+          "name": "No.1 TR",
           "reading_col": "N",
           "current_col": "M",
           "multiplier": 1200
@@ -240,7 +240,7 @@
         },
         {
           "id": "main_Z",
-          "name": "아트홀,그린,교육센타",
+          "name": "아트홀,그린,교육센터",
           "reading_col": "Z",
           "current_col": "Y",
           "multiplier": 2400
@@ -278,7 +278,7 @@
           }
         },
         {
-          "name": "NO.1 TR",
+          "name": "No.1 TR",
           "multiplier": 1200,
           "cols": {
             "reading": "H",
@@ -314,7 +314,7 @@
           }
         },
         {
-          "name": "아트홀,그린,교육센타",
+          "name": "아트홀,그린,교육센터",
           "multiplier": 2400,
           "cols": {
             "reading": "T",
