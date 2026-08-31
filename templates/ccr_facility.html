@@ -53,6 +53,23 @@
     {% endif %}
   </form>
 
+  {% if not qr_mode and qr_url %}
+  <div class="cf-qr-box">
+    <h3 class="cf-qr-title">1일 운영일보 QR</h3>
+    <p class="text-muted cf-hint">현장에서 QR 스캔 시 1일 운영일보가 열립니다 (로그인 불필요 · 자동 저장).</p>
+    <div class="cf-qr-inner">
+      <img class="cf-qr-img"
+           src="/admin/inspection-logs2/{{ building.id }}/ccr-facility/qr.png"
+           alt="{{ building.name }} 1일 QR" />
+      <div class="cf-qr-meta">
+        <p class="cf-qr-url"><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a></p>
+        <a class="btn btn-secondary btn-sm"
+           href="/admin/inspection-logs2/{{ building.id }}/ccr-facility/qr.png?download=1">QR 다운로드</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <p class="text-muted cf-hint">입력 시 자동 저장 · 셀 드래그 선택 후 <kbd>Delete</kbd> 삭제 · 엑셀에서 복사(<kbd>Ctrl+C</kbd>) 후 붙여넣기(<kbd>Ctrl+V</kbd>) 가능</p>
 
   <form method="post" action="{{ save_url }}" class="cf-daily-form" id="cf-daily-form">

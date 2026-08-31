@@ -9223,6 +9223,36 @@ async def central_control_room_archive_download(
 
 
 
+@app.get("/admin/inspection-logs2/{building_id}/ccr-facility/qr.png")
+async def ccr_facility_qr_png(
+    building_id: int,
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import re
+    from urllib.parse import quote
+
+    from ccr_facility import ccr_facility_daily_qr_url, is_ccr_facility_building, qr_png_bytes
+
+    building = await db.get(Building, building_id)
+    if not building or not is_ccr_facility_building(building) or not building.code:
+        raise HTTPException(404)
+    url = ccr_facility_daily_qr_url(building.code, request)
+    data = qr_png_bytes(url)
+    safe = re.sub(r"[^\w가-힣.\-]+", "_", (building.code or "ccrf").strip()) or "ccrf"
+    filename = f"{safe}_1일QR.png"
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename*=UTF-8''{quote(filename)}"
+            if download
+            else f"inline; filename*=UTF-8''{quote(filename)}"
+        )
+    }
+    return StreamingResponse(iter([data]), media_type="image/png", headers=headers)
+
+
 @app.get("/admin/inspection-logs2/{building_id}/ccr-facility")
 async def ccr_facility_page(
     building_id: int,
@@ -9234,6 +9264,7 @@ async def ccr_facility_page(
     import calendar
 
     from ccr_facility import (
+        ccr_facility_daily_qr_url,
         compute_monthly_report,
         ensure_tables as ensure_ccrf_tables,
         fetch_notes_list,
@@ -9272,6 +9303,7 @@ async def ccr_facility_page(
     tab = request.query_params.get("tab") or "daily"
     today = _today_kst()
     schema = load_schema()
+    qr_url = ccr_facility_daily_qr_url(building.code or "", request) if building.code else ""
 
     if tab == "monthly":
         try:
@@ -9348,6 +9380,7 @@ async def ccr_facility_page(
             "monthly": monthly,
             "yearly": yearly,
             "notes_list": notes_list,
+            "qr_url": qr_url,
             "qr_mode": False,
             "daily_save_url": f"/admin/inspection-logs2/{building_id}/ccr-facility/save",
             "error": request.query_params.get("error"),
