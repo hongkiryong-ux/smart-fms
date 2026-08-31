@@ -141,7 +141,7 @@ def empty_footer_payload(footer_schema: dict | None = None) -> dict[str, Any]:
     footer_schema = footer_schema or get_daily_footer_schema()
     times = footer_schema.get("times") or []
     out: dict[str, Any] = {
-        "facilities": {"prev": {}, "times": {t: {} for t in times}},
+        "facilities": {"prev": {}, "prev_manual": {}, "times": {t: {} for t in times}},
         "main": {"times": {t: {} for t in times}},
         "transformer": {"times": {t: {} for t in times}},
         "notes": {t: "" for t in times},
@@ -321,10 +321,14 @@ def apply_footer_prev_readings(data: dict, prev_vals: dict[str, str]) -> bool:
     if not prev_vals:
         return False
     data.setdefault("footer", empty_footer_payload())
-    data["footer"].setdefault("facilities", {"prev": {}, "times": {}})
+    data["footer"].setdefault("facilities", {"prev": {}, "prev_manual": {}, "times": {}})
     data["footer"]["facilities"].setdefault("prev", {})
+    data["footer"]["facilities"].setdefault("prev_manual", {})
+    manual = data["footer"]["facilities"]["prev_manual"]
     changed = False
     for key, val in prev_vals.items():
+        if manual.get(key):
+            continue
         if data["footer"]["facilities"]["prev"].get(key) != val:
             data["footer"]["facilities"]["prev"][key] = val
             changed = True
@@ -411,7 +415,7 @@ def empty_daily_payload() -> dict:
         prev: dict[str, Any] = {}
         for m in block["meters"]:
             prev[m["id"]] = ""
-        out[bid] = {"prev": prev, "times": {t: {} for t in block["times"]}}
+        out[bid] = {"prev": prev, "prev_manual": {}, "times": {t: {} for t in block["times"]}}
     if schema.get("daily_footer"):
         out["footer"] = empty_footer_payload(schema["daily_footer"])
     return out
@@ -469,7 +473,7 @@ def prev_readings_from_daily_data(source_data: dict) -> dict[str, dict[str, Any]
 
 
 def apply_prev_readings(data: dict, prev_vals: dict[str, dict[str, Any]]) -> bool:
-    """전일 22:00 지침을 prev에 반영. 변경 여부 반환."""
+    """전일 22:00 지침을 prev에 반영. 수기 입력(prev_manual)은 유지."""
     if not prev_vals:
         return False
     changed = False
@@ -477,7 +481,11 @@ def apply_prev_readings(data: dict, prev_vals: dict[str, dict[str, Any]]) -> boo
         if bid not in data:
             continue
         data[bid].setdefault("prev", {})
+        data[bid].setdefault("prev_manual", {})
+        manual = data[bid]["prev_manual"]
         for mid, val in meters.items():
+            if manual.get(mid):
+                continue
             if data[bid]["prev"].get(mid) != val:
                 data[bid]["prev"][mid] = val
                 changed = True
@@ -537,9 +545,13 @@ def merge_daily_save(existing: dict, posted: dict) -> dict:
         if bid == "footer":
             continue
         if bid not in data:
-            data[bid] = {"prev": {}, "times": {}}
+            data[bid] = {"prev": {}, "prev_manual": {}, "times": {}}
         if "prev" in block_post:
             data[bid]["prev"].update(block_post.get("prev") or {})
+        if "prev_manual" in block_post:
+            data[bid]["prev_manual"] = {
+                k: v for k, v in (block_post.get("prev_manual") or {}).items() if v
+            }
         for t, cells in (block_post.get("times") or {}).items():
             data[bid]["times"].setdefault(t, {})
             data[bid]["times"][t].update(cells or {})
@@ -550,6 +562,10 @@ def merge_daily_save(existing: dict, posted: dict) -> dict:
         if "prev" in fac:
             data["footer"]["facilities"].setdefault("prev", {})
             data["footer"]["facilities"]["prev"].update(fac.get("prev") or {})
+        if "prev_manual" in fac:
+            data["footer"]["facilities"]["prev_manual"] = {
+                k: v for k, v in (fac.get("prev_manual") or {}).items() if v
+            }
         for t, cells in (fac.get("times") or {}).items():
             data["footer"]["facilities"]["times"].setdefault(t, {})
             data["footer"]["facilities"]["times"][t].update(cells or {})

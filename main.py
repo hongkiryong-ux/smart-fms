@@ -8089,6 +8089,25 @@ def _parse_housing_daily_form(form) -> dict:
             if bid in data:
                 data[bid]["times"].setdefault(t, {})
                 data[bid]["times"][t][col] = raw
+        elif key.startswith("prev_manual__"):
+            parts = key.split("__")
+            if len(parts) < 3:
+                continue
+            bid, mid = parts[1], parts[2]
+            if bid in data and raw == "1":
+                data[bid].setdefault("prev_manual", {})
+                data[bid]["prev_manual"][mid] = True
+            elif bid in data:
+                data[bid].setdefault("prev_manual", {})
+                data[bid]["prev_manual"].pop(mid, None)
+        elif key.startswith("prev__"):
+            parts = key.split("__")
+            if len(parts) < 3:
+                continue
+            bid, mid = parts[1], parts[2]
+            if bid in data:
+                data[bid].setdefault("prev", {})
+                data[bid]["prev"][mid] = raw
         elif key.startswith("footer__"):
             parts = key.split("__")
             if len(parts) < 3:
@@ -8099,7 +8118,14 @@ def _parse_housing_daily_form(form) -> dict:
                 t = parts[2]
                 data["footer"]["notes"][t] = raw
             elif section == "facilities":
-                if parts[2] == "prev" and len(parts) >= 5:
+                if parts[2] == "prev_manual" and len(parts) >= 5:
+                    key = f"{parts[3]}__{parts[4]}"
+                    data["footer"]["facilities"].setdefault("prev_manual", {})
+                    if raw == "1":
+                        data["footer"]["facilities"]["prev_manual"][key] = True
+                    else:
+                        data["footer"]["facilities"]["prev_manual"].pop(key, None)
+                elif parts[2] == "prev" and len(parts) >= 5:
                     data["footer"]["facilities"]["prev"][f"{parts[3]}__{parts[4]}"] = raw
                 elif len(parts) >= 5:
                     t, gid, fid = parts[2], parts[3], parts[4]

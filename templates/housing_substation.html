@@ -71,7 +71,7 @@
   {% endif %}
 
   <p class="text-muted hs-hint">
-    엑셀 양식과 동일한 표 · 노란 칸 = 전일지침(전날 22:00 자동) · 입력 시 자동 저장{% if not qr_mode %} · 23:59(KST) 일별 마감{% endif %}
+    엑셀 양식과 동일한 표 · 노란 칸 = 전일지침(전날 22:00 자동 · 수기 입력 시 유지) · 입력 시 자동 저장{% if not qr_mode %} · 23:59(KST) 일별 마감{% endif %}
   </p>
 
   <form method="post" action="{{ save_url }}" class="hs-daily-form" id="hs-daily-form">
@@ -82,6 +82,7 @@
     {% set layout = daily_layouts.get(bid, {}) %}
     {% set bdata = daily_data.get(bid, {}) %}
     {% set prev = bdata.get('prev', {}) %}
+    {% set prev_manual = bdata.get('prev_manual', {}) %}
     {% set times = bdata.get('times', {}) %}
     <div class="hs-sheet">
       <div class="hs-sheet-title">{{ layout.title or block.title }}</div>
@@ -120,9 +121,14 @@
                 <input type="text"
                        name="prev__{{ bid }}__{{ col.meter_id }}"
                        value="{{ prev.get(col.meter_id, '') }}"
-                       readonly
-                       class="hs-prev-input"
-                       title="전일 22:00 지침 (자동)" />
+                       inputmode="decimal"
+                       class="hs-prev-input hs-cell"
+                       data-prev-manual="{{ '1' if prev_manual.get(col.meter_id) else '0' }}"
+                       title="전일 지침 (자동 반영 · 수기 입력 가능)" />
+                <input type="hidden"
+                       name="prev_manual__{{ bid }}__{{ col.meter_id }}"
+                       value="{{ '1' if prev_manual.get(col.meter_id) else '' }}"
+                       class="hs-prev-manual-flag" />
               </td>
               {% else %}
               <td class="hs-range">{{ col.range }}</td>
@@ -158,6 +164,7 @@
     {% set footer_data = daily_data.get('footer', {}) %}
     {% set fac_data = footer_data.get('facilities', {}) %}
     {% set fac_prev = fac_data.get('prev', {}) %}
+    {% set fac_prev_manual = fac_data.get('prev_manual', {}) %}
     {% set fac_times = fac_data.get('times', {}) %}
     {% set main_data = footer_data.get('main', {}).get('times', {}) %}
     {% set tf_data = footer_data.get('transformer', {}).get('times', {}) %}
@@ -205,9 +212,14 @@
                 <input type="text"
                        name="footer__facilities__prev__{{ grp.id }}__{{ grp.prev.id }}"
                        value="{{ fac_prev.get(grp.id ~ '__' ~ grp.prev.id, '') }}"
-                       readonly
-                       class="hs-prev-input"
-                       title="전일 22:00 지침 (자동)" />
+                       inputmode="decimal"
+                       class="hs-prev-input hs-cell"
+                       data-prev-manual="{{ '1' if fac_prev_manual.get(grp.id ~ '__' ~ grp.prev.id) else '0' }}"
+                       title="전일 지침 (자동 반영 · 수기 입력 가능)" />
+                <input type="hidden"
+                       name="footer__facilities__prev_manual__{{ grp.id }}__{{ grp.prev.id }}"
+                       value="{{ '1' if fac_prev_manual.get(grp.id ~ '__' ~ grp.prev.id) else '' }}"
+                       class="hs-prev-manual-flag" />
               </td>
               {% endif %}
               {% endfor %}
@@ -353,7 +365,7 @@
   </form>
 </section>
 {% if can_write %}
-<script src="/static/js/housing_substation.js?v=5"></script>
+<script src="/static/js/housing_substation.js?v=6"></script>
 {% endif %}
 
 {% elif tab == 'monthly' %}

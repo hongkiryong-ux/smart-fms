@@ -75,6 +75,17 @@
     el.addEventListener("blur", scheduleSave);
   });
 
+  form.querySelectorAll(".hs-prev-input").forEach(function (el) {
+    el.addEventListener("input", function () {
+      const hidden = el.parentElement && el.parentElement.querySelector(".hs-prev-manual-flag");
+      const isEmpty = !String(el.value || "").trim();
+      if (hidden) hidden.value = isEmpty ? "" : "1";
+      el.dataset.prevManual = isEmpty ? "0" : "1";
+      notifyDirty();
+    });
+    el.addEventListener("blur", scheduleSave);
+  });
+
   function setupDragSelect(table) {
     const grid = [];
     const cellMap = new Map();

@@ -173,8 +173,8 @@
   user-select: none;
 }
 
-.hs-drag-selecting .hs-cell {
-  cursor: cell;
+.hs-prev-input.hs-cell-selected {
+  background: #fef9c3 !important;
 }
 
 .hs-footer-sheet {
