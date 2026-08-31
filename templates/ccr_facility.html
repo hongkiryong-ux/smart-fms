@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% block title %}점검일지2 · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/ccr_facility.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/ccr-facility/save') %}
+{% set s1 = daily_data.get('s1', {}) %}
+{% set s2 = daily_data.get('s2', {}) %}
+{% set s3 = daily_data.get('s3', {}) %}
+{% set s4 = daily_data.get('s4', {}) %}
+{% set s5 = daily_data.get('s5', {}) %}
+{% set s6 = daily_data.get('s6', {}) %}
+{% set s6op = s6.get('op', {}) %}
+{% set s6ch = s6.get('chiller', {}) %}
+
+<header class="page-header cf-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{% if qr_mode %}QR · {{ building.name }} · 1일 · 자동 저장{% else %}{{ building.name }} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}
+  <div class="cf-header-actions">
+    <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>
+  </div>
+  {% endif %}
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="cf-tabs" aria-label="탭">
+  <a href="?tab=daily&date={{ log_date.isoformat() }}" class="cf-tab{% if tab == 'daily' %} active{% endif %}">1일</a>
+  {% if not qr_mode %}
+  <a href="?tab=monthly&year={{ year }}&month={{ month }}" class="cf-tab{% if tab == 'monthly' %} active{% endif %}">월보</a>
+  <a href="?tab=yearly&year={{ year }}" class="cf-tab{% if tab == 'yearly' %} active{% endif %}">년보</a>
+  <a href="?tab=notes&year={{ year }}&month={{ month }}" class="cf-tab{% if tab == 'notes' %} active{% endif %}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide cf-daily">
+  <form method="get" class="cf-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="location.href='/ccrf/{{ building.code }}/daily?date='+this.value" /></label>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/ccr-facility/export/daily?log_date={{ log_date.isoformat() }}">엑셀 다운로드</a>
+    {% endif %}
+  </form>
+
+  <form method="post" action="{{ save_url }}" class="cf-daily-form" id="cf-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    {# 1. 중온수, 전력 사용량 #}
+    <div class="cf-sheet">
+      <div class="cf-sheet-title">{{ schema.section1.title }}</div>
+      <div class="cf-table-wrap">
+        <table class="cf-excel">
+          <thead>
+            <tr>
+              <th class="cf-corner" rowspan="2">구분</th>
+              <th class="cf-group-head" colspan="4">중온수 · 열량(MWH)</th>
+              <th class="cf-group-head" colspan="4">중온수 · 유량(㎥/h)</th>
+              <th class="cf-group-head" colspan="5">중앙 관제실(압연) · 전력량(KWH)</th>
+              <th class="cf-group-head" colspan="2">PEAK</th>
+            </tr>
+            <tr>
+              <th>전일지침</th><th>금일지침</th><th>일사용량</th><th>월누계량</th>
+              <th>전일지침</th><th>금일지침</th><th>일사용량</th><th>월누계량</th>
+              <th>전일지침</th><th>금일지침</th><th>일사용량</th><th>월누계량</th><th>전일누계량</th>
+              <th>시간</th><th>부하(A)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set heat = s1.get('heat', {}) %}
+            {% set flow = s1.get('flow', {}) %}
+            {% set power = s1.get('power', {}) %}
+            {% set peak = s1.get('peak', {}) %}
+            <tr>
+              <th class="cf-time-label">07:00</th>
+              <td class="cf-yellow-cell"><input name="f__s1__heat__prev" value="{{ heat.get('prev','') }}" class="cf-cell cf-prev" data-prev-manual="{{ '1' if heat.get('prev_manual') else '0' }}" /><input type="hidden" name="f__s1__heat__prev_manual" value="{{ '1' if heat.get('prev_manual') else '' }}" class="cf-prev-flag" /></td>
+              <td><input name="f__s1__heat__today" value="{{ heat.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="heat" /></td>
+              <td class="cf-calc-out" data-out="heat-daily">{{ heat.get('daily','') }}</td>
+              <td class="cf-calc-out" data-out="heat-monthly">{{ heat.get('monthly','') }}</td>
+              <td class="cf-yellow-cell"><input name="f__s1__flow__prev" value="{{ flow.get('prev','') }}" class="cf-cell cf-prev" data-prev-manual="{{ '1' if flow.get('prev_manual') else '0' }}" /><input type="hidden" name="f__s1__flow__prev_manual" value="{{ '1' if flow.get('prev_manual') else '' }}" class="cf-prev-flag" /></td>
+              <td><input name="f__s1__flow__today" value="{{ flow.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="flow" /></td>
+              <td class="cf-calc-out" data-out="flow-daily">{{ flow.get('daily','') }}</td>
+              <td class="cf-calc-out" data-out="flow-monthly">{{ flow.get('monthly','') }}</td>
+              <td class="cf-yellow-cell"><input name="f__s1__power__prev" value="{{ power.get('prev','') }}" class="cf-cell cf-prev" data-prev-manual="{{ '1' if power.get('prev_manual') else '0' }}" /><input type="hidden" name="f__s1__power__prev_manual" value="{{ '1' if power.get('prev_manual') else '' }}" class="cf-prev-flag" /></td>
+              <td><input name="f__s1__power__today" value="{{ power.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="power" /></td>
+              <td class="cf-calc-out" data-out="power-daily">{{ power.get('daily','') }}</td>
+              <td class="cf-calc-out" data-out="power-monthly">{{ power.get('monthly','') }}</td>
+              <td class="cf-readonly"><input name="f__s1__power__prev_monthly" value="{{ power.get('prev_monthly','') }}" class="cf-cell cf-hidden-calc" readonly tabindex="-1" /></td>
+              <td><input name="f__s1__peak__time" value="{{ peak.get('time','') }}" class="cf-cell" /></td>
+              <td><input name="f__s1__peak__load" value="{{ peak.get('load','') }}" class="cf-cell" /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 2. 가압펌프 #}
+    <div class="cf-sheet">
+      <div class="cf-sheet-title">{{ schema.section2.title }}</div>
+      <div class="cf-table-wrap">
+        <table class="cf-excel">
+          <thead>
+            <tr>
+              <th class="cf-corner">구분</th><th>점검시간</th>
+              <th colspan="2">공급 (95~120℃ / ㎏/㎠)</th>
+              <th colspan="2">환수 (55~65℃ / ㎏/㎠)</th>
+              <th>특이사항</th>
+            </tr>
+            <tr><th></th><th></th><th>온도</th><th>압력</th><th>온도</th><th>압력</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for row in schema.section2.rows %}
+            {% set rd = s2.get(row.id, {}) %}
+            <tr>
+              <th class="cf-time-label">{{ row.label }}</th>
+              <td class="cf-readonly">{{ row.time }}</td>
+              <td><input name="f__s2__{{ row.id }}__supply_temp" value="{{ rd.get('supply_temp','') }}" class="cf-cell" /></td>
+              <td><input name="f__s2__{{ row.id }}__supply_pressure" value="{{ rd.get('supply_pressure','') }}" class="cf-cell" /></td>
+              <td><input name="f__s2__{{ row.id }}__return_temp" value="{{ rd.get('return_temp','') }}" class="cf-cell" /></td>
+              <td><input name="f__s2__{{ row.id }}__return_pressure" value="{{ rd.get('return_pressure','') }}" class="cf-cell" /></td>
+              <td><input name="f__s2__{{ row.id }}__notes" value="{{ rd.get('notes','') }}" class="cf-cell cf-note" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 3. PUMP 가동 #}
+    <div class="cf-sheet">
+      <div class="cf-sheet-title">{{ schema.section3.title }}</div>
+      <div class="cf-table-wrap">
+        <table class="cf-excel">
+          <thead>
+            <tr>
+              <th class="cf-corner" rowspan="2">구분</th>
+              <th class="cf-group-head" colspan="2">1차</th>
+              <th class="cf-group-head" colspan="2">2차</th>
+              <th class="cf-group-head" colspan="2">3차</th>
+              <th rowspan="2">일계(HR)</th><th rowspan="2">월누계(HR)</th><th rowspan="2">전일누계(HR)</th>
+            </tr>
+            <tr><th>가동시간</th><th>HR</th><th>가동시간</th><th>HR</th><th>가동시간</th><th>HR</th></tr>
+          </thead>
+          <tbody>
+            {% for row in schema.section3.rows %}
+            {% set rd = s3.get(row.id, {}) %}
+            <tr class="cf-shift-row" data-section="s3" data-row="{{ row.id }}">
+              <th class="cf-time-label">{{ row.label }}</th>
+              <td><input name="f__s3__{{ row.id }}__s1_time" value="{{ rd.get('s1_time','') }}" class="cf-cell cf-time-range" /></td>
+              <td><input name="f__s3__{{ row.id }}__s1_hr" value="{{ rd.get('s1_hr','') }}" class="cf-cell cf-hr" /></td>
+              <td><input name="f__s3__{{ row.id }}__s2_time" value="{{ rd.get('s2_time','') }}" class="cf-cell cf-time-range" /></td>
+              <td><input name="f__s3__{{ row.id }}__s2_hr" value="{{ rd.get('s2_hr','') }}" class="cf-cell cf-hr" /></td>
+              <td><input name="f__s3__{{ row.id }}__s3_time" value="{{ rd.get('s3_time','') }}" class="cf-cell cf-time-range" /></td>
+              <td><input name="f__s3__{{ row.id }}__s3_hr" value="{{ rd.get('s3_hr','') }}" class="cf-cell cf-hr" /></td>
+              <td class="cf-calc-out cf-daily-out"><input name="f__s3__{{ row.id }}__daily" value="{{ rd.get('daily','') }}" class="cf-cell cf-readonly-field" readonly tabindex="-1" /></td>
+              <td class="cf-calc-out"><input name="f__s3__{{ row.id }}__monthly" value="{{ rd.get('monthly','') }}" class="cf-cell cf-readonly-field" readonly tabindex="-1" /></td>
+              <td class="cf-yellow-cell"><input name="f__s3__{{ row.id }}__prev_day" value="{{ rd.get('prev_day','') }}" class="cf-cell cf-prev-day" readonly tabindex="-1" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 4. 공조 #}
+    <div class="cf-sheet">
+      <div class="cf-sheet-title">{{ schema.section4.title }}</div>
+      <div class="cf-table-wrap">
+        <table class="cf-excel">
+          <thead>
+            <tr>
+              <th class="cf-corner">구분</th>
+              {% for u in schema.section4.units %}<th class="cf-group-head">{{ u }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for si in [1,2,3] %}
+            <tr>
+              <th class="cf-time-label">가동시간 {{ si }}차</th>
+              {% for u in schema.section4.units %}
+              {% set ud = s4.get(u, {}) %}
+              <td><input name="f__s4__{{ u }}__s{{ si }}" value="{{ ud.get('s' ~ si, '') }}" class="cf-cell cf-s4-shift" data-unit="{{ u }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+            <tr class="cf-s4-summary" data-row="daily">
+              <th class="cf-time-label">일누계(HR)</th>
+              {% for u in schema.section4.units %}
+              {% set ud = s4.get(u, {}) %}
+              <td><input name="f__s4__{{ u }}__daily" value="{{ ud.get('daily','') }}" class="cf-cell cf-readonly-field cf-s4-daily" data-unit="{{ u }}" readonly tabindex="-1" /></td>
+              {% endfor %}
+            </tr>
+            <tr>
+              <th class="cf-time-label">전일누계(HR)</th>
+              {% for u in schema.section4.units %}
+              {% set ud = s4.get(u, {}) %}
+              <td class="cf-yellow-cell"><input name="f__s4__{{ u }}__prev_day" value="{{ ud.get('prev_day','') }}" class="cf-cell cf-s4-prev" data-unit="{{ u }}" readonly tabindex="-1" /></td>
+              {% endfor %}
+            </tr>
+            <tr>
+              <th class="cf-time-label">월누계(HR)</th>
+              {% for u in schema.section4.units %}
+              {% set ud = s4.get(u, {}) %}
+              <td><input name="f__s4__{{ u }}__monthly" value="{{ ud.get('monthly','') }}" class="cf-cell cf-readonly-field cf-s4-monthly" data-unit="{{ u }}" readonly tabindex="-1" /></td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 5. 보일러 #}
+    <div class="cf-sheet">
+      <div class="cf-sheet-title">{{ schema.section5.title }}</div>
+      <div class="cf-table-wrap">
+        <table class="cf-excel">
+          <thead>
+            <tr>
+              <th class="cf-corner" rowspan="2">구분</th><th rowspan="2">점검시간</th>
+              <th colspan="2">1차</th><th colspan="2">2차</th>
+              <th rowspan="2">일계</th><th rowspan="2">월누계</th><th rowspan="2">전일누계</th>
+              <th rowspan="2">스팀압력</th><th rowspan="2">비고</th>
+            </tr>
+            <tr><th>가동시간</th><th>HR</th><th>가동시간</th><th>HR</th></tr>
+          </thead>
+          <tbody>
+            {% for row in schema.section5.rows %}
+            {% set rd = s5.get(row.id, {}) %}
+            <tr class="cf-shift-row" data-section="s5" data-row="{{ row.id }}" data-shifts="2">
+              <th class="cf-time-label">{{ row.label }}</th>
+              <td class="cf-readonly">{{ row.time }}</td>
+              <td><input name="f__s5__{{ row.id }}__s1_time" value="{{ rd.get('s1_time','') }}" class="cf-cell cf-time-range" /></td>
+              <td><input name="f__s5__{{ row.id }}__s1_hr" value="{{ rd.get('s1_hr','') }}" class="cf-cell cf-hr" /></td>
+              <td><input name="f__s5__{{ row.id }}__s2_time" value="{{ rd.get('s2_time','') }}" class="cf-cell cf-time-range" /></td>
+              <td><input name="f__s5__{{ row.id }}__s2_hr" value="{{ rd.get('s2_hr','') }}" class="cf-cell cf-hr" /></td>
+              <td><input name="f__s5__{{ row.id }}__daily" value="{{ rd.get('daily','') }}" class="cf-cell cf-readonly-field" readonly tabindex="-1" /></td>
+              <td><input name="f__s5__{{ row.id }}__monthly" value="{{ rd.get('monthly','') }}" class="cf-cell cf-readonly-field" readonly tabindex="-1" /></td>
+              <td class="cf-yellow-cell"><input name="f__s5__{{ row.id }}__prev_day" value="{{ rd.get('prev_day','') }}" class="cf-cell" readonly tabindex="-1" /></td>
+              <td><input name="f__s5__{{ row.id }}__steam" value="{{ rd.get('steam','') }}" class="cf-cell" /></td>
+              <td><input name="f__s5__{{ row.id }}__notes" value="{{ rd.get('notes','') }}" class="cf-cell cf-note" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 6. 냉방 #}
+    <div class="cf-sheet">
+      <div class="cf-sheet-title">{{ schema.section6.title }}</div>
+      <div class="cf-table-wrap">
+        <table class="cf-excel">
+          <thead>
+            <tr>
+              <th class="cf-corner" rowspan="2">구분</th>
+              <th colspan="2">1차</th><th colspan="2">2차</th><th colspan="2">3차</th>
+              <th rowspan="2">일계</th><th rowspan="2">월누계</th><th rowspan="2">전일누계</th>
+            </tr>
+            <tr><th>가동시간</th><th>HR</th><th>가동시간</th><th>HR</th><th>가동시간</th><th>HR</th></tr>
+          </thead>
+          <tbody>
+            {% for row in schema.section6.operation_rows %}
+            {% set rd = s6op.get(row.id, {}) %}
+            <tr class="cf-shift-row" data-section="s6op" data-row="{{ row.id }}">
+              <th class="cf-time-label">{{ row.label }}</th>
+              <td><input name="f__s6op__{{ row.id }}__s1_time" value="{{ rd.get('s1_time','') }}" class="cf-cell cf-time-range" /></td>
+              <td><input name="f__s6op__{{ row.id }}__s1_hr" value="{{ rd.get('s1_hr','') }}" class="cf-cell cf-hr" /></td>
+              <td><input name="f__s6op__{{ row.id }}__s2_time" value="{{ rd.get('s2_time','') }}" class="cf-cell cf-time-range" /></td>
+              <td><input name="f__s6op__{{ row.id }}__s2_hr" value="{{ rd.get('s2_hr','') }}" class="cf-cell cf-hr" /></td>
+              <td><input name="f__s6op__{{ row.id }}__s3_time" value="{{ rd.get('s3_time','') }}" class="cf-cell cf-time-range" /></td>
+              <td><input name="f__s6op__{{ row.id }}__s3_hr" value="{{ rd.get('s3_hr','') }}" class="cf-cell cf-hr" /></td>
+              <td><input name="f__s6op__{{ row.id }}__daily" value="{{ rd.get('daily','') }}" class="cf-cell cf-readonly-field" readonly tabindex="-1" /></td>
+              <td><input name="f__s6op__{{ row.id }}__monthly" value="{{ rd.get('monthly','') }}" class="cf-cell cf-readonly-field" readonly tabindex="-1" /></td>
+              <td class="cf-yellow-cell"><input name="f__s6op__{{ row.id }}__prev_day" value="{{ rd.get('prev_day','') }}" class="cf-cell" readonly tabindex="-1" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="cf-table-wrap" style="margin-top:1rem">
+        <table class="cf-excel">
+          <thead>
+            <tr>
+              <th class="cf-corner">구분</th><th>점검시간</th>
+              {% for field in schema.section6.chiller_fields %}<th>{{ field.label }}<br><small>{{ field.range }}</small></th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in schema.section6.chiller_rows %}
+            {% set rd = s6ch.get(row.id, {}) %}
+            <tr>
+              <th class="cf-time-label">{{ row.label }}</th>
+              <td class="cf-readonly">{{ row.time }}</td>
+              {% for field in schema.section6.chiller_fields %}
+              <td><input name="f__s6ch__{{ row.id }}__{{ field.id }}" value="{{ rd.get(field.id,'') }}" class="cf-cell" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if can_write %}
+    <div class="cf-form-actions">
+      <span id="cf-save-status" class="cf-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/ccr-facility/close-day" formmethod="post" class="btn btn-secondary"
+              onclick="return confirm('{{ log_date.isoformat() }} 일지를 마감할까요?');">마감 · 엑셀 저장</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+{% if can_write %}<script src="/static/js/ccr_facility.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="cf-date-nav inline-form">
+    <input type="hidden" name="tab" value="monthly" />
+    <label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
+      <input type="number" name="month" value="{{ month }}" min="1" max="12" style="width:3rem" /></label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  <div class="cf-sheet">
+    <div class="cf-sheet-title">1항 · 중온수·전력 일사용량 / 월누계</div>
+    <div class="cf-table-wrap">
+      <table class="cf-excel cf-month-grid">
+        <thead>
+          <tr><th>일</th><th>열량 일사용</th><th>열량 월누계</th><th>유량 일사용</th><th>유량 월누계</th><th>전력 일사용</th><th>전력 월누계</th></tr>
+        </thead>
+        <tbody>
+          {% for day in monthly.days %}
+          <tr>
+            <th>{{ day.day }}일</th>
+            <td>{{ day.heat_daily }}</td><td>{{ day.heat_monthly }}</td>
+            <td>{{ day.flow_daily }}</td><td>{{ day.flow_monthly }}</td>
+            <td>{{ day.power_daily }}</td><td>{{ day.power_monthly }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="cf-sheet">
+    <div class="cf-sheet-title">3·5·6항 · 일계(HR) 요약</div>
+    <div class="cf-table-wrap">
+      <table class="cf-excel cf-month-grid">
+        <thead>
+          <tr><th>일</th>{% for row in schema.section3.rows %}<th>{{ row.label }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for day in monthly.days %}
+          <tr>
+            <th>{{ day.day }}일</th>
+            {% for row in schema.section3.rows %}
+            <td>{{ (day.s3.get(row.id, {}) or {}).get('daily', '') }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="cf-date-nav inline-form">
+    <input type="hidden" name="tab" value="yearly" />
+    <label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" /></label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  <div class="cf-sheet">
+    <div class="cf-sheet-title">{{ year }}년 월별 사용량 합계</div>
+    <div class="cf-table-wrap">
+      <table class="cf-excel">
+        <thead><tr><th>월</th><th>열량</th><th>유량</th><th>전력</th></tr></thead>
+        <tbody>
+          {% for mon in yearly.months %}
+          <tr><th>{{ mon.month }}월</th><td>{{ mon.heat_usage }}</td><td>{{ mon.flow_usage }}</td><td>{{ mon.power_usage }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="cf-date-nav inline-form">
+    <input type="hidden" name="tab" value="notes" />
+    <label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
+      <input type="number" name="month" value="{{ month }}" min="1" max="12" style="width:3rem" /></label>
+    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  {% if notes_list['entries'] %}
+  <div class="cf-notes-list">
+    {% for entry in notes_list['entries'] %}
+    <article class="cf-notes-day">
+      <h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }} ({{ entry.day }}일)</a></h3>
+      <ul>{% for item in entry['items'] %}<li><strong>{{ item.section }} {{ item.time }}</strong> — {{ item.text }}</li>{% endfor %}</ul>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}<p class="text-muted">해당 월 특이사항 없음</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

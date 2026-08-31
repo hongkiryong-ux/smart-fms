@@ -1,0 +1,78 @@
+{
+  "building_name": "중앙관제실(설비)",
+  "title": "중앙관제실 운영일보",
+  "section1": {
+    "title": "1. 중온수, 전력 사용량(07:00 기준)",
+    "meters": [
+      {"id": "heat", "group": "중온수", "name": "열량", "unit": "MWH", "cols": ["prev", "today", "daily", "monthly"]},
+      {"id": "flow", "group": "중온수", "name": "유량", "unit": "㎥/h", "cols": ["prev", "today", "daily", "monthly"]},
+      {"id": "power", "group": "중앙 관제실 (압연)", "name": "전력량", "unit": "KWH", "cols": ["prev", "today", "daily", "monthly", "prev_monthly"]},
+      {"id": "peak", "group": "PEAK", "name": "PEAK", "unit": "", "cols": ["time", "load"], "labels": {"time": "시간", "load": "부하(A)"}}
+    ]
+  },
+  "section2": {
+    "title": "2. 중온수 가압펌프 점검",
+    "rows": [
+      {"id": "day", "label": "주간", "time": "10:00"},
+      {"id": "night", "label": "야간", "time": "20:00"}
+    ],
+    "fields": [
+      {"id": "supply_temp", "label": "공급 온도", "range": "95~120℃"},
+      {"id": "supply_pressure", "label": "공급 압력", "range": "㎏/㎠"},
+      {"id": "return_temp", "label": "환수 온도", "range": "55~65℃"},
+      {"id": "return_pressure", "label": "환수 압력", "range": "㎏/㎠"},
+      {"id": "notes", "label": "특이사항", "range": ""}
+    ]
+  },
+  "section3": {
+    "title": "3. 중온수,난방PUMP 가동",
+    "shifts": 3,
+    "rows": [
+      {"id": "housing", "label": "주택 S/S"},
+      {"id": "baegun", "label": "백운 생활관"},
+      {"id": "dongbaek", "label": "동백 생활관"},
+      {"id": "welfare", "label": "복지센터"}
+    ]
+  },
+  "section4": {
+    "title": "4. 복지센터 공조 설비",
+    "units": ["NO.1", "NO.2", "NO.3", "NO.4", "NO.5", "NO.6", "NO.7"],
+    "shifts": 3
+  },
+  "section5": {
+    "title": "5. 복지센타 보일러 점검",
+    "shifts": 2,
+    "rows": [
+      {"id": "b1", "label": "#1 보일러", "time": "10:00"},
+      {"id": "b2", "label": "#2 보일러", "time": "16:00"}
+    ]
+  },
+  "section6": {
+    "title": "6. 냉방설비 운전(24:00 기준)",
+    "operation_rows": [
+      {"id": "b2", "label": "백운생활관 2동"},
+      {"id": "b4", "label": "백운생활관 4동"},
+      {"id": "b6", "label": "백운생활관 6동"},
+      {"id": "w1", "label": "복지센터 #1"},
+      {"id": "w2", "label": "복지센터 #2"}
+    ],
+    "shifts": 3,
+    "chiller_rows": [
+      {"id": "c1_10", "label": "냉동기#1", "time": "10:00"},
+      {"id": "c1_16", "label": "냉동기#1", "time": "16:00"},
+      {"id": "c2_10", "label": "냉동기#2", "time": "10:00"},
+      {"id": "c2_16", "label": "냉동기#2", "time": "16:00"}
+    ],
+    "chiller_fields": [
+      {"id": "high", "label": "고압", "range": "13~17"},
+      {"id": "low", "label": "저압", "range": "3~6"},
+      {"id": "refrigerant", "label": "냉매량", "range": "30~80%"},
+      {"id": "oil", "label": "오일량", "range": "30~80%"},
+      {"id": "cold_out", "label": "냉수 출구", "range": "7~12"},
+      {"id": "cold_in", "label": "냉수 입구", "range": "12~17℃"},
+      {"id": "cool_in", "label": "냉각수 입구", "range": "32이하℃"},
+      {"id": "cool_out", "label": "냉각수 출구", "range": "37이하℃"},
+      {"id": "ct_fan", "label": "C/T팬 상태", "range": ""}
+    ]
+  }
+}

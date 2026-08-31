@@ -412,8 +412,7 @@ def is_central_control_room_building(building: Building | None) -> bool:
     if not building:
         return False
     name = (building.name or "").strip()
-    target = load_schema().get("building_name", "중앙관제실")
-    return name == target or target in name
+    return name == load_schema().get("building_name", "중앙관제실")
 
 
 def empty_daily_payload() -> dict:
