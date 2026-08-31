@@ -457,7 +457,7 @@
           <tr>
             <th class="hs-time-label">{{ day.day }}일</th>
             {% for field in monthly.transformer.fields %}
-            <td class="hs-data-cell">{{ day.values.get(field.col, '') }}</td>
+            <td class="hs-data-cell">{{ day['values'].get(field.col, '') }}</td>
             {% endfor %}
           </tr>
           {% endfor %}
@@ -574,7 +574,7 @@
           <tr>
             <th class="hs-time-label">{{ mon.month }}월</th>
             {% for field in yearly.transformer.fields %}
-            <td class="hs-data-cell">{{ mon.values.get(field.col, '') }}</td>
+            <td class="hs-data-cell">{{ mon['values'].get(field.col, '') }}</td>
             {% endfor %}
           </tr>
           {% endfor %}
@@ -603,15 +603,15 @@
   </form>
   <p class="text-muted hs-hint">1일 일지에 작성된 특이사항을 날짜·시간별로 모아서 보여줍니다.</p>
 
-  {% if notes_list.entries %}
+  {% if notes_list['entries'] %}
   <div class="hs-notes-list">
-    {% for entry in notes_list.entries %}
+    {% for entry in notes_list['entries'] %}
     <article class="hs-notes-day">
       <h3 class="hs-notes-date">
         <a href="?tab=daily&date={{ entry.date }}">{{ entry.date }} ({{ entry.day }}일)</a>
       </h3>
       <ul>
-        {% for item in entry.items %}
+        {% for item in entry['items'] %}
         <li><strong>{{ item.time }}</strong> — {{ item.text }}</li>
         {% endfor %}
       </ul>
