@@ -1,4 +1,4 @@
-/** 주택변전소 1일 일지 — 입력 시 자동 저장 · 드래그 선택 후 삭제 */
+/** 주택변전소 1일 일지 — 자동 저장 · 드래그 선택 · 삭제 · 엑셀 붙여넣기 */
 (function () {
   const form = document.querySelector(".hs-daily-form");
   const statusEl = document.getElementById("hs-save-status");
@@ -7,6 +7,7 @@
   let debounceTimer = null;
   let saving = false;
   let pending = false;
+  let activeSelector = null;
   const DEBOUNCE_MS = 600;
 
   function setStatus(text, cls) {
@@ -52,6 +53,23 @@
     scheduleSave();
   }
 
+  function isGridPasteText(text) {
+    return /[\t\n\r]/.test(text || "");
+  }
+
+  function parseClipboardGrid(text) {
+    const normalized = String(text || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n");
+    const lines = normalized.split("\n");
+    while (lines.length && lines[lines.length - 1] === "") {
+      lines.pop();
+    }
+    return lines.map(function (line) {
+      return line.split("\t");
+    });
+  }
+
   form.querySelectorAll(".hs-cell").forEach(function (el) {
     el.addEventListener("input", notifyDirty);
     el.addEventListener("blur", scheduleSave);
@@ -77,12 +95,31 @@
     let selecting = false;
     let dragged = false;
     const selected = new Set();
+    let selectionBounds = null;
+    const selector = {
+      selected: selected,
+      table: table,
+      clearSelection: clearSelection,
+      deleteSelected: deleteSelected,
+      pasteFromText: pasteFromText,
+      containsElement: containsElement,
+      activate: activate,
+    };
+
+    function activate() {
+      activeSelector = selector;
+    }
+
+    function containsElement(el) {
+      return table.contains(el);
+    }
 
     function clearSelection() {
       selected.forEach(function (el) {
         el.classList.remove("hs-cell-selected");
       });
       selected.clear();
+      selectionBounds = null;
     }
 
     function applySelection(r1, c1, r2, c2) {
@@ -91,6 +128,7 @@
       const maxR = Math.max(r1, r2);
       const minC = Math.min(c1, c2);
       const maxC = Math.max(c1, c2);
+      selectionBounds = { minR: minR, maxR: maxR, minC: minC, maxC: maxC };
       for (let r = minR; r <= maxR; r++) {
         for (let c = minC; c <= maxC; c++) {
           const el = grid[r] && grid[r][c];
@@ -99,6 +137,53 @@
           el.classList.add("hs-cell-selected");
         }
       }
+      activate();
+    }
+
+    function getPasteAnchor() {
+      if (selectionBounds) {
+        return { row: selectionBounds.minR, col: selectionBounds.minC };
+      }
+      const focused = table.querySelector(".hs-cell:focus");
+      if (focused && cellMap.has(focused)) {
+        return cellMap.get(focused);
+      }
+      if (selected.size === 1) {
+        return cellMap.get(selected.values().next().value);
+      }
+      return null;
+    }
+
+    function pasteFromText(text) {
+      const matrix = parseClipboardGrid(text);
+      if (!matrix.length) return false;
+
+      const anchorPos = getPasteAnchor();
+      if (!anchorPos) return false;
+
+      let changed = false;
+      let endR = anchorPos.row;
+      let endC = anchorPos.col;
+
+      matrix.forEach(function (cols, dr) {
+        cols.forEach(function (raw, dc) {
+          const el = grid[anchorPos.row + dr] && grid[anchorPos.row + dr][anchorPos.col + dc];
+          if (!el || el.readOnly) return;
+          const val = String(raw).trim();
+          if (el.value !== val) {
+            el.value = val;
+            changed = true;
+          }
+          endR = Math.max(endR, anchorPos.row + dr);
+          endC = Math.max(endC, anchorPos.col + dc);
+        });
+      });
+
+      if (!changed) return false;
+
+      applySelection(anchorPos.row, anchorPos.col, endR, endC);
+      notifyDirty();
+      return true;
     }
 
     function deleteSelected() {
@@ -129,6 +214,13 @@
         applySelection(anchor.row, anchor.col, pos.row, pos.col);
       });
 
+      input.addEventListener("focus", function () {
+        activate();
+        if (!dragged && selected.size <= 1 && !selected.has(input)) {
+          applySelection(pos.row, pos.col, pos.row, pos.col);
+        }
+      });
+
       input.addEventListener("click", function () {
         if (dragged) {
           input.blur();
@@ -149,6 +241,14 @@
           notifyDirty();
         }
       });
+
+      input.addEventListener("paste", function (e) {
+        const text = e.clipboardData && e.clipboardData.getData("text/plain");
+        if (!isGridPasteText(text)) return;
+        if (pasteFromText(text)) {
+          e.preventDefault();
+        }
+      });
     });
 
     document.addEventListener("mouseup", function () {
@@ -162,11 +262,7 @@
       form.classList.add("hs-drag-selecting");
     });
 
-    return {
-      selected: selected,
-      clearSelection: clearSelection,
-      deleteSelected: deleteSelected,
-    };
+    return selector;
   }
 
   const selectors = [];
@@ -175,20 +271,52 @@
     if (sel) selectors.push(sel);
   });
 
+  function findSelectorForTarget(target) {
+    if (!target) return activeSelector;
+    for (let i = 0; i < selectors.length; i++) {
+      if (selectors[i].containsElement(target)) return selectors[i];
+    }
+    return activeSelector;
+  }
+
+  form.addEventListener("paste", function (e) {
+    const text = e.clipboardData && e.clipboardData.getData("text/plain");
+    if (!isGridPasteText(text)) return;
+    const sel = findSelectorForTarget(e.target);
+    if (sel && sel.pasteFromText(text)) {
+      e.preventDefault();
+    }
+  });
+
   document.addEventListener("keydown", function (e) {
-    if (e.key !== "Delete" && e.key !== "Backspace") return;
-    if (e.target && e.target.matches && e.target.matches("input:not(.hs-cell)")) return;
+    if (e.key === "Delete" || e.key === "Backspace") {
+      if (e.target && e.target.matches && e.target.matches("input:not(.hs-cell)")) return;
 
-    let totalSelected = 0;
-    selectors.forEach(function (sel) {
-      totalSelected += sel.selected.size;
-    });
-    if (totalSelected <= 1) return;
+      let totalSelected = 0;
+      selectors.forEach(function (sel) {
+        totalSelected += sel.selected.size;
+      });
+      if (totalSelected <= 1) return;
 
-    e.preventDefault();
-    selectors.forEach(function (sel) {
-      sel.deleteSelected();
-    });
+      e.preventDefault();
+      selectors.forEach(function (sel) {
+        sel.deleteSelected();
+      });
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === "v") {
+      const sel = findSelectorForTarget(document.activeElement);
+      if (!sel) return;
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(function (text) {
+          if (!isGridPasteText(text)) return;
+          sel.pasteFromText(text);
+        }).catch(function () {
+          /* paste 이벤트에 위임 */
+        });
+      }
+    }
   });
 
   document.addEventListener("mousedown", function (e) {
