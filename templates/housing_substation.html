@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/housing_substation.css?v=9" />
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=10" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -252,11 +252,17 @@
         <table class="hs-excel hs-footer-combined">
           <thead>
             <tr>
-              <th class="hs-corner" rowspan="4">구분</th>
+              <th class="hs-corner" rowspan="5">구분</th>
               <th class="hs-group-head" colspan="6">{{ daily_footer.main.title }}</th>
-              <th class="hs-corner" rowspan="4">구분</th>
+              <th class="hs-corner" rowspan="5">구분</th>
               <th class="hs-group-head" colspan="5">{{ daily_footer.transformer.title }}</th>
-              <th class="hs-group-head hs-notes-head" rowspan="4">{{ daily_footer.notes.title }}</th>
+              <th class="hs-group-head hs-notes-head" rowspan="5">{{ daily_footer.notes.title }}</th>
+            </tr>
+            <tr>
+              {% for grp in daily_footer.main.groups %}
+              <th class="hs-group-head" colspan="{{ grp.columns|length }}">{{ grp.name }}</th>
+              {% endfor %}
+              <th class="hs-metric" colspan="5">{{ daily_footer.transformer.subtitle }}</th>
             </tr>
             <tr>
               {% for grp in daily_footer.main.groups %}
@@ -264,7 +270,9 @@
               <th class="hs-metric">{{ col.metric }}</th>
               {% endfor %}
               {% endfor %}
-              <th class="hs-metric" colspan="5">{{ daily_footer.transformer.subtitle }}</th>
+              {% for field in daily_footer.transformer.fields %}
+              <th class="hs-metric">{{ field.name }}</th>
+              {% endfor %}
             </tr>
             <tr>
               {% for grp in daily_footer.main.groups %}
@@ -273,7 +281,7 @@
               {% endfor %}
               {% endfor %}
               {% for field in daily_footer.transformer.fields %}
-              <th class="hs-unit">{{ field.name }}</th>
+              <td class="hs-range">{{ field.range }}</td>
               {% endfor %}
             </tr>
             <tr>
@@ -283,7 +291,7 @@
               {% endfor %}
               {% endfor %}
               {% for field in daily_footer.transformer.fields %}
-              <td class="hs-range">{{ field.range }}</td>
+              <td class="hs-range"></td>
               {% endfor %}
             </tr>
           </thead>
