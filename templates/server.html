@@ -3,100 +3,8 @@
 {% block content %}
 <header class="page-header">
   <h1>서버관리</h1>
-  <p>Render/호스트 리소스 · DB · 통신 상태 (30초 자동갱신)</p>
+  <p>서버 상태 · 활동 로그 · 백업 및 자료 다운로드</p>
 </header>
-
-<section class="card">
-  <h2>전체 자료 백업</h2>
-  <p>
-    사이트에 올린 점검일지 엑셀·도면·표준서와 사업장/설비/정비 등 업무 데이터를
-    <strong>ZIP 한 개</strong>로 받습니다. 이미 압축된 파일은 다시 압축하지 않아 빠르게 내려받을 수 있습니다.
-  </p>
-  <p>
-    <a class="btn btn-primary" href="/admin/server/backup.zip">ZIP 백업 받기</a>
-  </p>
-</section>
-
-<section class="card">
-  <h2>사용 매뉴얼 · 발표자료</h2>
-  <p>
-    Smart FMS 전체 기능 설명용 <strong>사용 매뉴얼</strong>과,
-    QSS 제안형으로 정리한 <strong>발표자료</strong>(성과·효과 중심) PPT를 내려받습니다.
-  </p>
-  <p style="display:flex;gap:0.5rem;flex-wrap:wrap">
-    <a class="btn btn-secondary" href="/admin/server/manual.pptx">사용 매뉴얼 PPT 받기</a>
-    <a class="btn btn-primary" href="/admin/server/presentation.pptx">발표자료 PPT 받기</a>
-  </p>
-</section>
-
-<section class="card card-wide" id="access-log-section">
-  <h2>활동 로그</h2>
-  <p class="text-muted" style="margin-top:0">
-    FMS 전체 활동(로그인·화면 조회·등록·수정·삭제·내보내기·QR 현장 저장)을 기록합니다.
-    아이디, 메뉴, URL, IP, 요약으로 검색할 수 있습니다.
-  </p>
-  <form id="access-log-form" class="access-log-filters" onsubmit="return false;">
-    <div class="access-log-filter-row">
-      <label>
-        <span>검색</span>
-        <input type="search" id="alog-q" placeholder="아이디 · 메뉴 · URL · IP · 요약" autocomplete="off" />
-      </label>
-      <label>
-        <span>유형</span>
-        <select id="alog-event">
-          <option value="">전체</option>
-          <option value="login_success">로그인 성공</option>
-          <option value="login_fail">로그인 실패</option>
-          <option value="logout">로그아웃</option>
-          <option value="page_view">화면 조회</option>
-          <option value="create">등록</option>
-          <option value="update">수정</option>
-          <option value="delete">삭제</option>
-          <option value="export">내보내기</option>
-          <option value="action">작업</option>
-        </select>
-      </label>
-      <label>
-        <span>시작일</span>
-        <input type="date" id="alog-from" />
-      </label>
-      <label>
-        <span>종료일</span>
-        <input type="date" id="alog-to" />
-      </label>
-      <div class="access-log-filter-actions">
-        <button type="button" class="btn btn-primary" id="alog-search">검색</button>
-        <button type="button" class="btn btn-secondary" id="alog-reset">초기화</button>
-      </div>
-    </div>
-  </form>
-  <p class="access-log-summary" id="alog-summary">불러오는 중…</p>
-  <div class="table-scroll">
-    <table class="data-table access-log-table">
-      <thead>
-        <tr>
-          <th>시각 (KST)</th>
-          <th>유형</th>
-          <th>메뉴/기능</th>
-          <th>요약</th>
-          <th>아이디</th>
-          <th>이름</th>
-          <th>IP</th>
-          <th>HTTP</th>
-          <th>상태</th>
-        </tr>
-      </thead>
-      <tbody id="alog-body">
-        <tr><td colspan="9" class="text-muted">불러오는 중…</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="access-log-pager" id="alog-pager" hidden>
-    <button type="button" class="btn btn-secondary btn-sm" id="alog-prev">이전</button>
-    <span id="alog-page-info">1 / 1</span>
-    <button type="button" class="btn btn-secondary btn-sm" id="alog-next">다음</button>
-  </div>
-</section>
 
 <aside class="dash-server-panel server-admin-panel" id="dash-server-panel" data-level="{{ server.overall }}" data-render="{{ '1' if server.is_render else '0' }}">
   <div class="dash-server-head">
@@ -229,6 +137,98 @@
     <span>30초 자동갱신</span>
   </div>
 </aside>
+
+<section class="card card-wide" id="access-log-section">
+  <h2>활동 로그</h2>
+  <p class="text-muted" style="margin-top:0">
+    FMS 전체 활동(로그인·화면 조회·등록·수정·삭제·내보내기·QR 현장 저장)을 기록합니다.
+    아이디, 메뉴, URL, IP, 요약으로 검색할 수 있습니다.
+  </p>
+  <form id="access-log-form" class="access-log-filters" onsubmit="return false;">
+    <div class="access-log-filter-row">
+      <label>
+        <span>검색</span>
+        <input type="search" id="alog-q" placeholder="아이디 · 메뉴 · URL · IP · 요약" autocomplete="off" />
+      </label>
+      <label>
+        <span>유형</span>
+        <select id="alog-event">
+          <option value="">전체</option>
+          <option value="login_success">로그인 성공</option>
+          <option value="login_fail">로그인 실패</option>
+          <option value="logout">로그아웃</option>
+          <option value="page_view">화면 조회</option>
+          <option value="create">등록</option>
+          <option value="update">수정</option>
+          <option value="delete">삭제</option>
+          <option value="export">내보내기</option>
+          <option value="action">작업</option>
+        </select>
+      </label>
+      <label>
+        <span>시작일</span>
+        <input type="date" id="alog-from" />
+      </label>
+      <label>
+        <span>종료일</span>
+        <input type="date" id="alog-to" />
+      </label>
+      <div class="access-log-filter-actions">
+        <button type="button" class="btn btn-primary" id="alog-search">검색</button>
+        <button type="button" class="btn btn-secondary" id="alog-reset">초기화</button>
+      </div>
+    </div>
+  </form>
+  <p class="access-log-summary" id="alog-summary">불러오는 중…</p>
+  <div class="table-scroll">
+    <table class="data-table access-log-table">
+      <thead>
+        <tr>
+          <th>시각 (KST)</th>
+          <th>유형</th>
+          <th>메뉴/기능</th>
+          <th>요약</th>
+          <th>아이디</th>
+          <th>이름</th>
+          <th>IP</th>
+          <th>HTTP</th>
+          <th>상태</th>
+        </tr>
+      </thead>
+      <tbody id="alog-body">
+        <tr><td colspan="9" class="text-muted">불러오는 중…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="access-log-pager" id="alog-pager" hidden>
+    <button type="button" class="btn btn-secondary btn-sm" id="alog-prev">이전</button>
+    <span id="alog-page-info">1 / 1</span>
+    <button type="button" class="btn btn-secondary btn-sm" id="alog-next">다음</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>전체 자료 백업</h2>
+  <p>
+    사이트에 올린 점검일지 엑셀·도면·표준서와 사업장/설비/정비 등 업무 데이터를
+    <strong>ZIP 한 개</strong>로 받습니다. 이미 압축된 파일은 다시 압축하지 않아 빠르게 내려받을 수 있습니다.
+  </p>
+  <p>
+    <a class="btn btn-primary" href="/admin/server/backup.zip">ZIP 백업 받기</a>
+  </p>
+</section>
+
+<section class="card">
+  <h2>사용 매뉴얼 · 발표자료</h2>
+  <p>
+    Smart FMS 전체 기능 설명용 <strong>사용 매뉴얼</strong>과,
+    QSS 제안형으로 정리한 <strong>발표자료</strong>(성과·효과 중심) PPT를 내려받습니다.
+  </p>
+  <p style="display:flex;gap:0.5rem;flex-wrap:wrap">
+    <a class="btn btn-secondary" href="/admin/server/manual.pptx">사용 매뉴얼 PPT 받기</a>
+    <a class="btn btn-primary" href="/admin/server/presentation.pptx">발표자료 PPT 받기</a>
+  </p>
+</section>
 
 <script>
 (function () {
