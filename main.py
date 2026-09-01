@@ -2491,7 +2491,7 @@ async def server_access_logs_api(
     date_from: str | None = Query(None, max_length=10),
     date_to: str | None = Query(None, max_length=10),
     page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=10, le=200),
+    per_page: int = Query(15, ge=15, le=200),
 ):
     """접속(로그인·로그아웃) 이력 JSON — 검색·페이지."""
     data = await query_access_logs(

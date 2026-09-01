@@ -364,7 +364,7 @@
 
 (function () {
   var page = 1;
-  var perPage = 50;
+  var perPage = 15;
 
   function el(id) { return document.getElementById(id); }
 
@@ -441,7 +441,7 @@
     if (!pager) return;
     var pages = data.pages || 1;
     page = data.page || 1;
-    pager.hidden = pages <= 1;
+    pager.hidden = (data.total || 0) <= perPage;
     if (info) info.textContent = page + ' / ' + pages + ' (총 ' + (data.total || 0) + '건)';
     if (prev) prev.disabled = page <= 1;
     if (next) next.disabled = page >= pages;

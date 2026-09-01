@@ -369,9 +369,9 @@ async def query_access_logs(
     date_from: str | None = None,
     date_to: str | None = None,
     page: int = 1,
-    per_page: int = 50,
+    per_page: int = 15,
 ) -> dict:
-    per_page = max(10, min(per_page, 200))
+    per_page = max(15, min(per_page, 200))
     page = max(1, page)
     stmt = select(AccessLog)
     count_stmt = select(func.count()).select_from(AccessLog)
