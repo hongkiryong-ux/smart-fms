@@ -163,6 +163,105 @@ def _match_buildings_in_question(question: str, buildings: list[dict]) -> list[d
     return matched[:8]
 
 
+def _extract_year_month(question: str) -> tuple[int | None, int | None]:
+    q = question or ""
+    year = None
+    month = None
+    ym = re.search(r"(20\d{2})\s*년", q)
+    if ym:
+        year = int(ym.group(1))
+    mm = re.search(r"(\d{1,2})\s*월", q)
+    if mm:
+        month = int(mm.group(1))
+    return year, month
+
+
+def _compact_housing_monthly_power(report: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for sec in report.get("sections") or []:
+        breaker_map = {b["meter_id"]: b for b in sec.get("breakers") or []}
+        sec_data: dict[str, Any] = {
+            "section": sec.get("title", ""),
+            "monthly_totals_kwh": [],
+            "daily_usage_kwh": [],
+        }
+        for tot in sec.get("totals") or []:
+            mid = tot.get("meter_id")
+            br = breaker_map.get(mid) or {}
+            usage = tot.get("usage_sum")
+            if usage not in (None, ""):
+                sec_data["monthly_totals_kwh"].append(
+                    {
+                        "name": br.get("name", mid),
+                        "total": usage,
+                        "max_a": tot.get("max_a_max", ""),
+                    }
+                )
+        for day in sec.get("days") or []:
+            usages: dict[str, Any] = {}
+            for br in day.get("breakers") or []:
+                if br.get("usage") not in (None, ""):
+                    usages[br.get("name", "")] = br["usage"]
+            if usages:
+                sec_data["daily_usage_kwh"].append(
+                    {"day": day.get("day"), "date": day.get("date"), "usage": usages}
+                )
+        if sec_data["monthly_totals_kwh"] or sec_data["daily_usage_kwh"]:
+            out.append(sec_data)
+    return out
+
+
+async def _gather_housing_monthly_reports(
+    db: AsyncSession,
+    question: str,
+    building_rows: list[Building],
+) -> list[dict[str, Any]]:
+    """주택변전소 월보(일별·월합계 전력사용량) — 질문 연·월 기준."""
+    import calendar
+
+    from housing_substation import fetch_monthly_report_data, is_housing_substation_building
+
+    q = question or ""
+    year, month = _extract_year_month(q)
+    housing_buildings = [b for b in building_rows if is_housing_substation_building(b)]
+    if not housing_buildings:
+        return []
+
+    power_kw = any(k in q for k in ("전력", "사용량", "kwh", "kw", "월보", "전기", "전류"))
+    housing_kw = any(k in q for k in ("주택변전소", "주택"))
+    if not (housing_kw or power_kw or year is not None or month is not None):
+        return []
+
+    target_year = year or _today().year
+    target_month = month or _today().month
+    last_day = calendar.monthrange(target_year, target_month)[1]
+    d_from = date(target_year, target_month, 1)
+    d_to = date(target_year, target_month, last_day)
+
+    reports_out: list[dict[str, Any]] = []
+    for b in housing_buildings:
+        row_count = await _count(
+            db,
+            select(func.count(HousingSubstationDaily.id)).where(
+                HousingSubstationDaily.building_id == b.id,
+                HousingSubstationDaily.log_date >= d_from,
+                HousingSubstationDaily.log_date <= d_to,
+            ),
+        )
+        monthly = await fetch_monthly_report_data(db, b.id, target_year, target_month)
+        reports_out.append(
+            {
+                "building": b.name,
+                "building_id": b.id,
+                "year": target_year,
+                "month": target_month,
+                "daily_rows_in_month": row_count,
+                "power_usage": _compact_housing_monthly_power(monthly),
+            }
+        )
+    return reports_out
+
+
 async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[str, Any]:
     """Smart FMS 전체 운영 데이터 스냅샷 (일반질문·GPT 공통)."""
     ctx: dict[str, Any] = {
@@ -597,6 +696,10 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
             ]
         sec["streetlamp"] = lamp_sec
 
+    housing_monthly = await _gather_housing_monthly_reports(db, question, building_rows)
+    if housing_monthly:
+        sec["housing_monthly_reports"] = housing_monthly
+
     return ctx
 
 
@@ -640,6 +743,20 @@ def build_aggregate_answer(ctx: dict[str, Any], question: str) -> str:
     matched = sec.get("question_buildings") or []
     if matched:
         lines.extend(_format_section_lines("질문 관련 건물", _answer_for_buildings(sec, matched)))
+
+    for rep in sec.get("housing_monthly_reports") or []:
+        hm_lines = [
+            f"  {rep['building']} {rep['year']}년 {rep['month']}월 "
+            f"(입력 일지 {rep['daily_rows_in_month']}일)"
+        ]
+        for sec_pwr in rep.get("power_usage") or []:
+            hm_lines.append(f"  [{sec_pwr.get('section', '')}]")
+            for t in sec_pwr.get("monthly_totals_kwh") or []:
+                hm_lines.append(f"    · {t['name']}: 월합계 {t['total']} kWh")
+            for d in sec_pwr.get("daily_usage_kwh") or []:
+                parts = ", ".join(f"{k}={v}kWh" for k, v in (d.get("usage") or {}).items())
+                hm_lines.append(f"    · {d.get('day')}일: {parts}")
+        lines.extend(_format_section_lines("주택변전소 전력 사용량", hm_lines))
 
     lines.append(f"[Smart FMS 전체 데이터] 기준 시각: {ctx.get('as_of', '')}")
     lines.append(
@@ -788,6 +905,7 @@ def call_openai_detail(
         "당신은 POSCO WIDE Smart FMS 시설관리 분석 도우미입니다. "
         "제공된 JSON은 Smart FMS에 등록된 전체 운영 데이터의 최신 스냅샷입니다 "
         "(사업장·건물·설비·정비의뢰·PM·D-1·협력사·점검일지·점검일지2·자재·공지·일정·가로등 등). "
+        "housing_monthly_reports에는 주택변전소 월보 전력사용량(일별·월합계 kWh)이 포함됩니다. "
         "JSON에 있는 수치·목록만 근거로 질문에 한국어로 답하세요. "
         "없는 정보는 추측하지 말고 '데이터에 없음'이라고 하세요. "
         "비밀번호·API키·개인 연락처는 언급하지 마세요. "
