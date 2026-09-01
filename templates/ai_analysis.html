@@ -78,8 +78,8 @@
 <header class="page-header">
   <h1>AI 분석</h1>
   <p>
-    <strong>일반질문</strong>은 DB 집계로 바로 답하고,
-    <strong>AI 질문</strong>은 등록된 OpenAI 키로 GPT가 분석합니다.
+    <strong>일반질문</strong>·<strong>AI 질문(GPT)</strong> 모두 Smart FMS 전체 DB
+    (사업장·건물·설비·정비·PM·D-1·점검일지·자재·공지·일정 등)를 조회해 답합니다.
   </p>
 </header>
 
@@ -122,7 +122,7 @@
 <div class="ai-ask-grid">
   <section class="card ai-ask-panel">
     <h2>일반질문</h2>
-    <p class="ai-panel-desc">API 키 없이 FMS 등록 자료를 집계해 답변합니다.</p>
+    <p class="ai-panel-desc">API 키 없이 FMS 전체 데이터를 조회해 질문에 답합니다.</p>
     <form method="post" action="/admin/ai-analysis/ask" class="form-stack">
       <input type="hidden" name="mode" value="aggregate" />
       <label for="question_general">질문</label>
@@ -144,7 +144,7 @@
 
   <section class="card ai-ask-panel">
     <h2>AI 질문 (GPT)</h2>
-    <p class="ai-panel-desc">집계 수치를 근거로 GPT가 해석·제안합니다. 반드시 OpenAI 키가 필요합니다.</p>
+    <p class="ai-panel-desc">FMS 전체 데이터를 근거로 GPT가 해석·제안합니다. OpenAI 키가 필요합니다.</p>
     <form method="post" action="/admin/ai-analysis/ask" class="form-stack">
       <input type="hidden" name="mode" value="detail" />
       <label for="question_ai">질문</label>
