@@ -122,6 +122,16 @@
   }
   .ai-chat-status.error { color: #c0392b; }
   .ai-chat-status.saving { color: #003876; }
+  .ai-chat-key-alert {
+    background: #fff8e6;
+    border: 1px solid #f0c040;
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.88rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.45;
+  }
+  .ai-chat-key-alert a { font-weight: 600; }
   .ai-chat-input-row textarea {
     min-height: 72px;
   }
@@ -206,6 +216,13 @@
     </div>
     <p class="ai-panel-desc">대화형으로 이어서 질문할 수 있습니다. 완료 후 「새 대화」로 다시 시작하세요.</p>
 
+    {% if not ai_ready %}
+    <div class="ai-chat-key-alert" id="ai-chat-key-alert" role="alert">
+      OpenAI API 키가 없어 GPT 대화를 사용할 수 없습니다.
+      위 <strong>OpenAI API 키</strong> 섹션에서 키를 등록한 뒤 「보내기」를 눌러 주세요.
+    </div>
+    {% endif %}
+
     <div class="ai-chat-messages" id="ai-chat-messages" aria-live="polite">
       <div class="ai-chat-empty" id="ai-chat-empty">질문을 입력하면 대화가 시작됩니다.</div>
     </div>
@@ -222,7 +239,7 @@
       <textarea id="question_ai" rows="3"
                 placeholder="예: 2026년 주택변전소 8월 전력사용량 알려줘"></textarea>
       <div class="ai-ask-actions">
-        <button type="button" class="btn btn-primary" id="ai-chat-send-btn" {% if not ai_ready %}disabled title="OpenAI 키를 등록하세요"{% endif %}>보내기</button>
+        <button type="button" class="btn btn-primary" id="ai-chat-send-btn">보내기</button>
       </div>
       <div class="ai-chat-status" id="ai-chat-status"></div>
     </div>
@@ -285,6 +302,19 @@
   var evidenceWrap = document.getElementById('ai-chat-evidence-wrap');
   var evidenceEl = document.getElementById('ai-chat-evidence');
   var sending = false;
+  var keyAlertEl = document.getElementById('ai-chat-key-alert');
+  var keySectionEl = document.querySelector('.ai-key-row');
+
+  function showKeyRequired() {
+    var msg = 'OpenAI API 키가 없습니다. 페이지 상단 「OpenAI API 키」에서 sk-... 키를 등록한 뒤 다시 시도하세요.';
+    setStatus(msg, 'error');
+    if (keyAlertEl) {
+      keyAlertEl.style.display = '';
+      keyAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else if (keySectionEl) {
+      keySectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
   function setStatus(text, cls) {
     if (!statusEl) return;
@@ -343,7 +373,7 @@
       return;
     }
     if (!aiReady) {
-      setStatus('OpenAI API 키를 먼저 등록하세요.', 'error');
+      showKeyRequired();
       return;
     }
     sending = true;
@@ -352,7 +382,7 @@
     try {
       var data = await chatRequest({ question: q });
       if (data.needs_api_key) {
-        setStatus('OpenAI API 키가 필요합니다.', 'error');
+        showKeyRequired();
         return;
       }
       if (!data.ok) {
@@ -370,12 +400,16 @@
       setStatus('통신 오류가 발생했습니다.', 'error');
     } finally {
       sending = false;
-      if (sendBtn) sendBtn.disabled = !aiReady;
+      if (sendBtn) sendBtn.disabled = false;
     }
   }
 
   async function newConversation() {
     if (sending) return;
+    if (!aiReady) {
+      showKeyRequired();
+      return;
+    }
     sending = true;
     if (sendBtn) sendBtn.disabled = true;
     setStatus('새 대화를 시작합니다…', 'saving');
@@ -390,7 +424,7 @@
       setStatus('초기화에 실패했습니다.', 'error');
     } finally {
       sending = false;
-      if (sendBtn) sendBtn.disabled = !aiReady;
+      if (sendBtn) sendBtn.disabled = false;
     }
   }
 
