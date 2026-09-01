@@ -64,6 +64,7 @@ from database import (
 from init_data import seed_if_empty
 import onlyoffice as oo
 from server_status import collect_server_status
+from access_log import EVENT_LABELS, query_access_logs, record_access_log
 from models import (
     Building,
     BuildingDrawing,
@@ -1325,24 +1326,81 @@ async def admin_login(
     db: AsyncSession = Depends(get_db),
 ):
     next_url = _safe_login_next(next) or _safe_login_next(request.query_params.get("next"))
-    result = await db.execute(select(User).where(User.username == username.strip()))
+    uname = username.strip()
+    result = await db.execute(select(User).where(User.username == uname))
     user = result.scalar_one_or_none()
-    if not user or not user.is_active or not verify_password(password, user.password_hash):
+    if not user or not verify_password(password, user.password_hash):
+        await record_access_log(
+            db,
+            event_type="login_fail",
+            username=uname,
+            request=request,
+            success=False,
+            detail="invalid_credentials",
+        )
+        qs = "error=1"
+        if next_url:
+            qs += f"&next={quote(next_url)}"
+        return RedirectResponse(f"/admin/login?{qs}", status_code=303)
+    if not user.is_active:
+        await record_access_log(
+            db,
+            event_type="login_fail",
+            username=uname,
+            request=request,
+            success=False,
+            user_id=user.id,
+            display_name=user.name,
+            detail="inactive",
+        )
         qs = "error=1"
         if next_url:
             qs += f"&next={quote(next_url)}"
         return RedirectResponse(f"/admin/login?{qs}", status_code=303)
     if not getattr(user, "is_approved", True):
+        await record_access_log(
+            db,
+            event_type="login_fail",
+            username=uname,
+            request=request,
+            success=False,
+            user_id=user.id,
+            display_name=user.name,
+            detail="pending_approval",
+        )
         qs = "error=pending"
         if next_url:
             qs += f"&next={quote(next_url)}"
         return RedirectResponse(f"/admin/login?{qs}", status_code=303)
+    await record_access_log(
+        db,
+        event_type="login_success",
+        username=uname,
+        request=request,
+        success=True,
+        user_id=user.id,
+        display_name=user.name,
+    )
     request.session["user_id"] = user.id
     return RedirectResponse(next_url or home_path_for_user(user), status_code=303)
 
 
 @app.get("/admin/logout")
-async def admin_logout(request: Request):
+async def admin_logout(request: Request, db: AsyncSession = Depends(get_db)):
+    uid = request.session.get("user_id")
+    if uid:
+        result = await db.execute(select(User).where(User.id == uid))
+        user = result.scalar_one_or_none()
+        if user:
+            await record_access_log(
+                db,
+                event_type="logout",
+                username=user.username,
+                request=request,
+                success=True,
+                user_id=user.id,
+                display_name=user.name,
+            )
     request.session.clear()
     return RedirectResponse("/admin/login", status_code=303)
 
@@ -2401,6 +2459,31 @@ async def server_presentation_pptx(user: User = Depends(require_user_manager)):
         ascii_name="Smart_FMS_Presentation.pptx",
         missing="발표자료 파일이 없습니다.",
     )
+
+
+@app.get("/admin/server/access-logs")
+async def server_access_logs_api(
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+    q: str = Query("", max_length=100),
+    event: str = Query("", max_length=32),
+    date_from: str | None = Query(None, max_length=10),
+    date_to: str | None = Query(None, max_length=10),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=10, le=200),
+):
+    """접속(로그인·로그아웃) 이력 JSON — 검색·페이지."""
+    data = await query_access_logs(
+        db,
+        q=q,
+        event=event,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        per_page=per_page,
+    )
+    data["event_types"] = [{"value": k, "label": v} for k, v in EVENT_LABELS.items()]
+    return JSONResponse(data)
 
 
 @app.get("/admin/dashboard/server-status")

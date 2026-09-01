@@ -29,6 +29,66 @@
   </p>
 </section>
 
+<section class="card card-wide" id="access-log-section">
+  <h2>접속 로그</h2>
+  <p class="text-muted" style="margin-top:0">
+    관리자 로그인·로그아웃 이력입니다. 아이디, 이름, IP, 브라우저, 사유로 검색할 수 있습니다.
+  </p>
+  <form id="access-log-form" class="access-log-filters" onsubmit="return false;">
+    <div class="access-log-filter-row">
+      <label>
+        <span>검색</span>
+        <input type="search" id="alog-q" placeholder="아이디 · 이름 · IP · 브라우저" autocomplete="off" />
+      </label>
+      <label>
+        <span>유형</span>
+        <select id="alog-event">
+          <option value="">전체</option>
+          <option value="login_success">로그인 성공</option>
+          <option value="login_fail">로그인 실패</option>
+          <option value="logout">로그아웃</option>
+        </select>
+      </label>
+      <label>
+        <span>시작일</span>
+        <input type="date" id="alog-from" />
+      </label>
+      <label>
+        <span>종료일</span>
+        <input type="date" id="alog-to" />
+      </label>
+      <div class="access-log-filter-actions">
+        <button type="button" class="btn btn-primary" id="alog-search">검색</button>
+        <button type="button" class="btn btn-secondary" id="alog-reset">초기화</button>
+      </div>
+    </div>
+  </form>
+  <p class="access-log-summary" id="alog-summary">불러오는 중…</p>
+  <div class="table-scroll">
+    <table class="data-table access-log-table">
+      <thead>
+        <tr>
+          <th>시각 (KST)</th>
+          <th>유형</th>
+          <th>아이디</th>
+          <th>이름</th>
+          <th>IP</th>
+          <th>사유/비고</th>
+          <th>브라우저</th>
+        </tr>
+      </thead>
+      <tbody id="alog-body">
+        <tr><td colspan="7" class="text-muted">불러오는 중…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="access-log-pager" id="alog-pager" hidden>
+    <button type="button" class="btn btn-secondary btn-sm" id="alog-prev">이전</button>
+    <span id="alog-page-info">1 / 1</span>
+    <button type="button" class="btn btn-secondary btn-sm" id="alog-next">다음</button>
+  </div>
+</section>
+
 <aside class="dash-server-panel server-admin-panel" id="dash-server-panel" data-level="{{ server.overall }}" data-render="{{ '1' if server.is_render else '0' }}">
   <div class="dash-server-head">
     <div>
@@ -292,5 +352,162 @@
 
   setInterval(refreshServer, INTERVAL);
 })();
+
+(function () {
+  var page = 1;
+  var perPage = 50;
+
+  function el(id) { return document.getElementById(id); }
+
+  function params() {
+    var p = new URLSearchParams();
+    p.set('page', String(page));
+    p.set('per_page', String(perPage));
+    var q = (el('alog-q').value || '').trim();
+    var ev = el('alog-event').value || '';
+    var df = el('alog-from').value || '';
+    var dt = el('alog-to').value || '';
+    if (q) p.set('q', q);
+    if (ev) p.set('event', ev);
+    if (df) p.set('date_from', df);
+    if (dt) p.set('date_to', dt);
+    return p;
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function badgeClass(ev, ok) {
+    if (ev === 'login_success' || ev === 'logout') return 'alog-badge-ok';
+    if (ev === 'login_fail') return 'alog-badge-fail';
+    return ok ? 'alog-badge-ok' : 'alog-badge-fail';
+  }
+
+  function renderRows(data) {
+    var body = el('alog-body');
+    if (!body) return;
+    var items = data.items || [];
+    if (!items.length) {
+      body.innerHTML = '<tr><td colspan="7" class="text-muted">검색 결과가 없습니다.</td></tr>';
+      return;
+    }
+    body.innerHTML = items.map(function (row) {
+      var detail = row.detail_label || row.detail || '-';
+      var ua = row.user_agent || '-';
+      if (ua.length > 80) ua = ua.slice(0, 77) + '…';
+      return '<tr>'
+        + '<td>' + esc(row.created_at) + '</td>'
+        + '<td><span class="alog-badge ' + badgeClass(row.event_type, row.success) + '">'
+        + esc(row.event_label) + '</span></td>'
+        + '<td><code>' + esc(row.username) + '</code></td>'
+        + '<td>' + esc(row.display_name || '-') + '</td>'
+        + '<td>' + esc(row.ip_address || '-') + '</td>'
+        + '<td>' + esc(detail) + '</td>'
+        + '<td title="' + esc(row.user_agent || '') + '">' + esc(ua) + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  function renderPager(data) {
+    var pager = el('alog-pager');
+    var info = el('alog-page-info');
+    var prev = el('alog-prev');
+    var next = el('alog-next');
+    if (!pager) return;
+    var pages = data.pages || 1;
+    page = data.page || 1;
+    pager.hidden = pages <= 1;
+    if (info) info.textContent = page + ' / ' + pages + ' (총 ' + (data.total || 0) + '건)';
+    if (prev) prev.disabled = page <= 1;
+    if (next) next.disabled = page >= pages;
+  }
+
+  function loadLogs() {
+    var summary = el('alog-summary');
+    if (summary) summary.textContent = '불러오는 중…';
+    fetch('/admin/server/access-logs?' + params().toString(), { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('load failed');
+        return r.json();
+      })
+      .then(function (data) {
+        if (summary) {
+          summary.textContent = '총 ' + (data.total || 0) + '건 · '
+            + (data.per_page || perPage) + '건씩 표시';
+        }
+        renderRows(data);
+        renderPager(data);
+      })
+      .catch(function () {
+        if (summary) summary.textContent = '접속 로그를 불러오지 못했습니다.';
+        var body = el('alog-body');
+        if (body) body.innerHTML = '<tr><td colspan="7" class="text-muted">오류가 발생했습니다.</td></tr>';
+      });
+  }
+
+  function resetFilters() {
+    el('alog-q').value = '';
+    el('alog-event').value = '';
+    el('alog-from').value = '';
+    el('alog-to').value = '';
+    page = 1;
+    loadLogs();
+  }
+
+  el('alog-search').addEventListener('click', function () {
+    page = 1;
+    loadLogs();
+  });
+  el('alog-reset').addEventListener('click', resetFilters);
+  el('alog-prev').addEventListener('click', function () {
+    if (page > 1) { page -= 1; loadLogs(); }
+  });
+  el('alog-next').addEventListener('click', function () {
+    page += 1;
+    loadLogs();
+  });
+  el('alog-q').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      page = 1;
+      loadLogs();
+    }
+  });
+
+  loadLogs();
+})();
 </script>
+<style>
+.access-log-filters { margin: 0.75rem 0 0.5rem; }
+.access-log-filter-row {
+  display: flex; flex-wrap: wrap; gap: 0.65rem 1rem; align-items: flex-end;
+}
+.access-log-filter-row label {
+  display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem;
+}
+.access-log-filter-row input,
+.access-log-filter-row select {
+  min-width: 10rem; padding: 0.35rem 0.5rem;
+}
+.access-log-filter-actions { display: flex; gap: 0.4rem; padding-bottom: 0.1rem; }
+.access-log-summary { font-size: 0.9rem; margin: 0.5rem 0; }
+.access-log-table code { font-size: 0.85em; }
+.access-log-table td { font-size: 0.88rem; vertical-align: top; }
+.access-log-pager {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.75rem; margin-top: 0.75rem;
+}
+.alog-badge {
+  display: inline-block; padding: 0.12rem 0.45rem; border-radius: 4px;
+  font-size: 0.78rem; white-space: nowrap;
+}
+.alog-badge-ok { background: #e6f4ea; color: #137333; }
+.alog-badge-fail { background: #fce8e6; color: #c5221f; }
+</style>
 {% endblock %}
