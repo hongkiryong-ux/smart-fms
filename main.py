@@ -5662,6 +5662,9 @@ _AI_EXAMPLES_DETAIL = [
 ]
 
 
+_AI_SESSION_CHAT = "ai_gpt_chat"
+
+
 @app.get("/admin/ai-analysis")
 async def ai_analysis_page(
     request: Request,
@@ -5674,6 +5677,7 @@ async def ai_analysis_page(
         return RedirectResponse("/admin/account", status_code=303)
     db_user = await db.get(User, user.id) or user
     key, model = user_openai_credentials(db_user)
+    chat_state = request.session.get(_AI_SESSION_CHAT) or {}
     return templates.TemplateResponse(
         request,
         "ai_analysis.html",
@@ -5686,6 +5690,7 @@ async def ai_analysis_page(
             "result_mode": "",
             "intent": "",
             "intent_label": "",
+            "gpt_chat_messages": chat_state.get("messages") or [],
             "ai_ready": bool(key),
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",
@@ -5739,7 +5744,6 @@ async def ai_analysis_ask(
         info = "GPT 호출에 실패했습니다. 아래 오류와 집계 근거를 확인하세요."
 
     q_general = question if mode_val == "aggregate" else ""
-    q_ai = question if mode_val == "detail" else ""
 
     return templates.TemplateResponse(
         request,
@@ -5747,12 +5751,13 @@ async def ai_analysis_ask(
         {
             "user": user,
             "question_general": q_general,
-            "question_ai": q_ai,
+            "question_ai": "",
             "answer": result.get("answer") or "",
             "evidence": result.get("evidence") or "",
             "result_mode": result.get("mode") or "",
             "intent": intent,
             "intent_label": _AI_INTENT_LABELS.get(intent, intent),
+            "gpt_chat_messages": (request.session.get(_AI_SESSION_CHAT) or {}).get("messages") or [],
             "ai_ready": bool(key),
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",
@@ -5761,6 +5766,58 @@ async def ai_analysis_ask(
             "error": err,
             "info": info,
         },
+    )
+
+
+@app.post("/admin/ai-analysis/chat")
+async def ai_analysis_chat(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_analysis import run_chat_turn
+    from risk_assessment import user_openai_credentials
+    from starlette.responses import JSONResponse
+
+    if not can_access_menu(user, "ai_analysis"):
+        return JSONResponse({"ok": False, "error": "권한이 없습니다."}, status_code=403)
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    reset = bool(body.get("reset"))
+    if reset:
+        request.session.pop(_AI_SESSION_CHAT, None)
+        return JSONResponse({"ok": True, "reset": True, "messages": []})
+
+    question = str(body.get("question") or "").strip()
+    chat_state = request.session.get(_AI_SESSION_CHAT) or {}
+    db_user = await db.get(User, user.id) or user
+    key, model = user_openai_credentials(db_user)
+
+    result = await run_chat_turn(
+        db,
+        question,
+        chat_messages=chat_state.get("messages") or [],
+        api_key=key,
+        model=model,
+    )
+    if result.get("ok"):
+        request.session[_AI_SESSION_CHAT] = {"messages": result.get("messages") or []}
+
+    return JSONResponse(
+        {
+            "ok": bool(result.get("ok")),
+            "needs_api_key": bool(result.get("needs_api_key")),
+            "messages": result.get("messages") or [],
+            "answer": result.get("answer") or "",
+            "evidence": result.get("evidence") or "",
+            "intent": result.get("intent") or "",
+            "intent_label": _AI_INTENT_LABELS.get(result.get("intent") or "", ""),
+            "error": result.get("error") or "",
+        }
     )
 
 
@@ -5830,6 +5887,7 @@ async def ai_analysis_ai_settings(
             "result_mode": "",
             "intent": "",
             "intent_label": "",
+            "gpt_chat_messages": (request.session.get(_AI_SESSION_CHAT) or {}).get("messages") or [],
             "ai_ready": bool(key),
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",

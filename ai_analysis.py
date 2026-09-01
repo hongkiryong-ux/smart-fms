@@ -890,35 +890,36 @@ def _sanitize_openai_api_key(api_key: str) -> str:
     return key
 
 
-def call_openai_detail(
-    *,
-    api_key: str,
-    model: str,
-    question: str,
-    context: dict[str, Any],
-) -> str:
-    import urllib.error
-    import urllib.request
-
-    key = _sanitize_openai_api_key(api_key)
-    system = (
+def _gpt_system_base() -> str:
+    return (
         "당신은 POSCO WIDE Smart FMS 시설관리 분석 도우미입니다. "
         "제공된 JSON은 Smart FMS에 등록된 전체 운영 데이터의 최신 스냅샷입니다 "
         "(사업장·건물·설비·정비의뢰·PM·D-1·협력사·점검일지·점검일지2·자재·공지·일정·가로등 등). "
         "housing_monthly_reports에는 주택변전소 월보 전력사용량(일별·월합계 kWh)이 포함됩니다. "
         "JSON에 있는 수치·목록만 근거로 질문에 한국어로 답하세요. "
         "없는 정보는 추측하지 말고 '데이터에 없음'이라고 하세요. "
+        "이전 대화 맥락을 유지하며 후속 질문·추가 설명 요청에도 답하세요. "
         "비밀번호·API키·개인 연락처는 언급하지 마세요. "
         "답변 서두에 'GPT 분석'이라고 쓰지 말고 바로 본론부터 작성하세요."
     )
+
+
+def _build_gpt_system_message(context: dict[str, Any]) -> str:
     payload_ctx = json.dumps(context, ensure_ascii=False, default=str, separators=(",", ":"))
     if len(payload_ctx) > _CONTEXT_MAX_CHARS:
         payload_ctx = payload_ctx[:_CONTEXT_MAX_CHARS] + "..."
-    user_msg = (
-        f"질문:\n{question}\n\n"
-        f"Smart FMS 전체 데이터(JSON):\n{payload_ctx}\n\n"
-        "위 데이터만 근거로 질문에 답하고, 필요하면 표나 목록으로 정리하세요."
+    return (
+        f"{_gpt_system_base()}\n\n"
+        f"데이터 기준 시각: {context.get('as_of', '')}\n"
+        f"Smart FMS 전체 데이터(JSON):\n{payload_ctx}"
     )
+
+
+def _openai_chat_completion(*, api_key: str, model: str, messages: list[dict[str, str]]) -> str:
+    import urllib.error
+    import urllib.request
+
+    key = _sanitize_openai_api_key(api_key)
     model_name = (model or "gpt-4o-mini").strip() or "gpt-4o-mini"
     try:
         model_name.encode("ascii")
@@ -928,10 +929,7 @@ def call_openai_detail(
     body_obj = {
         "model": model_name,
         "temperature": 0.2,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_msg},
-        ],
+        "messages": messages,
     }
 
     def _post(use_model: str) -> dict:
@@ -969,6 +967,120 @@ def call_openai_detail(
     if not text:
         raise RuntimeError("OpenAI 응답이 비어 있습니다.")
     return text
+
+
+def call_openai_conversation(
+    *,
+    api_key: str,
+    model: str,
+    context: dict[str, Any],
+    chat_messages: list[dict[str, str]],
+) -> str:
+    """대화형 GPT — 세션 메시지 + FMS 컨텍스트."""
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": _build_gpt_system_message(context)}
+    ]
+    messages.extend(chat_messages[-20:])
+    return _openai_chat_completion(api_key=api_key, model=model, messages=messages)
+
+
+def call_openai_detail(
+    *,
+    api_key: str,
+    model: str,
+    question: str,
+    context: dict[str, Any],
+) -> str:
+    user_msg = (
+        f"질문:\n{question}\n\n"
+        "위 Smart FMS 데이터만 근거로 질문에 답하고, 필요하면 표나 목록으로 정리하세요."
+    )
+    return call_openai_conversation(
+        api_key=api_key,
+        model=model,
+        context=context,
+        chat_messages=[{"role": "user", "content": user_msg}],
+    )
+
+
+async def run_chat_turn(
+    db: AsyncSession,
+    question: str,
+    *,
+    chat_messages: list[dict[str, str]] | None,
+    api_key: str,
+    model: str = "gpt-4o-mini",
+) -> dict[str, Any]:
+    """GPT 대화 1턴 — 이전 메시지에 이어서 답변."""
+    import asyncio
+
+    q = (question or "").strip()
+    if not q:
+        return {
+            "ok": False,
+            "needs_api_key": False,
+            "messages": list(chat_messages or []),
+            "answer": "",
+            "evidence": "",
+            "intent": "overview",
+            "error": "질문을 입력해 주세요.",
+        }
+
+    key = (api_key or "").strip()
+    if not key:
+        return {
+            "ok": False,
+            "needs_api_key": True,
+            "messages": list(chat_messages or []),
+            "answer": "",
+            "evidence": "",
+            "intent": "overview",
+            "error": "OpenAI API 키가 필요합니다.",
+        }
+
+    history = list(chat_messages or [])
+    combined_q = " ".join(m["content"] for m in history if m.get("role") == "user")
+    if combined_q:
+        combined_q += " "
+    combined_q += q
+    intent = classify_intent(combined_q)
+    context = await gather_context(db, intent, combined_q)
+    evidence = format_aggregate_answer(context, include_footer=False) if not history else ""
+
+    history.append({"role": "user", "content": q})
+    try:
+        answer = await asyncio.to_thread(
+            call_openai_conversation,
+            api_key=key,
+            model=model or "gpt-4o-mini",
+            context=context,
+            chat_messages=history,
+        )
+    except Exception as e:
+        history.pop()
+        return {
+            "ok": False,
+            "needs_api_key": False,
+            "messages": history,
+            "answer": f"GPT 호출에 실패했습니다.\n{e}",
+            "evidence": evidence,
+            "intent": intent,
+            "error": str(e),
+        }
+
+    history.append({"role": "assistant", "content": answer})
+    if len(history) > 20:
+        history = history[-20:]
+
+    return {
+        "ok": True,
+        "needs_api_key": False,
+        "messages": history,
+        "answer": answer,
+        "evidence": evidence,
+        "intent": intent,
+        "error": "",
+    }
 
 
 async def run_analysis(
