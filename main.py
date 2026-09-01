@@ -42,6 +42,7 @@ from auth import (
     group_buildings_by_site,
     hash_password,
     home_path_for_user,
+    invalidate_nav_cache,
     menu_access_for_edit,
     menu_key_for_path,
     normalize_menu_access,
@@ -7839,6 +7840,7 @@ async def inspection_logs_add_building(
         )
     db.add(InspectionLogBuilding(building_id=building_id))
     await db.commit()
+    invalidate_nav_cache()
     return RedirectResponse(
         "/admin/inspection-logs?message="
         + quote(f"「{building.name}」 건물이 추가되었습니다."),
@@ -7864,6 +7866,7 @@ async def inspection_logs_remove_building(
     if row:
         await db.delete(row)
         await db.commit()
+        invalidate_nav_cache()
     return RedirectResponse(
         "/admin/inspection-logs?message=" + quote("건물 등록이 해제되었습니다."),
         status_code=303,
