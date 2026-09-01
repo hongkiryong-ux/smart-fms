@@ -108,7 +108,7 @@ class User(Base):
 
 
 class AccessLog(Base):
-    """관리자 로그인·로그아웃 접속 이력."""
+    """관리자·현장 FMS 활동(접속·조회·등록·수정·삭제) 이력."""
 
     __tablename__ = "access_logs"
 
@@ -121,6 +121,11 @@ class AccessLog(Base):
     user_agent = Column(String(500), nullable=True)
     success = Column(Boolean, default=False, nullable=False)
     detail = Column(String(200), nullable=True)
+    http_method = Column(String(10), nullable=True)
+    path = Column(String(500), nullable=True, index=True)
+    status_code = Column(Integer, nullable=True)
+    resource = Column(String(100), nullable=True, index=True)
+    summary = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     user = relationship("User")

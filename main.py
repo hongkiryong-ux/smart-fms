@@ -64,7 +64,7 @@ from database import (
 from init_data import seed_if_empty
 import onlyoffice as oo
 from server_status import collect_server_status
-from access_log import EVENT_LABELS, query_access_logs, record_access_log
+from access_log import AuditLogMiddleware, EVENT_LABELS, query_access_logs, record_access_log
 from models import (
     Building,
     BuildingDrawing,
@@ -1195,7 +1195,8 @@ if os.environ.get("RENDER", "").lower() in ("true", "1", "yes") or os.environ.ge
     "COOKIE_HTTPS_ONLY", ""
 ).lower() in ("1", "true", "yes"):
     _session_kw["https_only"] = True
-# 안쪽(메뉴) → Session → Proxy 순으로 add (마지막이 가장 바깥)
+# 안쪽(감사·메뉴) → Session → Proxy 순으로 add (마지막이 가장 바깥)
+app.add_middleware(AuditLogMiddleware)
 app.add_middleware(_AdminDbMiddleware)
 app.add_middleware(SessionMiddleware, **_session_kw)
 
@@ -1337,6 +1338,10 @@ async def admin_login(
             request=request,
             success=False,
             detail="invalid_credentials",
+            http_method="POST",
+            path="/admin/login",
+            resource="로그인",
+            summary="로그인 실패 — 아이디/비밀번호 오류",
         )
         qs = "error=1"
         if next_url:
@@ -1352,6 +1357,10 @@ async def admin_login(
             user_id=user.id,
             display_name=user.name,
             detail="inactive",
+            http_method="POST",
+            path="/admin/login",
+            resource="로그인",
+            summary="로그인 실패 — 비활성 계정",
         )
         qs = "error=1"
         if next_url:
@@ -1367,6 +1376,10 @@ async def admin_login(
             user_id=user.id,
             display_name=user.name,
             detail="pending_approval",
+            http_method="POST",
+            path="/admin/login",
+            resource="로그인",
+            summary="로그인 실패 — 승인 대기",
         )
         qs = "error=pending"
         if next_url:
@@ -1380,6 +1393,10 @@ async def admin_login(
         success=True,
         user_id=user.id,
         display_name=user.name,
+        http_method="POST",
+        path="/admin/login",
+        resource="로그인",
+        summary="로그인 성공",
     )
     request.session["user_id"] = user.id
     return RedirectResponse(next_url or home_path_for_user(user), status_code=303)
@@ -1400,6 +1417,10 @@ async def admin_logout(request: Request, db: AsyncSession = Depends(get_db)):
                 success=True,
                 user_id=user.id,
                 display_name=user.name,
+                http_method="GET",
+                path="/admin/logout",
+                resource="로그아웃",
+                summary="로그아웃",
             )
     request.session.clear()
     return RedirectResponse("/admin/login", status_code=303)

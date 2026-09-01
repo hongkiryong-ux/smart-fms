@@ -30,15 +30,16 @@
 </section>
 
 <section class="card card-wide" id="access-log-section">
-  <h2>접속 로그</h2>
+  <h2>활동 로그</h2>
   <p class="text-muted" style="margin-top:0">
-    관리자 로그인·로그아웃 이력입니다. 아이디, 이름, IP, 브라우저, 사유로 검색할 수 있습니다.
+    FMS 전체 활동(로그인·화면 조회·등록·수정·삭제·내보내기·QR 현장 저장)을 기록합니다.
+    아이디, 메뉴, URL, IP, 요약으로 검색할 수 있습니다.
   </p>
   <form id="access-log-form" class="access-log-filters" onsubmit="return false;">
     <div class="access-log-filter-row">
       <label>
         <span>검색</span>
-        <input type="search" id="alog-q" placeholder="아이디 · 이름 · IP · 브라우저" autocomplete="off" />
+        <input type="search" id="alog-q" placeholder="아이디 · 메뉴 · URL · IP · 요약" autocomplete="off" />
       </label>
       <label>
         <span>유형</span>
@@ -47,6 +48,12 @@
           <option value="login_success">로그인 성공</option>
           <option value="login_fail">로그인 실패</option>
           <option value="logout">로그아웃</option>
+          <option value="page_view">화면 조회</option>
+          <option value="create">등록</option>
+          <option value="update">수정</option>
+          <option value="delete">삭제</option>
+          <option value="export">내보내기</option>
+          <option value="action">작업</option>
         </select>
       </label>
       <label>
@@ -70,15 +77,17 @@
         <tr>
           <th>시각 (KST)</th>
           <th>유형</th>
+          <th>메뉴/기능</th>
+          <th>요약</th>
           <th>아이디</th>
           <th>이름</th>
           <th>IP</th>
-          <th>사유/비고</th>
-          <th>브라우저</th>
+          <th>HTTP</th>
+          <th>상태</th>
         </tr>
       </thead>
       <tbody id="alog-body">
-        <tr><td colspan="7" class="text-muted">불러오는 중…</td></tr>
+        <tr><td colspan="9" class="text-muted">불러오는 중…</td></tr>
       </tbody>
     </table>
   </div>
@@ -386,6 +395,11 @@
   function badgeClass(ev, ok) {
     if (ev === 'login_success' || ev === 'logout') return 'alog-badge-ok';
     if (ev === 'login_fail') return 'alog-badge-fail';
+    if (ev === 'page_view') return 'alog-badge-view';
+    if (ev === 'create') return 'alog-badge-create';
+    if (ev === 'update') return 'alog-badge-update';
+    if (ev === 'delete') return 'alog-badge-fail';
+    if (ev === 'export') return 'alog-badge-export';
     return ok ? 'alog-badge-ok' : 'alog-badge-fail';
   }
 
@@ -394,22 +408,27 @@
     if (!body) return;
     var items = data.items || [];
     if (!items.length) {
-      body.innerHTML = '<tr><td colspan="7" class="text-muted">검색 결과가 없습니다.</td></tr>';
+      body.innerHTML = '<tr><td colspan="9" class="text-muted">검색 결과가 없습니다.</td></tr>';
       return;
     }
     body.innerHTML = items.map(function (row) {
-      var detail = row.detail_label || row.detail || '-';
-      var ua = row.user_agent || '-';
-      if (ua.length > 80) ua = ua.slice(0, 77) + '…';
+      var summary = row.summary || row.detail_label || row.detail || row.path || '-';
+      var title = summary;
+      if (row.path && summary.indexOf(row.path) < 0) {
+        title = summary + '\n' + row.path;
+      }
+      var status = row.status_code != null ? String(row.status_code) : '-';
       return '<tr>'
         + '<td>' + esc(row.created_at) + '</td>'
         + '<td><span class="alog-badge ' + badgeClass(row.event_type, row.success) + '">'
         + esc(row.event_label) + '</span></td>'
+        + '<td>' + esc(row.resource || '-') + '</td>'
+        + '<td class="alog-summary-cell" title="' + esc(title) + '">' + esc(summary) + '</td>'
         + '<td><code>' + esc(row.username) + '</code></td>'
         + '<td>' + esc(row.display_name || '-') + '</td>'
         + '<td>' + esc(row.ip_address || '-') + '</td>'
-        + '<td>' + esc(detail) + '</td>'
-        + '<td title="' + esc(row.user_agent || '') + '">' + esc(ua) + '</td>'
+        + '<td>' + esc(row.http_method || '-') + '</td>'
+        + '<td>' + esc(status) + '</td>'
         + '</tr>';
     }).join('');
   }
@@ -447,7 +466,7 @@
       .catch(function () {
         if (summary) summary.textContent = '접속 로그를 불러오지 못했습니다.';
         var body = el('alog-body');
-        if (body) body.innerHTML = '<tr><td colspan="7" class="text-muted">오류가 발생했습니다.</td></tr>';
+        if (body) body.innerHTML = '<tr><td colspan="9" class="text-muted">오류가 발생했습니다.</td></tr>';
       });
   }
 
@@ -499,6 +518,9 @@
 .access-log-summary { font-size: 0.9rem; margin: 0.5rem 0; }
 .access-log-table code { font-size: 0.85em; }
 .access-log-table td { font-size: 0.88rem; vertical-align: top; }
+.alog-summary-cell {
+  max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .access-log-pager {
   display: flex; align-items: center; justify-content: center;
   gap: 0.75rem; margin-top: 0.75rem;
@@ -509,5 +531,9 @@
 }
 .alog-badge-ok { background: #e6f4ea; color: #137333; }
 .alog-badge-fail { background: #fce8e6; color: #c5221f; }
+.alog-badge-view { background: #e8f0fe; color: #1967d2; }
+.alog-badge-create { background: #fef7e0; color: #b06000; }
+.alog-badge-update { background: #fce8e6; color: #933; }
+.alog-badge-export { background: #f3e8fd; color: #7627bb; }
 </style>
 {% endblock %}

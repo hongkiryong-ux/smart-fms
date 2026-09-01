@@ -477,6 +477,13 @@ async def ensure_schema_updates() -> None:
             )
             """
         )
+        await _exec("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS http_method VARCHAR(10)")
+        await _exec("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS path VARCHAR(500)")
+        await _exec("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS status_code INTEGER")
+        await _exec("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS resource VARCHAR(100)")
+        await _exec("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS summary VARCHAR(500)")
+        await _exec("CREATE INDEX IF NOT EXISTS ix_access_logs_path ON access_logs (path)")
+        await _exec("CREATE INDEX IF NOT EXISTS ix_access_logs_resource ON access_logs (resource)")
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
@@ -655,6 +662,16 @@ async def ensure_schema_updates() -> None:
             )
             """
         )
+        for stmt in (
+            "ALTER TABLE access_logs ADD COLUMN http_method VARCHAR(10)",
+            "ALTER TABLE access_logs ADD COLUMN path VARCHAR(500)",
+            "ALTER TABLE access_logs ADD COLUMN status_code INTEGER",
+            "ALTER TABLE access_logs ADD COLUMN resource VARCHAR(100)",
+            "ALTER TABLE access_logs ADD COLUMN summary VARCHAR(500)",
+            "CREATE INDEX IF NOT EXISTS ix_access_logs_path ON access_logs (path)",
+            "CREATE INDEX IF NOT EXISTS ix_access_logs_resource ON access_logs (resource)",
+        ):
+            await _exec(stmt)
 
 
 async def ensure_app_settings_table() -> None:
