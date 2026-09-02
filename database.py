@@ -484,6 +484,44 @@ async def ensure_schema_updates() -> None:
         await _exec("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS summary VARCHAR(500)")
         await _exec("CREATE INDEX IF NOT EXISTS ix_access_logs_path ON access_logs (path)")
         await _exec("CREATE INDEX IF NOT EXISTS ix_access_logs_resource ON access_logs (resource)")
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS requester_user_id INTEGER"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS is_rejected BOOLEAN DEFAULT FALSE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejected_by VARCHAR(100)"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP WITHOUT TIME ZONE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejection_reason TEXT"
+        )
+        await _exec(
+            "UPDATE work_orders SET is_rejected = FALSE WHERE is_rejected IS NULL"
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS user_notifications (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                work_order_id INTEGER REFERENCES work_orders(id),
+                kind VARCHAR(50) DEFAULT 'wo_rejected',
+                title VARCHAR(200) NOT NULL,
+                body TEXT NOT NULL,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP WITHOUT TIME ZONE
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_user_notifications_user_id ON user_notifications (user_id)"
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_user_notifications_created_at ON user_notifications (created_at)"
+        )
     else:
         for stmt in (
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
@@ -673,7 +711,7 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS requester_user_id INTEGER",
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS is_rejected BOOLEAN DEFAULT FALSE",
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejected_by VARCHAR(100)",
-            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP WITHOUT TIME ZONE",
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejected_at DATETIME",
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejection_reason TEXT",
             "UPDATE work_orders SET is_rejected = FALSE WHERE is_rejected IS NULL",
         ):
