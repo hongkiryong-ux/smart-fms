@@ -132,6 +132,12 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
 MENU_KEYS: tuple[str, ...] = tuple(k for k, _ in MENU_ITEMS)
 MENU_LABELS: dict[str, str] = dict(MENU_ITEMS)
 
+# menu_access JSON에 함께 저장되는 특수 플래그 (일반 메뉴 키 아님)
+MENU_ACCESS_FLAG_KEYS: frozenset[str] = frozenset({"d1_all_partners"})
+MENU_ACCESS_FLAG_LABELS: dict[str, str] = {
+    "d1_all_partners": "D-1 전체 협력사 메뉴 (모든 업체 표시)",
+}
+
 # 경로 prefix → 메뉴 키 (긴 경로 우선 매칭용으로 길이순 정렬해 사용)
 _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/users", "users"),
@@ -218,6 +224,83 @@ def normalize_menu_access(raw) -> list[str]:
             seen.add(key)
             out.append(key)
     return out
+
+
+def menu_access_flags_from_raw(raw) -> set[str]:
+    """menu_access 원본에서 특수 플래그만 추출."""
+    if raw is None:
+        return set()
+    items: list = []
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text.startswith("["):
+            try:
+                import json
+
+                parsed = json.loads(text)
+                items = parsed if isinstance(parsed, list) else []
+            except Exception:
+                items = [x.strip() for x in text.split(",") if x.strip()]
+        else:
+            items = [x.strip() for x in text.split(",") if x.strip()]
+    elif isinstance(raw, (list, tuple, set)):
+        items = list(raw)
+    return {str(x).strip() for x in items if str(x).strip() in MENU_ACCESS_FLAG_KEYS}
+
+
+def menu_access_flags_for_edit(user: User | None) -> set[str]:
+    if user is None or user.role == UserRole.system_admin:
+        return set()
+    return menu_access_flags_from_raw(getattr(user, "menu_access", None))
+
+
+def d1_partner_nav_restricted(user: User | None) -> bool:
+    """협력사 역할 + D-1 전체 메뉴 플래그 없음 → 내 회사만."""
+    if user is None or user.role != UserRole.partner:
+        return False
+    if "d1_all_partners" in menu_access_flags_for_edit(user):
+        return False
+    return True
+
+
+async def user_own_partner_id(db: AsyncSession, user: User | None) -> int | None:
+    """계정에 연결된 협력사 ID (partner_id 또는 회사명 매칭)."""
+    if user is None:
+        return None
+    if user.partner_id:
+        return int(user.partner_id)
+    cname = (user.company_name or "").strip()
+    if not cname:
+        return None
+    rows = (
+        await db.execute(
+            select(Partner.id, Partner.name).where(Partner.is_active == True)  # noqa: E712
+        )
+    ).all()
+    folded = cname.casefold()
+    for pid, pname in rows:
+        if (pname or "").strip().casefold() == folded:
+            return int(pid)
+    return None
+
+
+def filter_nav_partners_for_user(user: User | None, partners: list[dict]) -> list[dict]:
+    """사이드바 D-1 협력사 목록 — 협력사 제한 시 내 회사만."""
+    if not d1_partner_nav_restricted(user):
+        return partners
+    if user is None:
+        return []
+    if user.partner_id:
+        own = int(user.partner_id)
+        return [p for p in partners if int(p.get("id") or 0) == own]
+    cname = (user.company_name or "").strip().casefold()
+    if not cname:
+        return []
+    return [
+        p
+        for p in partners
+        if (p.get("name") or "").strip().casefold() == cname
+    ]
 
 
 def menu_access_for_edit(user: User | None) -> list[str]:
@@ -416,6 +499,19 @@ async def admin_request_bootstrap(
     else:
         apply_nav_state(request, {})
     user = getattr(request.state, "current_user", None)
+    if user is not None:
+        request.state.nav_partners = filter_nav_partners_for_user(
+            user, list(getattr(request.state, "nav_partners", []) or [])
+        )
+        if d1_partner_nav_restricted(user):
+            own_pid = None
+            if user.partner_id:
+                own_pid = int(user.partner_id)
+            elif request.state.nav_partners:
+                own_pid = int(request.state.nav_partners[0].get("id") or 0) or None
+            request.state.nav_d1_own_partner_id = own_pid
+        else:
+            request.state.nav_d1_own_partner_id = None
     await apply_maint_nav_badges(request, session, user)
     return None
 

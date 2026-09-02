@@ -26,6 +26,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from auth import (
     MENU_ITEMS,
+    MENU_ACCESS_FLAG_KEYS,
     ROLE_LABELS,
     SIGNUP_ROLES,
     admin_request_bootstrap,
@@ -37,6 +38,7 @@ from auth import (
     can_edit,
     default_menu_access,
     default_permissions,
+    d1_partner_nav_restricted,
     effective_menu_access,
     get_current_user,
     group_buildings_by_site,
@@ -44,8 +46,10 @@ from auth import (
     home_path_for_user,
     invalidate_nav_cache,
     menu_access_for_edit,
+    menu_access_flags_for_edit,
     menu_key_for_path,
     normalize_menu_access,
+    user_own_partner_id,
     require_can_create,
     require_can_delete,
     require_can_edit,
@@ -1220,6 +1224,7 @@ templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
 templates.env.globals["user_can_access_menu"] = can_access_menu
 templates.env.globals["user_menu_access"] = effective_menu_access
 templates.env.globals["user_menu_access_edit"] = menu_access_for_edit
+templates.env.globals["user_menu_access_flags"] = menu_access_flags_for_edit
 templates.env.globals["menu_items"] = MENU_ITEMS
 templates.env.globals["upload_max_mb"] = UPLOAD_MAX_FILE_MB
 templates.env.globals["upload_max_files"] = UPLOAD_MAX_FILES_PER_REQUEST
@@ -1617,10 +1622,11 @@ def _menu_keys_from_form(form, role: UserRole | None = None) -> list[str]:
         v = form.get("menu_key")
         raw = [v] if v else []
     keys = normalize_menu_access(list(raw))
+    flags = [str(k).strip() for k in raw if str(k).strip() in MENU_ACCESS_FLAG_KEYS]
     # 계정관리 메뉴는 시스템관리자만 (라우트도 system_admin 전용)
     if role != UserRole.system_admin:
         keys = [k for k in keys if k != "users"]
-    return keys
+    return keys + flags
 
 
 def _force_admin_menus(user_obj: User) -> None:
@@ -6566,6 +6572,59 @@ async def risk_assessment_command(
     )
 
 
+def _d1_partner_scope_redirect(
+    user: User,
+    partner_sel: int,
+    *,
+    status: list[str] | None = None,
+    board: list[str] | None = None,
+) -> RedirectResponse | None:
+    """협력사 D-1 — 타 업체 URL 접근 시 본인 업체로."""
+    if not d1_partner_nav_restricted(user):
+        return None
+    own = None
+    if user.partner_id:
+        own = int(user.partner_id)
+    if own and partner_sel not in (0, own):
+        from urllib.parse import urlencode
+
+        params: list[tuple[str, str]] = [("partner_id", str(own)), ("board", "receipt")]
+        if status:
+            for s in status:
+                params.append(("status", s))
+        if board:
+            for b in board:
+                params.append(("board", b))
+        return RedirectResponse("/admin/d1?" + urlencode(params), status_code=303)
+    return None
+
+
+async def _d1_default_partner_redirect(
+    db: AsyncSession,
+    user: User,
+    partner_sel: int,
+    *,
+    status: list[str] | None = None,
+    board: list[str] | None = None,
+) -> RedirectResponse | None:
+    """협력사 D-1 — partner_id 없이 진입 시 본인 업체로."""
+    if not d1_partner_nav_restricted(user) or partner_sel:
+        return None
+    own = await user_own_partner_id(db, user)
+    if not own:
+        return None
+    from urllib.parse import urlencode
+
+    params: list[tuple[str, str]] = [("partner_id", str(own)), ("board", "receipt")]
+    if status:
+        for s in status:
+            params.append(("status", s))
+    if board:
+        for b in board:
+            params.append(("board", b))
+    return RedirectResponse("/admin/d1?" + urlencode(params), status_code=303)
+
+
 @app.get("/admin/d1")
 async def d1_list(
     request: Request,
@@ -6585,6 +6644,21 @@ async def d1_list(
         partner_sel = int(partner_id or 0)
     except (TypeError, ValueError):
         partner_sel = 0
+
+    scope_redir = _d1_partner_scope_redirect(
+        user, partner_sel, status=status, board=board
+    )
+    if scope_redir:
+        return scope_redir
+    default_redir = await _d1_default_partner_redirect(
+        db, user, partner_sel, status=status, board=board
+    )
+    if default_redir:
+        return default_redir
+    if d1_partner_nav_restricted(user) and not partner_sel:
+        own = await user_own_partner_id(db, user)
+        if own:
+            partner_sel = own
 
     open_statuses = [
         WorkOrderStatus.received,
@@ -6717,6 +6791,12 @@ async def d1_list(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
         )
     ).scalars().all()
+    if d1_partner_nav_restricted(user):
+        own = await user_own_partner_id(db, user)
+        if own:
+            partners = [p for p in partners if p.id == own]
+        else:
+            partners = []
 
     selected_partner_name = ""
     if partner_sel == -1:
@@ -6901,6 +6981,17 @@ async def d1_export(
         partner_sel = int(partner_id or 0)
     except (TypeError, ValueError):
         partner_sel = 0
+
+    scope_redir = _d1_partner_scope_redirect(
+        user, partner_sel, status=status, board=board
+    )
+    if scope_redir:
+        return scope_redir
+    if d1_partner_nav_restricted(user):
+        own = await user_own_partner_id(db, user)
+        if own:
+            partner_sel = own
+
     open_statuses = [
         WorkOrderStatus.received,
         WorkOrderStatus.assigned,

@@ -3050,6 +3050,15 @@ button.link-action:hover { text-decoration: underline; }
   margin-right: 0;
   white-space: normal;
 }
+.users-menu-flags {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--border, #ddd);
+}
+.users-menu-flag-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+}
 .users-create-menus {
   grid-column: 1 / -1;
 }

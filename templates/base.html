@@ -179,9 +179,10 @@
           </li>
           {% endif %}
           {% if can_d1 %}
+          {% set d1_own_pid = request.state.nav_d1_own_partner_id if request.state.nav_d1_own_partner_id is defined else none %}
           <li class="nav-expandable nav-nested{% if d1_path %} is-open{% endif %}" id="nav-d1">
             <div class="nav-parent-row">
-              <a href="/admin/d1"
+              <a href="{% if d1_own_pid %}/admin/d1?partner_id={{ d1_own_pid }}&board=receipt{% else %}/admin/d1{% endif %}"
                  class="nav-parent-link{% if d1_path and not nav_pid %} active{% endif %}">정비 List(D-1)/협력사</a>
               <button type="button"
                       class="nav-toggle"

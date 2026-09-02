@@ -52,6 +52,19 @@
       {% endif %}
       {% endfor %}
     </div>
+    {% if u and u.role.value == 'partner' %}
+    <div class="users-menu-flags">
+      <label class="users-perm users-menu-flag">
+        <input type="checkbox"
+               name="menu_key"
+               {% if form_id %}form="{{ form_id }}"{% endif %}
+               value="d1_all_partners"
+               {% if 'd1_all_partners' in user_menu_access_flags(u) %}checked{% endif %} />
+        D-1 전체 협력사 메뉴 (모든 업체 표시)
+      </label>
+      <p class="text-muted users-menu-flag-hint">체크 해제 시 정비 D-1 펼침 메뉴에 로그인 회사만 표시됩니다.</p>
+    </div>
+    {% endif %}
     {% endif %}
   </div>
 {%- endmacro %}
