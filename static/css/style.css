@@ -380,21 +380,32 @@ body {
 }
 
 .login-remember {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   margin-top: 0.85rem;
   font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.3;
   color: var(--text);
   cursor: pointer;
   user-select: none;
 }
 
-.login-remember input {
+.login-card .form-stack .login-remember input[type="checkbox"] {
+  display: inline-block;
   width: 1rem;
   height: 1rem;
+  min-width: 1rem;
   margin: 0;
+  padding: 0;
+  flex-shrink: 0;
   accent-color: var(--primary);
+  vertical-align: middle;
+}
+
+.login-remember span {
+  line-height: 1.3;
 }
 
 .login-hint {
