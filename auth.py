@@ -1,10 +1,13 @@
 # auth.py
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import os
 import secrets
 import time
+from datetime import datetime, timedelta
 from typing import Callable
 
 from fastapi import Depends, HTTPException, Request
@@ -27,6 +30,58 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return secrets.compare_digest(hash_password(password), password_hash)
+
+
+APP_SECRET_KEY = os.environ.get("APP_SECRET_KEY", "change_this_secret_in_prod")
+REMEMBER_COOKIE_NAME = "fms_remember"
+REMEMBER_MAX_AGE_SEC = 30 * 86400
+
+
+def _cookie_secure() -> bool:
+    return os.environ.get("RENDER", "").lower() in ("true", "1", "yes") or os.environ.get(
+        "COOKIE_HTTPS_ONLY", ""
+    ).lower() in ("1", "true", "yes")
+
+
+def remember_cookie_kwargs() -> dict:
+    kw: dict = {
+        "httponly": True,
+        "samesite": "lax",
+        "max_age": REMEMBER_MAX_AGE_SEC,
+        "path": "/",
+    }
+    if _cookie_secure():
+        kw["secure"] = True
+    return kw
+
+
+def _remember_sign(payload: str) -> str:
+    return hmac.new(APP_SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+
+
+def create_remember_token(user_id: int) -> str:
+    exp = int((datetime.utcnow() + timedelta(seconds=REMEMBER_MAX_AGE_SEC)).timestamp())
+    payload = f"{user_id}:{exp}"
+    raw = f"{payload}:{_remember_sign(payload)}"
+    return base64.urlsafe_b64encode(raw.encode()).decode()
+
+
+def verify_remember_token(token: str) -> int | None:
+    try:
+        raw = base64.urlsafe_b64decode(token.encode()).decode()
+        user_id_s, exp_s, sig = raw.rsplit(":", 2)
+        payload = f"{user_id_s}:{exp_s}"
+        if not hmac.compare_digest(_remember_sign(payload), sig):
+            return None
+        if int(exp_s) < datetime.utcnow().timestamp():
+            return None
+        return int(user_id_s)
+    except Exception:
+        return None
+
+
+def clear_remember_cookie(response: RedirectResponse) -> None:
+    response.delete_cookie(REMEMBER_COOKIE_NAME, path="/")
 
 
 def nav_building_sort_key(name: str | None) -> tuple:

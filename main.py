@@ -36,6 +36,8 @@ from auth import (
     can_create,
     can_delete,
     can_edit,
+    clear_remember_cookie,
+    create_remember_token,
     default_menu_access,
     default_permissions,
     d1_partner_nav_restricted,
@@ -49,6 +51,8 @@ from auth import (
     menu_access_flags_for_edit,
     menu_key_for_path,
     normalize_menu_access,
+    remember_cookie_kwargs,
+    REMEMBER_COOKIE_NAME,
     user_own_partner_id,
     require_can_create,
     require_can_delete,
@@ -56,6 +60,7 @@ from auth import (
     require_login,
     require_user_manager,
     verify_password,
+    verify_remember_token,
 )
 from database import (
     AsyncSessionLocal,
@@ -1308,10 +1313,52 @@ async def health():
 
 
 @app.get("/admin/login")
-async def admin_login_page(request: Request, user: User | None = Depends(get_current_user)):
+async def admin_login_page(
+    request: Request,
+    user: User | None = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     next_url = _safe_login_next(request.query_params.get("next"))
     if user:
         return RedirectResponse(next_url or home_path_for_user(user), status_code=303)
+
+    remember = request.cookies.get(REMEMBER_COOKIE_NAME)
+    if remember:
+        uid = verify_remember_token(remember)
+        if uid:
+            remembered = (
+                await db.execute(
+                    select(User).where(
+                        User.id == uid,
+                        User.is_active == True,  # noqa: E712
+                        User.is_approved == True,  # noqa: E712
+                    )
+                )
+            ).scalar_one_or_none()
+            if remembered is not None:
+                request.session["user_id"] = remembered.id
+                await record_access_log(
+                    db,
+                    event_type="login_success",
+                    username=remembered.username,
+                    request=request,
+                    success=True,
+                    user_id=remembered.id,
+                    display_name=remembered.name,
+                    http_method="GET",
+                    path="/admin/login",
+                    resource="로그인",
+                    summary="자동 로그인 (기억된 세션)",
+                )
+                dest = next_url or home_path_for_user(remembered)
+                resp = RedirectResponse(dest, status_code=303)
+                resp.set_cookie(
+                    REMEMBER_COOKIE_NAME,
+                    create_remember_token(remembered.id),
+                    **remember_cookie_kwargs(),
+                )
+                return resp
+
     return templates.TemplateResponse(
         request,
         "login.html",
@@ -1328,6 +1375,7 @@ async def admin_login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    remember_me: str = Form(""),
     next: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1404,7 +1452,17 @@ async def admin_login(
         summary="로그인 성공",
     )
     request.session["user_id"] = user.id
-    return RedirectResponse(next_url or home_path_for_user(user), status_code=303)
+    dest = next_url or home_path_for_user(user)
+    resp = RedirectResponse(dest, status_code=303)
+    if remember_me.strip().lower() in ("1", "on", "true", "yes"):
+        resp.set_cookie(
+            REMEMBER_COOKIE_NAME,
+            create_remember_token(user.id),
+            **remember_cookie_kwargs(),
+        )
+    else:
+        clear_remember_cookie(resp)
+    return resp
 
 
 @app.get("/admin/logout")
@@ -1428,7 +1486,9 @@ async def admin_logout(request: Request, db: AsyncSession = Depends(get_db)):
                 summary="로그아웃",
             )
     request.session.clear()
-    return RedirectResponse("/admin/login", status_code=303)
+    resp = RedirectResponse("/admin/login?logout=1", status_code=303)
+    clear_remember_cookie(resp)
+    return resp
 
 
 @app.get("/admin/signup")

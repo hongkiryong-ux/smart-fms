@@ -17,7 +17,7 @@
     {% elif error %}
     <div class="alert alert-error">로그인할 수 없습니다.</div>
     {% endif %}
-    <form method="post" action="/admin/login" class="form-stack login-form">
+    <form method="post" action="/admin/login" class="form-stack login-form" id="login-form">
       {% if next %}
       <input type="hidden" name="next" value="{{ next }}" />
       {% endif %}
@@ -29,9 +29,64 @@
         <label for="login-password">비밀번호</label>
         <input type="password" id="login-password" name="password" required autocomplete="current-password" />
       </div>
+      <label class="login-remember">
+        <input type="checkbox" id="login-remember" name="remember_me" value="1" />
+        <span>자동 로그인</span>
+      </label>
       <button type="submit" class="btn btn-primary btn-block login-submit">로그인</button>
     </form>
     <p class="login-hint"><a href="/admin/signup">가입신청</a></p>
   </div>
 </div>
+<script>
+(function () {
+  var KEY = 'fms_auto_login';
+  var form = document.getElementById('login-form');
+  var userEl = document.getElementById('login-username');
+  var passEl = document.getElementById('login-password');
+  var rememberEl = document.getElementById('login-remember');
+  if (!form || !userEl || !passEl || !rememberEl) return;
+
+  var qs = window.location.search || '';
+  var loggedOut = qs.indexOf('logout=1') >= 0;
+  var hasError = qs.indexOf('error=') >= 0;
+
+  if (loggedOut) {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    return;
+  }
+
+  function saveCredentials() {
+    try {
+      if (rememberEl.checked) {
+        localStorage.setItem(KEY, JSON.stringify({
+          remember: true,
+          username: userEl.value,
+          password: passEl.value
+        }));
+      } else {
+        localStorage.removeItem(KEY);
+      }
+    } catch (e) {}
+  }
+
+  function restoreCredentials() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      if (!data || !data.remember) return;
+      if (data.username) userEl.value = data.username;
+      if (data.password) passEl.value = data.password;
+      rememberEl.checked = true;
+      if (!hasError && data.username && data.password) {
+        form.submit();
+      }
+    } catch (e) {}
+  }
+
+  form.addEventListener('submit', saveCredentials);
+  restoreCredentials();
+})();
+</script>
 {% endblock %}
