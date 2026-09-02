@@ -6,6 +6,7 @@
     <div>
       <h1>{{ wo.title }}</h1>
       <p>#{{ wo.id }} · <span class="badge badge-{{ wo.status.value }}">{{ wo_status_label(wo.status) }}</span>
+        {% if wo.is_rejected %} · <span class="badge badge-urgent" title="{{ wo.rejection_reason or '' }}">반려</span>{% endif %}
         {% if wo.d1_approved %} · <span class="badge badge-wo">D-1 승인</span>{% endif %}
       </p>
     </div>
@@ -79,6 +80,16 @@
         {% if wo.approved_at %}<span class="text-muted"> · {{ fmt_kst(wo.approved_at) }}</span>{% endif %}
         {% else %}-{% endif %}
       </dd>
+      {% if wo.is_rejected %}
+      <dt>반려</dt>
+      <dd>
+        {{ wo.rejected_by or '-' }}
+        {% if wo.rejected_at %}<span class="text-muted"> · {{ fmt_kst(wo.rejected_at) }}</span>{% endif %}
+        {% if wo.rejection_reason %}
+        <div class="wo-reject-reason-box">{{ wo.rejection_reason }}</div>
+        {% endif %}
+      </dd>
+      {% endif %}
     </dl>
   </section>
 
@@ -126,12 +137,15 @@
         <input type="hidden" name="redirect" value="detail" />
         <button type="submit" class="btn btn-secondary">D-1 승인 취소</button>
       </form>
-      {% else %}
+      {% elif wo.is_rejected %}
+      <span class="badge badge-urgent">반려됨</span>
+      {% elif user_can_edit(user) %}
       <form method="post" action="/admin/work-orders/{{ wo.id }}/approve-d1" class="inline-form" id="wo-detail-approve">
         <input type="hidden" name="redirect" value="detail" />
         <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
         <button type="submit" class="btn btn-primary">D-1 승인</button>
       </form>
+      <button type="button" class="btn btn-danger" id="wo-detail-reject-open">반려</button>
       {% endif %}
     </div>
     <p class="text-muted" style="margin-top:0.6rem;font-size:0.85rem;">
@@ -147,6 +161,28 @@
   {% endif %}
   · <a href="/admin/d1">D-1 작업</a>
 </p>
+
+{% if user_can_edit(user) and not wo.d1_approved and not wo.is_rejected %}
+<dialog id="wo-detail-reject-dialog" class="eq-dialog wo-reject-dialog">
+  <form method="post" action="/admin/work-orders/{{ wo.id }}/reject" class="form-stack">
+    <div class="eq-dialog-top">
+      <strong>정비의뢰 반려</strong>
+      <button type="button" class="link-action wo-detail-reject-close" aria-label="닫기">닫기</button>
+    </div>
+    <div class="eq-popup-body">
+      <p class="text-muted">반려 사유를 입력하면 접수한 사람에게 알림이 표시됩니다.</p>
+      <label for="wo-detail-reject-reason">반려 사유</label>
+      <textarea id="wo-detail-reject-reason" name="reason" rows="4" required placeholder="반려 사유를 입력하세요"></textarea>
+      <input type="hidden" name="redirect" value="detail" />
+      <div class="wo-reject-actions">
+        <button type="button" class="btn btn-secondary wo-detail-reject-close">취소</button>
+        <button type="submit" class="btn btn-danger">반려</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
 <script>
 (function () {
   document.querySelectorAll('.wo-step-btns').forEach(function (group) {
@@ -166,6 +202,21 @@
       if (hidden) hidden.value = partner.value || '0';
     });
   }
+  var rejectOpen = document.getElementById('wo-detail-reject-open');
+  var rejectDialog = document.getElementById('wo-detail-reject-dialog');
+  var rejectReason = document.getElementById('wo-detail-reject-reason');
+  if (rejectOpen && rejectDialog) {
+    rejectOpen.addEventListener('click', function () {
+      if (rejectReason) rejectReason.value = '';
+      rejectDialog.showModal();
+      if (rejectReason) rejectReason.focus();
+    });
+  }
+  document.querySelectorAll('.wo-detail-reject-close').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (rejectDialog && typeof rejectDialog.close === 'function') rejectDialog.close();
+    });
+  });
 })();
 </script>
 {% endblock %}

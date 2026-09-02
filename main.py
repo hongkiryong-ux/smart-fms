@@ -807,6 +807,17 @@ def _wo_apply_d1_unapprove(wo: WorkOrder) -> None:
     wo.work_permitted_at = None
 
 
+def _wo_apply_reject(wo: WorkOrder, rejector: str, reason: str, now: datetime | None = None) -> None:
+    ts = now or datetime.utcnow()
+    wo.is_rejected = True
+    wo.rejected_by = rejector
+    wo.rejected_at = ts
+    wo.rejection_reason = reason.strip()
+    wo.d1_approved = False
+    wo.approved_by = None
+    wo.approved_at = None
+
+
 def _wo_clear_auto_approval_request(wo: WorkOrder) -> bool:
     """정비섹션 승인 시 잘못 자동 반영된 작업허가 승인요청을 되돌린다. 변경 시 True."""
     if not getattr(wo, "d1_approved", False):
@@ -1489,6 +1500,46 @@ async def admin_logout(request: Request, db: AsyncSession = Depends(get_db)):
     resp = RedirectResponse("/admin/login?logout=1", status_code=303)
     clear_remember_cookie(resp)
     return resp
+
+
+@app.get("/admin/notifications/unread")
+async def notifications_unread(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from user_notifications import fetch_unread_notifications
+
+    notes = await fetch_unread_notifications(db, user.id, limit=10)
+    return JSONResponse(
+        {
+            "items": [
+                {
+                    "id": n.id,
+                    "kind": n.kind,
+                    "title": n.title,
+                    "body": n.body,
+                    "work_order_id": n.work_order_id,
+                    "created_at": _fmt_kst(n.created_at) if n.created_at else "",
+                }
+                for n in notes
+            ]
+        }
+    )
+
+
+@app.post("/admin/notifications/{note_id}/read")
+async def notification_mark_read(
+    note_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from user_notifications import mark_notification_read
+
+    ok = await mark_notification_read(db, note_id, user.id)
+    if not ok:
+        raise HTTPException(404)
+    await db.commit()
+    return JSONResponse({"ok": True})
 
 
 @app.get("/admin/signup")
@@ -4515,6 +4566,7 @@ async def equipment_maintenance_request(
         priority=priority if priority in ("normal", "high") else "normal",
         assignee_name=assignee_name.strip() or person,
         requester_name=person,
+        requester_user_id=user.id,
         equipment_id=eq.id,
         site_id=site_id,
         status=WorkOrderStatus.received,
@@ -5101,6 +5153,7 @@ async def work_order_create(
         priority=priority if priority in ("normal", "high") else "normal",
         assignee_name=assignee_name.strip() or person,
         requester_name=person,
+        requester_user_id=user.id,
         equipment_id=eq.id,
         site_id=site_id,
         partner_id=partner_fk,
@@ -5336,9 +5389,76 @@ async def work_order_approve_d1(
     if not wo.partner_id:
         return _back(error="업체를 선택한 뒤 승인하세요.")
 
+    if getattr(wo, "is_rejected", False):
+        return _back(error="반려된 항목은 승인할 수 없습니다.")
+
     _wo_apply_d1_approve(wo, _wo_approver_label(user))
     await db.commit()
     return _back(message="D-1 작업으로 승인되었습니다.")
+
+
+@app.post("/admin/work-orders/{wo_id}/reject")
+async def work_order_reject(
+    wo_id: int,
+    reason: str = Form(...),
+    redirect: str = Form("list"),
+    q: str = Form(""),
+    filter_status: str = Form(""),
+    filter_priority: str = Form(""),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
+    page: str = Form(""),
+    filter_partner_id: str = Form(""),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """접수된 정비의뢰 반려 — 의뢰자에게 알림."""
+    from urllib.parse import quote
+    from user_notifications import notify_work_order_rejected
+
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+
+    def _back(error: str = "", message: str = ""):
+        if redirect == "detail":
+            qs = []
+            if error:
+                qs.append("error=" + quote(error))
+            if message:
+                qs.append("message=" + quote(message))
+            suffix = ("?" + "&".join(qs)) if qs else ""
+            return RedirectResponse(f"/admin/work-orders/{wo_id}{suffix}", status_code=303)
+        qs = _wo_list_redirect_params(
+            q=q,
+            filter_status=filter_status,
+            filter_priority=filter_priority,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            filter_partner_id=filter_partner_id,
+            error=error,
+            message=message,
+        )
+        return RedirectResponse(f"/admin/work-orders{qs}", status_code=303)
+
+    reason_text = reason.strip()
+    if not reason_text:
+        return _back(error="반려 사유를 입력하세요.")
+    if getattr(wo, "d1_approved", False):
+        return _back(error="이미 승인된 항목은 반려할 수 없습니다.")
+    if getattr(wo, "is_rejected", False):
+        return _back(error="이미 반려된 항목입니다.")
+
+    rejector = _wo_approver_label(user)
+    _wo_apply_reject(wo, rejector, reason_text)
+    note = await notify_work_order_rejected(
+        db, wo, reason=reason_text, rejected_by=rejector
+    )
+    await db.commit()
+    if note is None:
+        return _back(message="반려 처리되었습니다. (의뢰자 계정을 찾지 못해 알림은 전송되지 않았습니다.)")
+    return _back(message="반려 처리되었습니다. 의뢰자에게 알림이 전송되었습니다.")
 
 
 @app.post("/admin/work-orders/approve-d1-bulk")
@@ -5410,6 +5530,9 @@ async def work_order_approve_d1_bulk(
 
         if getattr(wo, "d1_approved", False):
             already += 1
+            continue
+        if getattr(wo, "is_rejected", False):
+            missing += 1
             continue
         if not wo.partner_id:
             no_partner += 1

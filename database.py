@@ -670,8 +670,34 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE access_logs ADD COLUMN summary VARCHAR(500)",
             "CREATE INDEX IF NOT EXISTS ix_access_logs_path ON access_logs (path)",
             "CREATE INDEX IF NOT EXISTS ix_access_logs_resource ON access_logs (resource)",
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS requester_user_id INTEGER",
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS is_rejected BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejected_by VARCHAR(100)",
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP WITHOUT TIME ZONE",
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS rejection_reason TEXT",
+            "UPDATE work_orders SET is_rejected = FALSE WHERE is_rejected IS NULL",
         ):
             await _exec(stmt)
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS user_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                work_order_id INTEGER,
+                kind VARCHAR(50) DEFAULT 'wo_rejected',
+                title VARCHAR(200) NOT NULL,
+                body TEXT NOT NULL,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at DATETIME
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_user_notifications_user_id ON user_notifications (user_id)"
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_user_notifications_created_at ON user_notifications (created_at)"
+        )
 
 
 async def ensure_app_settings_table() -> None:

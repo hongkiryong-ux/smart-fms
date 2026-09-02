@@ -709,6 +709,7 @@ class WorkOrder(Base):
     priority = Column(String(20), default="normal")
     assignee_name = Column(String(100), nullable=True)
     requester_name = Column(String(100), nullable=True)  # 정비의뢰자
+    requester_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
     work_type = Column(String(100), nullable=True)
     cause = Column(Text, nullable=True)
@@ -721,6 +722,10 @@ class WorkOrder(Base):
     d1_approved = Column(Boolean, default=False)
     approved_by = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
+    is_rejected = Column(Boolean, default=False)
+    rejected_by = Column(String(100), nullable=True)
+    rejected_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
     # 협력사 승인요청 → 시설섹션 작업허가
     approval_requested = Column(Boolean, default=False)
     approval_requested_by = Column(String(100), nullable=True)
@@ -848,3 +853,18 @@ class Notice(Base):
     published_at = Column(DateTime, default=datetime.utcnow, index=True)
     created_by = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UserNotification(Base):
+    """사용자 개인 알림 (정비 반려 등)."""
+
+    __tablename__ = "user_notifications"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    work_order_id = Column(Integer, ForeignKey("work_orders.id"), nullable=True)
+    kind = Column(String(50), default="wo_rejected")
+    title = Column(String(200), nullable=False)
+    body = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

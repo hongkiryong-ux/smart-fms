@@ -373,5 +373,88 @@
   <div class="{% if user and not is_popup %}main-with-sidebar{% else %}main-full{% endif %}{% if is_popup %} materials-popup-main{% endif %}">
     {% block content %}{% endblock %}
   </div>
+
+  {% if user %}
+  <dialog id="user-notify-dialog" class="eq-dialog user-notify-dialog">
+    <div class="eq-dialog-top">
+      <strong id="user-notify-title">알림</strong>
+      <button type="button" class="link-action" id="user-notify-close" aria-label="닫기">닫기</button>
+    </div>
+    <div class="eq-popup-body">
+      <pre id="user-notify-body" class="user-notify-body"></pre>
+      <div class="user-notify-meta text-muted" id="user-notify-meta"></div>
+      <div class="wo-reject-actions">
+        <a href="#" id="user-notify-link" class="btn btn-secondary" hidden>정비 상세</a>
+        <button type="button" class="btn btn-primary" id="user-notify-ok">확인</button>
+      </div>
+    </div>
+  </dialog>
+  <script>
+  (function () {
+    var dialog = document.getElementById('user-notify-dialog');
+    if (!dialog || typeof dialog.showModal !== 'function') return;
+    var titleEl = document.getElementById('user-notify-title');
+    var bodyEl = document.getElementById('user-notify-body');
+    var metaEl = document.getElementById('user-notify-meta');
+    var linkEl = document.getElementById('user-notify-link');
+    var okBtn = document.getElementById('user-notify-ok');
+    var closeBtn = document.getElementById('user-notify-close');
+    var queue = [];
+    var idx = 0;
+
+    function showItem(item) {
+      if (!item) return;
+      if (titleEl) titleEl.textContent = item.title || '알림';
+      if (bodyEl) bodyEl.textContent = item.body || '';
+      if (metaEl) metaEl.textContent = item.created_at || '';
+      if (linkEl) {
+        if (item.work_order_id) {
+          linkEl.href = '/admin/work-orders/' + item.work_order_id;
+          linkEl.hidden = false;
+        } else {
+          linkEl.hidden = true;
+        }
+      }
+      dialog.showModal();
+    }
+
+    function markRead(item) {
+      if (!item || !item.id) return Promise.resolve();
+      return fetch('/admin/notifications/' + item.id + '/read', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      }).catch(function () {});
+    }
+
+    function next() {
+      idx += 1;
+      if (idx < queue.length) {
+        showItem(queue[idx]);
+      } else if (typeof dialog.close === 'function') {
+        dialog.close();
+      }
+    }
+
+    function dismissCurrent() {
+      var item = queue[idx];
+      markRead(item).finally(next);
+    }
+
+    if (okBtn) okBtn.addEventListener('click', dismissCurrent);
+    if (closeBtn) closeBtn.addEventListener('click', dismissCurrent);
+
+    fetch('/admin/notifications/unread', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.items || !data.items.length) return;
+        queue = data.items;
+        idx = 0;
+        showItem(queue[0]);
+      })
+      .catch(function () {});
+  })();
+  </script>
+  {% endif %}
 </body>
 </html>

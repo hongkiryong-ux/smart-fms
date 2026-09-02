@@ -132,7 +132,7 @@
       {% set step = 1 if st in ['received','assigned'] else (2 if st == 'in_progress' else 3) %}
       <tr class="{% if wo.d1_approved %}wo-d1-approved{% endif %}" data-wo-id="{{ wo.id }}">
         <td class="wo-sel-col">
-          {% if not wo.d1_approved %}
+          {% if not wo.d1_approved and not wo.is_rejected %}
           <input type="checkbox"
                  class="wo-row-check"
                  name="wo_ids"
@@ -154,6 +154,7 @@
         </td>
         <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
           <span class="wo-req-text">
+            {% if wo.is_rejected %}<span class="badge badge-urgent" title="{{ wo.rejection_reason or '' }}">반려</span> {% endif %}
             {% if wo.d1_approved %}<span class="badge badge-wo">D-1</span> {% endif %}
             {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
           </span>
@@ -240,21 +241,29 @@
             <input type="hidden" name="page" value="{{ filters.page }}" />
             <button type="submit" class="btn btn-sm btn-secondary" title="승인 취소">승인됨</button>
           </form>
+          {% elif wo.is_rejected %}
+          <span class="badge badge-urgent wo-rejected-badge" title="{{ wo.rejection_reason or '반려됨' }}">반려됨</span>
           {% else %}
-          <form method="post"
-                action="/admin/work-orders/{{ wo.id }}/approve-d1"
-                class="inline-form wo-approve-form"
-                data-partner-select="wo-partner-{{ wo.id }}">
-            <input type="hidden" name="redirect" value="list" />
-            <input type="hidden" name="q" value="{{ filters.q }}" />
-            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-            <input type="hidden" name="page" value="{{ filters.page }}" />
-            <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
-            <button type="submit" class="btn btn-sm btn-primary">승인</button>
-          </form>
+          <div class="wo-d1-actions">
+            <form method="post"
+                  action="/admin/work-orders/{{ wo.id }}/approve-d1"
+                  class="inline-form wo-approve-form"
+                  data-partner-select="wo-partner-{{ wo.id }}">
+              <input type="hidden" name="redirect" value="list" />
+              <input type="hidden" name="q" value="{{ filters.q }}" />
+              <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+              <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+              <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+              <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+              <input type="hidden" name="page" value="{{ filters.page }}" />
+              <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
+              <button type="submit" class="btn btn-sm btn-primary">승인</button>
+            </form>
+            <button type="button"
+                    class="btn btn-sm btn-danger wo-reject-open"
+                    data-wo-id="{{ wo.id }}"
+                    title="반려">반려</button>
+          </div>
           {% endif %}
         </td>
         <td>
@@ -345,6 +354,33 @@
   </div>
 </dialog>
 
+{% if user_can_edit(user) %}
+<dialog id="wo-reject-dialog" class="eq-dialog wo-reject-dialog">
+  <form method="post" id="wo-reject-form" class="form-stack">
+    <div class="eq-dialog-top">
+      <strong>정비의뢰 반려</strong>
+      <button type="button" class="link-action wo-reject-close" aria-label="닫기">닫기</button>
+    </div>
+    <div class="eq-popup-body">
+      <p class="text-muted wo-reject-lead">반려 사유를 입력하면 접수한 사람에게 알림이 표시됩니다.</p>
+      <label for="wo-reject-reason">반려 사유</label>
+      <textarea id="wo-reject-reason" name="reason" rows="4" required placeholder="반려 사유를 입력하세요"></textarea>
+      <input type="hidden" name="redirect" value="list" />
+      <input type="hidden" name="q" value="{{ filters.q }}" />
+      <input type="hidden" name="filter_status" value="{{ filters.status }}" />
+      <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+      <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+      <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+      <input type="hidden" name="page" value="{{ filters.page }}" />
+      <div class="wo-reject-actions">
+        <button type="button" class="btn btn-secondary wo-reject-close">취소</button>
+        <button type="submit" class="btn btn-danger">반려</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
 <script type="application/json" id="wo-equipment-data">{{ equipment_opts_json | safe }}</script>
 <script>
 (function () {
@@ -397,6 +433,28 @@
       var sel = sid ? document.getElementById(sid) : null;
       var hidden = form.querySelector('input[name="partner_id"]');
       if (sel && hidden) hidden.value = sel.value || '0';
+    });
+  });
+
+  // 반려 dialog
+  var rejectDialog = document.getElementById('wo-reject-dialog');
+  var rejectForm = document.getElementById('wo-reject-form');
+  var rejectReason = document.getElementById('wo-reject-reason');
+  function closeRejectDialog() {
+    if (rejectDialog && typeof rejectDialog.close === 'function') rejectDialog.close();
+    if (rejectReason) rejectReason.value = '';
+  }
+  document.querySelectorAll('.wo-reject-close').forEach(function (btn) {
+    btn.addEventListener('click', closeRejectDialog);
+  });
+  document.querySelectorAll('.wo-reject-open').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!rejectDialog || !rejectForm) return;
+      var woId = btn.getAttribute('data-wo-id');
+      rejectForm.action = '/admin/work-orders/' + woId + '/reject';
+      if (rejectReason) rejectReason.value = '';
+      rejectDialog.showModal();
+      if (rejectReason) rejectReason.focus();
     });
   });
 
