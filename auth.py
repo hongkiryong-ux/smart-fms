@@ -340,11 +340,45 @@ def can_access_menu(user: User | None, menu_key: str) -> bool:
     return menu_key in effective_menu_access(user)
 
 
+# D-1 화면에서 호출하는 work-orders 하위 경로 (협력사는 d1만 허용된 경우가 많음)
+_D1_WORK_ORDER_ACTIONS: frozenset[str] = frozenset(
+    {"status", "request-approval", "delete"}
+)
+
+
+def d1_work_order_path(path: str) -> bool:
+    """D-1 협력사 흐름에서 사용하는 /admin/work-orders/* 경로."""
+    prefix = "/admin/work-orders/"
+    if not path.startswith(prefix):
+        return False
+    sub = path[len(prefix) :].split("?", 1)[0].strip("/")
+    if not sub:
+        return False
+    parts = sub.split("/")
+    if len(parts) == 1 and parts[0].isdigit():
+        return True
+    if len(parts) == 2 and parts[0].isdigit() and parts[1] in _D1_WORK_ORDER_ACTIONS:
+        return True
+    return False
+
+
 def menu_key_for_path(path: str) -> str | None:
     for prefix, key in _MENU_PATH_PREFIXES:
         if path == prefix or path.startswith(prefix + "/"):
             return key
     return None
+
+
+def can_access_admin_path(user: User | None, path: str) -> bool:
+    """경로 prefix 기준 메뉴 접근. D-1 work-orders 하위는 d1 권한으로도 허용."""
+    menu_key = menu_key_for_path(path)
+    if not menu_key:
+        return True
+    if can_access_menu(user, menu_key):
+        return True
+    if menu_key == "work_orders" and d1_work_order_path(path):
+        return can_access_menu(user, "d1")
+    return False
 
 
 def home_path_for_user(user: User | None) -> str:
@@ -487,8 +521,8 @@ async def admin_request_bootstrap(
         ).scalar_one_or_none()
         if u is not None:
             request.state.current_user = u
-        menu_key = menu_key_for_path(request.url.path or "")
-        if menu_key and u is not None and not can_access_menu(u, menu_key):
+        path = request.url.path or ""
+        if u is not None and not can_access_admin_path(u, path):
             return RedirectResponse("/admin/account?error=no_menu", status_code=303)
 
     now = time.monotonic()
