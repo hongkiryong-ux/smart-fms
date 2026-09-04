@@ -70,7 +70,7 @@
 {%- endmacro %}
 <header class="page-header">
   <h1>계정관리</h1>
-  <p>가입 승인 · CRUD/메뉴 권한 · 비밀번호 변경 · 계정 추가/비활성</p>
+  <p>가입 승인 · CRUD/메뉴 권한 · 비밀번호 변경 · 계정 추가/삭제</p>
 </header>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -86,6 +86,8 @@
 <div class="alert alert-error">자기 자신 계정은 삭제/거절할 수 없습니다.</div>
 {% elif error == 'self_role' %}
 <div class="alert alert-error">자신의 시스템관리자 역할은 변경할 수 없습니다.</div>
+{% elif error == 'last_admin' %}
+<div class="alert alert-error">마지막 시스템관리자 계정은 삭제할 수 없습니다.</div>
 {% endif %}
 
 {% if pending_users %}
@@ -220,16 +222,16 @@
             <button type="submit" class="btn btn-sm btn-secondary">저장</button>
             {% if u.id != user.id %}
             <button type="submit"
-                    form="deactivate-{{ u.id }}"
+                    form="delete-{{ u.id }}"
                     class="btn btn-sm btn-danger"
-                    onclick="return confirm('「{{ u.username }}」 계정을 비활성화할까요?');">비활성</button>
+                    onclick="return confirm('「{{ u.username }}」 계정을 정말 삭제할까요?\n\n삭제하면 복구할 수 없습니다.');">삭제</button>
             {% endif %}
           </div>
         </div>
       </form>
       <form method="post" action="/admin/users/{{ u.id }}/password" id="pw-{{ u.id }}" class="users-hidden-form"></form>
       {% if u.id != user.id %}
-      <form method="post" action="/admin/users/{{ u.id }}/delete" id="deactivate-{{ u.id }}" class="users-hidden-form"></form>
+      <form method="post" action="/admin/users/{{ u.id }}/delete" id="delete-{{ u.id }}" class="users-hidden-form"></form>
       {% endif %}
     </article>
     {% endfor %}
@@ -314,19 +316,27 @@
         <td>{{ u.company_display or '-' }}</td>
         <td>{{ role_labels.get(u.role, u.role.value) }}</td>
         <td>
-          <form method="post" action="/admin/users/{{ u.id }}/update" class="inline-form">
-            <input type="hidden" name="name" value="{{ u.name }}" />
-            <input type="hidden" name="role" value="{{ u.role.value }}" />
-            <input type="hidden" name="phone" value="{{ u.phone or '' }}" />
-            <input type="hidden" name="email" value="{{ u.email or '' }}" />
-            <input type="hidden" name="company_partner_id" value="{% if u.partner_id %}{{ u.partner_id }}{% elif u.company_name %}__custom__{% else %}0{% endif %}" />
-            <input type="hidden" name="company_name" value="{{ u.company_name or '' }}" />
-            <input type="hidden" name="can_create_flag" value="{% if u.can_create %}1{% endif %}" />
-            <input type="hidden" name="can_edit_flag" value="{% if u.can_edit %}1{% endif %}" />
-            <input type="hidden" name="can_delete_flag" value="{% if u.can_delete %}1{% endif %}" />
-            <input type="hidden" name="is_active_flag" value="1" />
-            <button type="submit" class="btn btn-sm btn-secondary">재활성화</button>
-          </form>
+          <div class="users-actions-cell">
+            <form method="post" action="/admin/users/{{ u.id }}/update" class="inline-form">
+              <input type="hidden" name="name" value="{{ u.name }}" />
+              <input type="hidden" name="role" value="{{ u.role.value }}" />
+              <input type="hidden" name="phone" value="{{ u.phone or '' }}" />
+              <input type="hidden" name="email" value="{{ u.email or '' }}" />
+              <input type="hidden" name="company_partner_id" value="{% if u.partner_id %}{{ u.partner_id }}{% elif u.company_name %}__custom__{% else %}0{% endif %}" />
+              <input type="hidden" name="company_name" value="{{ u.company_name or '' }}" />
+              <input type="hidden" name="can_create_flag" value="{% if u.can_create %}1{% endif %}" />
+              <input type="hidden" name="can_edit_flag" value="{% if u.can_edit %}1{% endif %}" />
+              <input type="hidden" name="can_delete_flag" value="{% if u.can_delete %}1{% endif %}" />
+              <input type="hidden" name="is_active_flag" value="1" />
+              <button type="submit" class="btn btn-sm btn-secondary">재활성화</button>
+            </form>
+            {% if u.id != user.id %}
+            <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('「{{ u.username }}」 계정을 정말 삭제할까요?\n\n삭제하면 복구할 수 없습니다.');">
+              <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+            </form>
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% endfor %}

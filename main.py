@@ -2036,17 +2036,48 @@ async def users_delete(
     user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
+    """계정 완전 삭제 (본인 계정·마지막 시스템관리자 제외)."""
     from urllib.parse import quote
+    from sqlalchemy import delete as sa_delete, update as sa_update
+
+    from models import AccessLog, UserNotification
 
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
     if target.id == user.id:
         return RedirectResponse("/admin/users?error=self", status_code=303)
-    target.is_active = False
+    if target.role == UserRole.system_admin:
+        other_admins = (
+            await db.execute(
+                select(func.count())
+                .select_from(User)
+                .where(
+                    User.role == UserRole.system_admin,
+                    User.id != target.id,
+                    User.is_active == True,  # noqa: E712
+                )
+            )
+        ).scalar_one()
+        if not other_admins:
+            return RedirectResponse("/admin/users?error=last_admin", status_code=303)
+
+    uname = target.username
+    await db.execute(
+        sa_delete(UserNotification).where(UserNotification.user_id == uid)
+    )
+    await db.execute(
+        sa_update(AccessLog).where(AccessLog.user_id == uid).values(user_id=None)
+    )
+    await db.execute(
+        sa_update(WorkOrder)
+        .where(WorkOrder.requester_user_id == uid)
+        .values(requester_user_id=None)
+    )
+    await db.delete(target)
     await db.commit()
     return RedirectResponse(
-        "/admin/users?message=" + quote(f"{target.username} 계정이 비활성화되었습니다."),
+        "/admin/users?message=" + quote(f"{uname} 계정이 삭제되었습니다."),
         status_code=303,
     )
 
