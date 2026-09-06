@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/baegun_dorm.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/baegun-dorm/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set el_data = daily_data.get('electrical', {}) if daily_data else {} %}
+{% set fac_data = daily_data.get('facility', {}) if daily_data else {} %}
+{% set hm_data = daily_data.get('heating_meas', {}) if daily_data else {} %}
+{% set hr_data = daily_data.get('heating_run', {}) if daily_data else {} %}
+{% set hc_data = daily_data.get('heating_check', {}) if daily_data else {} %}
+{% set cl_data = daily_data.get('cooling', {}) if daily_data else {} %}
+{% set cc_data = daily_data.get('cooling_check', {}) if daily_data else {} %}
+
+<header class="page-header bd-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="bd-tabs" aria-label="백운생활관 탭">
+  <a class="bd-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="bd-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="bd-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="bd-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide bd-daily">
+  <form method="get" class="bd-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/bdorm/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/bdorm/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="bd-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/baegun-dorm/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/baegun-dorm/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted bd-hint">원본 양식 · 전일지침 자동이월(수기 가능) · 시간 수기 입력 · 드래그·엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+
+  <form method="post" action="{{ save_url }}" id="bd-daily-form" class="bd-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    <div class="bd-sheet">
+      <div class="bd-form-title">{{ schema.title }}</div>
+      <div class="bd-sheet-title">{{ schema.utility.title }}</div>
+      <div class="bd-table-wrap">
+        <table class="bd-excel bd-utility-table">
+          <thead>
+            <tr>
+              <th colspan="3">구 분</th>
+              <th class="bd-yellow">전일지침</th>
+              <th>금일지침</th>
+              <th>일사용량</th>
+              <th>월누계량</th>
+              <th>비 고</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for block in schema.utility.blocks %}
+              {% for row in block.rows %}
+              {% set item = utility.get(row.id, {}) %}
+              <tr class="bd-utility-row" data-utility="{{ row.id }}" data-multiplier="1">
+                {% if loop.first %}<th rowspan="{{ block.rows|length }}" class="bd-cat">{{ block.cat }}</th>{% endif %}
+                <th class="bd-sub">{{ row.building }}</th>
+                <th class="bd-sub">{{ row.label }}</th>
+                <td class="bd-yellow">
+                  <input class="bd-cell bd-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" />
+                  <input class="bd-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+                </td>
+                <td><input class="bd-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+                <td><input class="bd-cell bd-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+                <td><input class="bd-cell bd-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+                <td><input class="bd-cell bd-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bd-sheet">
+      <div class="bd-sheet-title">2. Utility 점검사항</div>
+      <div class="bd-split">
+        <div>
+          <div class="bd-sheet-subtitle">{{ schema.electrical.title }}</div>
+          <div class="bd-table-wrap">
+            <table class="bd-excel">
+              <thead>
+                <tr>
+                  <th rowspan="2">시간</th>
+                  {% for g in schema.electrical.groups %}
+                  <th colspan="{{ g.fields|length }}">{{ g.label }}</th>
+                  {% endfor %}
+                </tr>
+                <tr>
+                  {% for g in schema.electrical.groups %}
+                    {% for f in g.fields %}<th>{{ f.label }}<br /><small>{{ f.std }}</small></th>{% endfor %}
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in schema.electrical.times %}
+                {% set row = el_data.get(t, {}) %}
+                <tr>
+                  <td class="bd-time-col"><input class="bd-cell bd-time-input" name="el__{{ t }}__time" value="{{ row.get('time','') }}" title="시간 수기" /></td>
+                  {% for g in schema.electrical.groups %}
+                    {% for f in g.fields %}
+                    <td><input class="bd-cell" name="el__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+                    {% endfor %}
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="bd-sheet-subtitle">{{ schema.facility.title }}</div>
+          <div class="bd-table-wrap">
+            <table class="bd-excel">
+              <thead>
+                <tr>
+                  <th>구분</th>
+                  {% for f in schema.facility.fields %}<th>{{ f.label }}<br /><small>{{ f.std }}</small></th>{% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for b in schema.facility.buildings %}
+                {% set row = fac_data.get(b.id, {}) %}
+                <tr>
+                  <th class="bd-sub">{{ b.label }}</th>
+                  {% for f in schema.facility.fields %}
+                  <td><input class="bd-cell" name="fac__{{ b.id }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bd-sheet">
+      <div class="bd-sheet-subtitle">{{ schema.heating.title }}</div>
+      <div class="bd-split">
+        <div>
+          <div class="bd-table-wrap">
+            <table class="bd-excel">
+              <thead>
+                <tr>
+                  <th rowspan="2">동</th>
+                  <th colspan="2">난방가동시간</th>
+                  <th rowspan="2">시간</th>
+                  <th rowspan="2">공급온도<br /><small>45~65</small></th>
+                  <th rowspan="2">환수온도<br /><small>40~60</small></th>
+                  <th rowspan="2">공급압력<br /><small>5.5~7.5</small></th>
+                  <th rowspan="2">환수압력<br /><small>5.0~6.5</small></th>
+                </tr>
+                <tr>
+                  <th>일계</th>
+                  <th class="bd-yellow">누계(전일)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for b in schema.heating.buildings %}
+                  {% set run = hr_data.get(b.id, {}) %}
+                  {% for i in range(1, (schema.heating.rows_per_building|int)+1) %}
+                  {% set key = i|string %}
+                  {% set row = hm_data.get(b.id, {}).get(key, {}) %}
+                  <tr {% if loop.first %}class="bd-hr-row" data-hr="{{ b.id }}"{% endif %}>
+                    {% if loop.first %}
+                    <th rowspan="{{ schema.heating.rows_per_building }}" class="bd-sub">{{ b.label }}</th>
+                    <td rowspan="{{ schema.heating.rows_per_building }}"><input class="bd-cell" name="hr__{{ b.id }}__daily" value="{{ run.get('daily','') }}" /></td>
+                    <td rowspan="{{ schema.heating.rows_per_building }}" class="bd-yellow">
+                      <input class="bd-cell bd-hr-prev" name="hr__{{ b.id }}__prev_cum" value="{{ run.get('prev_cum','') }}" title="전일 누계(수기 가능)" />
+                      <input class="bd-hr-prev-flag" type="hidden" name="hr__{{ b.id }}__prev_manual" value="{{ '1' if run.get('prev_manual') else '' }}" />
+                      <div class="text-muted" style="font-size:.7rem;margin-top:.2rem">월누계 <input class="bd-cell bd-readonly" name="hr__{{ b.id }}__monthly_cum" value="{{ run.get('monthly_cum','') }}" readonly style="min-width:3.5rem" /></div>
+                    </td>
+                    {% endif %}
+                    <td class="bd-time-col"><input class="bd-cell bd-time-input" name="hm__{{ b.id }}__{{ key }}__time" value="{{ row.get('time','') }}" /></td>
+                    <td><input class="bd-cell" name="hm__{{ b.id }}__{{ key }}__sup_temp" value="{{ row.get('sup_temp','') }}" /></td>
+                    <td><input class="bd-cell" name="hm__{{ b.id }}__{{ key }}__ret_temp" value="{{ row.get('ret_temp','') }}" /></td>
+                    <td><input class="bd-cell" name="hm__{{ b.id }}__{{ key }}__sup_p" value="{{ row.get('sup_p','') }}" /></td>
+                    <td><input class="bd-cell" name="hm__{{ b.id }}__{{ key }}__ret_p" value="{{ row.get('ret_p','') }}" /></td>
+                  </tr>
+                  {% endfor %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="bd-sheet-subtitle">2동 전기실/난방설비 점검</div>
+          <div class="bd-table-wrap">
+            <table class="bd-excel bd-check-table">
+              <thead><tr><th>점검사항</th><th>주간</th><th>야간</th></tr></thead>
+              <tbody>
+                {% for item in schema.heating.checklist %}
+                {% set row = hc_data.get(item.id, {}) %}
+                <tr>
+                  <th class="bd-left">{{ item.label }}</th>
+                  <td><input class="bd-cell" name="hc__{{ item.id }}__day" value="{{ row.get('day','') }}" /></td>
+                  <td><input class="bd-cell" name="hc__{{ item.id }}__night" value="{{ row.get('night','') }}" /></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bd-sheet">
+      <div class="bd-sheet-subtitle">{{ schema.cooling.title }}</div>
+      <div class="bd-split">
+        <div>
+          <div class="bd-table-wrap">
+            <table class="bd-excel">
+              <thead>
+                <tr>
+                  <th rowspan="2">항목</th>
+                  {% for b in schema.cooling.buildings %}
+                  <th colspan="{{ schema.cooling.slots|length }}">{{ b.label }}</th>
+                  {% endfor %}
+                </tr>
+                <tr>
+                  {% for b in schema.cooling.buildings %}
+                    {% for s in schema.cooling.slots %}
+                    <th>시간<br /><input class="bd-cell bd-time-input" name="cl__{{ b.id }}__{{ s }}__time" value="{{ cl_data.get(b.id, {}).get(s, {}).get('time','') }}" style="min-width:3.5rem" /></th>
+                    {% endfor %}
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in schema.cooling.metrics %}
+                <tr>
+                  <th class="bd-left">{{ m.label }}{% if m.std %}<br /><small>{{ m.std }}</small>{% endif %}</th>
+                  {% for b in schema.cooling.buildings %}
+                    {% for s in schema.cooling.slots %}
+                    <td><input class="bd-cell" name="cl__{{ b.id }}__{{ s }}__{{ m.id }}" value="{{ cl_data.get(b.id, {}).get(s, {}).get(m.id,'') }}" /></td>
+                    {% endfor %}
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="bd-sheet-subtitle">2동 전기실/냉방설비 점검</div>
+          <div class="bd-table-wrap">
+            <table class="bd-excel bd-check-table">
+              <thead><tr><th>점검사항</th><th>주간</th><th>야간</th></tr></thead>
+              <tbody>
+                {% for item in schema.cooling.checklist %}
+                {% set row = cc_data.get(item.id, {}) %}
+                <tr>
+                  <th class="bd-left">{{ item.label }}</th>
+                  <td><input class="bd-cell" name="cc__{{ item.id }}__day" value="{{ row.get('day','') }}" /></td>
+                  <td><input class="bd-cell" name="cc__{{ item.id }}__night" value="{{ row.get('night','') }}" /></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bd-sheet">
+      <div class="bd-sheet-title">※특이사항</div>
+      <textarea class="bd-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
+    </div>
+
+    {% if can_write %}
+    <div class="bd-form-actions">
+      <span id="bd-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/baegun-dorm/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+{% if can_write %}<script src="/static/js/baegun_dorm.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="bd-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="bd-sheet"><div class="bd-sheet-title">{{ year }}년 {{ month }}월 Utility 월보</div><div class="bd-table-wrap">
+    <table class="bd-excel"><thead><tr><th>일</th>{% for meter in monthly.meters %}<th>{{ meter.cat }} {{ meter.building }}<br /><small>{{ meter.label }}</small></th>{% endfor %}</tr></thead><tbody>
+      {% for day in monthly.days %}<tr><th>{{ day.day }}</th>{% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="bd-sum-row"><th>계</th>{% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="bd-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="bd-sheet"><div class="bd-sheet-title">{{ year }}년 Utility 년보</div><div class="bd-table-wrap">
+    <table class="bd-excel"><thead><tr><th>월</th>{% for meter in yearly.meters %}<th>{{ meter.cat }} {{ meter.building }}<br /><small>{{ meter.label }}</small></th>{% endfor %}</tr></thead><tbody>
+      {% for item in yearly.months %}<tr><th>{{ item.month }}월</th>{% for meter in yearly.meters %}<td>{{ item.utility.get(meter.id,'') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="bd-sum-row"><th>계</th>{% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="bd-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  {% for entry in notes_list.entries %}<article class="bd-note-entry"><h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }}</a></h3>{% for item in entry['items'] %}<p>{{ item.text }}</p>{% endfor %}</article>{% else %}<p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>{% endfor %}
+</section>
+{% endif %}
+{% endblock %}

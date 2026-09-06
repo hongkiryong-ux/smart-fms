@@ -1,0 +1,150 @@
+{
+  "building_name": "백운생활관",
+  "building_aliases": ["백운생활관"],
+  "title": "백운생활관 설비 점검일지[냉,난방]",
+  "utility": {
+    "title": "1. Utility 사용량",
+    "blocks": [
+      {
+        "cat": "중온수",
+        "rows": [
+          {"id": "hw2_heat", "building": "2동", "label": "열량[MWh]", "multiplier": 1},
+          {"id": "hw2_flow", "building": "2동", "label": "유량[㎥]", "multiplier": 1},
+          {"id": "hw4_heat", "building": "4동", "label": "열량[MWh]", "multiplier": 1},
+          {"id": "hw4_flow", "building": "4동", "label": "유량[㎥]", "multiplier": 1},
+          {"id": "hw6_heat", "building": "6동", "label": "열량[MWh]", "multiplier": 1},
+          {"id": "hw6_flow", "building": "6동", "label": "유량[㎥]", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "용수",
+        "rows": [
+          {"id": "water2", "building": "2동", "label": "유량[㎥]", "multiplier": 1},
+          {"id": "water4", "building": "4동", "label": "유량[㎥]", "multiplier": 1},
+          {"id": "water6", "building": "6동", "label": "유량[㎥]", "multiplier": 1}
+        ]
+      }
+    ],
+    "monthly_ids": [
+      "hw2_heat", "hw2_flow", "hw4_heat", "hw4_flow", "hw6_heat", "hw6_flow",
+      "water2", "water4", "water6"
+    ]
+  },
+  "electrical": {
+    "title": "2. Utility 점검사항 · 전기 설비(2동)",
+    "times": ["t1", "t2", "t3"],
+    "groups": [
+      {
+        "id": "main",
+        "label": "MAIN VCB",
+        "fields": [
+          {"id": "main_a", "label": "전류(A)", "std": "0~200"},
+          {"id": "main_kw", "label": "유효(kW)", "std": "0~2400"}
+        ]
+      },
+      {
+        "id": "tr_light",
+        "label": "조명 TR 750",
+        "fields": [
+          {"id": "lit_a", "label": "전류(A)", "std": "0~1033"},
+          {"id": "lit_temp", "label": "온도(℃)", "std": "75이하"}
+        ]
+      },
+      {
+        "id": "tr_power",
+        "label": "동력 TR 450",
+        "fields": [
+          {"id": "pwr_a", "label": "전류(A)", "std": "0~1050"},
+          {"id": "pwr_temp", "label": "온도(℃)", "std": "75이하"}
+        ]
+      }
+    ]
+  },
+  "facility": {
+    "title": "급탕·소화·급수",
+    "buildings": [
+      {"id": "b2", "label": "2동"},
+      {"id": "b4", "label": "4동"},
+      {"id": "b6", "label": "6동"}
+    ],
+    "fields": [
+      {"id": "hw_temp", "label": "급탕온도(℃)", "std": "45~50"},
+      {"id": "hw_p", "label": "급탕압력", "std": "3.0~5.0"},
+      {"id": "fire_p", "label": "소화압력", "std": "4.0~5.0"},
+      {"id": "water_p", "label": "급수압력", "std": "3.0~5.0"}
+    ]
+  },
+  "heating": {
+    "title": "가. 난방",
+    "buildings": [
+      {"id": "d1", "label": "1동"},
+      {"id": "d2", "label": "2동"},
+      {"id": "d3", "label": "3동"},
+      {"id": "d4", "label": "4동"},
+      {"id": "d5", "label": "5동"},
+      {"id": "d6", "label": "6동"}
+    ],
+    "rows_per_building": 2,
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "sup_temp", "label": "공급온도(℃)", "std": "45~65"},
+      {"id": "ret_temp", "label": "환수온도(℃)", "std": "40~60"},
+      {"id": "sup_p", "label": "공급압력", "std": "5.5~7.5"},
+      {"id": "ret_p", "label": "환수압력", "std": "5.0~6.5"}
+    ],
+    "checklist": [
+      {"id": "pump", "label": "난방펌프 상태"},
+      {"id": "vcb_noise", "label": "VCB/TR 소음"},
+      {"id": "vcb_smell", "label": "VCB/TR 냄새"},
+      {"id": "vcb_vib", "label": "VCB/TR 진동"},
+      {"id": "vcb_temp", "label": "VCB/TR 온도"},
+      {"id": "tr_fan", "label": "TR FAN 운전"},
+      {"id": "panel", "label": "판넬 상태"},
+      {"id": "cable", "label": "케이블 상태"},
+      {"id": "header", "label": "HEADER 상태"},
+      {"id": "valve", "label": "밸브 누수"},
+      {"id": "gauge", "label": "압력계 상태"},
+      {"id": "extinguisher", "label": "소화기"},
+      {"id": "room_clean", "label": "전기실 청결"}
+    ]
+  },
+  "cooling": {
+    "title": "나. 냉방",
+    "buildings": [
+      {"id": "b2", "label": "2동"},
+      {"id": "b4", "label": "4동"},
+      {"id": "b6", "label": "6동"}
+    ],
+    "slots": ["1", "2"],
+    "metrics": [
+      {"id": "oil_p", "label": "오일펌프 압력", "std": "1.5~4"},
+      {"id": "evap", "label": "증발기", "std": "450~ mmHg"},
+      {"id": "cond", "label": "응축기", "std": "0.2~0.5"},
+      {"id": "oil_temp", "label": "오일온도(℃)", "std": "40~55"},
+      {"id": "vane", "label": "베인개도(%)", "std": ""},
+      {"id": "chw_in_t", "label": "냉수입구온도", "std": "12"},
+      {"id": "chw_out_t", "label": "냉수출구온도", "std": "7"},
+      {"id": "chw_in_p", "label": "냉수입구압력", "std": "4~5"},
+      {"id": "chw_out_p", "label": "냉수출구압력", "std": "3~4"},
+      {"id": "cw_in_t", "label": "냉각수입구온도", "std": "32이하"},
+      {"id": "cw_out_t", "label": "냉각수출구온도", "std": "37"},
+      {"id": "cw_in_p", "label": "냉각수입구압력", "std": "3~4"},
+      {"id": "cw_out_p", "label": "냉각수출구압력", "std": "2~3"},
+      {"id": "chw_a", "label": "냉수전류(A)", "std": ""},
+      {"id": "cw_a", "label": "냉각수전류(A)", "std": ""}
+    ],
+    "checklist": [
+      {"id": "vcb_tr", "label": "VCB/TR 상태"},
+      {"id": "scheduler", "label": "스케줄러 운전"},
+      {"id": "chiller", "label": "냉동기 기기류"},
+      {"id": "tower", "label": "냉각탑 살수 및 FAN"},
+      {"id": "noise", "label": "냉동기 소음·진동"},
+      {"id": "panel", "label": "판넬 상태"},
+      {"id": "pump", "label": "펌프 상태"},
+      {"id": "valve", "label": "밸브 누수"},
+      {"id": "gauge", "label": "압력계 상태"},
+      {"id": "extinguisher", "label": "소화기"},
+      {"id": "room_clean", "label": "전기실 청결"}
+    ]
+  }
+}

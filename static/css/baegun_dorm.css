@@ -1,0 +1,336 @@
+﻿.bd-form-title {
+  margin: 0 0 .5rem;
+  padding: .65rem .75rem;
+  border: 2px solid #111;
+  background: #fff;
+  color: #111;
+  font-size: 1.25rem;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: .04em;
+}
+
+.bd-sheet-subtitle {
+  padding: .4rem .75rem;
+  border: 1px solid #111;
+  border-bottom: 0;
+  background: #e8eef6;
+  color: #111;
+  font-weight: 700;
+}
+
+.bd-cat {
+  min-width: 6.5rem !important;
+  line-height: 1.35;
+  background: #eef3f8 !important;
+}
+
+.bd-sub {
+  min-width: 4.5rem !important;
+  background: #f7fafc !important;
+}
+
+.bd-left {
+  text-align: left !important;
+  padding-left: .45rem !important;
+}
+
+.bd-std,
+.bd-std-row th {
+  background: #fff8e7 !important;
+  color: #555;
+  font-size: .7rem;
+  font-weight: 600;
+  white-space: normal !important;
+  line-height: 1.25;
+}
+
+.bd-sum-cell {
+  background: #c6efce !important;
+  font-weight: 800;
+  font-size: .95rem;
+}
+
+.bd-mirror-daily {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.bd-foot-note {
+  margin: .35rem 0 0;
+  color: #666;
+  font-size: .78rem;
+}
+
+.bd-elec-table th,
+.bd-abs-table th {
+  white-space: normal !important;
+  line-height: 1.2;
+  min-width: 3.2rem;
+}
+
+.bd-footer-row th,
+.bd-footer-row td {
+  background: #f3f6fa !important;
+}
+
+.bd-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.bd-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-bottom: 1rem;
+}
+
+.bd-tab {
+  padding: .45rem 1rem;
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  color: var(--text, #333);
+  text-decoration: none;
+}
+
+.bd-tab.active {
+  border-color: var(--primary, #003876);
+  background: var(--primary, #003876);
+  color: #fff;
+}
+
+.bd-date-nav {
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.bd-date-nav input[type="number"] {
+  width: 5rem;
+}
+
+.bd-date-nav input[name="month"] {
+  width: 3.5rem;
+}
+
+.bd-hint {
+  margin: .75rem 0 1rem;
+  font-size: .9rem;
+}
+
+.bd-sheet {
+  margin-bottom: 2rem;
+}
+
+.bd-sheet-title {
+  padding: .55rem .75rem;
+  border: 1px solid #111;
+  border-bottom: 0;
+  background: #f4f7fb;
+  color: #111;
+  font-weight: 700;
+  text-align: center;
+}
+
+.bd-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #111;
+  background: #fff;
+}
+
+.bd-excel {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  color: #111;
+  font-size: .78rem;
+}
+
+.bd-excel th,
+.bd-excel td {
+  min-width: 4.5rem;
+  padding: .2rem .3rem;
+  border: 1px solid #222;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bd-excel th {
+  background: #eef3f8;
+  font-weight: 700;
+}
+
+.bd-yellow {
+  background: #fff36a !important;
+}
+
+.bd-cell {
+  width: 100%;
+  min-width: 4rem;
+  padding: .25rem .15rem;
+  border: 0;
+  background: transparent;
+  color: #111;
+  text-align: center;
+}
+
+.bd-cell:focus {
+  outline: 2px solid var(--primary, #003876);
+  background: #eef7ff;
+}
+
+.bd-cell.bd-cell-selected {
+  background: #dbeafe !important;
+  outline: 2px solid #003876;
+}
+
+.bd-prev.bd-cell-selected {
+  background: #fef9c3 !important;
+}
+
+.bd-drag-selecting {
+  user-select: none;
+}
+
+.bd-readonly {
+  color: #333;
+  font-weight: 600;
+}
+
+.bd-note {
+  min-width: 9rem;
+  text-align: left;
+}
+
+.bd-time-col {
+  width: 4.5rem;
+  min-width: 4.5rem;
+  padding: 0 !important;
+  background: #f7f7f7;
+}
+
+.bd-time-input {
+  min-width: 4.2rem;
+  font-weight: 600;
+}
+
+.bd-standard {
+  color: #555;
+  font-size: .72rem;
+}
+
+.bd-pair-grid th {
+  min-width: 16rem;
+  text-align: left;
+}
+
+.bd-sum-row th,
+.bd-sum-row td {
+  background: #c6efce !important;
+  font-weight: 700;
+}
+
+.bd-notes {
+  box-sizing: border-box;
+  width: 100%;
+  padding: .75rem;
+  border: 1px solid #111;
+  resize: vertical;
+}
+
+.bd-form-actions {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+#bd-save-status {
+  min-width: 6rem;
+  color: #666;
+  font-size: .88rem;
+}
+
+#bd-save-status.dirty { color: #856404; }
+#bd-save-status.saving { color: #003876; }
+#bd-save-status.saved { color: #1a7f37; font-weight: 700; }
+#bd-save-status.error { color: #c0392b; font-weight: 700; }
+
+.bd-qr-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.bd-qr-box img {
+  width: 140px;
+  height: 140px;
+  padding: .3rem;
+  border: 1px solid #ccc;
+  background: #fff;
+}
+
+.bd-qr-box a {
+  word-break: break-all;
+}
+
+.bd-note-entry {
+  margin-bottom: .75rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.bd-note-entry h3,
+.bd-note-entry p {
+  margin: .25rem 0;
+}
+
+@media (max-width: 800px) {
+  .bd-excel { font-size: .72rem; }
+  .bd-cell { min-width: 3.5rem; }
+}
+
+
+.bd-mul-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1.25rem;
+  margin: 0 0 .5rem;
+  padding: .55rem .75rem;
+  border: 1px solid #111;
+  border-bottom: 0;
+  background: #fff8e6;
+  font-size: .9rem;
+}
+.bd-mul-bar label { display: inline-flex; align-items: center; gap: .35rem; font-weight: 600; }
+.bd-mul { width: 4.5rem; min-width: 4.5rem; font-weight: 700; background: #fff; }
+.bd-tabs { display: flex; gap: .35rem; margin: 0 0 1rem; flex-wrap: wrap; }
+.bd-tab { padding: .4rem .85rem; border: 1px solid #c5ced9; border-radius: 6px; background: #f5f7fa; color: #333; text-decoration: none; font-weight: 600; }
+.bd-tab.active { background: #003876; color: #fff; border-color: #003876; }
+.bd-hint { margin: 0 0 .75rem; }
+.bd-date-nav { margin-bottom: .75rem; }
+.bd-note-entry { margin: 0 0 1rem; padding: .75rem 1rem; border: 1px solid #d8dee8; border-radius: 8px; }
+.bd-std-row th { background: #f0f4f8 !important; font-weight: 600; font-size: .72rem; }
+.bd-inline-label { font-size: .85rem; }
+
+.bd-ahu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.bd-split{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+@media(max-width:900px){.bd-ahu-grid,.bd-split{grid-template-columns:1fr}}
+.bd-eq-prev{background:#fff8c6}
+
+.bd-split { display:grid; grid-template-columns: 1.4fr 1fr; gap:.5rem; }
+.bd-check-table .bd-cell { min-width: 3rem; }
+@media (max-width: 1000px) { .bd-split { grid-template-columns: 1fr; } }
