@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/steelworks_hall.css?v=3" />
+<link rel="stylesheet" href="/static/css/steelworks_hall.css?v=4" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -153,17 +153,16 @@
           </thead>
           <tbody>
             {% for t in schema.electrical_room.times %}
+            {% set erow = elec_data.get(t, {}) if elec_data is mapping else {} %}
             <tr>
-              <th>{{ schema.electrical_room.time_labels.get(t, t) }}</th>
+              <td class="sh-time-col"><input class="sh-cell sh-time-input" name="e__{{ t }}__time" value="{{ erow.get('time','') if erow is mapping else '' }}" placeholder="" title="점검 시간 수기 입력" /></td>
               {% for g in schema.electrical_room.groups %}
                 {% for f in g.fields %}
                 {% set v = '' %}
-                {% if elec_data is mapping %}
-                  {% if t in elec_data and elec_data[t] is mapping %}
-                    {% set v = elec_data[t].get(f.id, '') %}
-                  {% else %}
-                    {% set v = elec_data.get(f.id, '') %}
-                  {% endif %}
+                {% if erow is mapping %}
+                  {% set v = erow.get(f.id, '') %}
+                {% elif elec_data is mapping %}
+                  {% set v = elec_data.get(f.id, '') %}
                 {% endif %}
                 <td><input class="sh-cell" name="e__{{ t }}__{{ f.id }}" value="{{ v }}" /></td>
                 {% endfor %}
@@ -320,7 +319,7 @@
             {% for t in schema.indoor_temp.times %}
             {% set row = indoor_data.get(t, {}) %}
             <tr>
-              <th>{{ schema.indoor_temp.time_labels.get(t, t) }}</th>
+              <td class="sh-time-col"><input class="sh-cell sh-time-input" name="it__{{ t }}__time" value="{{ row.get('time','') }}" placeholder="" title="점검 시간 수기 입력" /></td>
               {% for loc in schema.indoor_temp.locations %}
               <td><input class="sh-cell" name="it__{{ t }}__{{ loc.id }}" value="{{ row.get(loc.id,'') }}" /></td>
               {% endfor %}
@@ -347,7 +346,7 @@
     {% endif %}
   </form>
 </section>
-{% if can_write %}<script src="/static/js/steelworks_hall.js?v=3"></script>{% endif %}
+{% if can_write %}<script src="/static/js/steelworks_hall.js?v=4"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">

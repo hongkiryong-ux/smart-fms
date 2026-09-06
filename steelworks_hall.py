@@ -84,7 +84,7 @@ def empty_daily_payload() -> dict[str, Any]:
             elec_fields.append(field["id"])
     elec_times = elec.get("times") or ["t1"]
     electrical = {
-        t: {fid: "" for fid in elec_fields} for t in elec_times
+        t: {**{fid: "" for fid in elec_fields}, "time": ""} for t in elec_times
     }
     boiler_schema = schema.get("boiler") or {}
     boiler = {
@@ -119,6 +119,7 @@ def empty_daily_payload() -> dict[str, Any]:
                     loc["id"]: ""
                     for loc in (schema.get("indoor_temp") or {}).get("locations") or []
                 },
+                "time": "",
                 "remark": "",
             }
             for time in (schema.get("indoor_temp") or {}).get("times") or []

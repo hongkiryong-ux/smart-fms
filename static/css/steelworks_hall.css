@@ -207,6 +207,18 @@
   text-align: left;
 }
 
+.sh-time-col {
+  width: 4.5rem;
+  min-width: 4.5rem;
+  padding: 0 !important;
+  background: #f7f7f7;
+}
+
+.sh-time-input {
+  min-width: 4.2rem;
+  font-weight: 600;
+}
+
 .sh-standard {
   color: #555;
   font-size: .72rem;

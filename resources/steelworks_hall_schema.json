@@ -27,7 +27,7 @@
   "electrical_room": {
     "title": "가. 전기실",
     "times": ["t1", "t2"],
-    "time_labels": {"t1": "1회", "t2": "2회"},
+    "time_labels": {"t1": "", "t2": ""},
     "groups": [
       {
         "id": "main",
@@ -141,7 +141,7 @@
   "indoor_temp": {
     "title": "다. 실내온도",
     "times": ["t1", "t2"],
-    "time_labels": {"t1": "1회", "t2": "2회"},
+    "time_labels": {"t1": "", "t2": ""},
     "locations": [
       {"id": "outdoor", "label": "외기온도", "group": null},
       {"id": "lobby1", "label": "로비", "group": "1층"},
