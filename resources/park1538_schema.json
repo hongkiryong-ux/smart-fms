@@ -1,0 +1,145 @@
+{
+  "building_name": "PARK1538",
+  "building_aliases": ["PARK1538", "Park1538", "park1538", "파크1538"],
+  "title": "Park1538 운영일보",
+  "utility": {
+    "title": "1. UTILITY 사용량",
+    "blocks": [
+      {
+        "cat": "급수·온수·가스·전력",
+        "rows": [
+          {"id": "promo_water", "label": "홍보관 급수", "multiplier": 1},
+          {"id": "promo_hw", "label": "홍보관 온수", "multiplier": 1},
+          {"id": "edu_water", "label": "교육관 급수", "multiplier": 1},
+          {"id": "edu_hw", "label": "교육관 온수", "multiplier": 1},
+          {"id": "gas", "label": "가스 유량계", "multiplier": 1},
+          {"id": "power", "label": "전력 사용량", "multiplier": 1}
+        ]
+      }
+    ],
+    "monthly_ids": ["promo_water", "promo_hw", "edu_water", "edu_hw", "gas", "power"]
+  },
+  "electrical": {
+    "title": "가. 전기실",
+    "times": ["t1", "t2"],
+    "panels": [
+      {
+        "id": "vcb1",
+        "title": "VCB-1(1차 VCB) / TR1(3Φ 6.6KV/380-220V, 1,250KVA, 일반부하) / LV-1 ACB(2차 ACB)"
+      },
+      {
+        "id": "vcb2",
+        "title": "VCB-2(1차 VCB) / TR2(3Φ 6.6KV/380-220V, 1,000KVA, 동력부하) / LV-2 ACB(2차 ACB)"
+      },
+      {
+        "id": "vcb3",
+        "title": "VCB-3(1차 VCB) / TR3(3Φ 6.6KV/380-220V, 1,000KVA, 동력부하) / LV-3 ACB(2차 ACB)"
+      },
+      {
+        "id": "vcb4",
+        "title": "VCB-4(1차 VCB) / TR4(3Φ 6.6KV/380-220V, 750KVA, 비상부하) / LV-4 ACB(2차 ACB)"
+      },
+      {
+        "id": "vcb5",
+        "title": "VCB-5(1차 VCB) / TR5(3Φ 6.6KV/440V, 750KVA, 동력부하) / 스마트팩토리 ACB(2차 ACB)"
+      }
+    ],
+    "tr_fields": [
+      {"id": "tr_v", "label": "전압(kV)"},
+      {"id": "tr_a", "label": "전류(A)"},
+      {"id": "tr_kw", "label": "유효전력(kW)"},
+      {"id": "tr_kvar", "label": "무효전력(kVAR)"},
+      {"id": "tr_pf", "label": "역률(%)"},
+      {"id": "tr_temp", "label": "TR온도(℃)"}
+    ],
+    "acb_fields": [
+      {"id": "acb_v", "label": "전압(V)"},
+      {"id": "acb_a", "label": "전류(A)"},
+      {"id": "acb_pf", "label": "역률(%)"},
+      {"id": "acb_kwh", "label": "유효전력량(kWh)"}
+    ]
+  },
+  "ahu": {
+    "title": "나. 기계실, 공조기실",
+    "units": [
+      {"id": "ahu101", "label": "AHU-101"},
+      {"id": "ahu102", "label": "AHU-102"},
+      {"id": "ahu103", "label": "AHU-103"},
+      {"id": "ahu104", "label": "AHU-104"},
+      {"id": "ahu105", "label": "AHU-105"},
+      {"id": "ahu106", "label": "AHU-106"},
+      {"id": "ahu107", "label": "AHU-107"},
+      {"id": "ahu108", "label": "AHU-108"},
+      {"id": "ahu109", "label": "AHU-109"},
+      {"id": "ahu201", "label": "AHU-201"},
+      {"id": "ahu202", "label": "AHU-202"},
+      {"id": "ahu203", "label": "AHU-203"},
+      {"id": "ahu204", "label": "AHU-204"},
+      {"id": "ahu205", "label": "AHU-205"},
+      {"id": "chu101", "label": "CHU-101"},
+      {"id": "chu201", "label": "CHU-201"}
+    ],
+    "slots": ["1", "2"],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "ra_temp", "label": "환기온도"},
+      {"id": "ra_hum", "label": "환기습도"},
+      {"id": "sa_temp", "label": "급기온도"},
+      {"id": "sa_hum", "label": "급기습도"},
+      {"id": "dp", "label": "차압"}
+    ]
+  },
+  "hotwater_water": {
+    "title": "다·라. 급탕·급수설비",
+    "slots": ["1", "2"],
+    "hotwater": [
+      {"id": "edu", "label": "교육관"},
+      {"id": "promo", "label": "홍보관"}
+    ],
+    "hotwater_fields": [
+      {"id": "sup_temp", "label": "공급온도"},
+      {"id": "sup_p", "label": "공급압력"},
+      {"id": "ret_temp", "label": "환수온도"},
+      {"id": "ret_p", "label": "환수압력"}
+    ],
+    "water": [
+      {"id": "promo", "label": "홍보관"},
+      {"id": "edu", "label": "교육관"}
+    ],
+    "water_fields": [
+      {"id": "set_p", "label": "설정압력"},
+      {"id": "cur_p", "label": "현재압력"}
+    ],
+    "tank_fields": [
+      {"id": "height", "label": "높이(m)"},
+      {"id": "level", "label": "수위(%)"}
+    ]
+  },
+  "floor_hvac": {
+    "title": "마. 바닥 냉난방설비(홍보관 1층 로비)",
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "sup_temp", "label": "공급온도"},
+      {"id": "sup_p", "label": "공급압력"},
+      {"id": "ret_temp", "label": "환수온도"},
+      {"id": "ret_p", "label": "환수압력"}
+    ]
+  },
+  "fire": {
+    "title": "바. 소화설비",
+    "fields": [
+      {"id": "hydrant", "label": "소화전"},
+      {"id": "sprinkler", "label": "스프링클러"}
+    ]
+  },
+  "ups": {
+    "title": "사. 대강당 UPS (매주 월요일)",
+    "packs": 8,
+    "fields": [
+      {"id": "total_v", "label": "토탈전압"},
+      {"id": "out_v", "label": "출력전압"},
+      {"id": "soc", "label": "SOC"},
+      {"id": "cell_temp", "label": "셀온도"}
+    ]
+  }
+}
