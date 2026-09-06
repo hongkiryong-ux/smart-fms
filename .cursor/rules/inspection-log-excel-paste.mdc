@@ -1,0 +1,37 @@
+---
+description: 점검일지(1일) 구현 시 엑셀 드래그·붙여넣기 필수
+globs: "**/steelworks_*.{js,html,css},**/housing_*.{js,html,css},**/ccr_*.{js,html,css},**/central_control*.{js,html,css},**/inspection*log*"
+alwaysApply: true
+---
+
+# 점검일지 공통 필수 기능
+
+새 점검일지·운영일보(점검일지2 포함)를 구현하거나 확장할 때 **반드시** 기존 일지와 동일한 입력 UX를 포함한다.
+
+## 필수 UX (1일 입력 화면)
+
+1. **드래그 선택**: 표의 입력 칸을 마우스로 드래그해 여러 칸 선택
+2. **엑셀 붙여넣기**: 엑셀에서 복사한 TSV(탭/줄바꿈)를 선택 시작 칸(또는 포커스 칸)부터 붙여넣기
+3. **선택 삭제**: 여러 칸 선택 후 `Delete` / `Backspace`로 일괄 비우기
+4. **자동 저장**: 입력·붙여넣기·삭제 후 debounce 자동 저장
+5. **전일지침**: 금일지침 → 다음날 전일지침 자동 이월 + 전일지침 수기 수정(`prev_manual`)
+
+## 구현 참고 (복제 소스)
+
+| 모듈 | JS | CSS 선택 클래스 |
+|------|----|-----------------|
+| 제철소본부 | `static/js/steelworks_hq.js` | `.sw-cell-selected`, `.sw-drag-selecting` |
+| 제철회관 | `static/js/steelworks_hall.js` | `.sh-cell-selected`, `.sh-drag-selecting` |
+| 주택변전소 | `static/js/housing_substation.js` | `.hs-*` |
+| CCR/중앙관제 | `static/js/ccr_facility.js`, `central_control_room.js` | `.cf-*` / `.hs-*` |
+
+새 일지 JS에는 `setupDragSelect` / `pasteFromText` / `parseClipboardGrid` / `isGridPasteText` 패턴을 그대로 이식한다.
+입력 칸 클래스(예: `.xx-cell`), 표 클래스(예: `.xx-excel`)를 통일하고, CSS에 선택 하이라이트·`user-select: none`(드래그 중)을 추가한다.
+
+## 체크리스트 (일지 완료 전)
+
+- [ ] 표에서 드래그로 여러 칸 선택됨
+- [ ] 엑셀 복사 → Ctrl+V 붙여넣기 동작
+- [ ] 선택 후 Delete로 비워짐
+- [ ] 붙여넣기/삭제 후 자동 저장됨
+- [ ] 화면 안내 문구에 드래그·엑셀 붙여넣기 언급

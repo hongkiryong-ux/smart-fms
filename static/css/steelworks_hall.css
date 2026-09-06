@@ -108,6 +108,19 @@
   background: #eef7ff;
 }
 
+.sh-cell.sh-cell-selected {
+  background: #dbeafe !important;
+  outline: 2px solid #003876;
+}
+
+.sh-prev.sh-cell-selected {
+  background: #fef9c3 !important;
+}
+
+.sh-drag-selecting {
+  user-select: none;
+}
+
 .sh-readonly {
   color: #333;
   font-weight: 600;

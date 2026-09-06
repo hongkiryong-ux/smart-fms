@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/steelworks_hall.css?v=1" />
+<link rel="stylesheet" href="/static/css/steelworks_hall.css?v=2" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -50,7 +50,7 @@
   </div>
   {% endif %}
 
-  <p class="text-muted sh-hint">노란 칸은 전일지침입니다. 금일지침이 다음 날 전일지침으로 자동 반영되며 입력 내용은 자동 저장됩니다.</p>
+  <p class="text-muted sh-hint">노란 칸 = 전일지침(자동 반영 · 수기 수정 가능) · 입력 시 자동 저장 · 드래그 선택 후 엑셀 복사/붙여넣기 · Delete 키로 선택 칸 삭제</p>
   <form method="post" action="{{ save_url }}" id="sh-daily-form" class="sh-daily-form">
     <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
 
@@ -130,7 +130,7 @@
     {% endif %}
   </form>
 </section>
-{% if can_write %}<script src="/static/js/steelworks_hall.js?v=1"></script>{% endif %}
+{% if can_write %}<script src="/static/js/steelworks_hall.js?v=2"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">
