@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/giga_town.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/giga-town/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set multipliers = daily_data.get('multipliers', {}) if daily_data else {} %}
+{% set elec_data = daily_data.get('elec', {}) if daily_data else {} %}
+{% set gen_data = daily_data.get('generator', {}) if daily_data else {} %}
+{% set mech_data = daily_data.get('mechanical', {}) if daily_data else {} %}
+{% set pf_data = daily_data.get('pump_fire', {}) if daily_data else {} %}
+{% set it_data = daily_data.get('indoor_temp', {}) if daily_data else {} %}
+{% set eq_data = daily_data.get('equipment_run', {}) if daily_data else {} %}
+{% set kepco_mul_default = (schema.utility.default_multipliers or {}).get('kepco', '720') %}
+
+<header class="page-header gt-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="gt-tabs" aria-label="기가타운 탭">
+  <a class="gt-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="gt-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="gt-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="gt-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide gt-daily">
+  <form method="get" class="gt-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/gtown/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/gtown/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="gt-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/giga-town/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/giga-town/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted gt-hint">원본 양식 · 전일지침/전일누계 자동이월(수기 가능) · 한전 배율 · 시간 수기 · 월누계=전일누계+금일합계 · 드래그·엑셀 붙여넣기 · 자동 저장</p>
+
+  <form method="post" action="{{ save_url }}" id="gt-daily-form" class="gt-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    {# ═══ 1. UTILITY 사용량 ═══ #}
+    <div class="gt-sheet">
+      <div class="gt-form-title">{{ schema.title }}</div>
+      <div class="gt-sheet-title">{{ schema.utility.title }}</div>
+      <div class="gt-mul-bar">
+        <strong>전력량 배율</strong>
+        <label>한전 <input class="gt-cell gt-mul" name="mul__kepco" value="{{ multipliers.get('kepco', kepco_mul_default) }}" /></label>
+        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율 · 한전 기본 {{ kepco_mul_default }}</span>
+      </div>
+      <div class="gt-table-wrap">
+        <table class="gt-excel gt-utility-table">
+          <thead>
+            <tr>
+              <th colspan="2">구 분</th>
+              <th class="gt-yellow">전일지침</th>
+              <th>금일지침</th>
+              <th>일사용량</th>
+              <th>월누계량</th>
+              <th>비 고</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for block in schema.utility.blocks %}
+              {% for row in block.rows %}
+              {% set item = utility.get(row.id, {}) %}
+              <tr class="gt-utility-row" data-utility="{{ row.id }}" data-multiplier="{{ row.multiplier|default(1) }}" {% if block.multiplier_key %}data-multiplier-key="{{ block.multiplier_key }}"{% endif %}>
+                {% if loop.first %}
+                <th rowspan="{{ block.rows|length }}" class="gt-cat">{{ block.cat }}</th>
+                {% endif %}
+                <th class="gt-sub">{{ row.label }}</th>
+                <td class="gt-yellow">
+                  <input class="gt-cell gt-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" />
+                  <input class="gt-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+                </td>
+                <td><input class="gt-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+                <td><input class="gt-cell gt-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+                <td><input class="gt-cell gt-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+                <td><input class="gt-cell gt-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 2. UTILITY 점검사항 — 전기 패널 ═══ #}
+    <div class="gt-sheet">
+      <div class="gt-sheet-title">2. UTILITY 점검사항</div>
+      {% for panel in schema.elec_panels %}
+      {% set panel_data = elec_data.get(panel.id, {}) %}
+      <div class="gt-sheet-subtitle">{{ panel.title }}</div>
+      <div class="gt-table-wrap">
+        <table class="gt-excel">
+          <thead>
+            <tr>
+              <th>시간</th>
+              {% for f in panel.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in panel.times %}
+            {% set row = panel_data.get(t, {}) %}
+            <tr>
+              <td class="gt-time-col"><input class="gt-cell gt-time-input" name="ep__{{ panel.id }}__{{ t }}__time" value="{{ row.get('time','') }}" title="시간 수기 입력" /></td>
+              {% for f in panel.fields %}
+              <td><input class="gt-cell" name="ep__{{ panel.id }}__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ═══ 나. 발전설비 ═══ #}
+    <div class="gt-sheet">
+      <div class="gt-sheet-subtitle">{{ schema.generator.title }}</div>
+      <div class="gt-table-wrap">
+        <table class="gt-excel">
+          <thead>
+            <tr>
+              {% for f in schema.generator.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.generator.times %}
+            {% set row = gen_data.get(t, {}) %}
+            <tr>
+              {% for f in schema.generator.fields %}
+              <td{% if f.id == 'time' %} class="gt-time-col"{% endif %}>
+                <input class="gt-cell{% if f.id == 'time' %} gt-time-input{% endif %}" name="gen__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" {% if f.id == 'time' %}title="시간 수기 입력"{% endif %} />
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 다. 기계설비 ═══ #}
+    <div class="gt-sheet">
+      <div class="gt-sheet-subtitle">{{ schema.mechanical.title }}</div>
+      <div class="gt-table-wrap">
+        <table class="gt-excel">
+          <thead>
+            <tr>
+              <th colspan="2">구 분</th>
+              {% for f in schema.mechanical.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% set mech_ns = namespace(prev='') %}
+            {% for row in schema.mechanical.rows %}
+            {% set item = mech_data.get(row.id, {}) %}
+            <tr>
+              {% if mech_ns.prev != row.group %}
+              {% set group_span = schema.mechanical.rows|selectattr('group', 'equalto', row.group)|list|length %}
+              <th rowspan="{{ group_span }}" class="gt-cat">{{ row.group }}</th>
+              {% set mech_ns.prev = row.group %}
+              {% endif %}
+              <th class="gt-sub">{{ row.label }}</th>
+              {% for f in schema.mechanical.fields %}
+              <td{% if f.id == 'time' %} class="gt-time-col"{% endif %}>
+                <input class="gt-cell{% if f.id == 'time' %} gt-time-input{% endif %}" name="mech__{{ row.id }}__{{ f.id }}" value="{{ item.get(f.id,'') }}" {% if f.id == 'time' %}title="시간 수기 입력"{% endif %} />
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 라. 펌프 및 소방 설비 ═══ #}
+    <div class="gt-sheet">
+      <div class="gt-sheet-subtitle">{{ schema.pump_fire.title }}</div>
+      <div class="gt-table-wrap">
+        <table class="gt-excel">
+          <thead>
+            <tr>
+              <th colspan="2">구 분</th>
+              {% for f in schema.pump_fire.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% set pf_ns = namespace(prev='') %}
+            {% for row in schema.pump_fire.rows %}
+            {% set item = pf_data.get(row.id, {}) %}
+            <tr>
+              {% if pf_ns.prev != row.group %}
+              {% set group_span = schema.pump_fire.rows|selectattr('group', 'equalto', row.group)|list|length %}
+              <th rowspan="{{ group_span }}" class="gt-cat">{{ row.group }}</th>
+              {% set pf_ns.prev = row.group %}
+              {% endif %}
+              <th class="gt-sub">{{ row.label }}</th>
+              {% for f in schema.pump_fire.fields %}
+              <td{% if f.id == 'time' %} class="gt-time-col"{% endif %}>
+                <input class="gt-cell{% if f.id == 'time' %} gt-time-input{% endif %}" name="pf__{{ row.id }}__{{ f.id }}" value="{{ item.get(f.id,'') }}" {% if f.id == 'time' %}title="시간 수기 입력"{% endif %} />
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 마. 실내온도 ═══ #}
+    <div class="gt-sheet">
+      <div class="gt-sheet-subtitle">{{ schema.indoor_temp.title }}</div>
+      <div class="gt-table-wrap">
+        <table class="gt-excel">
+          <thead>
+            <tr>
+              <th>시간</th>
+              {% for loc in schema.indoor_temp.locations %}<th>{{ loc.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.indoor_temp.times %}
+            {% set row = it_data.get(t, {}) %}
+            <tr>
+              <td class="gt-time-col"><input class="gt-cell gt-time-input" name="it__{{ t }}__time" value="{{ row.get('time','') }}" title="시간 수기 입력" /></td>
+              {% for loc in schema.indoor_temp.locations %}
+              <td><input class="gt-cell" name="it__{{ t }}__{{ loc.id }}" value="{{ row.get(loc.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 3. 설비 가동 현황 ═══ #}
+    <div class="gt-sheet">
+      <div class="gt-sheet-title">{{ schema.equipment_run.title }}</div>
+      <p class="text-muted gt-hint" style="margin:.35rem .75rem">가동시간(1~3차)은 수기 · 전일누계는 전날 월누계 자동반영(수기 가능) · 월누계 = 전일누계 + 금일합계</p>
+      <div class="gt-table-wrap">
+        <table class="gt-excel">
+          <thead>
+            <tr>
+              <th colspan="2">구 분</th>
+              <th colspan="3">가동시간</th>
+              <th rowspan="2">금일합계(HR)</th>
+              <th rowspan="2" class="gt-yellow">전일누계(HR)</th>
+              <th rowspan="2">월누계(HR)</th>
+              <th rowspan="2">비 고</th>
+            </tr>
+            <tr>
+              <th>설비</th><th>호기</th>
+              <th>1차</th><th>2차</th><th>3차</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set eq_ns = namespace(prev='') %}
+            {% for row in schema.equipment_run.rows %}
+            {% set item = eq_data.get(row.id, {}) %}
+            <tr class="gt-eq-row" data-eq="{{ row.id }}">
+              {% if eq_ns.prev != row.group %}
+              {% set group_span = schema.equipment_run.rows|selectattr('group', 'equalto', row.group)|list|length %}
+              <th rowspan="{{ group_span }}" class="gt-cat">{{ row.group }}</th>
+              {% set eq_ns.prev = row.group %}
+              {% endif %}
+              <th class="gt-sub">{{ row.label }}</th>
+              <td><input class="gt-cell" name="eq__{{ row.id }}__run1" value="{{ item.get('run1','') }}" placeholder="시간" /></td>
+              <td><input class="gt-cell" name="eq__{{ row.id }}__run2" value="{{ item.get('run2','') }}" placeholder="시간" /></td>
+              <td><input class="gt-cell" name="eq__{{ row.id }}__run3" value="{{ item.get('run3','') }}" placeholder="시간" /></td>
+              <td><input class="gt-cell" name="eq__{{ row.id }}__today_hrs" value="{{ item.get('today_hrs','') }}" /></td>
+              <td class="gt-yellow">
+                <input class="gt-cell gt-eq-prev" name="eq__{{ row.id }}__prev_cum" value="{{ item.get('prev_cum','') }}" />
+                <input class="gt-eq-prev-flag" type="hidden" name="eq__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+              </td>
+              <td><input class="gt-cell gt-readonly" name="eq__{{ row.id }}__monthly_cum" value="{{ item.get('monthly_cum','') }}" readonly /></td>
+              <td><input class="gt-cell gt-note" name="eq__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 4. 특이사항 ═══ #}
+    <div class="gt-sheet">
+      <div class="gt-sheet-title">4. 특이사항</div>
+      <textarea class="gt-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
+    </div>
+
+    {% if can_write %}
+    <div class="gt-form-actions">
+      <span id="gt-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/giga-town/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+{% if can_write %}<script src="/static/js/giga_town.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="gt-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="gt-sheet"><div class="gt-sheet-title">{{ year }}년 {{ month }}월 UTILITY 월보</div><div class="gt-table-wrap">
+    <table class="gt-excel gt-month-grid"><thead><tr><th>일</th>{% for meter in monthly.meters %}<th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.id }}</small></th>{% endfor %}</tr></thead><tbody>
+      {% for day in monthly.days %}<tr><th>{{ day.day }}</th>{% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="gt-sum-row"><th>계</th>{% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="gt-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="gt-sheet"><div class="gt-sheet-title">{{ year }}년 UTILITY 년보</div><div class="gt-table-wrap">
+    <table class="gt-excel"><thead><tr><th>월</th>{% for meter in yearly.meters %}<th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.id }}</small></th>{% endfor %}</tr></thead><tbody>
+      {% for item in yearly.months %}<tr><th>{{ item.month }}월</th>{% for meter in yearly.meters %}<td>{{ item.utility.get(meter.id,'') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="gt-sum-row"><th>계</th>{% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="gt-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  {% for entry in notes_list.entries %}<article class="gt-note-entry"><h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }}</a></h3>{% for item in entry['items'] %}<p>{{ item.text }}</p>{% endfor %}</article>{% else %}<p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>{% endfor %}
+</section>
+{% endif %}
+{% endblock %}
