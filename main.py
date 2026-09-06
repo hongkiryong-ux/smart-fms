@@ -90,6 +90,8 @@ from models import (
     SteelworksHqDaily,
     SteelworksHallArchive,
     SteelworksHallDaily,
+    HumanCenterArchive,
+    HumanCenterDaily,
     CcrFacilityArchive,
     CcrFacilityDaily,
     CentralControlRoomArchive,
@@ -1123,6 +1125,9 @@ async def lifespan(app: FastAPI):
             from steelworks_hall import register_scheduler as register_swhall_scheduler
 
             register_swhall_scheduler(scheduler, AsyncSessionLocal, KST)
+            from human_center import register_scheduler as register_hcenter_scheduler
+
+            register_hcenter_scheduler(scheduler, AsyncSessionLocal, KST)
             scheduler.start()
         except Exception as e:
             print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
@@ -8564,6 +8569,13 @@ async def inspection_logs2_building_detail(
             f"/admin/inspection-logs2/{building_id}/steelworks-hall",
             status_code=303,
         )
+    from human_center import is_human_center_building
+
+    if is_human_center_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/human-center",
+            status_code=303,
+        )
     from ccr_facility import is_ccr_facility_building
 
     if is_ccr_facility_building(building):
@@ -10809,6 +10821,349 @@ async def steelworks_hall_qr_save(
         return JSONResponse({"ok": True, "data": row.data})
     return RedirectResponse(
         f"/swhall/{code}/daily?date={log_date.isoformat()}"
+        f"&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/human-center/qr.png")
+async def human_center_qr_png(
+    building_id: int,
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import re
+    from urllib.parse import quote
+
+    from human_center import (
+        human_center_daily_qr_url,
+        is_human_center_building,
+        qr_png_bytes,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_human_center_building(building) or not building.code:
+        raise HTTPException(404)
+    data = qr_png_bytes(human_center_daily_qr_url(building.code, request))
+    safe = re.sub(r"[^\w가-힣.\-]+", "_", building.code.strip()) or "hcenter"
+    filename = f"{safe}_1일QR.png"
+    disposition = "attachment" if download else "inline"
+    return StreamingResponse(
+        iter([data]),
+        media_type="image/png",
+        headers={
+            "Content-Disposition": (
+                f"{disposition}; filename*=UTF-8''{quote(filename)}"
+            )
+        },
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/human-center")
+async def human_center_page(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from human_center import (
+        compute_monthly_report,
+        ensure_tables as ensure_hcenter_tables,
+        fetch_notes_list,
+        fetch_yearly_report_data,
+        get_or_create_daily,
+        human_center_daily_qr_url,
+        is_human_center_building,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_hcenter_tables(engine)
+    except Exception as exc:
+        print(f"[hcenter] ensure: {exc}", flush=True)
+
+    registered = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(
+                InspectionLogBuilding2.building_id == building_id,
+                Building.is_active == True,  # noqa: E712
+            )
+        )
+    ).first()
+    if not registered:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    _, building = registered
+    if not is_human_center_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}", status_code=303
+        )
+
+    today = _today_kst()
+    tab = request.query_params.get("tab") or "daily"
+    schema = load_schema()
+    daily_data = {}
+    monthly = {"meters": [], "days": [], "totals": {}}
+    yearly = {"months": [], "totals": {}}
+    notes_list = {"entries": []}
+    log_date = today
+    year, month = today.year, today.month
+
+    if tab == "monthly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        start = date(year, month, 1)
+        end = date(year, month, calendar.monthrange(year, month)[1])
+        rows = (
+            await db.execute(
+                select(HumanCenterDaily).where(
+                    HumanCenterDaily.building_id == building_id,
+                    HumanCenterDaily.log_date >= start,
+                    HumanCenterDaily.log_date <= end,
+                )
+            )
+        ).scalars().all()
+        previous = (
+            await db.execute(
+                select(HumanCenterDaily).where(
+                    HumanCenterDaily.building_id == building_id,
+                    HumanCenterDaily.log_date == start - timedelta(days=1),
+                )
+            )
+        ).scalar_one_or_none()
+        monthly = compute_monthly_report(year, month, list(rows), previous)
+    elif tab == "yearly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+        except ValueError:
+            year = today.year
+        yearly = await fetch_yearly_report_data(db, building_id, year)
+    elif tab == "notes":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        notes_list = await fetch_notes_list(db, building_id, year, month)
+    else:
+        tab = "daily"
+        try:
+            raw_date = request.query_params.get("date")
+            log_date = date.fromisoformat(raw_date) if raw_date else today
+        except ValueError:
+            log_date = today
+        daily_row = await get_or_create_daily(db, building_id, log_date)
+        await db.commit()
+        daily_data = daily_row.data or {}
+        year, month = log_date.year, log_date.month
+
+    return templates.TemplateResponse(
+        request,
+        "human_center.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": schema,
+            "tab": tab,
+            "log_date": log_date,
+            "today": today,
+            "year": year,
+            "month": month,
+            "daily_data": daily_data,
+            "monthly": monthly,
+            "yearly": yearly,
+            "notes_list": notes_list,
+            "qr_mode": False,
+            "qr_url": (
+                human_center_daily_qr_url(building.code, request) if building.code else ""
+            ),
+            "daily_save_url": (
+                f"/admin/inspection-logs2/{building_id}/human-center/save"
+            ),
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/human-center/save")
+async def human_center_save(
+    building_id: int,
+    request: Request,
+    user: User | None = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from human_center import (
+        finalize_daily_save,
+        get_or_create_daily,
+        is_human_center_building,
+        parse_daily_form,
+        propagate_to_next_day,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_human_center_building(building):
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building_id, log_date)
+    row.data = await finalize_daily_save(
+        db, building_id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    row.updated_at = datetime.utcnow()
+    await propagate_to_next_day(db, building_id, log_date, row.data)
+    await db.commit()
+    if request.headers.get("X-HCENTER-Autosave") == "1":
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"ok": True, "data": row.data})
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/human-center"
+        f"?tab=daily&date={log_date.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/human-center/close-day")
+async def human_center_close_day(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from human_center import (
+        finalize_daily_save,
+        get_or_create_daily,
+        is_human_center_building,
+        parse_daily_form,
+        rollover_at_midnight,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_human_center_building(building):
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building_id, log_date)
+    row.data = await finalize_daily_save(
+        db, building_id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    await db.flush()
+    await rollover_at_midnight(db, building_id, log_date)
+    tomorrow = log_date + timedelta(days=1)
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/human-center"
+        f"?tab=daily&date={tomorrow.isoformat()}&message={quote('마감 완료')}",
+        status_code=303,
+    )
+
+
+@app.get("/hcenter/{code}/daily")
+async def human_center_qr_daily(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    from human_center import (
+        ensure_tables as ensure_hcenter_tables,
+        get_building_for_qr,
+        get_or_create_daily,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_hcenter_tables(engine)
+    except Exception:
+        pass
+    building = await get_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    today = _today_kst()
+    try:
+        raw_date = request.query_params.get("date")
+        log_date = date.fromisoformat(raw_date) if raw_date else today
+    except ValueError:
+        log_date = today
+    row = await get_or_create_daily(db, building.id, log_date)
+    await db.commit()
+    return templates.TemplateResponse(
+        request,
+        "human_center.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": load_schema(),
+            "tab": "daily",
+            "log_date": log_date,
+            "today": today,
+            "year": log_date.year,
+            "month": log_date.month,
+            "daily_data": row.data or {},
+            "monthly": {"meters": [], "days": [], "totals": {}},
+            "yearly": {"months": [], "totals": {}},
+            "notes_list": {"entries": []},
+            "qr_mode": True,
+            "qr_url": "",
+            "daily_save_url": f"/hcenter/{building.code}/daily/save",
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/hcenter/{code}/daily/save")
+async def human_center_qr_save(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from human_center import (
+        finalize_daily_save,
+        get_building_for_qr,
+        get_or_create_daily,
+        parse_daily_form,
+        propagate_to_next_day,
+    )
+
+    building = await get_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building.id, log_date)
+    row.data = await finalize_daily_save(
+        db, building.id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    row.updated_at = datetime.utcnow()
+    await propagate_to_next_day(db, building.id, log_date, row.data)
+    await db.commit()
+    if request.headers.get("X-HCENTER-Autosave") == "1":
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"ok": True, "data": row.data})
+    return RedirectResponse(
+        f"/hcenter/{code}/daily?date={log_date.isoformat()}"
         f"&message={quote('저장되었습니다.')}",
         status_code=303,
     )

@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/human_center.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/human-center/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set multipliers = daily_data.get('multipliers', {}) if daily_data else {} %}
+{% set em_data = daily_data.get('electrical_main', {}) if daily_data else {} %}
+{% set en_data = daily_data.get('electrical_new', {}) if daily_data else {} %}
+{% set ch_data = daily_data.get('chiller', {}) if daily_data else {} %}
+{% set ahu_data = daily_data.get('ahu', {}) if daily_data else {} %}
+{% set ht_data = daily_data.get('heating', {}) if daily_data else {} %}
+{% set misc_data = daily_data.get('misc', {}) if daily_data else {} %}
+{% set ft_data = daily_data.get('floor_temp', {}) if daily_data else {} %}
+
+<header class="page-header hc-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="hc-tabs" aria-label="휴먼센터 탭">
+  <a class="hc-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="hc-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="hc-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="hc-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide hc-daily">
+  <form method="get" class="hc-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/hcenter/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/hcenter/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="hc-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/human-center/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/human-center/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted hc-hint">원본 양식 레이아웃 · 노란 칸=전일지침(수기 가능) · 금일지침→다음날 자동 반영 · 전력 배율 설정 · 드래그·엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+
+  <form method="post" action="{{ save_url }}" id="hc-daily-form" class="hc-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    {# ═══ 1. UTILITY 사용량 ═══ #}
+    <div class="hc-sheet">
+      <div class="hc-form-title">{{ schema.title }}</div>
+      <div class="hc-sheet-title">{{ schema.utility.title }}</div>
+      <div class="hc-mul-bar">
+        <strong>전력량 배율</strong>
+        <label>본관 <input class="hc-cell hc-mul" name="mul__power_main" value="{{ multipliers.get('power_main','1') }}" /></label>
+        <label>신관 <input class="hc-cell hc-mul" name="mul__power_new" value="{{ multipliers.get('power_new','1') }}" /></label>
+        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율</span>
+      </div>
+      <div class="hc-table-wrap">
+        <table class="hc-excel hc-utility-table">
+          <thead>
+            <tr>
+              <th colspan="3">구 분</th>
+              <th class="hc-yellow">전일지침</th>
+              <th>금일지침</th>
+              <th>일사용량</th>
+              <th>월누계량</th>
+              <th>비 고</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in schema.utility.blocks[0].rows %}
+            {% set item = utility.get(row.id, {}) %}
+            <tr class="hc-utility-row" data-utility="{{ row.id }}" data-multiplier-key="power_main" data-multiplier="1">
+              {% if loop.first %}<th rowspan="4" class="hc-cat">전 력</th><th rowspan="3" class="hc-sub">본 관</th>{% endif %}
+              <th class="hc-sub">전력량(KWH) · {{ row.label }}</th>
+              <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+              <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% endfor %}
+            {% set row = schema.utility.blocks[1].rows[0] %}
+            {% set item = utility.get(row.id, {}) %}
+            <tr class="hc-utility-row" data-utility="{{ row.id }}" data-multiplier-key="power_new" data-multiplier="1">
+              <th class="hc-sub">신 관</th>
+              <th class="hc-sub">전력량(KWH)</th>
+              <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+              <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% for row in schema.utility.blocks[2].rows %}
+            {% set item = utility.get(row.id, {}) %}
+            <tr class="hc-utility-row" data-utility="{{ row.id }}" data-multiplier="1">
+              {% if loop.first %}<th rowspan="2" class="hc-cat">중온수</th><th rowspan="2" class="hc-sub">본 관</th>{% endif %}
+              <th class="hc-sub">{{ row.label }}</th>
+              <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+              <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% endfor %}
+            {% set row = schema.utility.blocks[3].rows[0] %}
+            {% set item = utility.get(row.id, {}) %}
+            <tr class="hc-utility-row" data-utility="{{ row.id }}" data-multiplier="1">
+              <th class="hc-cat">급 수</th><th class="hc-sub">본 관</th><th class="hc-sub">유량(㎥)</th>
+              <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+              <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% set row = schema.utility.blocks[4].rows[0] %}
+            {% set item = utility.get(row.id, {}) %}
+            <tr class="hc-utility-row" data-utility="{{ row.id }}" data-multiplier="1">
+              <th class="hc-cat">가 스</th><th class="hc-sub">본 관</th><th class="hc-sub">유량(㎥)</th>
+              <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+              <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 2. UTILITY 점검사항 ═══ #}
+    <div class="hc-sheet">
+      <div class="hc-sheet-title">2. UTILITY 점검사항</div>
+      <div class="hc-sheet-subtitle">{{ schema.electrical_main.title }}</div>
+      <div class="hc-table-wrap">
+        <table class="hc-excel">
+          <thead>
+            <tr>
+              <th>구분</th><th>시각</th>
+              {% for f in schema.electrical_main.fields %}<th>{{ f.label|replace('\n','<br />')|safe }}</th>{% endfor %}
+            </tr>
+            <tr class="hc-std-row">
+              <th colspan="2">기준치</th>
+              {% for f in schema.electrical_main.fields %}<th class="hc-std">{{ f.std or '—' }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.electrical_main.times %}
+            {% set row = em_data.get(t, {}) %}
+            <tr>
+              {% if loop.first %}<th rowspan="{{ schema.electrical_main.times|length }}">본 관</th>{% endif %}
+              <td class="hc-time-col"><input class="hc-cell hc-time-input" name="em__{{ t }}__time" value="{{ row.get('time','') }}" title="시각 수기 입력" /></td>
+              {% for f in schema.electrical_main.fields %}
+              <td><input class="hc-cell" name="em__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="hc-sheet-subtitle">{{ schema.electrical_new.title }}</div>
+      <div class="hc-table-wrap">
+        <table class="hc-excel">
+          <thead>
+            <tr>
+              <th>구분</th><th>시각</th>
+              {% for f in schema.electrical_new.fields %}<th>{{ f.label|replace('\n','<br />')|safe }}</th>{% endfor %}
+            </tr>
+            <tr class="hc-std-row">
+              <th colspan="2">기준치</th>
+              {% for f in schema.electrical_new.fields %}<th class="hc-std">{{ f.std or '—' }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.electrical_new.times %}
+            {% set row = en_data.get(t, {}) %}
+            <tr>
+              {% if loop.first %}<th rowspan="{{ schema.electrical_new.times|length }}">신 관</th>{% endif %}
+              <td class="hc-time-col"><input class="hc-cell hc-time-input" name="en__{{ t }}__time" value="{{ row.get('time','') }}" title="시각 수기 입력" /></td>
+              {% for f in schema.electrical_new.fields %}
+              <td><input class="hc-cell" name="en__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 냉동기 #}
+    <div class="hc-sheet">
+      <div class="hc-sheet-subtitle">{{ schema.chiller.title }} · {{ schema.chiller.subtitle }}</div>
+      <div class="hc-table-wrap">
+        <table class="hc-excel">
+          <thead>
+            <tr>
+              <th>시각</th>
+              {% for f in schema.chiller.fields %}<th>{{ f.label|replace('\n','<br />')|safe }}</th>{% endfor %}
+            </tr>
+            <tr class="hc-std-row">
+              <th>기준치<br /><small>HH:MM</small></th>
+              {% for f in schema.chiller.fields %}<th class="hc-std">{{ f.std }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.chiller.times %}
+            {% set row = ch_data.get(t, {}) %}
+            <tr>
+              <td class="hc-time-col"><input class="hc-cell hc-time-input" name="ch__{{ t }}__time" value="{{ row.get('time','') }}" /></td>
+              {% for f in schema.chiller.fields %}
+              <td><input class="hc-cell" name="ch__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 공조 #}
+    <div class="hc-sheet">
+      <div class="hc-sheet-subtitle">{{ schema.ahu.title }}</div>
+      <div class="hc-table-wrap">
+        <table class="hc-excel">
+          <thead>
+            <tr>
+              <th>시각</th>
+              {% for u in schema.ahu.units %}<th>{{ u.label }}</th>{% endfor %}
+              {% for e in schema.ahu.extra %}<th>{{ e.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="hc-time-col"><input class="hc-cell hc-time-input" name="ahu__time" value="{{ ahu_data.get('time','') }}" /></td>
+              {% for u in schema.ahu.units %}
+              <td><input class="hc-cell" name="ahu__{{ u.id }}" value="{{ ahu_data.get(u.id,'') }}" /></td>
+              {% endfor %}
+              {% for e in schema.ahu.extra %}
+              <td><input class="hc-cell" name="ahu__{{ e.id }}" value="{{ ahu_data.get(e.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 난방 #}
+    <div class="hc-sheet">
+      <div class="hc-sheet-subtitle">{{ schema.heating.title }}</div>
+      <div class="hc-table-wrap">
+        <table class="hc-excel">
+          <thead>
+            <tr>
+              <th rowspan="2">위치</th>
+              <th rowspan="2">시간</th>
+              <th colspan="2">온도</th>
+              <th colspan="2">압력</th>
+              <th colspan="2">급탕 탱크</th>
+            </tr>
+            <tr>
+              <th>공급</th><th>환수</th>
+              <th>공급</th><th>환수</th>
+              <th>온도</th><th>압력</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for loc in schema.heating.locations %}
+              {% for i in range(1, (loc.rows|int) + 1) %}
+              {% set key = loc.id ~ '_' ~ i %}
+              {% set row = ht_data.get(key, {}) %}
+              <tr>
+                {% if loop.first %}<th rowspan="{{ loc.rows }}">{{ loc.label }}</th>{% endif %}
+                <td class="hc-time-col"><input class="hc-cell hc-time-input" name="ht__{{ key }}__time" value="{{ row.get('time','') }}" /></td>
+                <td><input class="hc-cell" name="ht__{{ key }}__supply_temp" value="{{ row.get('supply_temp','') }}" /></td>
+                <td><input class="hc-cell" name="ht__{{ key }}__return_temp" value="{{ row.get('return_temp','') }}" /></td>
+                <td><input class="hc-cell" name="ht__{{ key }}__supply_pressure" value="{{ row.get('supply_pressure','') }}" /></td>
+                <td><input class="hc-cell" name="ht__{{ key }}__return_pressure" value="{{ row.get('return_pressure','') }}" /></td>
+                <td><input class="hc-cell" name="ht__{{ key }}__hw_temp" value="{{ row.get('hw_temp','') }}" /></td>
+                <td><input class="hc-cell" name="ht__{{ key }}__hw_pressure" value="{{ row.get('hw_pressure','') }}" /></td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 기타 #}
+    <div class="hc-sheet">
+      <div class="hc-table-wrap">
+        <table class="hc-excel">
+          <thead>
+            <tr>
+              {% for f in schema.misc.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {% for f in schema.misc.fields %}
+              <td><input class="hc-cell" name="misc__{{ f.id }}" value="{{ misc_data.get(f.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 각 층 온도 #}
+    <div class="hc-sheet">
+      <div class="hc-sheet-subtitle">{{ schema.floor_temp.title }}</div>
+      <div class="hc-table-wrap">
+        <table class="hc-excel">
+          <thead>
+            <tr>
+              <th>시간/층</th>
+              {% for f in schema.floor_temp.floors %}<th>{{ f.label }}</th>{% endfor %}
+              <th>비고</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.floor_temp.times %}
+            {% set row = ft_data.get(t, {}) %}
+            <tr>
+              <td class="hc-time-col"><input class="hc-cell hc-time-input" name="ft__{{ t }}__time" value="{{ row.get('time','') }}" title="시간 수기 입력" /></td>
+              {% for f in schema.floor_temp.floors %}
+              <td><input class="hc-cell" name="ft__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+              {% endfor %}
+              <td><input class="hc-cell hc-note" name="ft__{{ t }}__remark" value="{{ row.get('remark','') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="hc-sheet">
+      <div class="hc-sheet-title">※특이사항</div>
+      <textarea class="hc-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
+    </div>
+
+    {% if can_write %}
+    <div class="hc-form-actions">
+      <span id="hc-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/human-center/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+{% if can_write %}<script src="/static/js/human_center.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="hc-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="hc-sheet"><div class="hc-sheet-title">{{ year }}년 {{ month }}월 UTILITY 월보</div><div class="hc-table-wrap">
+    <table class="hc-excel hc-month-grid"><thead><tr><th>일</th>{% for meter in monthly.meters %}<th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.item or meter.id }}</small></th>{% endfor %}</tr></thead><tbody>
+      {% for day in monthly.days %}<tr><th>{{ day.day }}</th>{% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="hc-sum-row"><th>계</th>{% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="hc-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="hc-sheet"><div class="hc-sheet-title">{{ year }}년 UTILITY 년보</div><div class="hc-table-wrap">
+    <table class="hc-excel"><thead><tr><th>월</th>{% for meter in yearly.meters %}<th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.item or meter.id }}</small></th>{% endfor %}</tr></thead><tbody>
+      {% for item in yearly.months %}<tr><th>{{ item.month }}월</th>{% for meter in yearly.meters %}<td>{{ item.utility.get(meter.id,'') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="hc-sum-row"><th>계</th>{% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="hc-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  {% for entry in notes_list.entries %}<article class="hc-note-entry"><h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }}</a></h3>{% for item in entry['items'] %}<p>{{ item.text }}</p>{% endfor %}</article>{% else %}<p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>{% endfor %}
+</section>
+{% endif %}
+{% endblock %}

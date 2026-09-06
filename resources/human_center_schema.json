@@ -1,0 +1,167 @@
+{
+  "building_name": "휴먼센터",
+  "building_aliases": ["휴먼센터"],
+  "title": "휴먼센터 운영일보[냉,난방]",
+  "utility": {
+    "title": "1. UTILITY 사용량",
+    "default_multipliers": {
+      "power_main": "1",
+      "power_new": "1"
+    },
+    "blocks": [
+      {
+        "cat": "전 력",
+        "building": "본 관",
+        "item": "전력량(KWH)",
+        "multiplier_key": "power_main",
+        "rows": [
+          {"id": "power_main_mid", "label": "중간", "unit": "KWH"},
+          {"id": "power_main_peak", "label": "최대", "unit": "KWH"},
+          {"id": "power_main_off", "label": "경", "unit": "KWH"}
+        ]
+      },
+      {
+        "cat": "전 력",
+        "building": "신 관",
+        "item": "전력량(KWH)",
+        "multiplier_key": "power_new",
+        "rows": [
+          {"id": "power_new", "label": "", "unit": "KWH"}
+        ]
+      },
+      {
+        "cat": "중온수",
+        "building": "본 관",
+        "item": "",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "hotwater_heat", "label": "열량(MWH)", "unit": "MWH", "multiplier": 1},
+          {"id": "hotwater_flow", "label": "유량(㎥)", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "급 수",
+        "building": "본 관",
+        "item": "유량(㎥)",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "water", "label": "", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "가 스",
+        "building": "본 관",
+        "item": "유량(㎥)",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "gas", "label": "", "unit": "m³", "multiplier": 1}
+        ]
+      }
+    ],
+    "monthly_ids": [
+      "power_main_mid",
+      "power_main_peak",
+      "power_main_off",
+      "power_new",
+      "hotwater_heat",
+      "hotwater_flow",
+      "water",
+      "gas"
+    ]
+  },
+  "electrical_main": {
+    "title": "본관 전기실",
+    "times": ["t1", "t2", "t3"],
+    "fields": [
+      {"id": "mid_kwh", "label": "④중간\n전력량(KWH)", "std": ""},
+      {"id": "peak_kwh", "label": "⑤최대\n전력량(KWH)", "std": ""},
+      {"id": "off_kwh", "label": "⑥경부하\n전력량(KWH)", "std": ""},
+      {"id": "voltage", "label": "전압\n(KV)", "std": "6.6"},
+      {"id": "current", "label": "전류\n(A)", "std": "60이하"},
+      {"id": "active_kw", "label": "유효\n(KW)", "std": "720이하"},
+      {"id": "pf", "label": "역률\n(%)", "std": "90이상"},
+      {"id": "tr_cap", "label": "본관TR\n용량", "std": "500KVA"},
+      {"id": "tr_temp", "label": "온도", "std": ""}
+    ]
+  },
+  "electrical_new": {
+    "title": "신관 전기실",
+    "times": ["t1", "t2", "t3"],
+    "fields": [
+      {"id": "active_kwh", "label": "유효\n전력량(KWH)", "std": ""},
+      {"id": "voltage", "label": "전압\n(KV)", "std": "6.6"},
+      {"id": "current", "label": "전류\n(A)", "std": "60이하"},
+      {"id": "active_kw", "label": "유효\n(KW)", "std": "720이하"},
+      {"id": "pf", "label": "역률\n(%)", "std": "90이상"},
+      {"id": "tr_cap", "label": "신관TR\n용량", "std": "150/250 KVA"},
+      {"id": "tr_temp_a", "label": "온도", "std": ""},
+      {"id": "tr_temp_b", "label": "온도", "std": ""}
+    ]
+  },
+  "chiller": {
+    "title": "냉동기",
+    "subtitle": "150R/T #1, 2",
+    "times": ["t1", "t2", "t3"],
+    "fields": [
+      {"id": "gas_in_p", "label": "가스입구압력\n(Kpa)", "std": "40"},
+      {"id": "exhaust_temp", "label": "배기가스온도\n(℃)", "std": "300"},
+      {"id": "regen_temp", "label": "재생기온도\n(℃)", "std": "150"},
+      {"id": "regen_vac", "label": "재생기진공\n(㎝Hg)", "std": "35이상"},
+      {"id": "chw_out_temp", "label": "냉수출구\n(℃)", "std": "7"},
+      {"id": "chw_in_temp", "label": "냉수입구\n(℃)", "std": "12"},
+      {"id": "chw_out_p", "label": "냉수출구\n(㎏/㎠)", "std": "4.5~5.5"},
+      {"id": "chw_in_p", "label": "냉수입구\n(㎏/㎠)", "std": "4.5~5.5"},
+      {"id": "cw_out_temp", "label": "냉각수출구\n(℃)", "std": "37"},
+      {"id": "cw_in_temp", "label": "냉각수입구\n(℃)", "std": "32"},
+      {"id": "cw_p", "label": "냉각수압력\n(㎏/㎠)", "std": "2~3"}
+    ]
+  },
+  "ahu": {
+    "title": "공조 온도(SA)",
+    "units": [
+      {"id": "ahu1", "label": "AHU-1"},
+      {"id": "ahu2", "label": "AHU-2"},
+      {"id": "ahu3", "label": "AHU-3"},
+      {"id": "ahu4", "label": "AHU-4"}
+    ],
+    "extra": [
+      {"id": "hw_tank_temp", "label": "급탕 탱크 온도"},
+      {"id": "hw_tank_pressure", "label": "급탕 탱크 압력"}
+    ]
+  },
+  "heating": {
+    "title": "난방 점검 사항",
+    "locations": [
+      {"id": "main", "label": "본 관", "rows": 2},
+      {"id": "new", "label": "신 관", "rows": 2}
+    ],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "supply_temp", "label": "온도 공급"},
+      {"id": "return_temp", "label": "온도 환수"},
+      {"id": "supply_pressure", "label": "압력 공급"},
+      {"id": "return_pressure", "label": "압력 환수"},
+      {"id": "hw_temp", "label": "급탕탱크 온도"},
+      {"id": "hw_pressure", "label": "급탕탱크 압력"}
+    ]
+  },
+  "misc": {
+    "title": "기타",
+    "fields": [
+      {"id": "fire_chamber", "label": "소화전 압력챔버(㎏/㎠)"},
+      {"id": "sprinkler_chamber", "label": "스프링클러 압력챔버(㎏/㎠)"},
+      {"id": "tank_level", "label": "저수조 Level(%)"},
+      {"id": "remark", "label": "비고"}
+    ]
+  },
+  "floor_temp": {
+    "title": "각 층 온도 CHECK",
+    "times": ["t1", "t2", "t3"],
+    "floors": [
+      {"id": "f1", "label": "1층"},
+      {"id": "f2", "label": "2층"},
+      {"id": "f3", "label": "3층"},
+      {"id": "f4", "label": "4층"}
+    ]
+  }
+}
