@@ -23,6 +23,7 @@ alwaysApply: true
 | 제철소본부 | `static/js/steelworks_hq.js` | `.sw-cell-selected`, `.sw-drag-selecting` |
 | 제철회관 | `static/js/steelworks_hall.js` | `.sh-cell-selected`, `.sh-drag-selecting` |
 | 휴먼센터 | `static/js/human_center.js` | `.hc-cell-selected`, `.hc-drag-selecting` |
+| 어울림체육관 | `static/js/eoulrim_gym.js` | `.eg-cell-selected`, `.eg-drag-selecting` |
 | 주택변전소 | `static/js/housing_substation.js` | `.hs-*` |
 | CCR/중앙관제 | `static/js/ccr_facility.js`, `central_control_room.js` | `.cf-*` / `.hs-*` |
 

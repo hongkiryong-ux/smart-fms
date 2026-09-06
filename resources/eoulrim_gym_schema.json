@@ -1,0 +1,195 @@
+{
+  "building_name": "어울림체육관",
+  "building_aliases": ["어울림체육관"],
+  "title": "어울림체육관 운영일보[냉,난방]",
+  "utility": {
+    "title": "1. UTILITY 사용량",
+    "default_multipliers": {
+      "power_gym": "1",
+      "power_sports": "1"
+    },
+    "blocks": [
+      {
+        "cat": "전력량(kWh)",
+        "building": "어울림체육관",
+        "multiplier_key": "power_gym",
+        "rows": [{"id": "power_gym", "label": "", "unit": "kWh"}]
+      },
+      {
+        "cat": "전력량(kWh)",
+        "building": "체육시설",
+        "multiplier_key": "power_sports",
+        "rows": [{"id": "power_sports", "label": "", "unit": "kWh"}]
+      },
+      {
+        "cat": "급수량(㎥)",
+        "building": "어울림체육관",
+        "multiplier_key": null,
+        "rows": [{"id": "water_gym", "label": "", "unit": "m³", "multiplier": 1}]
+      },
+      {
+        "cat": "급수량(㎥)",
+        "building": "체육시설",
+        "multiplier_key": null,
+        "rows": [{"id": "water_sports", "label": "", "unit": "m³", "multiplier": 1}]
+      },
+      {
+        "cat": "중온수",
+        "building": "",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "hotwater_heat", "label": "열량(Mcal)", "unit": "Mcal", "multiplier": 1},
+          {"id": "hotwater_flow", "label": "유량(㎥)", "unit": "m³", "multiplier": 1}
+        ]
+      }
+    ],
+    "monthly_ids": [
+      "power_gym",
+      "power_sports",
+      "water_gym",
+      "water_sports",
+      "hotwater_heat",
+      "hotwater_flow"
+    ]
+  },
+  "electrical": {
+    "title": "가. 전기설비",
+    "times": ["t1", "t2", "t3"],
+    "main_fields": [
+      {"id": "main_v", "label": "전압(V)"},
+      {"id": "main_a", "label": "전류(A)"},
+      {"id": "main_kw", "label": "유효(kW)"},
+      {"id": "main_kvar", "label": "무효(kVAR)"},
+      {"id": "main_pf", "label": "역률(%)"},
+      {"id": "main_kwh", "label": "적산전력(kWh)"}
+    ],
+    "vcb_groups": [
+      {
+        "id": "gym",
+        "label": "체육관(500kVA)",
+        "fields": [
+          {"id": "gym_v", "label": "전압(V)"},
+          {"id": "gym_a", "label": "전류(A)"},
+          {"id": "gym_temp", "label": "온도(℃)"}
+        ]
+      },
+      {
+        "id": "power",
+        "label": "동력(750kVA)",
+        "fields": [
+          {"id": "pwr_v", "label": "전압(V)"},
+          {"id": "pwr_a", "label": "전류(A)"},
+          {"id": "pwr_temp", "label": "온도(℃)"}
+        ]
+      },
+      {
+        "id": "light",
+        "label": "조명(500kVA)",
+        "fields": [
+          {"id": "lit_v", "label": "전압(V)"},
+          {"id": "lit_a", "label": "전류(A)"},
+          {"id": "lit_temp", "label": "온도(℃)"}
+        ]
+      }
+    ]
+  },
+  "cooling": {
+    "title": "나. 기계설비 (1) 냉방",
+    "units": [
+      {"id": "c75", "label": "냉동기 75RT", "rows": 3},
+      {"id": "c155", "label": "냉동기 155RT", "rows": 3}
+    ],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "chw_in", "label": "냉수입구"},
+      {"id": "chw_out", "label": "냉수출구"},
+      {"id": "cw_in", "label": "냉각수입구"},
+      {"id": "cw_out", "label": "냉각수출구"},
+      {"id": "oil_in", "label": "주유입구"},
+      {"id": "oil_out", "label": "주유출구"},
+      {"id": "oil_p", "label": "오일압력"},
+      {"id": "oil_level", "label": "오일탱크레벨"},
+      {"id": "chw_p_sup", "label": "냉수압력공급"},
+      {"id": "chw_p_ret", "label": "냉수압력환수"},
+      {"id": "cw_p_sup", "label": "냉각수압력공급"},
+      {"id": "cw_p_ret", "label": "냉각수압력환수"}
+    ]
+  },
+  "heating": {
+    "title": "(2) 난방",
+    "units": [
+      {"id": "ahu_pp", "label": "공조기용", "rows": 2},
+      {"id": "badminton_pp", "label": "배드민턴장용", "rows": 2}
+    ],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "set_temp", "label": "설정온도"},
+      {"id": "sup_temp", "label": "공급온도"},
+      {"id": "ret_temp", "label": "환수온도"},
+      {"id": "sup_p", "label": "공급압력"},
+      {"id": "ret_p", "label": "환수압력"}
+    ]
+  },
+  "ahu": {
+    "title": "다. 공조설비",
+    "units": [
+      {"id": "ahu1", "label": "AHU-1(체육관)", "rows": 2},
+      {"id": "ahu2", "label": "AHU-2(체육관)", "rows": 2},
+      {"id": "ahu3", "label": "AHU-3(로비)", "rows": 2}
+    ],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "sa_temp", "label": "급기"},
+      {"id": "ra_temp", "label": "환기"}
+    ]
+  },
+  "hotwater_fire": {
+    "title": "라. 급탕 및 소화 설비",
+    "hotwater": [
+      {"id": "time", "label": "시간"},
+      {"id": "temp", "label": "온도(℃)"},
+      {"id": "pressure", "label": "압력(kgf/㎠)"}
+    ],
+    "fire": [
+      {"id": "hydrant", "label": "소화전(kgf/㎠)"},
+      {"id": "sprinkler", "label": "스프링클러(kgf/㎠)"},
+      {"id": "tank_level", "label": "저수량(%)"}
+    ]
+  },
+  "indoor_temp": {
+    "title": "마. 실내온도",
+    "times": ["t1", "t2", "t3"],
+    "locations": [
+      {"id": "outdoor", "label": "외기온도"},
+      {"id": "lobby1", "label": "1층 로비"},
+      {"id": "floor2", "label": "2층"},
+      {"id": "floor2_home", "label": "2층 홈"},
+      {"id": "badminton", "label": "배드민턴장"},
+      {"id": "etc", "label": "기타"}
+    ]
+  },
+  "equipment_run": {
+    "title": "3. 설비 가동 현황",
+    "rows": [
+      {"id": "chiller_75", "group": "냉동기", "label": "75RT"},
+      {"id": "chiller_155", "group": "냉동기", "label": "155RT"},
+      {"id": "ahu1", "group": "공조기", "label": "AHU-1"},
+      {"id": "ahu2", "group": "공조기", "label": "AHU-2"},
+      {"id": "ahu3", "group": "공조기", "label": "AHU-3"}
+    ]
+  },
+  "events": {
+    "title": "4. 주요 행사",
+    "rows": [
+      {"id": "main_arena", "label": "주경기장"},
+      {"id": "sports_facility", "label": "체육시설"}
+    ],
+    "fields": [
+      {"id": "dept", "label": "신청부서"},
+      {"id": "name", "label": "행사명"},
+      {"id": "time", "label": "행사시간"},
+      {"id": "people", "label": "참여인원"},
+      {"id": "remark", "label": "비고"}
+    ]
+  }
+}

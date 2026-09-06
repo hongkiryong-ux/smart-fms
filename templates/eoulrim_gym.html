@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/eoulrim_gym.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/eoulrim-gym/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set multipliers = daily_data.get('multipliers', {}) if daily_data else {} %}
+{% set el_data = daily_data.get('electrical', {}) if daily_data else {} %}
+{% set cl_data = daily_data.get('cooling', {}) if daily_data else {} %}
+{% set ht_data = daily_data.get('heating', {}) if daily_data else {} %}
+{% set ahu_data = daily_data.get('ahu', {}) if daily_data else {} %}
+{% set hw_data = daily_data.get('hotwater', {}) if daily_data else {} %}
+{% set fire_data = daily_data.get('fire', {}) if daily_data else {} %}
+{% set it_data = daily_data.get('indoor_temp', {}) if daily_data else {} %}
+{% set eq_data = daily_data.get('equipment_run', {}) if daily_data else {} %}
+{% set ev_data = daily_data.get('events', {}) if daily_data else {} %}
+
+<header class="page-header eg-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="eg-tabs" aria-label="어울림체육관 탭">
+  <a class="eg-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="eg-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="eg-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="eg-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide eg-daily">
+  <form method="get" class="eg-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/egym/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/egym/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="eg-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/eoulrim-gym/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/eoulrim-gym/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted eg-hint">원본 양식 · 전일지침/전일누계 자동이월(수기 가능) · 전력 배율 · 시간 수기 · 월누계=전일누계+금일합계 · 드래그·엑셀 붙여넣기 · 자동 저장</p>
+
+  <form method="post" action="{{ save_url }}" id="eg-daily-form" class="eg-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    <div class="eg-sheet">
+      <div class="eg-form-title">{{ schema.title }}</div>
+      <div class="eg-sheet-title">{{ schema.utility.title }}</div>
+      <div class="eg-mul-bar">
+        <strong>전력량 배율</strong>
+        <label>어울림체육관 <input class="eg-cell eg-mul" name="mul__power_gym" value="{{ multipliers.get('power_gym','1') }}" /></label>
+        <label>체육시설 <input class="eg-cell eg-mul" name="mul__power_sports" value="{{ multipliers.get('power_sports','1') }}" /></label>
+        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율</span>
+      </div>
+      <div class="eg-table-wrap">
+        <table class="eg-excel eg-utility-table">
+          <thead>
+            <tr>
+              <th colspan="2">구 분</th>
+              <th class="eg-yellow">전일지침</th>
+              <th>금일지침</th>
+              <th>일사용량</th>
+              <th>월누계량</th>
+              <th>비 고</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for block in schema.utility.blocks %}
+              {% for row in block.rows %}
+              {% set item = utility.get(row.id, {}) %}
+              <tr class="eg-utility-row" data-utility="{{ row.id }}" data-multiplier="{{ row.multiplier|default(1) }}" {% if block.multiplier_key %}data-multiplier-key="{{ block.multiplier_key }}"{% endif %}>
+                {% if loop.first %}
+                <th rowspan="{{ block.rows|length }}" class="eg-cat">{{ block.cat }}</th>
+                {% endif %}
+                <th class="eg-sub">{% if row.label %}{{ row.label }}{% else %}{{ block.building }}{% endif %}</th>
+                <td class="eg-yellow">
+                  <input class="eg-cell eg-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" />
+                  <input class="eg-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+                </td>
+                <td><input class="eg-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+                <td><input class="eg-cell eg-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+                <td><input class="eg-cell eg-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+                <td><input class="eg-cell eg-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-title">2. UTILITY 점검사항</div>
+      <div class="eg-sheet-subtitle">{{ schema.electrical.title }}</div>
+      <div class="eg-table-wrap">
+        <table class="eg-excel">
+          <thead>
+            <tr>
+              <th rowspan="2">시간</th>
+              <th colspan="{{ schema.electrical.main_fields|length }}">MAIN VCB PANEL</th>
+              {% for g in schema.electrical.vcb_groups %}
+              <th colspan="{{ g.fields|length }}">{{ g.label }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for f in schema.electrical.main_fields %}<th>{{ f.label }}</th>{% endfor %}
+              {% for g in schema.electrical.vcb_groups %}
+                {% for f in g.fields %}<th>{{ f.label }}</th>{% endfor %}
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.electrical.times %}
+            {% set row = el_data.get(t, {}) %}
+            <tr>
+              <td class="eg-time-col"><input class="eg-cell eg-time-input" name="el__{{ t }}__time" value="{{ row.get('time','') }}" title="시간 수기 입력" /></td>
+              {% for f in schema.electrical.main_fields %}
+              <td><input class="eg-cell" name="el__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+              {% endfor %}
+              {% for g in schema.electrical.vcb_groups %}
+                {% for f in g.fields %}
+                <td><input class="eg-cell" name="el__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-subtitle">{{ schema.cooling.title }}</div>
+      {% for unit in schema.cooling.units %}
+      <div class="eg-sheet-subtitle" style="border-top:0">{{ unit.label }}</div>
+      <div class="eg-table-wrap">
+        <table class="eg-excel">
+          <thead>
+            <tr>
+              <th rowspan="2">시간</th>
+              <th colspan="2">냉수온도(℃)</th>
+              <th colspan="2">냉각수온도(℃)</th>
+              <th colspan="2">주유온도(℃)</th>
+              <th rowspan="2">오일압력</th>
+              <th rowspan="2">오일탱크레벨(%)</th>
+              <th colspan="2">냉수압력</th>
+              <th colspan="2">냉각수압력</th>
+            </tr>
+            <tr>
+              <th>입구</th><th>출구</th>
+              <th>입구</th><th>출구</th>
+              <th>입구</th><th>출구</th>
+              <th>공급</th><th>환수</th>
+              <th>공급</th><th>환수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for i in range(1, (unit.rows|int)+1) %}
+            {% set key = i|string %}
+            {% set row = cl_data.get(unit.id, {}).get(key, {}) %}
+            <tr>
+              <td class="eg-time-col"><input class="eg-cell eg-time-input" name="cl__{{ unit.id }}__{{ key }}__time" value="{{ row.get('time','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__chw_in" value="{{ row.get('chw_in','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__chw_out" value="{{ row.get('chw_out','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__cw_in" value="{{ row.get('cw_in','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__cw_out" value="{{ row.get('cw_out','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__oil_in" value="{{ row.get('oil_in','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__oil_out" value="{{ row.get('oil_out','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__oil_p" value="{{ row.get('oil_p','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__oil_level" value="{{ row.get('oil_level','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__chw_p_sup" value="{{ row.get('chw_p_sup','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__chw_p_ret" value="{{ row.get('chw_p_ret','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__cw_p_sup" value="{{ row.get('cw_p_sup','') }}" /></td>
+              <td><input class="eg-cell" name="cl__{{ unit.id }}__{{ key }}__cw_p_ret" value="{{ row.get('cw_p_ret','') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-subtitle">나. 기계설비 {{ schema.heating.title }} · 난방 P/P</div>
+      <div class="eg-table-wrap">
+        <table class="eg-excel">
+          <thead>
+            <tr>
+              <th rowspan="2">구분</th>
+              <th rowspan="2">시간</th>
+              <th rowspan="2">설정온도(℃)</th>
+              <th colspan="2">난방 온도(℃)</th>
+              <th colspan="2">난방 압력</th>
+            </tr>
+            <tr><th>공급</th><th>환수</th><th>공급</th><th>환수</th></tr>
+          </thead>
+          <tbody>
+            {% for unit in schema.heating.units %}
+              {% for i in range(1, (unit.rows|int)+1) %}
+              {% set key = i|string %}
+              {% set row = ht_data.get(unit.id, {}).get(key, {}) %}
+              <tr>
+                {% if loop.first %}<th rowspan="{{ unit.rows }}">{{ unit.label }}</th>{% endif %}
+                <td class="eg-time-col"><input class="eg-cell eg-time-input" name="ht__{{ unit.id }}__{{ key }}__time" value="{{ row.get('time','') }}" /></td>
+                <td><input class="eg-cell" name="ht__{{ unit.id }}__{{ key }}__set_temp" value="{{ row.get('set_temp','') }}" /></td>
+                <td><input class="eg-cell" name="ht__{{ unit.id }}__{{ key }}__sup_temp" value="{{ row.get('sup_temp','') }}" /></td>
+                <td><input class="eg-cell" name="ht__{{ unit.id }}__{{ key }}__ret_temp" value="{{ row.get('ret_temp','') }}" /></td>
+                <td><input class="eg-cell" name="ht__{{ unit.id }}__{{ key }}__sup_p" value="{{ row.get('sup_p','') }}" /></td>
+                <td><input class="eg-cell" name="ht__{{ unit.id }}__{{ key }}__ret_p" value="{{ row.get('ret_p','') }}" /></td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-subtitle">{{ schema.ahu.title }}</div>
+      <div class="eg-ahu-grid">
+        {% for unit in schema.ahu.units %}
+        <div class="eg-table-wrap">
+          <table class="eg-excel">
+            <thead>
+              <tr><th colspan="3">{{ unit.label }}</th></tr>
+              <tr><th rowspan="2">시간</th><th colspan="2">온도(℃)</th></tr>
+              <tr><th>급기</th><th>환기</th></tr>
+            </thead>
+            <tbody>
+              {% for i in range(1, (unit.rows|int)+1) %}
+              {% set key = i|string %}
+              {% set row = ahu_data.get(unit.id, {}).get(key, {}) %}
+              <tr>
+                <td class="eg-time-col"><input class="eg-cell eg-time-input" name="ahu__{{ unit.id }}__{{ key }}__time" value="{{ row.get('time','') }}" /></td>
+                <td><input class="eg-cell" name="ahu__{{ unit.id }}__{{ key }}__sa_temp" value="{{ row.get('sa_temp','') }}" /></td>
+                <td><input class="eg-cell" name="ahu__{{ unit.id }}__{{ key }}__ra_temp" value="{{ row.get('ra_temp','') }}" /></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-subtitle">{{ schema.hotwater_fire.title }}</div>
+      <div class="eg-split">
+        <div class="eg-table-wrap">
+          <table class="eg-excel">
+            <thead><tr><th colspan="3">급탕탱크</th></tr><tr><th>시간</th><th>온도(℃)</th><th>압력</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="eg-time-col"><input class="eg-cell eg-time-input" name="hw__time" value="{{ hw_data.get('time','') }}" /></td>
+                <td><input class="eg-cell" name="hw__temp" value="{{ hw_data.get('temp','') }}" /></td>
+                <td><input class="eg-cell" name="hw__pressure" value="{{ hw_data.get('pressure','') }}" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="eg-table-wrap">
+          <table class="eg-excel">
+            <thead><tr>{% for f in schema.hotwater_fire.fire %}<th>{{ f.label }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              <tr>
+                {% for f in schema.hotwater_fire.fire %}
+                <td><input class="eg-cell" name="fire__{{ f.id }}" value="{{ fire_data.get(f.id,'') }}" /></td>
+                {% endfor %}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-subtitle">{{ schema.indoor_temp.title }}</div>
+      <div class="eg-table-wrap">
+        <table class="eg-excel">
+          <thead>
+            <tr>
+              <th>시간</th>
+              {% for loc in schema.indoor_temp.locations %}<th>{{ loc.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.indoor_temp.times %}
+            {% set row = it_data.get(t, {}) %}
+            <tr>
+              <td class="eg-time-col"><input class="eg-cell eg-time-input" name="it__{{ t }}__time" value="{{ row.get('time','') }}" /></td>
+              {% for loc in schema.indoor_temp.locations %}
+              <td><input class="eg-cell" name="it__{{ t }}__{{ loc.id }}" value="{{ row.get(loc.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-title">{{ schema.equipment_run.title }}</div>
+      <p class="text-muted eg-hint" style="margin:.35rem .75rem">가동시간(1~3차)은 수기 · 전일누계는 전날 월누계 자동반영(수기 가능) · 월누계 = 전일누계 + 금일합계</p>
+      <div class="eg-table-wrap">
+        <table class="eg-excel">
+          <thead>
+            <tr>
+              <th colspan="2">구 분</th>
+              <th colspan="3">가동시간</th>
+              <th rowspan="2">금일합계(HR)</th>
+              <th rowspan="2" class="eg-yellow">전일누계(HR)</th>
+              <th rowspan="2">월누계(HR)</th>
+              <th rowspan="2">비 고</th>
+            </tr>
+            <tr>
+              <th>설비</th><th>호기</th>
+              <th>1차</th><th>2차</th><th>3차</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set ns = namespace(prev='') %}
+            {% for row in schema.equipment_run.rows %}
+            {% set item = eq_data.get(row.id, {}) %}
+            {% set group_span = 2 if row.group == '냉동기' else 3 %}
+            <tr class="eg-eq-row" data-eq="{{ row.id }}">
+              {% if ns.prev != row.group %}
+              <th rowspan="{{ group_span }}" class="eg-cat">{{ row.group }}</th>
+              {% set ns.prev = row.group %}
+              {% endif %}
+              <th class="eg-sub">{{ row.label }}</th>
+              <td><input class="eg-cell" name="eq__{{ row.id }}__run1" value="{{ item.get('run1','') }}" placeholder="시간" /></td>
+              <td><input class="eg-cell" name="eq__{{ row.id }}__run2" value="{{ item.get('run2','') }}" placeholder="시간" /></td>
+              <td><input class="eg-cell" name="eq__{{ row.id }}__run3" value="{{ item.get('run3','') }}" placeholder="시간" /></td>
+              <td><input class="eg-cell" name="eq__{{ row.id }}__today_hrs" value="{{ item.get('today_hrs','') }}" /></td>
+              <td class="eg-yellow">
+                <input class="eg-cell eg-eq-prev" name="eq__{{ row.id }}__prev_cum" value="{{ item.get('prev_cum','') }}" />
+                <input class="eg-eq-prev-flag" type="hidden" name="eq__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+              </td>
+              <td><input class="eg-cell eg-readonly" name="eq__{{ row.id }}__monthly_cum" value="{{ item.get('monthly_cum','') }}" readonly /></td>
+              <td><input class="eg-cell eg-note" name="eq__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-title">{{ schema.events.title }}</div>
+      <div class="eg-table-wrap">
+        <table class="eg-excel">
+          <thead>
+            <tr>
+              <th>구 분</th>
+              {% for f in schema.events.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in schema.events.rows %}
+            {% set item = ev_data.get(row.id, {}) %}
+            <tr>
+              <th class="eg-sub">{{ row.label }}</th>
+              {% for f in schema.events.fields %}
+              <td><input class="eg-cell" name="ev__{{ row.id }}__{{ f.id }}" value="{{ item.get(f.id,'') }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="eg-sheet">
+      <div class="eg-sheet-title">5. 특이사항</div>
+      <textarea class="eg-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
+    </div>
+
+    {% if can_write %}
+    <div class="eg-form-actions">
+      <span id="eg-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/eoulrim-gym/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+{% if can_write %}<script src="/static/js/eoulrim_gym.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="eg-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="eg-sheet"><div class="eg-sheet-title">{{ year }}년 {{ month }}월 UTILITY 월보</div><div class="eg-table-wrap">
+    <table class="eg-excel eg-month-grid"><thead><tr><th>일</th>{% for meter in monthly.meters %}<th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.id }}</small></th>{% endfor %}</tr></thead><tbody>
+      {% for day in monthly.days %}<tr><th>{{ day.day }}</th>{% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="eg-sum-row"><th>계</th>{% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="eg-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="eg-sheet"><div class="eg-sheet-title">{{ year }}년 UTILITY 년보</div><div class="eg-table-wrap">
+    <table class="eg-excel"><thead><tr><th>월</th>{% for meter in yearly.meters %}<th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.id }}</small></th>{% endfor %}</tr></thead><tbody>
+      {% for item in yearly.months %}<tr><th>{{ item.month }}월</th>{% for meter in yearly.meters %}<td>{{ item.utility.get(meter.id,'') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="eg-sum-row"><th>계</th>{% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="eg-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  {% for entry in notes_list.entries %}<article class="eg-note-entry"><h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }}</a></h3>{% for item in entry['items'] %}<p>{{ item.text }}</p>{% endfor %}</article>{% else %}<p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>{% endfor %}
+</section>
+{% endif %}
+{% endblock %}
