@@ -1,0 +1,199 @@
+{
+  "building_name": "기가타운",
+  "building_aliases": ["기가타운"],
+  "title": "기가타운 운영일보",
+  "utility": {
+    "title": "1. UTILITY 사용량",
+    "default_multipliers": {
+      "kepco": "720"
+    },
+    "blocks": [
+      {
+        "cat": "한전 전력량 (kWh ×720)",
+        "multiplier_key": "kepco",
+        "rows": [
+          {"id": "kepco_mid", "label": "중간부하", "unit": "kWh"},
+          {"id": "kepco_peak", "label": "최대부하", "unit": "kWh"},
+          {"id": "kepco_off", "label": "경부하", "unit": "kWh"}
+        ]
+      },
+      {
+        "cat": "전기차 전력량 (kWh)",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "ev_mid", "label": "중간부하", "unit": "kWh", "multiplier": 1},
+          {"id": "ev_peak", "label": "최대부하", "unit": "kWh", "multiplier": 1},
+          {"id": "ev_off", "label": "경부하", "unit": "kWh", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "수도",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "water_1250", "label": "1250", "unit": "m³", "multiplier": 1},
+          {"id": "water_1000", "label": "1000", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "증기 (ton)",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "steam_4750", "label": "4750", "unit": "ton", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "급수",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "supply_flow", "label": "유량(㎥)", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "중온수",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "hw_heat", "label": "열량(Mcal)", "unit": "Mcal", "multiplier": 1},
+          {"id": "hw_flow", "label": "유량(㎥)", "unit": "m³", "multiplier": 1}
+        ]
+      }
+    ],
+    "monthly_ids": [
+      "kepco_mid", "kepco_peak", "kepco_off",
+      "ev_mid", "ev_peak", "ev_off",
+      "water_1250", "water_1000", "steam_4750",
+      "supply_flow", "hw_heat", "hw_flow"
+    ]
+  },
+  "elec_panels": [
+    {
+      "id": "kepco_main",
+      "title": "한전 MAIN VCB (750kVA)",
+      "times": ["t1", "t2", "t3"],
+      "fields": [
+        {"id": "v", "label": "전압(kV)"},
+        {"id": "a", "label": "전류(A)"},
+        {"id": "kw", "label": "유효(kW)"},
+        {"id": "kvar", "label": "무효(kVAR)"},
+        {"id": "pf", "label": "역률(%)"},
+        {"id": "temp", "label": "온도(℃)"},
+        {"id": "mid_kwh", "label": "중간부하(kWh)"},
+        {"id": "peak_kwh", "label": "최대부하(kWh)"},
+        {"id": "off_kwh", "label": "경부하(kWh)"}
+      ]
+    },
+    {
+      "id": "tr1",
+      "title": "수전 TR #1 (750kVA) · 동력 MCC",
+      "times": ["t1", "t2", "t3"],
+      "fields": [
+        {"id": "v", "label": "전압(kV)"},
+        {"id": "a", "label": "전류(A)"},
+        {"id": "kw", "label": "유효(kW)"},
+        {"id": "kvar", "label": "무효(kVAR)"},
+        {"id": "pf", "label": "역률(%)"},
+        {"id": "temp", "label": "온도(℃)"},
+        {"id": "mcc_v", "label": "MCC 전압(V)"},
+        {"id": "mcc_a", "label": "MCC 전류(A)"},
+        {"id": "mcc_pf", "label": "MCC 역률(%)"}
+      ]
+    },
+    {
+      "id": "tr2",
+      "title": "수전 TR #2 (500kVA) · 공조 MCC",
+      "times": ["t1", "t2", "t3"],
+      "fields": [
+        {"id": "v", "label": "전압(kV)"},
+        {"id": "a", "label": "전류(A)"},
+        {"id": "kw", "label": "유효(kW)"},
+        {"id": "kvar", "label": "무효(kVAR)"},
+        {"id": "pf", "label": "역률(%)"},
+        {"id": "temp", "label": "온도(℃)"},
+        {"id": "mcc_v", "label": "MCC 전압(V)"},
+        {"id": "mcc_a", "label": "MCC 전류(A)"},
+        {"id": "mcc_pf", "label": "MCC 역률(%)"}
+      ]
+    },
+    {
+      "id": "abs_vcb",
+      "title": "흡수식냉온수기 MAIN VCB (400kVA) · 제어반",
+      "times": ["t1", "t2", "t3"],
+      "fields": [
+        {"id": "v", "label": "전압(kV)"},
+        {"id": "a", "label": "전류(A)"},
+        {"id": "kw", "label": "유효(kW)"},
+        {"id": "kvar", "label": "무효(kVAR)"},
+        {"id": "pf", "label": "역률(%)"},
+        {"id": "temp", "label": "온도(℃)"},
+        {"id": "ctrl_v", "label": "제어반 전압(V)"},
+        {"id": "ctrl_a", "label": "제어반 전류(A)"},
+        {"id": "ctrl_pf", "label": "제어반 역률(%)"}
+      ]
+    }
+  ],
+  "generator": {
+    "title": "나. 발전설비",
+    "times": ["t1", "t2"],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "coolant_temp", "label": "냉각수온도(℃)"},
+      {"id": "oil_p", "label": "윤활유압력"},
+      {"id": "etc", "label": "기타"}
+    ]
+  },
+  "mechanical": {
+    "title": "다. 기계설비",
+    "rows": [
+      {"id": "heat_dorm", "group": "난방 P/P", "label": "생활관"},
+      {"id": "heat_comm", "group": "난방 P/P", "label": "근생"},
+      {"id": "hw_dorm", "group": "급탕 P/P", "label": "생활관"},
+      {"id": "hw_comm", "group": "급탕 P/P", "label": "근생"}
+    ],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "hvac_sup", "label": "냉난방수 공급"},
+      {"id": "hvac_ret", "label": "냉난방수 환수"},
+      {"id": "cw_sup", "label": "냉각수 공급"},
+      {"id": "cw_ret", "label": "냉각수 환수"},
+      {"id": "steam_sup", "label": "증수수 공급"},
+      {"id": "steam_ret", "label": "증수수 환수"},
+      {"id": "hw_p_sup", "label": "중온수압 공급"},
+      {"id": "hw_p_ret", "label": "중온수압 환수"}
+    ]
+  },
+  "pump_fire": {
+    "title": "라. 펌프 및 소방 설비",
+    "rows": [
+      {"id": "ws_dorm", "group": "급수설비", "label": "생활관"},
+      {"id": "ws_comm", "group": "급수설비", "label": "근생"}
+    ],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "temp", "label": "온도(℃)"},
+      {"id": "pressure", "label": "압력"},
+      {"id": "level", "label": "저수위(%)"},
+      {"id": "hydrant", "label": "소화전"},
+      {"id": "sprinkler", "label": "스프링클러"},
+      {"id": "tank", "label": "저수량"}
+    ]
+  },
+  "indoor_temp": {
+    "title": "마. 실내온도",
+    "times": ["t1", "t2"],
+    "locations": [
+      {"id": "outdoor", "label": "실외온도"},
+      {"id": "a1", "label": "A동 1층"},
+      {"id": "a2", "label": "A동 2층"},
+      {"id": "b1", "label": "B동 1층"},
+      {"id": "b2", "label": "B동 2층"},
+      {"id": "etc", "label": "기타"}
+    ]
+  },
+  "equipment_run": {
+    "title": "3. 설비 가동 현황",
+    "rows": [
+      {"id": "heat_dorm", "group": "난방 P/P", "label": "생활관"},
+      {"id": "heat_comm", "group": "난방 P/P", "label": "근생"},
+      {"id": "ahu_comm", "group": "공조기", "label": "근생"}
+    ]
+  }
+}
