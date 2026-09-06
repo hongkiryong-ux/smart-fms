@@ -22,8 +22,12 @@ _schema_cache: dict | None = None
 
 def load_schema() -> dict:
     global _schema_cache
-    if _schema_cache is None:
-        _schema_cache = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    # 파일 변경 시 즉시 반영
+    mtime = SCHEMA_PATH.stat().st_mtime if SCHEMA_PATH.exists() else 0
+    if _schema_cache is None or _schema_cache.get("_mtime") != mtime:
+        data = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        data["_mtime"] = mtime
+        _schema_cache = data
     return _schema_cache
 
 
@@ -69,19 +73,34 @@ def empty_daily_payload() -> dict[str, Any]:
         }
         for row in _utility_rows(schema)
     }
+    elec = schema.get("electrical_room") or {}
+    elec_fields: list[str] = []
+    for grp in elec.get("groups") or []:
+        for field in grp.get("fields") or []:
+            elec_fields.append(field["id"])
+    # 구 스키마(fields 평면) 호환
+    for field in elec.get("fields") or []:
+        if field["id"] not in elec_fields:
+            elec_fields.append(field["id"])
+    elec_times = elec.get("times") or ["t1"]
+    electrical = {
+        t: {fid: "" for fid in elec_fields} for t in elec_times
+    }
+    boiler_schema = schema.get("boiler") or {}
+    boiler = {
+        unit["id"]: {
+            item["id"]: "" for item in boiler_schema.get("items") or []
+        }
+        for unit in boiler_schema.get("units") or []
+    }
+    boiler_footer = {f["id"]: "" for f in boiler_schema.get("footer") or []}
     return {
         "utility": utility,
         "power_sum_daily": "",
         "power_sum_monthly": "",
-        "electrical_room": {
-            field["id"]: "" for field in (schema.get("electrical_room") or {}).get("fields") or []
-        },
-        "boiler": {
-            unit["id"]: {
-                item["id"]: "" for item in (schema.get("boiler") or {}).get("items") or []
-            }
-            for unit in (schema.get("boiler") or {}).get("units") or []
-        },
+        "electrical_room": electrical,
+        "boiler": boiler,
+        "boiler_footer": boiler_footer,
         "heating_pump": {
             unit["id"]: {
                 field["id"]: "" for field in (schema.get("heating_pump") or {}).get("fields") or []
@@ -191,9 +210,20 @@ def parse_daily_form(form) -> dict:
             }:
                 continue
             data["utility"][uid][field] = raw == "1" if field == "prev_manual" else raw
+        elif key.startswith("e__") and len(parts) == 3:
+            # e__{time}__{field}
+            t, fid = parts[1], parts[2]
+            if t in data["electrical_room"] and fid in data["electrical_room"][t]:
+                data["electrical_room"][t][fid] = raw
         elif key.startswith("e__") and len(parts) == 2:
-            if parts[1] in data["electrical_room"]:
-                data["electrical_room"][parts[1]] = raw
+            # 구 형식 e__{field} → t1에 저장
+            fid = parts[1]
+            t0 = next(iter(data["electrical_room"]), None)
+            if t0 and fid in data["electrical_room"][t0]:
+                data["electrical_room"][t0][fid] = raw
+        elif key.startswith("bf__") and len(parts) == 2:
+            if parts[1] in data.get("boiler_footer", {}):
+                data["boiler_footer"][parts[1]] = raw
         elif key.startswith("b__") and len(parts) == 3:
             if parts[1] in data["boiler"] and parts[2] in data["boiler"][parts[1]]:
                 data["boiler"][parts[1]][parts[2]] = raw

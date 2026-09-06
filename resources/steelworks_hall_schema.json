@@ -1,116 +1,159 @@
 {
   "building_name": "제철회관",
   "building_aliases": ["제철회관"],
-  "title": "제철회관 운영일보(난방)",
+  "title": "제철회관 운영일보[냉,난방]",
   "utility": {
     "title": "1. UTILITY 사용량",
     "power_group": {
-      "label": "전력량 (KWH)",
+      "label": "전 력 량 (KWH)",
       "unit": "KWH",
       "multiplier": 1800,
-      "note": "×1800",
+      "note": "× 1800",
       "rows": [
         {"id": "power_mid", "label": "중부하"},
-        {"id": "power_peak", "label": "PEAK 부하"},
+        {"id": "power_peak", "label": "PEAK부하"},
         {"id": "power_off", "label": "경부하"}
       ],
       "sum_id": "power_sum",
-      "sum_label": "일누계량 (중+PEAK+경)"
+      "sum_label": "일누계량"
     },
     "rows": [
-      {"id": "gas_flow", "label": "가스유량계", "unit": "m³", "multiplier": 1},
-      {"id": "gas_corrector", "label": "가스보정기", "unit": "m³", "multiplier": 1},
-      {"id": "water", "label": "급수량", "unit": "m³", "multiplier": 1}
+      {"id": "gas_flow", "label": "가스유량계 (m3)", "unit": "m³", "multiplier": 1},
+      {"id": "gas_corrector", "label": "가스보정기 (m3)", "unit": "m³", "multiplier": 1},
+      {"id": "water", "label": "급 수 량 (m3)", "unit": "m³", "multiplier": 1}
     ],
     "monthly_ids": ["power_mid", "power_peak", "power_off", "gas_flow", "gas_corrector", "water"]
   },
   "electrical_room": {
     "title": "가. 전기실",
-    "fields": [
-      {"id": "main_v", "label": "MAIN VCB · 전압(KV)", "std": "7.2"},
-      {"id": "main_a", "label": "MAIN VCB · 전류(A)", "std": "150 이하"},
-      {"id": "main_kw", "label": "MAIN VCB · 유효전력(KW)", "std": ""},
-      {"id": "main_kvar", "label": "MAIN VCB · 무효전력(KVAR)", "std": ""},
-      {"id": "main_pf", "label": "MAIN VCB · 역률(%)", "std": "90 이상"},
-      {"id": "mof_mid", "label": "MOF 적산 · 중부하(KWH)", "std": ""},
-      {"id": "mof_peak", "label": "MOF 적산 · PEAK(KWH)", "std": ""},
-      {"id": "mof_off", "label": "MOF 적산 · 경부하(KWH)", "std": ""},
-      {"id": "vcb_light_a", "label": "VCB PANEL 조명 · 전류(A)", "std": "100 이하"},
-      {"id": "vcb_light_kw", "label": "VCB PANEL 조명 · 전력(KW)", "std": ""},
-      {"id": "vcb_power_a", "label": "VCB PANEL 동력 · 전류(A)", "std": "150 이하"},
-      {"id": "vcb_power_kw", "label": "VCB PANEL 동력 · 전력(KW)", "std": ""},
-      {"id": "tr_light_temp", "label": "변압기온도 조명(℃)", "std": "65℃ 이하"},
-      {"id": "tr_power_temp", "label": "변압기온도 동력(℃)", "std": "65℃ 이하"}
+    "times": ["t1", "t2"],
+    "time_labels": {"t1": "1회", "t2": "2회"},
+    "groups": [
+      {
+        "id": "main",
+        "label": "MAIN VCB PANEL",
+        "fields": [
+          {"id": "main_v", "label": "전압", "unit": "KV", "std": "7.2"},
+          {"id": "main_a", "label": "전류", "unit": "A", "std": "150 이하"},
+          {"id": "main_kw", "label": "유효", "unit": "KW", "std": "1800 이하"},
+          {"id": "main_kvar", "label": "무효", "unit": "KVAR", "std": "900 이하"},
+          {"id": "main_pf", "label": "역율", "unit": "%", "std": "90 이상"}
+        ]
+      },
+      {
+        "id": "mof",
+        "label": "MOF",
+        "sub_label": "적산량 (KWH)",
+        "fields": [
+          {"id": "mof_mid", "label": "중부하", "unit": "KWH", "std": "배율(1800)"},
+          {"id": "mof_peak", "label": "PEAK부하", "unit": "KWH", "std": ""},
+          {"id": "mof_off", "label": "경부하", "unit": "KWH", "std": ""}
+        ]
+      },
+      {
+        "id": "vcb_light",
+        "label": "VCB PANEL",
+        "sub_label": "조명",
+        "fields": [
+          {"id": "vcb_light_a", "label": "전류", "unit": "A", "std": "75 이하"},
+          {"id": "vcb_light_kw", "label": "전력", "unit": "KW", "std": "900 이하"}
+        ]
+      },
+      {
+        "id": "vcb_power",
+        "label": "VCB PANEL",
+        "sub_label": "동력",
+        "fields": [
+          {"id": "vcb_power_a", "label": "전류", "unit": "A", "std": "75 이하"},
+          {"id": "vcb_power_kw", "label": "전력", "unit": "KW", "std": "900 이하"}
+        ]
+      },
+      {
+        "id": "tr",
+        "label": "변압기 온도",
+        "fields": [
+          {"id": "tr_light_temp", "label": "조명", "unit": "500KVA", "std": "65℃ 이하"},
+          {"id": "tr_power_temp", "label": "동력", "unit": "450KVA", "std": "65℃ 이하"}
+        ]
+      }
     ]
   },
   "boiler": {
-    "title": "나. 기계실 · 보일러",
+    "title": "나. 기계실",
+    "subtitle": "보일러",
     "units": [
-      {"id": "b1", "label": "#1 (0.8 TON)"},
-      {"id": "b2", "label": "#2 (1 TON)"}
+      {"id": "b1", "label": "#1보일러(0.8 TON)"},
+      {"id": "b2", "label": "#2 보일러(1 TON)"}
     ],
     "items": [
-      {"id": "body_pressure", "label": "본체압력"},
-      {"id": "water_level", "label": "수위"},
-      {"id": "steam_pressure", "label": "증기압력"},
-      {"id": "gas_pressure", "label": "가스압력"},
-      {"id": "burner", "label": "버너상태"},
-      {"id": "feed_water", "label": "급수펌프"},
-      {"id": "softener", "label": "연수기"},
-      {"id": "drain", "label": "블로우/드레인"}
+      {"id": "body_pressure", "label": "본체 압력", "std": "2.5~5.0"},
+      {"id": "water_level", "label": "수면계 LEVEL", "std": "50~90"},
+      {"id": "steam_hd", "label": "STEAM H/D 압력", "std": "2.5~5.0"},
+      {"id": "gas_pressure", "label": "가스 압력", "std": "45KPa이하"},
+      {"id": "smoke", "label": "매연 상태", "std": "양호"},
+      {"id": "burn", "label": "연소 상태", "std": "양호"},
+      {"id": "softener", "label": "경수연화장치 상태", "std": "양호"},
+      {"id": "chem_tank", "label": "약품탱크 상태", "std": "양호"}
+    ],
+    "footer": [
+      {"id": "feed_main_p", "label": "급수 MAIN 압력(3~5㎏/㎠)"},
+      {"id": "fire_tank_p", "label": "소화전 압력탱크(4~5㎏/㎠)"},
+      {"id": "tank_level", "label": "저수량 (%)"}
     ]
   },
   "heating_pump": {
-    "title": "나. 기계실 · 난방펌프",
+    "title": "난방펌프",
     "units": [
-      {"id": "n01", "label": "N01"},
-      {"id": "n02", "label": "N02"}
+      {"id": "n01", "label": "난방펌프 NO1"},
+      {"id": "n02", "label": "난방펌프 NO2"}
     ],
     "fields": [
       {"id": "time", "label": "시간"},
       {"id": "supply_temp", "label": "공급온도"},
-      {"id": "return_temp", "label": "환수온도"},
       {"id": "supply_pressure", "label": "공급압력"},
+      {"id": "return_temp", "label": "환수온도"},
       {"id": "return_pressure", "label": "환수압력"}
     ]
   },
   "absorption": {
-    "title": "나. 기계실 · 흡수식",
+    "title": "흡수식",
     "units": [
-      {"id": "n01", "label": "N01"},
-      {"id": "n02", "label": "N02"}
+      {"id": "n01", "label": "흡수식 NO1"},
+      {"id": "n02", "label": "흡수식 NO2"}
     ],
     "fields": [
       {"id": "time", "label": "시간"},
       {"id": "regen_temp", "label": "재생기온도"},
-      {"id": "steam_drain_temp", "label": "증기드레인온도"},
+      {"id": "steam_drain_temp", "label": "증기 DRAIN 온도"},
       {"id": "abs_conc", "label": "흡수액농도"},
-      {"id": "chw_in_temp", "label": "냉수입구온도"},
-      {"id": "chw_out_temp", "label": "냉수출구온도"},
-      {"id": "chw_in_p", "label": "냉수입구압력"},
-      {"id": "chw_out_p", "label": "냉수출구압력"},
-      {"id": "cw_in_temp", "label": "냉각수입구온도"},
-      {"id": "cw_out_temp", "label": "냉각수출구온도"},
-      {"id": "cw_in_p", "label": "냉각수입구압력"},
-      {"id": "cw_out_p", "label": "냉각수출구압력"},
-      {"id": "ref_level", "label": "냉매액면"}
+      {"id": "chw_in_temp", "label": "냉수입"},
+      {"id": "chw_out_temp", "label": "냉수출"},
+      {"id": "cw_in_temp", "label": "냉각수입"},
+      {"id": "cw_out_temp", "label": "냉각수출"},
+      {"id": "cond_ref_temp", "label": "응축기 냉매온도"},
+      {"id": "chw_in_p", "label": "냉수압입"},
+      {"id": "chw_out_p", "label": "냉수압출"},
+      {"id": "cw_in_p", "label": "냉각수압입"},
+      {"id": "cw_out_p", "label": "냉각수압출"},
+      {"id": "ref_qty", "label": "냉매량"}
     ]
   },
   "indoor_temp": {
     "title": "다. 실내온도",
-    "times": ["09:00", "13:00", "17:00"],
+    "times": ["t1", "t2"],
+    "time_labels": {"t1": "1회", "t2": "2회"},
     "locations": [
-      {"id": "outdoor", "label": "외기온도"},
-      {"id": "lobby1", "label": "1층 로비"},
-      {"id": "f2a", "label": "2층 A동"},
-      {"id": "f2b", "label": "2층 B동"},
-      {"id": "f2c", "label": "2층 C동"},
-      {"id": "f3a", "label": "3층 A동"},
-      {"id": "f3b", "label": "3층 B동"},
-      {"id": "f3c", "label": "3층 C동"},
-      {"id": "f4a", "label": "4층 A동"},
-      {"id": "f4b", "label": "4층 B동"},
-      {"id": "f4c", "label": "4층 C동"}
+      {"id": "outdoor", "label": "외기온도", "group": null},
+      {"id": "lobby1", "label": "로비", "group": "1층"},
+      {"id": "f2a", "label": "A동", "group": "2층"},
+      {"id": "f2b", "label": "B동", "group": "2층"},
+      {"id": "f2c", "label": "C동", "group": "2층"},
+      {"id": "f3a", "label": "A동", "group": "3층"},
+      {"id": "f3b", "label": "B동", "group": "3층"},
+      {"id": "f3c", "label": "C동", "group": "3층"},
+      {"id": "f4a", "label": "A동", "group": "4층"},
+      {"id": "f4b", "label": "B동", "group": "4층"},
+      {"id": "f4c", "label": "C동", "group": "4층"}
     ]
   }
 }

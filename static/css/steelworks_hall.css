@@ -1,3 +1,79 @@
+.sh-form-title {
+  margin: 0 0 .5rem;
+  padding: .65rem .75rem;
+  border: 2px solid #111;
+  background: #fff;
+  color: #111;
+  font-size: 1.25rem;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: .04em;
+}
+
+.sh-sheet-subtitle {
+  padding: .4rem .75rem;
+  border: 1px solid #111;
+  border-bottom: 0;
+  background: #e8eef6;
+  color: #111;
+  font-weight: 700;
+}
+
+.sh-cat {
+  min-width: 6.5rem !important;
+  line-height: 1.35;
+  background: #eef3f8 !important;
+}
+
+.sh-sub {
+  min-width: 4.5rem !important;
+  background: #f7fafc !important;
+}
+
+.sh-left {
+  text-align: left !important;
+  padding-left: .45rem !important;
+}
+
+.sh-std,
+.sh-std-row th {
+  background: #fff8e7 !important;
+  color: #555;
+  font-size: .7rem;
+  font-weight: 600;
+  white-space: normal !important;
+  line-height: 1.25;
+}
+
+.sh-sum-cell {
+  background: #c6efce !important;
+  font-weight: 800;
+  font-size: .95rem;
+}
+
+.sh-mirror-daily {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.sh-foot-note {
+  margin: .35rem 0 0;
+  color: #666;
+  font-size: .78rem;
+}
+
+.sh-elec-table th,
+.sh-abs-table th {
+  white-space: normal !important;
+  line-height: 1.2;
+  min-width: 3.2rem;
+}
+
+.sh-footer-row th,
+.sh-footer-row td {
+  background: #f3f6fa !important;
+}
+
 .sh-page-header {
   display: flex;
   flex-wrap: wrap;

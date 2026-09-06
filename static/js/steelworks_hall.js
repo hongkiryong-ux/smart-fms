@@ -49,6 +49,8 @@
       const monthly = daily != null ? (numberOf(row.dataset.monthBase) || 0) + daily : null;
       if (dailyInput) dailyInput.value = formatNumber(daily);
       if (monthlyInput) monthlyInput.value = formatNumber(monthly);
+      const mirror = row.querySelector(".sh-mirror-daily");
+      if (mirror) mirror.textContent = formatNumber(daily);
       if (id === "power_mid" || id === "power_peak" || id === "power_off") {
         if (daily != null) {
           hasPower = true;

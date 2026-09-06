@@ -1,13 +1,20 @@
 {% extends "base.html" %}
 {% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/steelworks_hall.css?v=2" />
+<link rel="stylesheet" href="/static/css/steelworks_hall.css?v=3" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
 {% set can_write = qr_mode or user_can_edit(user) %}
 {% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/steelworks-hall/save') %}
 {% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set elec_data = daily_data.get('electrical_room', {}) if daily_data else {} %}
+{% set boiler_data = daily_data.get('boiler', {}) if daily_data else {} %}
+{% set boiler_footer = daily_data.get('boiler_footer', {}) if daily_data else {} %}
+{% set heat_data = daily_data.get('heating_pump', {}) if daily_data else {} %}
+{% set abs_data = daily_data.get('absorption', {}) if daily_data else {} %}
+{% set indoor_data = daily_data.get('indoor_temp', {}) if daily_data else {} %}
+{% set pg = schema.utility.power_group %}
 
 <header class="page-header sh-page-header">
   <div>
@@ -50,38 +57,274 @@
   </div>
   {% endif %}
 
-  <p class="text-muted sh-hint">노란 칸 = 전일지침(자동 반영 · 수기 수정 가능) · 입력 시 자동 저장 · 드래그 선택 후 엑셀 복사/붙여넣기 · Delete 키로 선택 칸 삭제</p>
+  <p class="text-muted sh-hint">원본 양식 레이아웃 · 노란 칸=전일지침 · 금일지침→다음날 자동 반영 · 드래그 선택 후 엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+
   <form method="post" action="{{ save_url }}" id="sh-daily-form" class="sh-daily-form">
     <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
 
+    {# ═══ 1. UTILITY 사용량 ═══ #}
     <div class="sh-sheet">
+      <div class="sh-form-title">제철회관 운영일보[냉,난방]</div>
       <div class="sh-sheet-title">{{ schema.utility.title }}</div>
       <div class="sh-table-wrap">
-        <table class="sh-excel">
-          <thead><tr><th>구분</th><th>단위</th><th class="sh-yellow">전일지침</th><th>금일지침</th><th>일사용량</th><th>월누계량</th><th>비고</th></tr></thead>
+        <table class="sh-excel sh-utility-table">
+          <thead>
+            <tr>
+              <th colspan="2">구 분</th>
+              <th class="sh-yellow">전일지침</th>
+              <th>금일지침</th>
+              <th>일사용량</th>
+              <th>일누계량</th>
+              <th>월누계량</th>
+              <th>비 고</th>
+            </tr>
+          </thead>
           <tbody>
-            {% set pg = schema.utility.power_group %}
             {% for row in pg.rows %}
             {% set item = utility.get(row.id, {}) %}
             <tr class="sh-utility-row" data-utility="{{ row.id }}" data-multiplier="{{ pg.multiplier }}">
-              <th>{{ pg.label }} · {{ row.label }}</th><td>{{ pg.unit }} <small>{{ pg.note }}</small></td>
-              <td class="sh-yellow"><input class="sh-cell sh-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="sh-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              {% if loop.first %}
+              <th rowspan="{{ pg.rows|length }}" class="sh-cat">{{ pg.label }}<br /><small>{{ pg.note }}</small></th>
+              {% endif %}
+              <th class="sh-sub">{{ row.label }}</th>
+              <td class="sh-yellow">
+                <input class="sh-cell sh-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" />
+                <input class="sh-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+              </td>
               <td><input class="sh-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
               <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              {% if loop.first %}
+              <td rowspan="{{ pg.rows|length }}" class="sh-sum-cell">
+                <span id="sh-power-sum-daily">{{ daily_data.get('power_sum_daily','') }}</span>
+              </td>
+              {% endif %}
               <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
               <td><input class="sh-cell sh-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
             </tr>
             {% endfor %}
-            <tr class="sh-sum-row"><th colspan="4">{{ pg.sum_label }}</th><td id="sh-power-sum-daily">{{ daily_data.get('power_sum_daily','') }}</td><td id="sh-power-sum-monthly">{{ daily_data.get('power_sum_monthly','') }}</td><td></td></tr>
             {% for row in schema.utility.rows %}
             {% set item = utility.get(row.id, {}) %}
             <tr class="sh-utility-row" data-utility="{{ row.id }}" data-multiplier="{{ row.multiplier|default(1) }}">
-              <th>{{ row.label }}</th><td>{{ row.unit }}</td>
-              <td class="sh-yellow"><input class="sh-cell sh-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="sh-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              <th colspan="2" class="sh-cat">{{ row.label }}</th>
+              <td class="sh-yellow">
+                <input class="sh-cell sh-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" />
+                <input class="sh-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+              </td>
               <td><input class="sh-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
-              <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly data-mirror-daily="1" /></td>
+              <td class="sh-mirror-daily">{{ item.get('daily','') }}</td>
               <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
               <td><input class="sh-cell sh-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="sh-foot-note">전력 일누계량 = 중부하 + PEAK부하 + 경부하 일사용량 합 · 월누계는 전력 부하별 표시</p>
+    </div>
+
+    {# ═══ 2. UTILITY 점검사항 ═══ #}
+    <div class="sh-sheet">
+      <div class="sh-sheet-title">2. UTILITY 점검사항</div>
+      <div class="sh-sheet-subtitle">{{ schema.electrical_room.title }}</div>
+      <div class="sh-table-wrap">
+        <table class="sh-excel sh-elec-table">
+          <thead>
+            <tr>
+              <th rowspan="3">구분</th>
+              {% for g in schema.electrical_room.groups %}
+              <th colspan="{{ g.fields|length }}">{{ g.label }}{% if g.sub_label %}<br /><small>{{ g.sub_label }}</small>{% endif %}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for g in schema.electrical_room.groups %}
+                {% for f in g.fields %}
+                <th>{{ f.label }}{% if f.unit %}<br /><small>({{ f.unit }})</small>{% endif %}</th>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            <tr class="sh-std-row">
+              {% for g in schema.electrical_room.groups %}
+                {% for f in g.fields %}
+                <th class="sh-std">{{ f.std or '—' }}</th>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.electrical_room.times %}
+            <tr>
+              <th>{{ schema.electrical_room.time_labels.get(t, t) }}</th>
+              {% for g in schema.electrical_room.groups %}
+                {% for f in g.fields %}
+                {% set v = '' %}
+                {% if elec_data is mapping %}
+                  {% if t in elec_data and elec_data[t] is mapping %}
+                    {% set v = elec_data[t].get(f.id, '') %}
+                  {% else %}
+                    {% set v = elec_data.get(f.id, '') %}
+                  {% endif %}
+                {% endif %}
+                <td><input class="sh-cell" name="e__{{ t }}__{{ f.id }}" value="{{ v }}" /></td>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 보일러 #}
+    <div class="sh-sheet">
+      <div class="sh-sheet-subtitle">{{ schema.boiler.title }} · {{ schema.boiler.subtitle }}</div>
+      <div class="sh-table-wrap">
+        <table class="sh-excel">
+          <thead>
+            <tr>
+              <th>구 분</th>
+              <th>점검사항</th>
+              <th>점검기준</th>
+              {% for unit in schema.boiler.units %}
+              <th>{{ unit.label }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in schema.boiler['items'] %}
+            <tr>
+              {% if loop.first %}<th rowspan="{{ schema.boiler['items']|length }}">보 일 러</th>{% endif %}
+              <th class="sh-left">{{ item.label }}</th>
+              <td class="sh-std">{{ item.std }}</td>
+              {% for unit in schema.boiler.units %}
+              <td><input class="sh-cell" name="b__{{ unit.id }}__{{ item.id }}" value="{{ boiler_data.get(unit.id, {}).get(item.id, '') }}" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+            {% for f in schema.boiler.footer %}
+            <tr class="sh-footer-row">
+              <th colspan="3" class="sh-left">{{ f.label }}</th>
+              <td colspan="{{ schema.boiler.units|length }}"><input class="sh-cell" name="bf__{{ f.id }}" value="{{ boiler_footer.get(f.id, '') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 난방펌프 #}
+    <div class="sh-sheet">
+      <div class="sh-sheet-subtitle">{{ schema.heating_pump.title }}</div>
+      <div class="sh-table-wrap">
+        <table class="sh-excel">
+          <thead>
+            <tr>
+              <th rowspan="2">구 분</th>
+              <th rowspan="2">시간</th>
+              <th colspan="2">공급</th>
+              <th colspan="2">환수</th>
+            </tr>
+            <tr>
+              <th>온도</th><th>압력</th><th>온도</th><th>압력</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for unit in schema.heating_pump.units %}
+            {% set u = heat_data.get(unit.id, {}) %}
+            <tr>
+              <th class="sh-left">{{ unit.label }}</th>
+              <td><input class="sh-cell" name="hp__{{ unit.id }}__time" value="{{ u.get('time','') }}" /></td>
+              <td><input class="sh-cell" name="hp__{{ unit.id }}__supply_temp" value="{{ u.get('supply_temp','') }}" /></td>
+              <td><input class="sh-cell" name="hp__{{ unit.id }}__supply_pressure" value="{{ u.get('supply_pressure','') }}" /></td>
+              <td><input class="sh-cell" name="hp__{{ unit.id }}__return_temp" value="{{ u.get('return_temp','') }}" /></td>
+              <td><input class="sh-cell" name="hp__{{ unit.id }}__return_pressure" value="{{ u.get('return_pressure','') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 흡수식 #}
+    <div class="sh-sheet">
+      <div class="sh-sheet-subtitle">{{ schema.absorption.title }}</div>
+      <div class="sh-table-wrap">
+        <table class="sh-excel sh-abs-table">
+          <thead>
+            <tr>
+              <th rowspan="2">구분</th>
+              <th rowspan="2">시간</th>
+              <th rowspan="2">재생기<br />온도</th>
+              <th rowspan="2">증기<br />DRAIN온도</th>
+              <th rowspan="2">흡수액<br />농도</th>
+              <th colspan="2">냉수온도</th>
+              <th colspan="2">냉각수온도</th>
+              <th rowspan="2">응축기<br />냉매온도</th>
+              <th colspan="2">냉수압력</th>
+              <th colspan="2">냉각수압력</th>
+              <th rowspan="2">냉매량</th>
+            </tr>
+            <tr>
+              <th>입</th><th>출</th><th>입</th><th>출</th><th>입</th><th>출</th><th>입</th><th>출</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for unit in schema.absorption.units %}
+            {% set u = abs_data.get(unit.id, {}) %}
+            <tr>
+              <th class="sh-left">{{ unit.label }}</th>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__time" value="{{ u.get('time','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__regen_temp" value="{{ u.get('regen_temp','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__steam_drain_temp" value="{{ u.get('steam_drain_temp','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__abs_conc" value="{{ u.get('abs_conc','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__chw_in_temp" value="{{ u.get('chw_in_temp','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__chw_out_temp" value="{{ u.get('chw_out_temp','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__cw_in_temp" value="{{ u.get('cw_in_temp','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__cw_out_temp" value="{{ u.get('cw_out_temp','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__cond_ref_temp" value="{{ u.get('cond_ref_temp','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__chw_in_p" value="{{ u.get('chw_in_p','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__chw_out_p" value="{{ u.get('chw_out_p','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__cw_in_p" value="{{ u.get('cw_in_p','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__cw_out_p" value="{{ u.get('cw_out_p','') }}" /></td>
+              <td><input class="sh-cell" name="ab__{{ unit.id }}__ref_qty" value="{{ u.get('ref_qty','') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# 실내온도 #}
+    <div class="sh-sheet">
+      <div class="sh-sheet-subtitle">{{ schema.indoor_temp.title }}</div>
+      <div class="sh-table-wrap">
+        <table class="sh-excel">
+          <thead>
+            <tr>
+              <th rowspan="2">시간</th>
+              <th rowspan="2">외기온도</th>
+              <th>1층</th>
+              <th colspan="3">2층</th>
+              <th colspan="3">3층</th>
+              <th colspan="3">4층</th>
+              <th rowspan="2">비고</th>
+            </tr>
+            <tr>
+              <th>로비</th>
+              <th>A동</th><th>B동</th><th>C동</th>
+              <th>A동</th><th>B동</th><th>C동</th>
+              <th>A동</th><th>B동</th><th>C동</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.indoor_temp.times %}
+            {% set row = indoor_data.get(t, {}) %}
+            <tr>
+              <th>{{ schema.indoor_temp.time_labels.get(t, t) }}</th>
+              {% for loc in schema.indoor_temp.locations %}
+              <td><input class="sh-cell" name="it__{{ t }}__{{ loc.id }}" value="{{ row.get(loc.id,'') }}" /></td>
+              {% endfor %}
+              <td><input class="sh-cell sh-note" name="it__{{ t }}__remark" value="{{ row.get('remark','') }}" /></td>
             </tr>
             {% endfor %}
           </tbody>
@@ -90,47 +333,21 @@
     </div>
 
     <div class="sh-sheet">
-      <div class="sh-sheet-title">{{ schema.electrical_room.title }}</div>
-      <div class="sh-table-wrap"><table class="sh-excel sh-pair-grid"><tbody>
-        {% for field in schema.electrical_room.fields %}
-        <tr><th>{{ field.label }}</th><td><input class="sh-cell" name="e__{{ field.id }}" value="{{ daily_data.get('electrical_room',{}).get(field.id,'') }}" /></td><td class="sh-standard">{{ field.std }}</td></tr>
-        {% endfor %}
-      </tbody></table></div>
+      <div class="sh-sheet-title">※특이사항</div>
+      <textarea class="sh-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
     </div>
 
-    <div class="sh-sheet">
-      <div class="sh-sheet-title">{{ schema.boiler.title }}</div>
-      <div class="sh-table-wrap"><table class="sh-excel"><thead><tr><th>항목</th>{% for unit in schema.boiler.units %}<th>{{ unit.label }}</th>{% endfor %}</tr></thead><tbody>
-        {% for item in schema.boiler['items'] %}<tr><th>{{ item.label }}</th>{% for unit in schema.boiler.units %}<td><input class="sh-cell" name="b__{{ unit.id }}__{{ item.id }}" value="{{ daily_data.get('boiler',{}).get(unit.id,{}).get(item.id,'') }}" /></td>{% endfor %}</tr>{% endfor %}
-      </tbody></table></div>
-    </div>
-
-    {% for section_key, prefix in [('heating_pump','hp'), ('absorption','ab')] %}
-    {% set section = schema.get(section_key, {}) %}
-    <div class="sh-sheet">
-      <div class="sh-sheet-title">{{ section.title }}</div>
-      <div class="sh-table-wrap"><table class="sh-excel"><thead><tr><th>호기</th>{% for field in section.fields %}<th>{{ field.label }}</th>{% endfor %}</tr></thead><tbody>
-        {% for unit in section.units %}<tr><th>{{ unit.label }}</th>{% for field in section.fields %}<td><input class="sh-cell" name="{{ prefix }}__{{ unit.id }}__{{ field.id }}" value="{{ daily_data.get(section_key,{}).get(unit.id,{}).get(field.id,'') }}" /></td>{% endfor %}</tr>{% endfor %}
-      </tbody></table></div>
-    </div>
-    {% endfor %}
-
-    <div class="sh-sheet">
-      <div class="sh-sheet-title">{{ schema.indoor_temp.title }}</div>
-      <div class="sh-table-wrap"><table class="sh-excel"><thead><tr><th>시간</th>{% for loc in schema.indoor_temp.locations %}<th>{{ loc.label }}</th>{% endfor %}<th>비고</th></tr></thead><tbody>
-        {% for time in schema.indoor_temp.times %}<tr><th>{{ time }}</th>{% for loc in schema.indoor_temp.locations %}<td><input class="sh-cell" name="it__{{ time }}__{{ loc.id }}" value="{{ daily_data.get('indoor_temp',{}).get(time,{}).get(loc.id,'') }}" /></td>{% endfor %}<td><input class="sh-cell sh-note" name="it__{{ time }}__remark" value="{{ daily_data.get('indoor_temp',{}).get(time,{}).get('remark','') }}" /></td></tr>{% endfor %}
-      </tbody></table></div>
-    </div>
-
-    <div class="sh-sheet"><div class="sh-sheet-title">특이사항</div><textarea class="sh-notes" name="notes" rows="4">{{ daily_data.get('notes','') }}</textarea></div>
     {% if can_write %}
-    <div class="sh-form-actions"><span id="sh-save-status">자동 저장</span>
-      {% if not qr_mode and user_can_edit(user) %}<button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/steelworks-hall/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>{% endif %}
+    <div class="sh-form-actions">
+      <span id="sh-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/steelworks-hall/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
     </div>
     {% endif %}
   </form>
 </section>
-{% if can_write %}<script src="/static/js/steelworks_hall.js?v=2"></script>{% endif %}
+{% if can_write %}<script src="/static/js/steelworks_hall.js?v=3"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">
