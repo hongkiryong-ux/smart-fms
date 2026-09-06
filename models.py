@@ -601,6 +601,45 @@ class BaegunDormArchive(Base):
     )
 
 
+class GigaTownDaily(Base):
+    """기가타운 운영일보 1일."""
+
+    __tablename__ = "giga_town_daily"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_gtown_daily"),
+    )
+
+
+class GigaTownArchive(Base):
+    """기가타운 운영일보 1일 아카이브."""
+
+    __tablename__ = "giga_town_archives"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    original_name = Column(String(300), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_gtown_archive"),
+    )
+
+
 class InspectionLogFile(Base):
     """점검일지 엑셀 파일."""
 
