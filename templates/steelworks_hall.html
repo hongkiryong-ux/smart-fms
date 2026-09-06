@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/steelworks_hall.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/steelworks-hall/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+
+<header class="page-header sh-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="sh-tabs" aria-label="제철회관 탭">
+  <a class="sh-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="sh-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="sh-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="sh-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide sh-daily">
+  <form method="get" class="sh-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/swhall/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/swhall/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="sh-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/steelworks-hall/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/steelworks-hall/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted sh-hint">노란 칸은 전일지침입니다. 금일지침이 다음 날 전일지침으로 자동 반영되며 입력 내용은 자동 저장됩니다.</p>
+  <form method="post" action="{{ save_url }}" id="sh-daily-form" class="sh-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    <div class="sh-sheet">
+      <div class="sh-sheet-title">{{ schema.utility.title }}</div>
+      <div class="sh-table-wrap">
+        <table class="sh-excel">
+          <thead><tr><th>구분</th><th>단위</th><th class="sh-yellow">전일지침</th><th>금일지침</th><th>일사용량</th><th>월누계량</th><th>비고</th></tr></thead>
+          <tbody>
+            {% set pg = schema.utility.power_group %}
+            {% for row in pg.rows %}
+            {% set item = utility.get(row.id, {}) %}
+            <tr class="sh-utility-row" data-utility="{{ row.id }}" data-multiplier="{{ pg.multiplier }}">
+              <th>{{ pg.label }} · {{ row.label }}</th><td>{{ pg.unit }} <small>{{ pg.note }}</small></td>
+              <td class="sh-yellow"><input class="sh-cell sh-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="sh-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              <td><input class="sh-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+              <td><input class="sh-cell sh-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% endfor %}
+            <tr class="sh-sum-row"><th colspan="4">{{ pg.sum_label }}</th><td id="sh-power-sum-daily">{{ daily_data.get('power_sum_daily','') }}</td><td id="sh-power-sum-monthly">{{ daily_data.get('power_sum_monthly','') }}</td><td></td></tr>
+            {% for row in schema.utility.rows %}
+            {% set item = utility.get(row.id, {}) %}
+            <tr class="sh-utility-row" data-utility="{{ row.id }}" data-multiplier="{{ row.multiplier|default(1) }}">
+              <th>{{ row.label }}</th><td>{{ row.unit }}</td>
+              <td class="sh-yellow"><input class="sh-cell sh-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="sh-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
+              <td><input class="sh-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="sh-cell sh-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+              <td><input class="sh-cell sh-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="sh-sheet">
+      <div class="sh-sheet-title">{{ schema.electrical_room.title }}</div>
+      <div class="sh-table-wrap"><table class="sh-excel sh-pair-grid"><tbody>
+        {% for field in schema.electrical_room.fields %}
+        <tr><th>{{ field.label }}</th><td><input class="sh-cell" name="e__{{ field.id }}" value="{{ daily_data.get('electrical_room',{}).get(field.id,'') }}" /></td><td class="sh-standard">{{ field.std }}</td></tr>
+        {% endfor %}
+      </tbody></table></div>
+    </div>
+
+    <div class="sh-sheet">
+      <div class="sh-sheet-title">{{ schema.boiler.title }}</div>
+      <div class="sh-table-wrap"><table class="sh-excel"><thead><tr><th>항목</th>{% for unit in schema.boiler.units %}<th>{{ unit.label }}</th>{% endfor %}</tr></thead><tbody>
+        {% for item in schema.boiler['items'] %}<tr><th>{{ item.label }}</th>{% for unit in schema.boiler.units %}<td><input class="sh-cell" name="b__{{ unit.id }}__{{ item.id }}" value="{{ daily_data.get('boiler',{}).get(unit.id,{}).get(item.id,'') }}" /></td>{% endfor %}</tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+
+    {% for section_key, prefix in [('heating_pump','hp'), ('absorption','ab')] %}
+    {% set section = schema.get(section_key, {}) %}
+    <div class="sh-sheet">
+      <div class="sh-sheet-title">{{ section.title }}</div>
+      <div class="sh-table-wrap"><table class="sh-excel"><thead><tr><th>호기</th>{% for field in section.fields %}<th>{{ field.label }}</th>{% endfor %}</tr></thead><tbody>
+        {% for unit in section.units %}<tr><th>{{ unit.label }}</th>{% for field in section.fields %}<td><input class="sh-cell" name="{{ prefix }}__{{ unit.id }}__{{ field.id }}" value="{{ daily_data.get(section_key,{}).get(unit.id,{}).get(field.id,'') }}" /></td>{% endfor %}</tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+    {% endfor %}
+
+    <div class="sh-sheet">
+      <div class="sh-sheet-title">{{ schema.indoor_temp.title }}</div>
+      <div class="sh-table-wrap"><table class="sh-excel"><thead><tr><th>시간</th>{% for loc in schema.indoor_temp.locations %}<th>{{ loc.label }}</th>{% endfor %}<th>비고</th></tr></thead><tbody>
+        {% for time in schema.indoor_temp.times %}<tr><th>{{ time }}</th>{% for loc in schema.indoor_temp.locations %}<td><input class="sh-cell" name="it__{{ time }}__{{ loc.id }}" value="{{ daily_data.get('indoor_temp',{}).get(time,{}).get(loc.id,'') }}" /></td>{% endfor %}<td><input class="sh-cell sh-note" name="it__{{ time }}__remark" value="{{ daily_data.get('indoor_temp',{}).get(time,{}).get('remark','') }}" /></td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+
+    <div class="sh-sheet"><div class="sh-sheet-title">특이사항</div><textarea class="sh-notes" name="notes" rows="4">{{ daily_data.get('notes','') }}</textarea></div>
+    {% if can_write %}
+    <div class="sh-form-actions"><span id="sh-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}<button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/steelworks-hall/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>{% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+{% if can_write %}<script src="/static/js/steelworks_hall.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="sh-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="sh-sheet"><div class="sh-sheet-title">{{ year }}년 {{ month }}월 UTILITY 월보</div><div class="sh-table-wrap">
+    <table class="sh-excel sh-month-grid"><thead><tr><th>일</th>{% for meter in monthly.meters %}<th>{{ meter.label }}</th>{% endfor %}<th>전력 일누계량</th></tr></thead><tbody>
+      {% for day in monthly.days %}<tr><th>{{ day.day }}</th>{% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}<td>{{ day.power_sum }}</td></tr>{% endfor %}
+      <tr class="sh-sum-row"><th>계</th>{% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}<td>{{ monthly.power_sum_total }}</td></tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="sh-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <div class="sh-sheet"><div class="sh-sheet-title">{{ year }}년 UTILITY 년보</div><div class="sh-table-wrap">
+    <table class="sh-excel"><thead><tr><th>월</th>{% for meter in yearly.meters %}<th>{{ meter.label }}</th>{% endfor %}</tr></thead><tbody>
+      {% for item in yearly.months %}<tr><th>{{ item.month }}월</th>{% for meter in yearly.meters %}<td>{{ item.utility.get(meter.id,'') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="sh-sum-row"><th>계</th>{% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="sh-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  {% for entry in notes_list.entries %}<article class="sh-note-entry"><h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }}</a></h3>{% for item in entry['items'] %}<p>{{ item.text }}</p>{% endfor %}</article>{% else %}<p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>{% endfor %}
+</section>
+{% endif %}
+{% endblock %}
