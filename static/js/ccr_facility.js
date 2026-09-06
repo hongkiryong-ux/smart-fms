@@ -60,9 +60,15 @@
     for (let i = 1; i <= shifts; i++) {
       const timeIn = tr.querySelector('[name$="__s' + i + '_time"]');
       const hrIn = tr.querySelector('[name$="__s' + i + '_hr"]');
-      if (timeIn && hrIn && timeIn.value && timeIn.value.includes(":")) {
-        const hr = parseTimeRange(timeIn.value);
-        if (hr != null) hrIn.value = fmtNum(hr);
+      if (timeIn && hrIn) {
+        const tv = String(timeIn.value || "").trim();
+        if (!tv) {
+          // 가동시간 삭제 시 해당 HR도 비움
+          hrIn.value = "";
+        } else if (tv.includes(":")) {
+          const hr = parseTimeRange(tv);
+          hrIn.value = hr != null ? fmtNum(hr) : "";
+        }
       }
       const h = parseNum(hrIn?.value);
       if (h != null) {
@@ -73,11 +79,14 @@
     const dailyIn = tr.querySelector('[name$="__daily"]');
     const monthlyIn = tr.querySelector('[name$="__monthly"]');
     const prevIn = tr.querySelector('[name$="__prev_day"]');
-    if (dailyIn && has) dailyIn.value = fmtNum(sum);
+    if (dailyIn) dailyIn.value = has ? fmtNum(sum) : "";
     const pd = parseNum(prevIn?.value);
     const d = parseNum(dailyIn?.value);
-    if (monthlyIn && pd != null && d != null) monthlyIn.value = fmtNum(pd + d);
-    else if (monthlyIn && d != null) monthlyIn.value = fmtNum(d);
+    if (monthlyIn) {
+      if (pd != null && d != null) monthlyIn.value = fmtNum(pd + d);
+      else if (d != null) monthlyIn.value = fmtNum(d);
+      else monthlyIn.value = "";
+    }
   }
 
   function calcS4() {
@@ -92,12 +101,15 @@
           has = true;
         }
       });
-      if (has) dailyIn.value = fmtNum(sum);
+      dailyIn.value = has ? fmtNum(sum) : "";
       const prev = parseNum(form.querySelector('[name="f__s4__' + u + '__prev_day"]')?.value);
       const d = parseNum(dailyIn.value);
       const mon = form.querySelector('[name="f__s4__' + u + '__monthly"]');
-      if (mon && prev != null && d != null) mon.value = fmtNum(prev + d);
-      else if (mon && d != null) mon.value = fmtNum(d);
+      if (mon) {
+        if (prev != null && d != null) mon.value = fmtNum(prev + d);
+        else if (d != null) mon.value = fmtNum(d);
+        else mon.value = "";
+      }
     });
   }
 

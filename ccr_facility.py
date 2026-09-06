@@ -156,21 +156,32 @@ def _apply_shift_calc(row: dict, shifts: int, time_to_hr: bool = True) -> None:
     hrs = []
     for i in range(1, shifts + 1):
         tkey, hkey = f"s{i}_time", f"s{i}_hr"
-        if time_to_hr and row.get(tkey):
-            hr = parse_time_range_hours(str(row[tkey]))
-            if hr is not None:
-                row[hkey] = _fmt_num(hr)
+        raw_t = str(row.get(tkey) or "").strip()
+        if time_to_hr:
+            if not raw_t:
+                # 가동시간 삭제 시 해당 HR·일계 연동을 위해 비움
+                row[hkey] = ""
+            else:
+                hr = parse_time_range_hours(raw_t)
+                if hr is not None:
+                    row[hkey] = _fmt_num(hr)
+                elif ":" in raw_t:
+                    row[hkey] = ""
         h = _parse_num(row.get(hkey))
         if h is not None:
             hrs.append(h)
     if hrs:
         row["daily"] = _fmt_num(sum(hrs))
+    else:
+        row["daily"] = ""
     pd = _parse_num(row.get("prev_day"))
     d = _parse_num(row.get("daily"))
     if pd is not None and d is not None:
         row["monthly"] = _fmt_num(pd + d)
     elif d is not None:
         row["monthly"] = row["daily"]
+    else:
+        row["monthly"] = ""
 
 
 def _apply_s4_calc(unit: dict) -> None:
@@ -178,12 +189,16 @@ def _apply_s4_calc(unit: dict) -> None:
     hrs = [h for h in hrs if h is not None]
     if hrs:
         unit["daily"] = _fmt_num(sum(hrs))
+    else:
+        unit["daily"] = ""
     pd = _parse_num(unit.get("prev_day"))
     d = _parse_num(unit.get("daily"))
     if pd is not None and d is not None:
         unit["monthly"] = _fmt_num(pd + d)
     elif d is not None:
         unit["monthly"] = unit["daily"]
+    else:
+        unit["monthly"] = ""
 
 
 def recompute_daily(data: dict) -> dict:
