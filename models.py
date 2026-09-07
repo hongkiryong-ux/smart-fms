@@ -679,6 +679,46 @@ class Park1538Archive(Base):
     )
 
 
+
+
+class BaegunArtHallDaily(Base):
+    """백운아트홀 운영일보[냉,난방] 1일."""
+
+    __tablename__ = "baegun_art_hall_daily"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_bahall_daily"),
+    )
+
+
+class BaegunArtHallArchive(Base):
+    """백운아트홀 운영일보 1일 아카이브."""
+
+    __tablename__ = "baegun_art_hall_archives"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    original_name = Column(String(300), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_bahall_archive"),
+    )
+
 class InspectionLogFile(Base):
     """점검일지 엑셀 파일."""
 

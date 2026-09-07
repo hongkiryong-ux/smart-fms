@@ -1,0 +1,210 @@
+{
+  "building_name": "백운아트홀",
+  "building_aliases": ["백운아트홀", "백운아트홀 및 백운교육센터"],
+  "title": "백운아트홀 운영일보[냉,난방]",
+  "utility": {
+    "title": "1. 중온수 · 전력사용량",
+    "default_multipliers": {
+      "power_art": "2400",
+      "power_budeok": "600"
+    },
+    "facilities": [
+      {
+        "id": "art",
+        "label": "아트홀",
+        "power_multiplier_key": "power_art",
+        "meters": [
+          {"id": "art_heat", "group": "중온수", "item": "열량(MWh)", "unit": "MWh", "multiplier": 1},
+          {"id": "art_flow", "group": "중온수", "item": "유량(㎥)", "unit": "m³", "multiplier": 1},
+          {"id": "art_water", "group": "급수", "item": "유량(㎥)", "unit": "m³", "multiplier": 1},
+          {"id": "art_power", "group": "전력", "item": "전력량(kWh)", "unit": "kWh", "multiplier_key": "power_art"}
+        ]
+      },
+      {
+        "id": "budeok",
+        "label": "부덕사",
+        "power_multiplier_key": "power_budeok",
+        "meters": [
+          {"id": "budeok_heat", "group": "중온수", "item": "열량(MWh)", "unit": "MWh", "multiplier": 1},
+          {"id": "budeok_flow", "group": "중온수", "item": "유량(㎥)", "unit": "m³", "multiplier": 1},
+          {"id": "budeok_water", "group": "급수", "item": "유량(㎥)", "unit": "m³", "multiplier": 1},
+          {"id": "budeok_power", "group": "전력", "item": "전력량(kWh)", "unit": "kWh", "multiplier_key": "power_budeok"}
+        ]
+      }
+    ],
+    "blocks": [
+      {
+        "cat": "중온수",
+        "building": "아트홀",
+        "item": "열량(MWh)",
+        "multiplier_key": null,
+        "rows": [{"id": "art_heat", "label": "열량(MWh)", "unit": "MWh", "multiplier": 1}]
+      },
+      {
+        "cat": "중온수",
+        "building": "아트홀",
+        "item": "유량(㎥)",
+        "multiplier_key": null,
+        "rows": [{"id": "art_flow", "label": "유량(㎥)", "unit": "m³", "multiplier": 1}]
+      },
+      {
+        "cat": "급수",
+        "building": "아트홀",
+        "item": "유량(㎥)",
+        "multiplier_key": null,
+        "rows": [{"id": "art_water", "label": "유량(㎥)", "unit": "m³", "multiplier": 1}]
+      },
+      {
+        "cat": "전력",
+        "building": "아트홀",
+        "item": "전력량(kWh)",
+        "multiplier_key": "power_art",
+        "rows": [{"id": "art_power", "label": "전력량(kWh)×2400", "unit": "kWh"}]
+      },
+      {
+        "cat": "중온수",
+        "building": "부덕사",
+        "item": "열량(MWh)",
+        "multiplier_key": null,
+        "rows": [{"id": "budeok_heat", "label": "열량(MWh)", "unit": "MWh", "multiplier": 1}]
+      },
+      {
+        "cat": "중온수",
+        "building": "부덕사",
+        "item": "유량(㎥)",
+        "multiplier_key": null,
+        "rows": [{"id": "budeok_flow", "label": "유량(㎥)", "unit": "m³", "multiplier": 1}]
+      },
+      {
+        "cat": "급수",
+        "building": "부덕사",
+        "item": "유량(㎥)",
+        "multiplier_key": null,
+        "rows": [{"id": "budeok_water", "label": "유량(㎥)", "unit": "m³", "multiplier": 1}]
+      },
+      {
+        "cat": "전력",
+        "building": "부덕사",
+        "item": "전력량(kWh)",
+        "multiplier_key": "power_budeok",
+        "rows": [{"id": "budeok_power", "label": "전력량(kWh)×600", "unit": "kWh"}]
+      }
+    ],
+    "monthly_ids": [
+      "art_heat", "art_flow", "art_water", "art_power",
+      "budeok_heat", "budeok_flow", "budeok_water", "budeok_power"
+    ]
+  },
+  "chiller": {
+    "title": "2. 냉동기(TURBO)",
+    "units": [
+      {"id": "c1", "label": "#1 200RT"},
+      {"id": "c2", "label": "#2 280RT"},
+      {"id": "c3", "label": "#3 200RT"},
+      {"id": "c4", "label": "#4 260RT"}
+    ],
+    "groups": [
+      {
+        "cat": "압축기",
+        "fields": [
+          {"id": "comp_va", "label": "전압(kV)/전류(A)", "std": "6.3~6.8 / 12~18"},
+          {"id": "oil_p", "label": "유압(Kg/㎠)", "std": "1.5~2.5"},
+          {"id": "oil_temp", "label": "오일온도(℃)", "std": "50~60"},
+          {"id": "vane", "label": "베인개도(%)", "std": "0~100"}
+        ]
+      },
+      {
+        "cat": "응축기",
+        "fields": [
+          {"id": "cond_p", "label": "응축압력(Kg/㎠)", "std": "0.2~0.9"},
+          {"id": "ref_temp", "label": "냉매온도(℃)", "std": "30~40"},
+          {"id": "cw_p", "label": "냉각수 입/출(Kg/㎠)", "std": "3.0~4.0 / 1.8~2.8"},
+          {"id": "cw_temp", "label": "냉각수 입/출(℃)", "std": "32이하 / 37이하"}
+        ]
+      },
+      {
+        "cat": "증발기",
+        "fields": [
+          {"id": "evap_p", "label": "증발압력(-mmHg)", "std": "460 mmHg"},
+          {"id": "ref_amt", "label": "냉매량(상태)", "std": "50%"},
+          {"id": "chw_p", "label": "냉수 입/출(Kg/㎠)", "std": "4.0~5.0 / 3.0~4.0"},
+          {"id": "chw_temp", "label": "냉수 입/출(℃)", "std": "12 / 7"}
+        ]
+      }
+    ]
+  },
+  "utility_supply": {
+    "title": "3. Utility 공급 및 난방",
+    "locations": [
+      {"id": "art", "label": "아트홀"},
+      {"id": "budeok", "label": "부덕사"}
+    ],
+    "groups": [
+      {
+        "cat": "중온수",
+        "fields": [
+          {"id": "hw_supply_temp", "label": "공급온도(℃)", "std": "90~130"},
+          {"id": "hw_return_temp", "label": "환수온도(℃)", "std": "62~68"},
+          {"id": "hw_supply_p", "label": "공급압력(Kg/㎠)", "std": "4.5~7.0"},
+          {"id": "hw_return_p", "label": "환수압력(Kg/㎠)", "std": "3.5~6.5"}
+        ]
+      },
+      {
+        "cat": "난방",
+        "fields": [
+          {"id": "heat_supply_temp", "label": "공급온도(℃)", "std": "60~70"},
+          {"id": "heat_return_temp", "label": "환수온도(℃)", "std": "50~60"},
+          {"id": "heat_supply_p", "label": "공급압력(Kg/㎠)", "std": "4.0~6.5"}
+        ]
+      }
+    ]
+  },
+  "ahu": {
+    "title": "4. 공조기 급기 · 환기 온도",
+    "units": [
+      {"id": "ahu1", "label": "AHU-1"},
+      {"id": "ahu2", "label": "AHU-2"},
+      {"id": "ahu3", "label": "AHU-3"},
+      {"id": "ahu4", "label": "AHU-4"},
+      {"id": "ahu5", "label": "AHU-5"},
+      {"id": "ahu6", "label": "AHU-6"}
+    ],
+    "fields": [
+      {"id": "set_temp", "label": "설정 온도(℃)"},
+      {"id": "sa_ra", "label": "급기/환기(℃)"}
+    ]
+  },
+  "fire": {
+    "title": "5. 소화 설비",
+    "items": [
+      {"id": "hydrant_main", "label": "소화전 주P/P", "std": "3.0~5.0"},
+      {"id": "hydrant_aux", "label": "소화전 보조P/P", "std": "6.0~7.0"},
+      {"id": "sprinkler", "label": "스프링클러", "std": "6.0~9.0"}
+    ]
+  },
+  "hotwater": {
+    "title": "급탕 (아트홀)",
+    "fields": [
+      {"id": "temp", "label": "온도(℃)", "std": "50~70"},
+      {"id": "pressure", "label": "압력(Kg/㎠)", "std": "3.0~5.0"},
+      {"id": "return_temp", "label": "환수온도(℃)", "std": "50~65"}
+    ]
+  },
+  "electrical": {
+    "title": "6. 전기 설비",
+    "times": ["t1", "t2", "t3"],
+    "fields": [
+      {"id": "mof_kwh", "label": "MOF 유효전력량(kWh)×2400", "std": ""},
+      {"id": "vcb_vp", "label": "MAIN VCB 전압/전력(kV/kW)", "std": "6.3~7.2 / 0~500"},
+      {"id": "vcb_ipf", "label": "MAIN VCB 전류/역률(A/%)", "std": "1~50 / 0.9~1.0"},
+      {"id": "vcb_settle", "label": "정산용×2400", "std": ""},
+      {"id": "stage_a", "label": "무대조명(A)", "std": "~55"},
+      {"id": "power_a", "label": "동력용(A)", "std": "~55"},
+      {"id": "light_a", "label": "조명용(A)", "std": "~27"},
+      {"id": "budeok_a", "label": "부덕사(A)", "std": "~18"},
+      {"id": "tr1", "label": "#1 TR(℃)", "std": "~75"},
+      {"id": "tr2", "label": "#2 TR(℃)", "std": "~75"},
+      {"id": "tr3", "label": "#3 TR(℃)", "std": "~75"}
+    ]
+  }
+}
