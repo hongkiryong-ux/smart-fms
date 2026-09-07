@@ -2499,6 +2499,23 @@ code {
   line-height: 1.2;
   box-shadow: 0 1px 2px rgba(0,0,0,0.12);
 }
+.mobile-log-choices {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: flex;
+  gap: 0.35rem;
+  z-index: 2;
+}
+.mobile-log-choices .mobile-log-btn {
+  position: static;
+}
+.mobile-log-choice {
+  min-width: 3.2rem;
+}
+.mobile-header:has(.mobile-log-choices) {
+  padding-right: 7.5rem;
+}
 .mobile-log-btn:hover,
 .mobile-log-btn:focus-visible {
   background: #e8f0f8;

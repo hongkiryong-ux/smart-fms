@@ -15022,11 +15022,13 @@ async def equipment_mobile(
     error = request.query_params.get("error", "")
 
     log_write_url = f"/eq/{eq.code}/log"
+    log_write_choices: list[dict] = []
     building = None
     if eq.zone and eq.zone.floor:
         building = eq.zone.floor.building
     if building is not None:
         from inspection_log2_links import inspection_log2_public_daily_path
+        from central_control_room import is_central_control_room_building
 
         registered = (
             await db.execute(
@@ -15036,11 +15038,19 @@ async def equipment_mobile(
             )
         ).scalar_one_or_none()
         if registered:
-            public_path = inspection_log2_public_daily_path(building)
-            if public_path:
-                log_write_url = public_path
+            code = (building.code or "").strip()
+            if is_central_control_room_building(building) and code:
+                log_write_choices = [
+                    {"label": "전기", "url": f"/ccr/{code}/daily"},
+                    {"label": "설비", "url": f"/ccrf/{code}/daily"},
+                ]
+                log_write_url = log_write_choices[0]["url"]
             else:
-                log_write_url = f"/admin/inspection-logs2/{building.id}"
+                public_path = inspection_log2_public_daily_path(building)
+                if public_path:
+                    log_write_url = public_path
+                else:
+                    log_write_url = f"/admin/inspection-logs2/{building.id}"
 
     return templates.TemplateResponse(
         request,
@@ -15057,6 +15067,7 @@ async def equipment_mobile(
             "message": msg,
             "error": error,
             "log_write_url": log_write_url,
+            "log_write_choices": log_write_choices,
         },
     )
 

@@ -5,11 +5,19 @@
   <title>{{ eq.name }} | Smart FMS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20260819ilog2" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260307ccrchoice" />
 </head>
 <body class="mobile-body">
   <header class="mobile-header">
+    {% if log_write_choices %}
+    <div class="mobile-log-choices" aria-label="일지작성">
+      {% for c in log_write_choices %}
+      <a class="mobile-log-btn mobile-log-choice" href="{{ c.url }}">{{ c.label }}</a>
+      {% endfor %}
+    </div>
+    {% else %}
     <a class="mobile-log-btn" href="{{ log_write_url }}">일지작성</a>
+    {% endif %}
     <h1>{{ eq.name }}</h1>
     <p><code>{{ eq.code }}</code></p>
   </header>

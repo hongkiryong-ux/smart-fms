@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지 · {{ building.name }} (전기){% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/central_control_room.css?v=11" />
+<link rel="stylesheet" href="/static/css/central_control_room.css?v=12" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -22,12 +22,15 @@
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
-{% if not qr_mode %}
 <nav class="hs-form-switch" aria-label="중앙관제실 양식">
+  {% if qr_mode and building.code %}
+  <a class="hs-form-switch-item active" href="/ccr/{{ building.code }}/daily?date={{ log_date.isoformat() }}">전기</a>
+  <a class="hs-form-switch-item" href="/ccrf/{{ building.code }}/daily?date={{ log_date.isoformat() }}">설비</a>
+  {% else %}
   <a class="hs-form-switch-item active" href="/admin/inspection-logs2/{{ building.id }}/central-control-room?tab={{ tab }}&date={{ log_date.isoformat() }}&year={{ year }}&month={{ month }}">전기</a>
   <a class="hs-form-switch-item" href="/admin/inspection-logs2/{{ building.id }}/ccr-facility?tab=daily&date={{ log_date.isoformat() }}">설비</a>
+  {% endif %}
 </nav>
-{% endif %}
 
 <nav class="hs-tabs" aria-label="점검일지 탭">
   <a href="?tab=daily&date={{ log_date.isoformat() }}" class="hs-tab{% if tab == 'daily' %} active{% endif %}">1일</a>
