@@ -48,6 +48,10 @@
     <input type="hidden" name="tab" value="daily" />
     <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
     <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    <a class="btn btn-secondary btn-sm"
+       href="/admin/inspection-logs2/{{ building.id }}/eoulrim-gym/export/daily?log_date={{ log_date.isoformat() }}">
+      엑셀 다운로드
+    </a>
     {% endif %}
   </form>
 
@@ -412,7 +416,7 @@
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">
-  <form method="get" class="eg-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <form method="get" class="eg-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button><a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/eoulrim-gym/export/monthly?year={{ year }}&month={{ month }}">엑셀 다운로드</a></form>
   <div class="eg-sheet"><div class="eg-sheet-title">{{ year }}년 {{ month }}월 UTILITY 월보</div><div class="eg-table-wrap">
     <table class="eg-excel eg-month-grid"><thead><tr><th>일</th>{% for meter in monthly.meters %}<th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.id }}</small></th>{% endfor %}</tr></thead><tbody>
       {% for day in monthly.days %}<tr><th>{{ day.day }}</th>{% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}</tr>{% endfor %}
@@ -423,7 +427,7 @@
 
 {% elif tab == 'yearly' %}
 <section class="card card-wide">
-  <form method="get" class="eg-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  <form method="get" class="eg-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button><a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/eoulrim-gym/export/yearly?year={{ year }}">엑셀 다운로드</a></form>
   <div class="eg-sheet"><div class="eg-sheet-title">{{ year }}년 UTILITY 년보</div><div class="eg-table-wrap">
     <table class="eg-excel"><thead><tr><th>월</th>{% for meter in yearly.meters %}<th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.id }}</small></th>{% endfor %}</tr></thead><tbody>
       {% for item in yearly.months %}<tr><th>{{ item.month }}월</th>{% for meter in yearly.meters %}<td>{{ item.utility.get(meter.id,'') }}</td>{% endfor %}</tr>{% endfor %}

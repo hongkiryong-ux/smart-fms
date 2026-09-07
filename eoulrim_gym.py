@@ -699,6 +699,47 @@ async def ensure_tables(engine) -> None:
             """))
 
 
+
+
+def export_daily_to_excel(data: dict, log_date: date) -> bytes:
+    from inspection_log2_export import (
+        build_extra_rows,
+        build_extra_sheets,
+        export_daily_utility_workbook,
+    )
+
+    schema = load_schema()
+    data = recompute_daily(data or {})
+    title = str(schema.get("title") or schema.get("building_name") or "어울림체육관")
+    return export_daily_utility_workbook(
+        title=title,
+        log_date=log_date,
+        meter_defs=_utility_rows(schema),
+        utility=data.get("utility") or {},
+        notes=str(data.get("notes") or ""),
+        multipliers=data.get("multipliers") if isinstance(data.get("multipliers"), dict) else None,
+        extra_sheets=build_extra_sheets(schema, data),
+        extra_rows=build_extra_rows(data),
+    )
+
+
+def export_monthly_to_excel(monthly_report: dict) -> bytes:
+    from inspection_log2_export import export_monthly_utility_workbook
+
+    schema = load_schema()
+    title = str(schema.get("title") or schema.get("building_name") or "어울림체육관")
+    return export_monthly_utility_workbook(monthly_report, title=title)
+
+
+def export_yearly_to_excel(yearly_report: dict) -> bytes:
+    from inspection_log2_export import export_yearly_utility_workbook
+
+    schema = load_schema()
+    title = str(schema.get("title") or schema.get("building_name") or "어울림체육관")
+    return export_yearly_utility_workbook(yearly_report, title=title)
+
+
+
 def register_scheduler(scheduler, session_factory, kst) -> None:
     async def _daily_job() -> None:
         from models import InspectionLogBuilding2

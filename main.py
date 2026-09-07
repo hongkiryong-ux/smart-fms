@@ -10084,6 +10084,106 @@ async def baegun_art_hall_close_day(
     )
 
 
+
+@app.get("/admin/inspection-logs2/{building_id}/baegun-art-hall/export/daily")
+async def baegun_art_hall_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegun_art_hall import export_daily_to_excel, get_or_create_daily, is_baegun_art_hall_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegun_art_hall_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"백운아트홀_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegun-art-hall/export/monthly")
+async def baegun_art_hall_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from baegun_art_hall import compute_monthly_report, export_monthly_to_excel, is_baegun_art_hall_building
+    from models import BaegunArtHallDaily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegun_art_hall_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(BaegunArtHallDaily).where(
+                BaegunArtHallDaily.building_id == building_id,
+                BaegunArtHallDaily.log_date >= start,
+                BaegunArtHallDaily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(BaegunArtHallDaily).where(
+                BaegunArtHallDaily.building_id == building_id,
+                BaegunArtHallDaily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"백운아트홀_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegun-art-hall/export/yearly")
+async def baegun_art_hall_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegun_art_hall import export_yearly_to_excel, fetch_yearly_report_data, is_baegun_art_hall_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegun_art_hall_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"백운아트홀_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
 @app.get("/bahall/{code}/daily")
 async def baegun_art_hall_qr_daily(
     code: str,
@@ -11178,6 +11278,106 @@ async def steelworks_hall_close_day(
     )
 
 
+
+@app.get("/admin/inspection-logs2/{building_id}/steelworks-hall/export/daily")
+async def steelworks_hall_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from steelworks_hall import export_daily_to_excel, get_or_create_daily, is_steelworks_hall_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_steelworks_hall_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"제철회관_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/steelworks-hall/export/monthly")
+async def steelworks_hall_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from steelworks_hall import compute_monthly_report, export_monthly_to_excel, is_steelworks_hall_building
+    from models import SteelworksHallDaily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_steelworks_hall_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(SteelworksHallDaily).where(
+                SteelworksHallDaily.building_id == building_id,
+                SteelworksHallDaily.log_date >= start,
+                SteelworksHallDaily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(SteelworksHallDaily).where(
+                SteelworksHallDaily.building_id == building_id,
+                SteelworksHallDaily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"제철회관_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/steelworks-hall/export/yearly")
+async def steelworks_hall_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from steelworks_hall import export_yearly_to_excel, fetch_yearly_report_data, is_steelworks_hall_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_steelworks_hall_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"제철회관_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
 @app.get("/swhall/{code}/daily")
 async def steelworks_hall_qr_daily(
     code: str,
@@ -11518,6 +11718,106 @@ async def human_center_close_day(
         f"/admin/inspection-logs2/{building_id}/human-center"
         f"?tab=daily&date={tomorrow.isoformat()}&message={quote('마감 완료')}",
         status_code=303,
+    )
+
+
+
+@app.get("/admin/inspection-logs2/{building_id}/human-center/export/daily")
+async def human_center_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from human_center import export_daily_to_excel, get_or_create_daily, is_human_center_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_human_center_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"휴먼센터_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/human-center/export/monthly")
+async def human_center_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from human_center import compute_monthly_report, export_monthly_to_excel, is_human_center_building
+    from models import HumanCenterDaily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_human_center_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(HumanCenterDaily).where(
+                HumanCenterDaily.building_id == building_id,
+                HumanCenterDaily.log_date >= start,
+                HumanCenterDaily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(HumanCenterDaily).where(
+                HumanCenterDaily.building_id == building_id,
+                HumanCenterDaily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"휴먼센터_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/human-center/export/yearly")
+async def human_center_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from human_center import export_yearly_to_excel, fetch_yearly_report_data, is_human_center_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_human_center_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"휴먼센터_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
 
 
@@ -11864,6 +12164,106 @@ async def eoulrim_gym_close_day(
     )
 
 
+
+@app.get("/admin/inspection-logs2/{building_id}/eoulrim-gym/export/daily")
+async def eoulrim_gym_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from eoulrim_gym import export_daily_to_excel, get_or_create_daily, is_eoulrim_gym_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_eoulrim_gym_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"어울림체육관_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/eoulrim-gym/export/monthly")
+async def eoulrim_gym_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from eoulrim_gym import compute_monthly_report, export_monthly_to_excel, is_eoulrim_gym_building
+    from models import EoulrimGymDaily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_eoulrim_gym_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(EoulrimGymDaily).where(
+                EoulrimGymDaily.building_id == building_id,
+                EoulrimGymDaily.log_date >= start,
+                EoulrimGymDaily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(EoulrimGymDaily).where(
+                EoulrimGymDaily.building_id == building_id,
+                EoulrimGymDaily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"어울림체육관_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/eoulrim-gym/export/yearly")
+async def eoulrim_gym_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from eoulrim_gym import export_yearly_to_excel, fetch_yearly_report_data, is_eoulrim_gym_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_eoulrim_gym_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"어울림체육관_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
 @app.get("/egym/{code}/daily")
 async def eoulrim_gym_qr_daily(
     code: str,
@@ -12204,6 +12604,106 @@ async def baegun_dorm_close_day(
         f"/admin/inspection-logs2/{building_id}/baegun-dorm"
         f"?tab=daily&date={tomorrow.isoformat()}&message={quote('마감 완료')}",
         status_code=303,
+    )
+
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegun-dorm/export/daily")
+async def baegun_dorm_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegun_dorm import export_daily_to_excel, get_or_create_daily, is_baegun_dorm_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegun_dorm_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"백운생활관_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegun-dorm/export/monthly")
+async def baegun_dorm_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from baegun_dorm import compute_monthly_report, export_monthly_to_excel, is_baegun_dorm_building
+    from models import BaegunDormDaily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegun_dorm_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(BaegunDormDaily).where(
+                BaegunDormDaily.building_id == building_id,
+                BaegunDormDaily.log_date >= start,
+                BaegunDormDaily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(BaegunDormDaily).where(
+                BaegunDormDaily.building_id == building_id,
+                BaegunDormDaily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"백운생활관_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegun-dorm/export/yearly")
+async def baegun_dorm_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegun_dorm import export_yearly_to_excel, fetch_yearly_report_data, is_baegun_dorm_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegun_dorm_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"백운생활관_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
 
 
@@ -12552,6 +13052,106 @@ async def giga_town_close_day(
     )
 
 
+
+@app.get("/admin/inspection-logs2/{building_id}/giga-town/export/daily")
+async def giga_town_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from giga_town import export_daily_to_excel, get_or_create_daily, is_giga_town_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_giga_town_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"기가타운_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/giga-town/export/monthly")
+async def giga_town_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from giga_town import compute_monthly_report, export_monthly_to_excel, is_giga_town_building
+    from models import GigaTownDaily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_giga_town_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(GigaTownDaily).where(
+                GigaTownDaily.building_id == building_id,
+                GigaTownDaily.log_date >= start,
+                GigaTownDaily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(GigaTownDaily).where(
+                GigaTownDaily.building_id == building_id,
+                GigaTownDaily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"기가타운_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/giga-town/export/yearly")
+async def giga_town_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from giga_town import export_yearly_to_excel, fetch_yearly_report_data, is_giga_town_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_giga_town_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"기가타운_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
 @app.get("/gtown/{code}/daily")
 async def giga_town_qr_daily(
     code: str,
@@ -12896,6 +13496,106 @@ async def park1538_close_day(
         f"/admin/inspection-logs2/{building_id}/park1538"
         f"?tab=daily&date={tomorrow.isoformat()}&message={quote('마감 완료')}",
         status_code=303,
+    )
+
+
+
+@app.get("/admin/inspection-logs2/{building_id}/park1538/export/daily")
+async def park1538_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from park1538 import export_daily_to_excel, get_or_create_daily, is_park1538_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_park1538_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"Park1538_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/park1538/export/monthly")
+async def park1538_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from park1538 import compute_monthly_report, export_monthly_to_excel, is_park1538_building
+    from models import Park1538Daily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_park1538_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(Park1538Daily).where(
+                Park1538Daily.building_id == building_id,
+                Park1538Daily.log_date >= start,
+                Park1538Daily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(Park1538Daily).where(
+                Park1538Daily.building_id == building_id,
+                Park1538Daily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"Park1538_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/park1538/export/yearly")
+async def park1538_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from park1538 import export_yearly_to_excel, fetch_yearly_report_data, is_park1538_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_park1538_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"Park1538_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
 
 
