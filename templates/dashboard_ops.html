@@ -123,7 +123,7 @@
               {% endif %}
               <div class="ops-site-info">
                 <div class="ops-site-name">
-                  <a class="ops-site-name-link" href="{{ s.detail_url or '/admin/sites' }}" title="{% if s.is_gwangyang_ops %}광양 주택지역 공공시설물 현황{% else %}{{ s.name }}{% endif %}">
+                  <a class="ops-site-name-link" href="/admin/sites" title="사업장/건물">
                     <strong>{{ s.name }}</strong>
                   </a>
                 </div>
@@ -145,7 +145,11 @@
                 {% set bar_pct = (s.unresolved * 100 // s.requests) if s.requests else 0 %}
                 <div class="ops-site-bar"><i style="width:{{ bar_pct if bar_pct < 100 else 100 }}%"></i></div>
               </div>
-              <a class="ops-site-link" href="{{ s.detail_url or '/admin/sites' }}">{% if s.is_gwangyang_ops %}공공시설물 현황 ›{% else %}자세히 보기 ›{% endif %}</a>
+              {% if s.is_gwangyang_ops and s.facilities_url %}
+              <a class="ops-site-link" href="{{ s.facilities_url }}">공공시설물 현황 ›</a>
+              {% else %}
+              <a class="ops-site-link" href="/admin/sites">자세히 보기 ›</a>
+              {% endif %}
             </li>
             {% endfor %}
           </ul>

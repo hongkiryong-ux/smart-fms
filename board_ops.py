@@ -245,9 +245,7 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
         ).scalar() or 0
         from gwangyang_facilities import GWANGYANG_FACILITIES_PATH, is_gwangyang_ops_site
 
-        detail_url = (
-            GWANGYANG_FACILITIES_PATH if is_gwangyang_ops_site(s.name) else "/admin/sites"
-        )
+        gy = is_gwangyang_ops_site(s.name)
         result.append(
             {
                 "id": s.id,
@@ -259,8 +257,8 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                 "unresolved": int(wo_open),
                 "completed": int(wo_done),
                 "score": int(wo_urgent) * 10 + int(wo_open),
-                "detail_url": detail_url,
-                "is_gwangyang_ops": is_gwangyang_ops_site(s.name),
+                "is_gwangyang_ops": gy,
+                "facilities_url": GWANGYANG_FACILITIES_PATH if gy else None,
             }
         )
     result.sort(key=lambda x: (-x["score"], -x["requests"], x["name"]))
