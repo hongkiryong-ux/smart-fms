@@ -1,0 +1,158 @@
+{
+  "building_name": "백운대",
+  "building_aliases": ["백운대", "백운대 점검일지"],
+  "title": "백운대 점검일지",
+  "utility": {
+    "title": "사용량",
+    "default_multipliers": {
+      "power_bdae": "1"
+    },
+    "side_by_side": [
+      {
+        "id": "gas",
+        "title": "임원숙소 가스 사용량",
+        "meters": [
+          {"id": "gas_1", "label": "임원 1호", "unit": "", "multiplier": 1},
+          {"id": "gas_2", "label": "임원 2호", "unit": "", "multiplier": 1},
+          {"id": "gas_3", "label": "임원 3호", "unit": "", "multiplier": 1},
+          {"id": "gas_5", "label": "임원 5호", "unit": "", "multiplier": 1}
+        ]
+      },
+      {
+        "id": "power_water",
+        "title": "백운대 전력, 급수 사용량",
+        "meters": [
+          {"id": "power", "label": "전력(KWH)", "unit": "KWH", "multiplier_key": "power_bdae"},
+          {"id": "water", "label": "급수(m³)", "unit": "m³", "multiplier": 1}
+        ]
+      }
+    ],
+    "meters": [
+      {"id": "gas_1", "label": "임원 1호 가스", "unit": "", "multiplier": 1, "cat": "가스", "building": "임원숙소"},
+      {"id": "gas_2", "label": "임원 2호 가스", "unit": "", "multiplier": 1, "cat": "가스", "building": "임원숙소"},
+      {"id": "gas_3", "label": "임원 3호 가스", "unit": "", "multiplier": 1, "cat": "가스", "building": "임원숙소"},
+      {"id": "gas_5", "label": "임원 5호 가스", "unit": "", "multiplier": 1, "cat": "가스", "building": "임원숙소"},
+      {"id": "power", "label": "전력(KWH)", "unit": "KWH", "multiplier_key": "power_bdae", "cat": "전력", "building": "백운대"},
+      {"id": "water", "label": "급수(m³)", "unit": "m³", "multiplier": 1, "cat": "급수", "building": "백운대"}
+    ],
+    "blocks": [
+      {
+        "cat": "가스",
+        "building": "임원숙소",
+        "item": "임원 1호",
+        "multiplier_key": null,
+        "rows": [{"id": "gas_1", "label": "임원 1호", "unit": "", "multiplier": 1}]
+      },
+      {
+        "cat": "가스",
+        "building": "임원숙소",
+        "item": "임원 2호",
+        "multiplier_key": null,
+        "rows": [{"id": "gas_2", "label": "임원 2호", "unit": "", "multiplier": 1}]
+      },
+      {
+        "cat": "가스",
+        "building": "임원숙소",
+        "item": "임원 3호",
+        "multiplier_key": null,
+        "rows": [{"id": "gas_3", "label": "임원 3호", "unit": "", "multiplier": 1}]
+      },
+      {
+        "cat": "가스",
+        "building": "임원숙소",
+        "item": "임원 5호",
+        "multiplier_key": null,
+        "rows": [{"id": "gas_5", "label": "임원 5호", "unit": "", "multiplier": 1}]
+      },
+      {
+        "cat": "전력",
+        "building": "백운대",
+        "item": "전력(KWH)",
+        "multiplier_key": "power_bdae",
+        "rows": [{"id": "power", "label": "전력(KWH)", "unit": "KWH"}]
+      },
+      {
+        "cat": "급수",
+        "building": "백운대",
+        "item": "급수(m³)",
+        "multiplier_key": null,
+        "rows": [{"id": "water", "label": "급수(m³)", "unit": "m³", "multiplier": 1}]
+      }
+    ],
+    "monthly_ids": ["gas_1", "gas_2", "gas_3", "gas_5", "power", "water"]
+  },
+  "electrical": {
+    "title": "전기 설비 운전 및 점검",
+    "times": [
+      {"id": "t1", "default": ""},
+      {"id": "t2", "default": ""},
+      {"id": "t3", "default": ""}
+    ],
+    "groups": [
+      {
+        "cat": "6.6KV INCOMING",
+        "fields": [
+          {"id": "volt", "label": "전압(kV)", "std": "6.3~6.9kV"},
+          {"id": "amp", "label": "전류(A)", "std": "≤100A"},
+          {"id": "kwh", "label": "KWH 적산량", "std": ""}
+        ]
+      },
+      {
+        "cat": "400KVA TR(동력)",
+        "fields": [
+          {"id": "pwr_active", "label": "유효전력(KW)", "std": ""},
+          {"id": "pwr_amp", "label": "전류(A)", "std": "≤35A"},
+          {"id": "pwr_temp", "label": "온도(℃)", "std": "≤75℃"}
+        ]
+      },
+      {
+        "cat": "300KVA TR(조명)",
+        "fields": [
+          {"id": "lit_active", "label": "유효전력(KW)", "std": ""},
+          {"id": "lit_amp", "label": "전류(A)", "std": "≤26A"},
+          {"id": "lit_temp", "label": "온도(℃)", "std": "≤75℃"}
+        ]
+      },
+      {
+        "cat": "400KVA TR(에어컨)",
+        "fields": [
+          {"id": "ac_active", "label": "유효전력(KW)", "std": ""},
+          {"id": "ac_amp", "label": "전류(A)", "std": "≤61A"},
+          {"id": "ac_temp", "label": "온도(℃)", "std": "≤75℃"}
+        ]
+      }
+    ]
+  },
+  "executive": {
+    "title": "임원 숙소 설비 운전 및 점검",
+    "units": [
+      {"id": "u1", "label": "임원 1호"},
+      {"id": "u2", "label": "임원 2호"},
+      {"id": "u3", "label": "임원 3호"},
+      {"id": "u5", "label": "임원 5호"},
+      {"id": "bdae", "label": "백운대"}
+    ],
+    "fields": [
+      {"id": "time", "label": "점검시간", "std": ""},
+      {"id": "heat_temp", "label": "난방온도", "std": "℃"},
+      {"id": "hot_temp", "label": "급탕온도", "std": "℃"},
+      {"id": "water_p", "label": "급수압력", "std": "kg/cm²"}
+    ]
+  },
+  "indoor": {
+    "title": "실내 온도 CHECK(℃)",
+    "times": [
+      {"id": "t1", "default": ""},
+      {"id": "t2", "default": ""}
+    ],
+    "fields": [
+      {"id": "f1", "label": "1층", "std": "℃"},
+      {"id": "f2", "label": "2층", "std": "℃"},
+      {"id": "f3", "label": "3층", "std": "℃"},
+      {"id": "lobby", "label": "로비", "std": "℃"},
+      {"id": "hall", "label": "행사장", "std": "℃"},
+      {"id": "outdoor", "label": "외기온도", "std": "℃"},
+      {"id": "remark", "label": "비고", "std": ""}
+    ]
+  }
+}

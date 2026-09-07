@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/baegundae.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/baegundae/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set multipliers = daily_data.get('multipliers', {}) if daily_data else {} %}
+{% set el_data = daily_data.get('electrical', {}) if daily_data else {} %}
+{% set ex_data = daily_data.get('executive', {}) if daily_data else {} %}
+{% set in_data = daily_data.get('indoor', {}) if daily_data else {} %}
+
+<header class="page-header bdae-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항 · 엑셀 다운로드{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="bdae-tabs" aria-label="백운대 탭">
+  <a class="bdae-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="bdae-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="bdae-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="bdae-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide bdae-daily">
+  <form method="get" class="bdae-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/bdae/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/bdae/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    <a class="btn btn-secondary btn-sm"
+       href="/admin/inspection-logs2/{{ building.id }}/baegundae/export/daily?log_date={{ log_date.isoformat() }}">
+      엑셀 다운로드
+    </a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="bdae-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/baegundae/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div>
+      <a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/baegundae/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted bdae-hint">원본 양식 레이아웃 · 노란 칸=전일지침(수기 가능) · 금일지침→다음날 자동 반영 · 전력 배율 편집 · 시간은 수기 입력 · 드래그·엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+
+  <form method="post" action="{{ save_url }}" id="bdae-daily-form" class="bdae-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    <div class="bdae-sheet">
+      <div class="bdae-form-title">{{ schema.title }}</div>
+      <div class="bdae-mul-bar">
+        <strong>전력 배율</strong>
+        <label>전력(KWH)
+          <input class="bdae-cell bdae-mul" name="mul__power_bdae" value="{{ multipliers.get('power_bdae','1') }}" inputmode="decimal" />
+        </label>
+        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율</span>
+      </div>
+
+      <div class="bdae-utility-row">
+        {% for side in schema.utility.side_by_side %}
+        <div class="bdae-utility-col">
+          <div class="bdae-sheet-title">{{ side.title }}</div>
+          <div class="bdae-table-wrap">
+            <table class="bdae-excel bdae-utility-table">
+              <thead>
+                <tr>
+                  <th>구분</th>
+                  <th class="bdae-yellow">전일지침</th>
+                  <th>금일지침</th>
+                  <th>일사용량</th>
+                  <th>월누계량</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for meter in side.meters %}
+                {% set item = utility.get(meter.id, {}) %}
+                {% set mul_key = meter.get('multiplier_key') %}
+                <tr>
+                  <th class="bdae-cat">{{ meter.label }}</th>
+                  <td class="bdae-yellow" data-utility="{{ meter.id }}"{% if mul_key %} data-multiplier-key="{{ mul_key }}"{% endif %} data-multiplier="{{ meter.get('multiplier', 1) }}">
+                    <input class="bdae-cell bdae-prev" name="u__{{ meter.id }}__prev" value="{{ item.get('prev','') }}" inputmode="decimal" />
+                    <input class="bdae-prev-flag" type="hidden" name="u__{{ meter.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+                  </td>
+                  <td>
+                    <input class="bdae-cell" name="u__{{ meter.id }}__today" value="{{ item.get('today','') }}" inputmode="decimal" />
+                  </td>
+                  <td>
+                    <input class="bdae-cell bdae-readonly" name="u__{{ meter.id }}__daily" value="{{ item.get('daily','') }}" readonly />
+                  </td>
+                  <td>
+                    <input class="bdae-cell bdae-readonly" name="u__{{ meter.id }}__monthly" value="{{ item.get('monthly','') }}" readonly />
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="bdae-sheet">
+      <div class="bdae-sheet-title">{{ schema.electrical.title }}</div>
+      <div class="bdae-table-wrap">
+        <table class="bdae-excel bdae-inspect-table">
+          <thead>
+            <tr>
+              <th rowspan="3">기록시간</th>
+              {% for group in schema.electrical.groups %}
+              <th class="bdae-meter-head" colspan="{{ group.fields|length }}">{{ group.cat }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for group in schema.electrical.groups %}
+                {% for f in group.fields %}
+                <th>{{ f.label }}</th>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            <tr class="bdae-std-row">
+              {% for group in schema.electrical.groups %}
+                {% for f in group.fields %}
+                <th class="bdae-std">{{ f.std or '—' }}</th>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.electrical.times %}
+            {% set tid = t.id %}
+            {% set row = el_data.get(tid, {}) %}
+            <tr>
+              <td class="bdae-time-cell">
+                <input class="bdae-cell bdae-time-input" name="el__{{ tid }}__time" value="{{ row.get('time', t.default) }}" placeholder="HH:MM" title="시간 수기 입력" />
+              </td>
+              {% for group in schema.electrical.groups %}
+                {% for f in group.fields %}
+                <td>
+                  <input class="bdae-cell" name="el__{{ tid }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" inputmode="decimal" />
+                </td>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bdae-sheet">
+      <div class="bdae-sheet-title">{{ schema.executive.title }}</div>
+      <div class="bdae-table-wrap">
+        <table class="bdae-excel">
+          <thead>
+            <tr>
+              <th>항목</th>
+              {% for u in schema.executive.units %}<th>{{ u.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in schema.executive.fields %}
+            <tr>
+              <th class="bdae-sub">{{ f.label }}{% if f.std %} <span class="bdae-standard">({{ f.std }})</span>{% endif %}</th>
+              {% for u in schema.executive.units %}
+              {% set unit_data = ex_data.get(u.id, {}) %}
+              <td>
+                <input class="bdae-cell{% if f.id == 'time' %} bdae-time-input{% endif %}"
+                       name="ex__{{ u.id }}__{{ f.id }}"
+                       value="{{ unit_data.get(f.id,'') }}"
+                       {% if f.id == 'time' %}placeholder="HH:MM"{% else %}inputmode="decimal"{% endif %} />
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bdae-sheet">
+      <div class="bdae-sheet-title">{{ schema.indoor.title }}</div>
+      <div class="bdae-table-wrap">
+        <table class="bdae-excel">
+          <thead>
+            <tr>
+              <th>기록시간</th>
+              {% for f in schema.indoor.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.indoor.times %}
+            {% set tid = t.id %}
+            {% set row = in_data.get(tid, {}) %}
+            <tr>
+              <td class="bdae-time-cell">
+                <input class="bdae-cell bdae-time-input" name="in__{{ tid }}__time" value="{{ row.get('time', t.default) }}" placeholder="HH:MM" title="시간 수기 입력" />
+              </td>
+              {% for f in schema.indoor.fields %}
+              <td>
+                <input class="bdae-cell" name="in__{{ tid }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" {% if f.id != 'remark' %}inputmode="decimal"{% endif %} />
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bdae-sheet bdae-notes-box">
+      <div class="bdae-sheet-title">※특이사항</div>
+      <textarea class="bdae-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
+      <div class="bdae-footer-brand"><span>포스코와이드</span><span>광양운영그룹</span></div>
+    </div>
+
+    {% if can_write %}
+    <div class="bdae-form-actions">
+      <span id="bdae-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/baegundae/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+<script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
+{% if can_write %}<script src="/static/js/baegundae.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="bdae-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button><a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/baegundae/export/monthly?year={{ year }}&month={{ month }}">엑셀 다운로드</a></form>
+  <div class="bdae-sheet"><div class="bdae-sheet-title">{{ year }}년 {{ month }}월 사용량 월보</div><div class="bdae-table-wrap">
+    <table class="bdae-excel bdae-month-grid"><thead><tr><th>일</th>{% for meter in monthly.meters %}<th>{{ meter.label or meter.item or meter.id }}</th>{% endfor %}</tr></thead><tbody>
+      {% for day in monthly.days %}<tr><th>{{ day.day }}</th>{% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="bdae-sum-row"><th>계</th>{% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="bdae-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button><a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/baegundae/export/yearly?year={{ year }}">엑셀 다운로드</a></form>
+  <div class="bdae-sheet"><div class="bdae-sheet-title">{{ year }}년 년보</div><div class="bdae-table-wrap">
+    <table class="bdae-excel"><thead><tr><th>월</th>{% for meter in yearly.meters %}<th>{{ meter.label or meter.item or meter.id }}</th>{% endfor %}</tr></thead><tbody>
+      {% for m in yearly.months %}<tr><th>{{ m.month }}월</th>{% for meter in yearly.meters %}<td>{{ m.utility.get(meter.id,'') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="bdae-sum-row"><th>계</th>{% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="bdae-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  {% if notes_list.entries %}
+  <ul class="bdae-notes-list">{% for e in notes_list.entries %}<li><strong>{{ e.date }}</strong><pre>{{ e.items[0].text }}</pre></li>{% endfor %}</ul>
+  {% else %}<p class="empty">등록된 특이사항이 없습니다.</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

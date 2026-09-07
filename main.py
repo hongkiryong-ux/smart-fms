@@ -103,6 +103,8 @@ from models import (
     BaegunArtHallArchive,
     Sub53Daily,
     Sub53Archive,
+    BaegundaeDaily,
+    BaegundaeArchive,
     BaegunArtHallDaily,
     CcrFacilityArchive,
     CcrFacilityDaily,
@@ -1158,6 +1160,9 @@ async def lifespan(app: FastAPI):
             from sub53 import register_scheduler as register_sub53_scheduler
 
             register_sub53_scheduler(scheduler, AsyncSessionLocal, KST)
+            from baegundae import register_scheduler as register_baegundae_scheduler
+
+            register_baegundae_scheduler(scheduler, AsyncSessionLocal, KST)
             scheduler.start()
         except Exception as e:
             print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
@@ -8465,6 +8470,20 @@ async def inspection_logs2_page(
         await db.rollback()
         print(f"[sub53] ensure register skip: {e}", flush=True)
 
+    try:
+        from baegundae import ensure_registered as ensure_baegundae_registered
+        from baegundae import ensure_tables as ensure_baegundae_tables
+
+        await ensure_baegundae_tables(engine)
+        if await ensure_baegundae_registered(db):
+            await db.commit()
+            from auth import invalidate_nav_cache
+
+            invalidate_nav_cache()
+    except Exception as e:
+        await db.rollback()
+        print(f"[baegundae] ensure register skip: {e}", flush=True)
+
     selected_rows = (
         await db.execute(
             select(InspectionLogBuilding2, Building)
@@ -8671,6 +8690,13 @@ async def inspection_logs2_building_detail(
     if is_sub53_building(building):
         return RedirectResponse(
             f"/admin/inspection-logs2/{building_id}/53-sub",
+            status_code=303,
+        )
+    from baegundae import is_baegundae_building
+
+    if is_baegundae_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/baegundae",
             status_code=303,
         )
     from baegun_dorm import is_baegun_dorm_building
@@ -10749,6 +10775,448 @@ async def sub53_qr_save(
         status_code=303,
     )
 
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegundae/qr.png")
+async def baegundae_qr_png(
+    building_id: int,
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import re
+    from urllib.parse import quote
+
+    from baegundae import (
+        baegundae_daily_qr_url,
+        is_baegundae_building,
+        qr_png_bytes,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegundae_building(building) or not building.code:
+        raise HTTPException(404)
+    data = qr_png_bytes(baegundae_daily_qr_url(building.code, request))
+    safe = re.sub(r"[^\w가-힣.\-]+", "_", building.code.strip()) or "bdae"
+    filename = f"{safe}_1일QR.png"
+    disposition = "attachment" if download else "inline"
+    return StreamingResponse(
+        iter([data]),
+        media_type="image/png",
+        headers={
+            "Content-Disposition": (
+                f"{disposition}; filename*=UTF-8''{quote(filename)}"
+            )
+        },
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegundae")
+async def baegundae_page(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from baegundae import (
+        compute_monthly_report,
+        ensure_tables as ensure_bdae_tables,
+        fetch_notes_list,
+        fetch_yearly_report_data,
+        get_or_create_daily,
+        baegundae_daily_qr_url,
+        is_baegundae_building,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_bdae_tables(engine)
+    except Exception as exc:
+        print(f"[baegundae] ensure: {exc}", flush=True)
+
+    registered = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(
+                InspectionLogBuilding2.building_id == building_id,
+                Building.is_active == True,  # noqa: E712
+            )
+        )
+    ).first()
+    if not registered:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    _, building = registered
+    if not is_baegundae_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}", status_code=303
+        )
+
+    today = _today_kst()
+    tab = request.query_params.get("tab") or "daily"
+    schema = load_schema()
+    daily_data = {}
+    monthly = {"meters": [], "days": [], "totals": {}}
+    yearly = {"months": [], "totals": {}}
+    notes_list = {"entries": []}
+    log_date = today
+    year, month = today.year, today.month
+
+    if tab == "monthly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        start = date(year, month, 1)
+        end = date(year, month, calendar.monthrange(year, month)[1])
+        rows = (
+            await db.execute(
+                select(BaegundaeDaily).where(
+                    BaegundaeDaily.building_id == building_id,
+                    BaegundaeDaily.log_date >= start,
+                    BaegundaeDaily.log_date <= end,
+                )
+            )
+        ).scalars().all()
+        previous = (
+            await db.execute(
+                select(BaegundaeDaily).where(
+                    BaegundaeDaily.building_id == building_id,
+                    BaegundaeDaily.log_date == start - timedelta(days=1),
+                )
+            )
+        ).scalar_one_or_none()
+        monthly = compute_monthly_report(year, month, list(rows), previous)
+    elif tab == "yearly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+        except ValueError:
+            year = today.year
+        yearly = await fetch_yearly_report_data(db, building_id, year)
+    elif tab == "notes":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        notes_list = await fetch_notes_list(db, building_id, year, month)
+    else:
+        tab = "daily"
+        try:
+            raw_date = request.query_params.get("date")
+            log_date = date.fromisoformat(raw_date) if raw_date else today
+        except ValueError:
+            log_date = today
+        daily_row = await get_or_create_daily(db, building_id, log_date)
+        await db.commit()
+        daily_data = daily_row.data or {}
+        year, month = log_date.year, log_date.month
+
+    return templates.TemplateResponse(
+        request,
+        "baegundae.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": schema,
+            "tab": tab,
+            "log_date": log_date,
+            "today": today,
+            "year": year,
+            "month": month,
+            "daily_data": daily_data,
+            "monthly": monthly,
+            "yearly": yearly,
+            "notes_list": notes_list,
+            "qr_mode": False,
+            "qr_url": (
+                baegundae_daily_qr_url(building.code, request) if building.code else ""
+            ),
+            "daily_save_url": (
+                f"/admin/inspection-logs2/{building_id}/baegundae/save"
+            ),
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/baegundae/save")
+async def baegundae_save(
+    building_id: int,
+    request: Request,
+    user: User | None = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegundae import (
+        finalize_daily_save,
+        get_or_create_daily,
+        is_baegundae_building,
+        parse_daily_form,
+        propagate_to_next_day,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegundae_building(building):
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building_id, log_date)
+    row.data = await finalize_daily_save(
+        db, building_id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    row.updated_at = datetime.utcnow()
+    await propagate_to_next_day(db, building_id, log_date, row.data)
+    await db.commit()
+    if request.headers.get("X-BDAE-Autosave") == "1":
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"ok": True, "data": row.data})
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/baegundae"
+        f"?tab=daily&date={log_date.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/baegundae/close-day")
+async def baegundae_close_day(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegundae import (
+        finalize_daily_save,
+        get_or_create_daily,
+        is_baegundae_building,
+        parse_daily_form,
+        rollover_at_midnight,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegundae_building(building):
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building_id, log_date)
+    row.data = await finalize_daily_save(
+        db, building_id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    await db.flush()
+    await rollover_at_midnight(db, building_id, log_date)
+    tomorrow = log_date + timedelta(days=1)
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/baegundae"
+        f"?tab=daily&date={tomorrow.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegundae/export/daily")
+async def baegundae_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegundae import export_daily_to_excel, get_or_create_daily, is_baegundae_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegundae_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"백운대_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegundae/export/monthly")
+async def baegundae_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from baegundae import compute_monthly_report, export_monthly_to_excel, is_baegundae_building
+    from models import BaegundaeDaily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegundae_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(BaegundaeDaily).where(
+                BaegundaeDaily.building_id == building_id,
+                BaegundaeDaily.log_date >= start,
+                BaegundaeDaily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(BaegundaeDaily).where(
+                BaegundaeDaily.building_id == building_id,
+                BaegundaeDaily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"백운대_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/baegundae/export/yearly")
+async def baegundae_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegundae import export_yearly_to_excel, fetch_yearly_report_data, is_baegundae_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_baegundae_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"백운대_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/bdae/{code}/daily")
+async def baegundae_qr_daily(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    from baegundae import (
+        ensure_tables as ensure_bdae_tables,
+        get_building_for_qr,
+        get_or_create_daily,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_bdae_tables(engine)
+    except Exception:
+        pass
+    building = await get_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    today = _today_kst()
+    try:
+        raw_date = request.query_params.get("date")
+        log_date = date.fromisoformat(raw_date) if raw_date else today
+    except ValueError:
+        log_date = today
+    row = await get_or_create_daily(db, building.id, log_date)
+    await db.commit()
+    return templates.TemplateResponse(
+        request,
+        "baegundae.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": load_schema(),
+            "tab": "daily",
+            "log_date": log_date,
+            "today": today,
+            "year": log_date.year,
+            "month": log_date.month,
+            "daily_data": row.data or {},
+            "monthly": {"meters": [], "days": [], "totals": {}},
+            "yearly": {"months": [], "totals": {}},
+            "notes_list": {"entries": []},
+            "qr_mode": True,
+            "qr_url": "",
+            "daily_save_url": f"/bdae/{building.code}/daily/save",
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/bdae/{code}/daily/save")
+async def baegundae_qr_save(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from baegundae import (
+        finalize_daily_save,
+        get_building_for_qr,
+        get_or_create_daily,
+        parse_daily_form,
+        propagate_to_next_day,
+    )
+
+    building = await get_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building.id, log_date)
+    row.data = await finalize_daily_save(
+        db, building.id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    row.updated_at = datetime.utcnow()
+    await propagate_to_next_day(db, building.id, log_date, row.data)
+    await db.commit()
+    if request.headers.get("X-BDAE-Autosave") == "1":
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"ok": True, "data": row.data})
+    return RedirectResponse(
+        f"/bdae/{code}/daily?date={log_date.isoformat()}"
+        f"&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
 
 
 @app.get("/admin/inspection-logs2/{building_id}/ccr-facility/qr.png")
