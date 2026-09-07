@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/baegun_shopping.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/baegun-shopping/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set multipliers = daily_data.get('multipliers', {}) if daily_data else {} %}
+{% set elec_data = daily_data.get('elec', {}) if daily_data else {} %}
+{% set hp_data = daily_data.get('heat_pump', {}) if daily_data else {} %}
+{% set ht_data = daily_data.get('hw_tank', {}) if daily_data else {} %}
+{% set ch_data = daily_data.get('chiller', {}) if daily_data else {} %}
+{% set ahu_data = daily_data.get('ahu', {}) if daily_data else {} %}
+{% set fire_data = daily_data.get('fire', {}) if daily_data else {} %}
+{% set in_data = daily_data.get('indoor', {}) if daily_data else {} %}
+{% set mul_s1 = (schema.utility.default_multipliers or {}).get('power_s1', '1') %}
+{% set mul_s23 = (schema.utility.default_multipliers or {}).get('power_s23', '1') %}
+
+<header class="page-header bs-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="bs-tabs" aria-label="백운쇼핑 탭">
+  <a class="bs-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="bs-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="bs-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="bs-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide bs-daily">
+  <form method="get" class="bs-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/bshop/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/bshop/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    <a class="btn btn-secondary btn-sm"
+       href="/admin/inspection-logs2/{{ building.id }}/baegun-shopping/export/daily?log_date={{ log_date.isoformat() }}">
+      엑셀 다운로드
+    </a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="bs-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/baegun-shopping/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/baegun-shopping/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted bs-hint">원본 양식 · 전일지침 자동이월(수기 가능) · 전력 1단계/2·3단계 배율 · 드래그 선택 · 엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+
+  <form method="post" action="{{ save_url }}" id="bs-daily-form" class="bs-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    <div class="bs-sheet">
+      <div class="bs-form-title">{{ schema.title }}</div>
+      <div class="bs-sheet-title">{{ schema.utility.title }}</div>
+      <div class="bs-mul-bar">
+        <strong>전력 배율</strong>
+        <label>1단계 <input class="bs-cell bs-mul" name="mul__power_s1" value="{{ multipliers.get('power_s1', mul_s1) }}" inputmode="decimal" /></label>
+        <label>2·3단계 <input class="bs-cell bs-mul" name="mul__power_s23" value="{{ multipliers.get('power_s23', mul_s23) }}" inputmode="decimal" /></label>
+        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율</span>
+      </div>
+      <div class="bs-table-wrap">
+        <table class="bs-excel bs-utility-table">
+          <thead>
+            <tr>
+              <th>구분</th>
+              <th>단계</th>
+              <th>항목</th>
+              <th class="bs-yellow">전일지침</th>
+              <th>금일지침</th>
+              <th>일사용량</th>
+              <th>월누계</th>
+              <th>비고</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set cat_ns = namespace(prev='') %}
+            {% for block in schema.utility.blocks %}
+              {% set cat_span = namespace(n=0) %}
+              {% for b2 in schema.utility.blocks %}
+                {% if b2.cat == block.cat %}{% set cat_span.n = cat_span.n + (b2.rows|length) %}{% endif %}
+              {% endfor %}
+              {% for row in block.rows %}
+              {% set item = utility.get(row.id, {}) %}
+              <tr class="bs-utility-row" data-utility="{{ row.id }}" data-multiplier="{{ row.multiplier|default(1) }}" {% if block.multiplier_key %}data-multiplier-key="{{ block.multiplier_key }}"{% endif %}>
+                {% if cat_ns.prev != block.cat %}
+                <th rowspan="{{ cat_span.n }}" class="bs-cat">{{ block.cat }}</th>
+                {% set cat_ns.prev = block.cat %}
+                {% endif %}
+                {% if loop.first %}
+                <th rowspan="{{ block.rows|length }}" class="bs-sub">{{ block.building or '—' }}</th>
+                {% endif %}
+                <th class="bs-sub">{{ row.label }}{% if row.unit %} <small>({{ row.unit }})</small>{% endif %}</th>
+                <td class="bs-yellow">
+                  <input class="bs-cell bs-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" inputmode="decimal" />
+                  <input class="bs-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+                </td>
+                <td><input class="bs-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" inputmode="decimal" /></td>
+                <td><input class="bs-cell bs-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+                <td><input class="bs-cell bs-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+                <td><input class="bs-cell bs-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bs-sheet">
+      <div class="bs-sheet-title">2. UTILITY 점검사항</div>
+      {% for panel in schema.elec_panels %}
+      {% set panel_data = elec_data.get(panel.id, {}) %}
+      <div class="bs-sheet-subtitle">{{ panel.title }}</div>
+      <div class="bs-table-wrap">
+        <table class="bs-excel bs-elec-table">
+          <thead>
+            <tr>
+              <th>시간</th>
+              {% for f in panel.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+            {% if panel.std %}
+            <tr class="bs-std-row">
+              <th>기준</th>
+              {% for f in panel.fields %}<th class="bs-std">{{ panel.std.get(f.id, '') }}</th>{% endfor %}
+            </tr>
+            {% endif %}
+          </thead>
+          <tbody>
+            {% for t in panel.times %}
+            {% set row = panel_data.get(t, {}) %}
+            <tr>
+              <td class="bs-time-col"><input class="bs-cell bs-time-input" name="el__{{ panel.id }}__{{ t }}__time" value="{{ row.get('time','') }}" title="시간 수기 입력" /></td>
+              {% for f in panel.fields %}
+              <td><input class="bs-cell" name="el__{{ panel.id }}__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" inputmode="decimal" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+
+      <div class="bs-sheet-subtitle">{{ schema.heat_pump.title }}</div>
+      <div class="bs-table-wrap">
+        <table class="bs-excel">
+          <thead>
+            <tr>
+              <th>위치</th>
+              {% for f in schema.heat_pump.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for loc in schema.heat_pump.locations %}
+            {% set item = hp_data.get(loc.id, {}) %}
+            <tr>
+              <th class="bs-sub">{{ loc.label }}</th>
+              {% for f in schema.heat_pump.fields %}
+              <td{% if f.id == 'time' %} class="bs-time-col"{% endif %}>
+                <input class="bs-cell{% if f.id == 'time' %} bs-time-input{% endif %}" name="hp__{{ loc.id }}__{{ f.id }}" value="{{ item.get(f.id,'') }}" {% if f.id != 'time' %}inputmode="decimal"{% endif %} />
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bs-sheet-subtitle">{{ schema.hw_tank.title }}</div>
+      <div class="bs-table-wrap">
+        <table class="bs-excel">
+          <thead>
+            <tr>
+              <th>위치</th>
+              {% if schema.hw_tank.shared_time %}<th>시간</th>{% endif %}
+              {% for f in schema.hw_tank.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for loc in schema.hw_tank.locations %}
+            {% set item = ht_data.get(loc.id, {}) %}
+            <tr>
+              <th class="bs-sub">{{ loc.label }}</th>
+              {% if schema.hw_tank.shared_time %}
+              <td class="bs-time-col"><input class="bs-cell bs-time-input" name="ht__{{ loc.id }}__time" value="{{ item.get('time','') }}" /></td>
+              {% endif %}
+              {% for f in schema.hw_tank.fields %}
+              <td><input class="bs-cell" name="ht__{{ loc.id }}__{{ f.id }}" value="{{ item.get(f.id,'') }}" inputmode="decimal" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bs-sheet-subtitle">{{ schema.chiller.title }}</div>
+      <div class="bs-table-wrap">
+        <table class="bs-excel">
+          <thead>
+            <tr>
+              {% for f in schema.chiller.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {% for f in schema.chiller.fields %}
+              <td{% if f.id == 'time' %} class="bs-time-col"{% endif %}>
+                <input class="bs-cell{% if f.id == 'time' %} bs-time-input{% endif %}" name="ch__{{ f.id }}" value="{{ ch_data.get(f.id,'') }}" {% if f.id != 'time' %}inputmode="decimal"{% endif %} />
+              </td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bs-sheet-subtitle">{{ schema.ahu.title }}</div>
+      <div class="bs-table-wrap">
+        <table class="bs-excel">
+          <thead>
+            <tr>
+              <th>시간</th>
+              {% for f in schema.ahu.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.ahu.times %}
+            {% set row = ahu_data.get(t, {}) %}
+            <tr>
+              <td class="bs-time-col"><input class="bs-cell bs-time-input" name="ahu__{{ t }}__time" value="{{ row.get('time','') }}" /></td>
+              {% for f in schema.ahu.fields %}
+              <td><input class="bs-cell" name="ahu__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" placeholder="S/R" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bs-sheet-subtitle">{{ schema.fire.title }}</div>
+      <div class="bs-table-wrap">
+        <table class="bs-excel">
+          <thead>
+            <tr>
+              {% for f in schema.fire.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {% for f in schema.fire.fields %}
+              <td{% if f.id == 'time' %} class="bs-time-col"{% endif %}>
+                <input class="bs-cell{% if f.id == 'time' %} bs-time-input{% endif %}" name="fire__{{ f.id }}" value="{{ fire_data.get(f.id,'') }}" {% if f.id not in ['time','remark'] %}inputmode="decimal"{% endif %} />
+              </td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bs-sheet">
+      <div class="bs-sheet-title">{{ schema.indoor.title }}</div>
+      <div class="bs-table-wrap">
+        <table class="bs-excel">
+          <thead>
+            <tr>
+              <th>시간</th>
+              {% for f in schema.indoor.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.indoor.times %}
+            {% set row = in_data.get(t, {}) %}
+            <tr>
+              <td class="bs-time-col"><input class="bs-cell bs-time-input" name="in__{{ t }}__time" value="{{ row.get('time','') }}" /></td>
+              {% for f in schema.indoor.fields %}
+              <td><input class="bs-cell" name="in__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" {% if f.id != 'remark' %}inputmode="decimal"{% endif %} /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bs-sheet">
+      <div class="bs-sheet-title">{{ schema.notes.title }}</div>
+      <textarea class="bs-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
+    </div>
+
+    {% if can_write %}
+    <div class="bs-form-actions">
+      <span id="bs-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/baegun-shopping/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 양식을 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+<script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
+{% if can_write %}<script src="/static/js/baegun_shopping.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="bs-date-nav inline-form">
+    <input type="hidden" name="tab" value="monthly" />
+    <label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label>
+    <button class="btn btn-secondary btn-sm">조회</button>
+    <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/baegun-shopping/export/monthly?year={{ year }}&month={{ month }}">엑셀 다운로드</a>
+  </form>
+  <div class="bs-sheet">
+    <div class="bs-sheet-title">{{ year }}년 {{ month }}월 UTILITY 월보</div>
+    <div class="bs-table-wrap">
+      <table class="bs-excel bs-month-grid">
+        <thead>
+          <tr>
+            <th>일</th>
+            {% for meter in monthly.meters %}
+            <th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.id }}</small></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in monthly.days %}
+          <tr>
+            <th>{{ day.day }}</th>
+            {% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="bs-sum-row">
+            <th>합</th>
+            {% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="bs-date-nav inline-form">
+    <input type="hidden" name="tab" value="yearly" />
+    <label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label>
+    <button class="btn btn-secondary btn-sm">조회</button>
+    <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/baegun-shopping/export/yearly?year={{ year }}">엑셀 다운로드</a>
+  </form>
+  <div class="bs-sheet">
+    <div class="bs-sheet-title">{{ year }}년 UTILITY 년보</div>
+    <div class="bs-table-wrap">
+      <table class="bs-excel">
+        <thead>
+          <tr>
+            <th>월</th>
+            {% for meter in yearly.meters %}
+            <th>{{ meter.cat }}{% if meter.building %} {{ meter.building }}{% endif %}<br /><small>{{ meter.label or meter.id }}</small></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in yearly.months %}
+          <tr>
+            <th>{{ item.month }}월</th>
+            {% for meter in yearly.meters %}<td>{{ item.utility.get(meter.id,'') }}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="bs-sum-row">
+            <th>합</th>
+            {% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="bs-date-nav inline-form">
+    <input type="hidden" name="tab" value="notes" />
+    <label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label>
+    <button class="btn btn-secondary btn-sm">조회</button>
+  </form>
+  {% for entry in notes_list.entries %}
+  <article class="bs-note-entry">
+    <h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }}</a></h3>
+    {% for item in entry['items'] %}<p>{{ item.text }}</p>{% endfor %}
+  </article>
+  {% else %}
+  <p class="text-muted">해당 월에 작성된 특기사항이 없습니다.</p>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

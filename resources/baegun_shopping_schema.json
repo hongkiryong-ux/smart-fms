@@ -1,0 +1,249 @@
+{
+  "building_name": "백운쇼핑센터",
+  "building_aliases": [
+    "백운쇼핑센터",
+    "백운쇼핑",
+    "백운 쇼핑센터",
+    "백운쇼핑센터 운영일보"
+  ],
+  "title": "백운쇼핑 운영일보[냉,난방]",
+  "utility": {
+    "title": "1. UTILITY 사용량",
+    "default_multipliers": {
+      "power_s1": "1",
+      "power_s23": "1"
+    },
+    "blocks": [
+      {
+        "cat": "전력",
+        "building": "1단계",
+        "multiplier_key": "power_s1",
+        "rows": [
+          {"id": "p1_mid", "label": "중간", "unit": "kWh"},
+          {"id": "p1_peak", "label": "최대", "unit": "kWh"},
+          {"id": "p1_off", "label": "경부하", "unit": "kWh"}
+        ]
+      },
+      {
+        "cat": "전력",
+        "building": "2,3단계",
+        "multiplier_key": "power_s23",
+        "rows": [
+          {"id": "p23_mid", "label": "중간", "unit": "kWh"},
+          {"id": "p23_peak", "label": "최대", "unit": "kWh"},
+          {"id": "p23_off", "label": "경부하", "unit": "kWh"}
+        ]
+      },
+      {
+        "cat": "중온수",
+        "building": "1단계",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "hw1_heat", "label": "열량", "unit": "Mcal", "multiplier": 1},
+          {"id": "hw1_flow", "label": "유량", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "중온수",
+        "building": "2단계",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "hw2_heat", "label": "열량", "unit": "Mcal", "multiplier": 1},
+          {"id": "hw2_flow", "label": "유량", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "중온수",
+        "building": "3단계",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "hw3_heat", "label": "열량", "unit": "Mcal", "multiplier": 1},
+          {"id": "hw3_flow", "label": "유량", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "용수",
+        "building": "1단계",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "w1_flow", "label": "유량", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "용수",
+        "building": "2단계",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "w2_flow", "label": "유량", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "용수",
+        "building": "3단계",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "w3_flow", "label": "유량", "unit": "m³", "multiplier": 1}
+        ]
+      },
+      {
+        "cat": "도시가스",
+        "building": "",
+        "multiplier_key": null,
+        "rows": [
+          {"id": "gas_m3", "label": "사용량", "unit": "m³", "multiplier": 1}
+        ]
+      }
+    ],
+    "monthly_ids": [
+      "p1_mid", "p1_peak", "p1_off",
+      "p23_mid", "p23_peak", "p23_off",
+      "hw1_heat", "hw1_flow", "hw2_heat", "hw2_flow", "hw3_heat", "hw3_flow",
+      "w1_flow", "w2_flow", "w3_flow",
+      "gas_m3"
+    ]
+  },
+  "elec_panels": [
+    {
+      "id": "stage1",
+      "title": "전기실 · 1단계",
+      "times": ["t1", "t2", "t3"],
+      "std": {
+        "mid_kwh": "중간부하",
+        "peak_kwh": "최대부하",
+        "off_kwh": "경부하",
+        "volt": "380V±10%",
+        "amp": "—",
+        "kw": "—",
+        "pf": "95%↑",
+        "tr750_a": "750KVA",
+        "tr750_temp": "85℃↓"
+      },
+      "fields": [
+        {"id": "mid_kwh", "label": "중간(kWh)"},
+        {"id": "peak_kwh", "label": "최대(kWh)"},
+        {"id": "off_kwh", "label": "경부하(kWh)"},
+        {"id": "volt", "label": "전압(V)"},
+        {"id": "amp", "label": "전류(A)"},
+        {"id": "kw", "label": "전력(kW)"},
+        {"id": "pf", "label": "역률(%)"},
+        {"id": "tr750_a", "label": "TR750 전류(A)"},
+        {"id": "tr750_temp", "label": "TR750 온도(℃)"}
+      ]
+    },
+    {
+      "id": "stage2",
+      "title": "전기실 · 2단계",
+      "times": ["t1", "t2", "t3"],
+      "std": {
+        "mid_kwh": "중간부하",
+        "peak_kwh": "최대부하",
+        "off_kwh": "경부하",
+        "volt": "380V±10%",
+        "amp": "—",
+        "kw": "—",
+        "pf": "95%↑",
+        "tr400_a": "400KVA",
+        "tr400_temp": "85℃↓",
+        "tr750_a": "750KVA",
+        "tr750_temp": "85℃↓"
+      },
+      "fields": [
+        {"id": "mid_kwh", "label": "중간(kWh)"},
+        {"id": "peak_kwh", "label": "최대(kWh)"},
+        {"id": "off_kwh", "label": "경부하(kWh)"},
+        {"id": "volt", "label": "전압(V)"},
+        {"id": "amp", "label": "전류(A)"},
+        {"id": "kw", "label": "전력(kW)"},
+        {"id": "pf", "label": "역률(%)"},
+        {"id": "tr400_a", "label": "TR400 전류(A)"},
+        {"id": "tr400_temp", "label": "TR400 온도(℃)"},
+        {"id": "tr750_a", "label": "TR750 전류(A)"},
+        {"id": "tr750_temp", "label": "TR750 온도(℃)"}
+      ]
+    }
+  ],
+  "heat_pump": {
+    "title": "난방순환펌프",
+    "locations": [
+      {"id": "s1", "label": "1단계"},
+      {"id": "s2", "label": "2단계"},
+      {"id": "s3", "label": "3단계"}
+    ],
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "temp_s", "label": "공급온도(℃)"},
+      {"id": "temp_r", "label": "환수온도(℃)"},
+      {"id": "press_s", "label": "공급압력"},
+      {"id": "press_r", "label": "환수압력"}
+    ]
+  },
+  "hw_tank": {
+    "title": "중온수탱크",
+    "locations": [
+      {"id": "s1", "label": "1단계"},
+      {"id": "s2", "label": "2단계"},
+      {"id": "s3", "label": "3단계"}
+    ],
+    "fields": [
+      {"id": "temp", "label": "온도(℃)"},
+      {"id": "press", "label": "압력"}
+    ],
+    "shared_time": true
+  },
+  "chiller": {
+    "title": "흡수식냉온수기 (300RT)",
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "hw_supply_temp", "label": "중온수공급(℃)"},
+      {"id": "regen_temp", "label": "재생온도(℃)"},
+      {"id": "chw_in_t", "label": "냉수입구(℃)"},
+      {"id": "chw_out_t", "label": "냉수출구(℃)"},
+      {"id": "chw_in_p", "label": "냉수입구압력"},
+      {"id": "chw_out_p", "label": "냉수출구압력"},
+      {"id": "cw_in_t", "label": "냉각수입구(℃)"},
+      {"id": "cw_out_t", "label": "냉각수출구(℃)"},
+      {"id": "cw_in_p", "label": "냉각수입구압력"},
+      {"id": "cw_out_p", "label": "냉각수출구압력"}
+    ]
+  },
+  "ahu": {
+    "title": "공조온도 S/R",
+    "times": ["t1", "t2"],
+    "fields": [
+      {"id": "ahu1", "label": "AHU-1"},
+      {"id": "ahu2", "label": "AHU-2"},
+      {"id": "ahu3", "label": "AHU-3"},
+      {"id": "ahu4", "label": "AHU-4"},
+      {"id": "ahu11", "label": "AHU-11"},
+      {"id": "ahu12", "label": "AHU-12"},
+      {"id": "pac1", "label": "PAC-1"},
+      {"id": "pac2", "label": "PAC-2"},
+      {"id": "pac3", "label": "PAC-3"}
+    ]
+  },
+  "fire": {
+    "title": "소방설비",
+    "fields": [
+      {"id": "time", "label": "시간"},
+      {"id": "hydrant_p", "label": "소화전압력"},
+      {"id": "sprinkler_p", "label": "스프링클러압력"},
+      {"id": "tank_pct", "label": "저수위(%)"},
+      {"id": "remark", "label": "비고"}
+    ]
+  },
+  "indoor": {
+    "title": "실내온도 CHECK",
+    "times": ["t1", "t2"],
+    "fields": [
+      {"id": "lobby_s1", "label": "로비(1단계)"},
+      {"id": "lobby_s2_1f", "label": "로비(2단계 1F)"},
+      {"id": "corridor_s2_2f", "label": "복도(2단계 2F)"},
+      {"id": "corridor_s3_1f", "label": "복도(3단계 1F)"},
+      {"id": "corridor_s3_2f", "label": "복도(3단계 2F)"},
+      {"id": "remark", "label": "비고"}
+    ]
+  },
+  "notes": {
+    "title": "※특기사항"
+  }
+}
