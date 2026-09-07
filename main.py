@@ -10306,6 +10306,42 @@ async def baegun_art_hall_qr_save(
 
 
 
+
+@app.get("/admin/inspection-logs2/{building_id}/53-sub/qr.png")
+async def sub53_qr_png(
+    building_id: int,
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import re
+    from urllib.parse import quote
+
+    from sub53 import (
+        is_sub53_building,
+        qr_png_bytes,
+        sub53_daily_qr_url,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_sub53_building(building) or not building.code:
+        raise HTTPException(404)
+    data = qr_png_bytes(sub53_daily_qr_url(building.code, request))
+    safe = re.sub(r"[^\w가-힣.\-]+", "_", building.code.strip()) or "s53"
+    filename = f"{safe}_1일QR.png"
+    disposition = "attachment" if download else "inline"
+    return StreamingResponse(
+        iter([data]),
+        media_type="image/png",
+        headers={
+            "Content-Disposition": (
+                f"{disposition}; filename*=UTF-8''{quote(filename)}"
+            )
+        },
+    )
+
+
 @app.get("/admin/inspection-logs2/{building_id}/53-sub")
 async def sub53_page(
     building_id: int,
