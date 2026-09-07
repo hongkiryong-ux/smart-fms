@@ -229,7 +229,7 @@
               <tr><th>항목</th><th>기준치</th><th>시간</th><th>압력</th></tr>
             </thead>
             <tbody>
-              {% for item in schema.fire.items %}
+              {% for item in schema.fire['items'] %}
               {% set row = fire_data.get(item.id, {}) %}
               <tr>
                 <th class="bah-sub">{{ item.label }}</th>
