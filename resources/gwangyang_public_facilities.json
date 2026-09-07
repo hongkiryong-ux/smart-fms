@@ -1,0 +1,1379 @@
+{
+  "title": "광양 주택지역 공공시설물 현황",
+  "as_of": "2025.01 기준",
+  "source": "광양 주택단지 공공시설물 관리 현황250121.xls",
+  "headers": [
+    "구분",
+    "건물명",
+    "준공일자",
+    "취득액(천원)",
+    "연면적(㎡)",
+    "坪",
+    "비고"
+  ],
+  "left": [
+    {
+      "category": "공공시설",
+      "name": "제철소본부 1동",
+      "completed": "`82.12.31",
+      "cost": "",
+      "area": "5,784.9",
+      "pyeong": "1,753",
+      "note": "'20.07개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "제철소본부 2동",
+      "completed": "`84.12.31",
+      "cost": "",
+      "area": "4,488",
+      "pyeong": "1,360",
+      "note": "'20.07개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "제철소본부 3동",
+      "completed": "`92.02.29",
+      "cost": "",
+      "area": "7,821",
+      "pyeong": "2,370",
+      "note": "'20.07개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "기술연구소",
+      "completed": "",
+      "cost": "",
+      "area": "27,189",
+      "pyeong": "8,239",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "Park 1538",
+      "completed": "25.04.01",
+      "cost": "",
+      "area": "10,157",
+      "pyeong": "3,078",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "소계",
+      "completed": "",
+      "cost": "",
+      "area": "55,439.9",
+      "pyeong": "16,800",
+      "note": "",
+      "kind": "subtotal"
+    },
+    {
+      "category": "숙박시설",
+      "name": "동백생활관",
+      "completed": "`83.02.28",
+      "cost": "825,840",
+      "area": "3,952",
+      "pyeong": "1,198",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운생활관1동",
+      "completed": "`86.06.30",
+      "cost": "1,102,829",
+      "area": "4,754",
+      "pyeong": "1,441",
+      "note": "'04.09개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운생활관2동",
+      "completed": "`86.06.30",
+      "cost": "1,105,645",
+      "area": "5,439",
+      "pyeong": "1,648",
+      "note": "'04.09개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운생활관3동",
+      "completed": "`87.04.24",
+      "cost": "1,110,516",
+      "area": "4,754",
+      "pyeong": "1,441",
+      "note": "'07.12개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운생활관4동",
+      "completed": "`87.04.24",
+      "cost": "1,240,889",
+      "area": "5,411",
+      "pyeong": "1,640",
+      "note": "'04.09개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운생활관5동",
+      "completed": "`88.06.30",
+      "cost": "1,432,587",
+      "area": "5,152",
+      "pyeong": "1,561",
+      "note": "'04.09개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운생활관6동",
+      "completed": "`88.03.31",
+      "cost": "1,373,352",
+      "area": "5,402",
+      "pyeong": "1,637",
+      "note": "'03.11개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "기가타운",
+      "completed": "22.03.31",
+      "cost": "78,876,548",
+      "area": "47,458.38",
+      "pyeong": "14,381",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운프라자",
+      "completed": "`86.06.30",
+      "cost": "2,098,406",
+      "area": "7,481",
+      "pyeong": "2,267",
+      "note": "'20. 개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운대",
+      "completed": "`83.02.28",
+      "cost": "2,172,770",
+      "area": "4,437",
+      "pyeong": "1,345",
+      "note": "'23.10 개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "내빈숙소 1호",
+      "completed": "`85.09.14",
+      "cost": "",
+      "area": "170",
+      "pyeong": "52",
+      "note": "'03.11개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "내빈숙소 2호",
+      "completed": "`85.09.14",
+      "cost": "",
+      "area": "149",
+      "pyeong": "45",
+      "note": "'04.05개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "내빈숙소 3호",
+      "completed": "`85.09.14",
+      "cost": "51,729",
+      "area": "105",
+      "pyeong": "32",
+      "note": "'04.04개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "내빈숙소 5호",
+      "completed": "`85.09.14",
+      "cost": "51,729",
+      "area": "105",
+      "pyeong": "32",
+      "note": "'05.04개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "동백아파트 6동",
+      "completed": "",
+      "cost": "",
+      "area": "1,818.39",
+      "pyeong": "551",
+      "note": "'10.08 개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "장미연립 7동",
+      "completed": "`86.01.04",
+      "cost": "277,888",
+      "area": "950.4",
+      "pyeong": "288",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "송죽아파트1동",
+      "completed": "`93.05.01",
+      "cost": "8,437,692",
+      "area": "4,718",
+      "pyeong": "1,430",
+      "note": "일반분양",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "송죽아파트2동",
+      "completed": "",
+      "cost": "",
+      "area": "4,398",
+      "pyeong": "1,333",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "송죽아파트3동",
+      "completed": "",
+      "cost": "",
+      "area": "5,878",
+      "pyeong": "1,781",
+      "note": "'13.12개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "소계",
+      "completed": "",
+      "cost": "",
+      "area": "112,532.17",
+      "pyeong": "34,101",
+      "note": "",
+      "kind": "subtotal"
+    },
+    {
+      "category": "공원체육시설",
+      "name": "축구전용구장",
+      "completed": "`89.11.28",
+      "cost": "143,933",
+      "area": "11,159",
+      "pyeong": "3,382",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "어울림체육관",
+      "completed": "11.06.20",
+      "cost": "",
+      "area": "13,427",
+      "pyeong": "4,069",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "스포츠컴플렉스(족구,테니스)",
+      "completed": "15.04.30",
+      "cost": "",
+      "area": "13,692",
+      "pyeong": "4,149",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운체련단련장 타석대",
+      "completed": "",
+      "cost": "1,200,000",
+      "area": "1,006.33",
+      "pyeong": "305",
+      "note": "07.04개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운체력단련장 클럽하우스",
+      "completed": "'87.04.24",
+      "cost": "",
+      "area": "300",
+      "pyeong": "91",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운체력단련장 필드",
+      "completed": "",
+      "cost": "",
+      "area": "124,000",
+      "pyeong": "37,576",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "제철야구장",
+      "completed": "'93.03",
+      "cost": "",
+      "area": "12,078",
+      "pyeong": "3,660",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "사랑테니스 코트",
+      "completed": "",
+      "cost": "",
+      "area": "3,200",
+      "pyeong": "970",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "장미테니스 코트",
+      "completed": "",
+      "cost": "",
+      "area": "1,440",
+      "pyeong": "436",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "목련테니스 코트",
+      "completed": "",
+      "cost": "",
+      "area": "1,444",
+      "pyeong": "438",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호테니스장 관리동",
+      "completed": "`87.04.24",
+      "cost": "23,651",
+      "area": "62.7",
+      "pyeong": "19",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "인조축구장 샤워동",
+      "completed": "",
+      "cost": "",
+      "area": "363",
+      "pyeong": "110",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운그린랜드",
+      "completed": "`94.10.31",
+      "cost": "",
+      "area": "129,747",
+      "pyeong": "39,317",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "무궁화 동산",
+      "completed": "`97.02.28",
+      "cost": "",
+      "area": "82,574",
+      "pyeong": "25,022",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "소계",
+      "completed": "",
+      "cost": "1,367,584",
+      "area": "394,493.03",
+      "pyeong": "119,543",
+      "note": "",
+      "kind": "subtotal"
+    },
+    {
+      "category": "후생복지시설",
+      "name": "복지센타",
+      "completed": "`85.11.30",
+      "cost": "1,870,757",
+      "area": "9,834",
+      "pyeong": "2,980",
+      "note": "'03.09개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운쇼핑센타 1단계",
+      "completed": "`87.04.24",
+      "cost": "655,268",
+      "area": "2,100",
+      "pyeong": "636",
+      "note": "전체:14,995㎡",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운쇼핑센타 2단계",
+      "completed": "`88.08.31",
+      "cost": "2,554,414",
+      "area": "6,730",
+      "pyeong": "2,039",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운쇼핑센타 3단계",
+      "completed": "`92.02.15",
+      "cost": "3,355,221",
+      "area": "6,165",
+      "pyeong": "1,868",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운산 수련장(1수영장,야영장)",
+      "completed": "92.10.01",
+      "cost": "",
+      "area": "139,260",
+      "pyeong": "42,200",
+      "note": "전체:140,446㎡",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운산 수련장(2수영장,야영장)",
+      "completed": "08.06.10",
+      "cost": "",
+      "area": "1,186",
+      "pyeong": "359",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "고흥수련원(야영장)",
+      "completed": "'15.10",
+      "cost": "",
+      "area": "4,728",
+      "pyeong": "1,433",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "제철회관",
+      "completed": "`85.05.31",
+      "cost": "3,184,424",
+      "area": "8,359",
+      "pyeong": "2,533",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호어버이집",
+      "completed": "`87.10.14",
+      "cost": "66,065",
+      "area": "190",
+      "pyeong": "58",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금당어버이집",
+      "completed": "`91.02.21",
+      "cost": "138,491",
+      "area": "198",
+      "pyeong": "60",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "부덕사",
+      "completed": "`89.03.01",
+      "cost": "697,756",
+      "area": "1,563",
+      "pyeong": "474",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "산업보건센터",
+      "completed": "`86.03.08",
+      "cost": "378,283",
+      "area": "884",
+      "pyeong": "268",
+      "note": "'11.12개보수",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "휴먼센타 본관",
+      "completed": "`87.07.",
+      "cost": "4,452,201",
+      "area": "5,342.7",
+      "pyeong": "1,619",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "휴먼센타 신관",
+      "completed": "`97.03",
+      "cost": "",
+      "area": "3,105.3",
+      "pyeong": "941",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "차량터미널 사무실동",
+      "completed": "85.05.31",
+      "cost": "3,181,424",
+      "area": "247.62",
+      "pyeong": "75",
+      "note": "전체:1,167㎡",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "차량터미널 관리동",
+      "completed": "",
+      "cost": "",
+      "area": "48",
+      "pyeong": "15",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "차량터미널 승용주차장",
+      "completed": "",
+      "cost": "",
+      "area": "300.58",
+      "pyeong": "91",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "차량터미널 버스승강장(1동)",
+      "completed": "",
+      "cost": "",
+      "area": "299.11",
+      "pyeong": "91",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "차량터미널 버스승강장(2동)",
+      "completed": "'10.12",
+      "cost": "",
+      "area": "271.76",
+      "pyeong": "82",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "소계",
+      "completed": "",
+      "cost": "20,534,304",
+      "area": "190,812.07",
+      "pyeong": "57,822",
+      "note": "",
+      "kind": "subtotal"
+    },
+    {
+      "category": "교육시설",
+      "name": "백운산 수련원(1동)",
+      "completed": "`92.10.01",
+      "cost": "4,165,722",
+      "area": "4,438.5",
+      "pyeong": "1,345",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운산 수련원(2동)",
+      "completed": "08.06.10",
+      "cost": "",
+      "area": "3,977",
+      "pyeong": "1,205",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "고흥패밀리수련원",
+      "completed": "'12.08.09",
+      "cost": "",
+      "area": "4,934.25",
+      "pyeong": "1,495",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운아트홀 및 백운교육센터",
+      "completed": "`92.07.14",
+      "cost": "",
+      "area": "11,341",
+      "pyeong": "3,437",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "광양 교육관",
+      "completed": "25.04.01",
+      "cost": "",
+      "area": "18,332",
+      "pyeong": "5,555",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "기술교육센터",
+      "completed": "`98.07.22",
+      "cost": "2,776,106",
+      "area": "3,804.9",
+      "pyeong": "1,153",
+      "note": "지상층 철거",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "기술교육센타 2동",
+      "completed": "`07.08.16",
+      "cost": "",
+      "area": "2,171.4",
+      "pyeong": "658",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "예비군교장",
+      "completed": "",
+      "cost": "",
+      "area": "636.9",
+      "pyeong": "193",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "러닝센터",
+      "completed": "`06.01.11",
+      "cost": "2,110,000",
+      "area": "1,722",
+      "pyeong": "522",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "posco 어린이집",
+      "completed": "`06.7",
+      "cost": "448,085",
+      "area": "3,240.6",
+      "pyeong": "982",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금당 어린이집",
+      "completed": "20.2",
+      "cost": "",
+      "area": "2,513",
+      "pyeong": "762",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "소계",
+      "completed": "",
+      "cost": "9,499,913",
+      "area": "57,111.55",
+      "pyeong": "17,307",
+      "note": "",
+      "kind": "subtotal"
+    }
+  ],
+  "right": [
+    {
+      "category": "지원시설",
+      "name": "1Sub-station",
+      "completed": "`83",
+      "cost": "",
+      "area": "102",
+      "pyeong": "31",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "2Sub-station",
+      "completed": "`86",
+      "cost": "",
+      "area": "90.4",
+      "pyeong": "27",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "3Sub-station",
+      "completed": "`82",
+      "cost": "",
+      "area": "69.3",
+      "pyeong": "21",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "5Sub-station",
+      "completed": "`86",
+      "cost": "",
+      "area": "104.5",
+      "pyeong": "32",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "6Sub-station",
+      "completed": "`87",
+      "cost": "",
+      "area": "216.1",
+      "pyeong": "65",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "7Sub-station",
+      "completed": "`85",
+      "cost": "",
+      "area": "125.4",
+      "pyeong": "38",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "8Sub-station",
+      "completed": "`84",
+      "cost": "",
+      "area": "154",
+      "pyeong": "47",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "12Sub-station",
+      "completed": "`86",
+      "cost": "",
+      "area": "134.5",
+      "pyeong": "41",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "16Sub-station",
+      "completed": "`86",
+      "cost": "",
+      "area": "107",
+      "pyeong": "32",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "18Sub-station",
+      "completed": "`87",
+      "cost": "",
+      "area": "216.1",
+      "pyeong": "65",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "51Sub-station",
+      "completed": "`88",
+      "cost": "",
+      "area": "127",
+      "pyeong": "38",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "52Sub-station",
+      "completed": "`88",
+      "cost": "",
+      "area": "127",
+      "pyeong": "38",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "53Sub-station",
+      "completed": "`89",
+      "cost": "",
+      "area": "306",
+      "pyeong": "93",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "54Sub-station",
+      "completed": "`90",
+      "cost": "",
+      "area": "126",
+      "pyeong": "38",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "55Sub-station",
+      "completed": "`90",
+      "cost": "",
+      "area": "126",
+      "pyeong": "38",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "56Sub-station",
+      "completed": "`92",
+      "cost": "",
+      "area": "498",
+      "pyeong": "151",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "57Sub-station",
+      "completed": "`93",
+      "cost": "",
+      "area": "366",
+      "pyeong": "111",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "60Sub-station",
+      "completed": "`93",
+      "cost": "",
+      "area": "475",
+      "pyeong": "144",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "중앙관제실(Power plant)",
+      "completed": "`83.02.28",
+      "cost": "154,443",
+      "area": "504",
+      "pyeong": "153",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "주택변전소",
+      "completed": "`86.10.30",
+      "cost": "67,674",
+      "area": "264",
+      "pyeong": "80",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "자원재활용센타",
+      "completed": "'05.01",
+      "cost": "",
+      "area": "228.4",
+      "pyeong": "69",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "가스저장소(금당)",
+      "completed": "",
+      "cost": "",
+      "area": "10",
+      "pyeong": "3",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "가스저장소(금호)",
+      "completed": "",
+      "cost": "",
+      "area": "69",
+      "pyeong": "21",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호1오수처리장",
+      "completed": "",
+      "cost": "",
+      "area": "548.66",
+      "pyeong": "166",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호2오수처리장",
+      "completed": "",
+      "cost": "",
+      "area": "364",
+      "pyeong": "110",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금당1오수처리장",
+      "completed": "",
+      "cost": "",
+      "area": "364",
+      "pyeong": "110",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금당2오수처리장",
+      "completed": "",
+      "cost": "",
+      "area": "197.85",
+      "pyeong": "60",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운산 1 오수처리장",
+      "completed": "92.10.01",
+      "cost": "",
+      "area": "191",
+      "pyeong": "58",
+      "note": "130ton/일",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "백운산 2 오수처리장",
+      "completed": "08.07.01",
+      "cost": "",
+      "area": "173.7",
+      "pyeong": "53",
+      "note": "100ton/일",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "나눔센터",
+      "completed": "86.07.10",
+      "cost": "",
+      "area": "583",
+      "pyeong": "177",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "나눔센터부속동(방앗간 외 1)",
+      "completed": "86.07.10",
+      "cost": "",
+      "area": "188",
+      "pyeong": "57",
+      "note": "'15.06 용도변경",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "공동구(금당.금호)",
+      "completed": "",
+      "cost": "",
+      "area": "26,250",
+      "pyeong": "7,955",
+      "note": "길이:19.15km",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "한성카센터",
+      "completed": "",
+      "cost": "",
+      "area": "746",
+      "pyeong": "226",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "슬라그 주차장",
+      "completed": "",
+      "cost": "",
+      "area": "12,000",
+      "pyeong": "3,636",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "헬리포트장",
+      "completed": "",
+      "cost": "",
+      "area": "2,268",
+      "pyeong": "687",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "(구)해양파출소",
+      "completed": "",
+      "cost": "",
+      "area": "125",
+      "pyeong": "38",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "도로",
+      "completed": "",
+      "cost": "",
+      "area": "",
+      "pyeong": "0",
+      "note": "13.2km",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "소계",
+      "completed": "",
+      "cost": "",
+      "area": "48,544.91",
+      "pyeong": "14,711",
+      "note": "",
+      "kind": "subtotal"
+    },
+    {
+      "category": "기타",
+      "name": "광양조경(목련테니스 뒷편)",
+      "completed": "",
+      "cost": "",
+      "area": "330",
+      "pyeong": "100",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금당 그라운드골프장",
+      "completed": "",
+      "cost": "",
+      "area": "8,083.6",
+      "pyeong": "2,450",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호 그라운드골프장",
+      "completed": "15.09.01",
+      "cost": "",
+      "area": "23,585",
+      "pyeong": "7,147",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호건강생활지원센터",
+      "completed": "24.05",
+      "cost": "",
+      "area": "813.6",
+      "pyeong": "247",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호도서관",
+      "completed": "22.08",
+      "cost": "",
+      "area": "1,258.9",
+      "pyeong": "381",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호청소년문화의집",
+      "completed": "22.07",
+      "cost": "",
+      "area": "1,309.67",
+      "pyeong": "397",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호동 사무소",
+      "completed": "92.02.24",
+      "cost": "",
+      "area": "498",
+      "pyeong": "151",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호동 주민자치센터",
+      "completed": "06.05.01",
+      "cost": "",
+      "area": "2,334",
+      "pyeong": "707",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "햇빛마을주간보호센터",
+      "completed": "92.02.10",
+      "cost": "",
+      "area": "498",
+      "pyeong": "151",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "금호119안전센터",
+      "completed": "",
+      "cost": "",
+      "area": "632",
+      "pyeong": "192",
+      "note": "",
+      "kind": "data"
+    },
+    null,
+    {
+      "category": "",
+      "name": "소계",
+      "completed": "",
+      "cost": "",
+      "area": "39,342.77",
+      "pyeong": "11,922",
+      "note": "",
+      "kind": "subtotal"
+    },
+    {
+      "category": "",
+      "name": "합계(기타면적 제외)",
+      "completed": "",
+      "cost": "",
+      "area": "858,933.63",
+      "pyeong": "260,283",
+      "note": "",
+      "kind": "total"
+    },
+    {
+      "category": "",
+      "name": "합계(기타면적 포함)",
+      "completed": "",
+      "cost": "",
+      "area": "898,276.4",
+      "pyeong": "272,205",
+      "note": "",
+      "kind": "total"
+    },
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    {
+      "category": "금호동 외",
+      "name": "광)스마트데이터센터",
+      "completed": "19.11.01",
+      "cost": "35,000,000",
+      "area": "7,501",
+      "pyeong": "2,269",
+      "note": "포스코 DX",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "설비관리센터(열실험/계측 포함)",
+      "completed": "1981",
+      "cost": "",
+      "area": "10,650",
+      "pyeong": "3,222",
+      "note": "posco",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "냉연서브센터(1~4,산세)",
+      "completed": "1981",
+      "cost": "",
+      "area": "25,840",
+      "pyeong": "7,817",
+      "note": "\"",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "선강서브센터",
+      "completed": "2020",
+      "cost": "",
+      "area": "1,800",
+      "pyeong": "545",
+      "note": "\"",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "SNNC",
+      "completed": "2010",
+      "cost": "",
+      "area": "7,267",
+      "pyeong": "2,198",
+      "note": "그룹사",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "MC머티리얼즈",
+      "completed": "2012",
+      "cost": "",
+      "area": "3,064",
+      "pyeong": "927",
+      "note": "\"",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "피엔오케미칼",
+      "completed": "2022",
+      "cost": "",
+      "area": "900",
+      "pyeong": "272",
+      "note": "\"",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "해수담수플랜트",
+      "completed": "14.08.04",
+      "cost": "50,900,000",
+      "area": "6,315.55",
+      "pyeong": "1,913",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "풀필먼트센터",
+      "completed": "24.04.08",
+      "cost": "",
+      "area": "16,999",
+      "pyeong": "5,151",
+      "note": "",
+      "kind": "data"
+    },
+    {
+      "category": "",
+      "name": "도이동 프리모아파트",
+      "completed": "24.05.13",
+      "cost": "",
+      "area": "78,911",
+      "pyeong": "23,912",
+      "note": "",
+      "kind": "data"
+    },
+    null,
+    {
+      "category": "",
+      "name": "소계",
+      "completed": "",
+      "cost": "",
+      "area": "159,247.55",
+      "pyeong": "48,226",
+      "note": "",
+      "kind": "subtotal"
+    }
+  ]
+}

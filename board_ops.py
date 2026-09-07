@@ -243,6 +243,11 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                 )
             )
         ).scalar() or 0
+        from gwangyang_facilities import GWANGYANG_FACILITIES_PATH, is_gwangyang_ops_site
+
+        detail_url = (
+            GWANGYANG_FACILITIES_PATH if is_gwangyang_ops_site(s.name) else "/admin/sites"
+        )
         result.append(
             {
                 "id": s.id,
@@ -254,6 +259,8 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                 "unresolved": int(wo_open),
                 "completed": int(wo_done),
                 "score": int(wo_urgent) * 10 + int(wo_open),
+                "detail_url": detail_url,
+                "is_gwangyang_ops": is_gwangyang_ops_site(s.name),
             }
         )
     result.sort(key=lambda x: (-x["score"], -x["requests"], x["name"]))
@@ -494,6 +501,23 @@ async def notices_delete(
 
 
 # ── 대시보드 설정 ─────────────────────────────────────────
+
+
+@router.get("/admin/dashboard/gwangyang-facilities")
+async def gwangyang_facilities_page(
+    request: Request,
+    user: User = Depends(require_login),
+):
+    from gwangyang_facilities import load_gwangyang_facilities
+
+    return templates.TemplateResponse(
+        request,
+        "gwangyang_facilities.html",
+        {
+            "user": user,
+            "data": load_gwangyang_facilities(),
+        },
+    )
 
 
 @router.get("/admin/dashboard/settings")
