@@ -18,6 +18,7 @@
         "cat": "전력",
         "building": "1단계",
         "multiplier_key": "power_s1",
+        "usage_merge": true,
         "rows": [
           {"id": "p1_mid", "label": "중간", "unit": "kWh"},
           {"id": "p1_peak", "label": "최대", "unit": "kWh"},
@@ -28,6 +29,7 @@
         "cat": "전력",
         "building": "2,3단계",
         "multiplier_key": "power_s23",
+        "usage_merge": true,
         "rows": [
           {"id": "p23_mid", "label": "중간", "unit": "kWh"},
           {"id": "p23_peak", "label": "최대", "unit": "kWh"},

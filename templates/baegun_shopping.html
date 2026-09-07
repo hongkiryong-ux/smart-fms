@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/baegun_shopping.css?v=1" />
+<link rel="stylesheet" href="/static/css/baegun_shopping.css?v=2" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -76,7 +76,7 @@
         <strong>전력 배율</strong>
         <label>1단계 <input class="bs-cell bs-mul" name="mul__power_s1" value="{{ multipliers.get('power_s1', mul_s1) }}" inputmode="decimal" /></label>
         <label>2·3단계 <input class="bs-cell bs-mul" name="mul__power_s23" value="{{ multipliers.get('power_s23', mul_s23) }}" inputmode="decimal" /></label>
-        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율</span>
+        <span class="text-muted">전력 일사용량·월누계 = (중간+최대+경부하) 합산 · 그 외 = (금일−전일)×배율</span>
       </div>
       <div class="bs-table-wrap">
         <table class="bs-excel bs-utility-table">
@@ -99,9 +99,15 @@
               {% for b2 in schema.utility.blocks %}
                 {% if b2.cat == block.cat %}{% set cat_span.n = cat_span.n + (b2.rows|length) %}{% endif %}
               {% endfor %}
+              {% set merge = block.usage_merge %}
+              {% set merge_key = block.multiplier_key or block.building or block.cat %}
               {% for row in block.rows %}
               {% set item = utility.get(row.id, {}) %}
-              <tr class="bs-utility-row" data-utility="{{ row.id }}" data-multiplier="{{ row.multiplier|default(1) }}" {% if block.multiplier_key %}data-multiplier-key="{{ block.multiplier_key }}"{% endif %}>
+              <tr class="bs-utility-row{% if merge %} bs-usage-merge{% endif %}"
+                  data-utility="{{ row.id }}"
+                  data-multiplier="{{ row.multiplier|default(1) }}"
+                  {% if block.multiplier_key %}data-multiplier-key="{{ block.multiplier_key }}"{% endif %}
+                  {% if merge %}data-usage-group="{{ merge_key }}"{% endif %}>
                 {% if cat_ns.prev != block.cat %}
                 <th rowspan="{{ cat_span.n }}" class="bs-cat">{{ block.cat }}</th>
                 {% set cat_ns.prev = block.cat %}
@@ -113,10 +119,25 @@
                 <td class="bs-yellow">
                   <input class="bs-cell bs-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" inputmode="decimal" />
                   <input class="bs-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+                  {% if merge %}
+                  <input type="hidden" class="bs-band-daily" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" />
+                  <input type="hidden" class="bs-band-monthly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" />
+                  {% endif %}
                 </td>
                 <td><input class="bs-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" inputmode="decimal" /></td>
+                {% if merge %}
+                {% if loop.first %}
+                <td rowspan="{{ block.rows|length }}" class="bs-sum-cell">
+                  <input class="bs-cell bs-readonly bs-usage-sum-daily" data-usage-group="{{ merge_key }}" value="" readonly title="중간+최대+경부하 합산" />
+                </td>
+                <td rowspan="{{ block.rows|length }}" class="bs-sum-cell">
+                  <input class="bs-cell bs-readonly bs-usage-sum-monthly" data-usage-group="{{ merge_key }}" value="" readonly title="중간+최대+경부하 월누계 합산" />
+                </td>
+                {% endif %}
+                {% else %}
                 <td><input class="bs-cell bs-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
                 <td><input class="bs-cell bs-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+                {% endif %}
                 <td><input class="bs-cell bs-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
               </tr>
               {% endfor %}
@@ -317,7 +338,7 @@
   </form>
 </section>
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-{% if can_write %}<script src="/static/js/baegun_shopping.js?v=1"></script>{% endif %}
+{% if can_write %}<script src="/static/js/baegun_shopping.js?v=2"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">

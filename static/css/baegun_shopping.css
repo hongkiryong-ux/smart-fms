@@ -49,6 +49,15 @@
   background: #c6efce !important;
   font-weight: 800;
   font-size: .95rem;
+  vertical-align: middle !important;
+  text-align: center;
+}
+
+.bs-sum-cell .bs-usage-sum-daily,
+.bs-sum-cell .bs-usage-sum-monthly {
+  font-weight: 800;
+  text-align: center;
+  background: transparent;
 }
 
 .bs-mirror-daily {

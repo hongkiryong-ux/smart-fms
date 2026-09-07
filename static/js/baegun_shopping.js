@@ -29,8 +29,13 @@
   }
 
   function syncMonthBase(row) {
-    const daily = numberOf(row.querySelector('[name$="__daily"]')?.value);
-    const monthly = numberOf(row.querySelector('[name$="__monthly"]')?.value);
+    const id = row.dataset.utility;
+    const daily = numberOf(
+      row.querySelector('[name="u__' + id + '__daily"]')?.value
+    );
+    const monthly = numberOf(
+      row.querySelector('[name="u__' + id + '__monthly"]')?.value
+    );
     row.dataset.monthBase = String(monthly != null ? monthly - (daily || 0) : 0);
   }
 
@@ -44,6 +49,47 @@
     return numberOf(row.dataset.multiplier) || 1;
   }
 
+  function calcUsageMerges() {
+    const groups = {};
+    form.querySelectorAll(".bs-utility-row[data-usage-group]").forEach(function (row) {
+      const group = row.dataset.usageGroup;
+      if (!group) return;
+      if (!groups[group]) groups[group] = [];
+      groups[group].push(row);
+    });
+    Object.keys(groups).forEach(function (group) {
+      let dailySum = 0;
+      let monthlySum = 0;
+      let anyDaily = false;
+      let anyMonthly = false;
+      groups[group].forEach(function (row) {
+        const id = row.dataset.utility;
+        const daily = numberOf(
+          row.querySelector('[name="u__' + id + '__daily"]')?.value
+        );
+        const monthly = numberOf(
+          row.querySelector('[name="u__' + id + '__monthly"]')?.value
+        );
+        if (daily != null) {
+          dailySum += daily;
+          anyDaily = true;
+        }
+        if (monthly != null) {
+          monthlySum += monthly;
+          anyMonthly = true;
+        }
+      });
+      const dailyEl = form.querySelector(
+        '.bs-usage-sum-daily[data-usage-group="' + group + '"]'
+      );
+      const monthlyEl = form.querySelector(
+        '.bs-usage-sum-monthly[data-usage-group="' + group + '"]'
+      );
+      if (dailyEl) dailyEl.value = anyDaily ? formatNumber(dailySum) : "";
+      if (monthlyEl) monthlyEl.value = anyMonthly ? formatNumber(monthlySum) : "";
+    });
+  }
+
   function calcUtility() {
     form.querySelectorAll(".bs-utility-row").forEach(function (row) {
       const id = row.dataset.utility;
@@ -53,10 +99,14 @@
       const dailyInput = row.querySelector('[name="u__' + id + '__daily"]');
       const monthlyInput = row.querySelector('[name="u__' + id + '__monthly"]');
       const daily = prev != null && today != null ? (today - prev) * multiplier : null;
+      if (!(row.dataset.monthBase != null && row.dataset.monthBase !== "")) {
+        syncMonthBase(row);
+      }
       const monthly = daily != null ? (numberOf(row.dataset.monthBase) || 0) + daily : null;
       if (dailyInput) dailyInput.value = formatNumber(daily);
       if (monthlyInput) monthlyInput.value = formatNumber(monthly);
     });
+    calcUsageMerges();
   }
 
   function applyServerData(data) {
@@ -75,15 +125,6 @@
       Object.keys(data.multipliers).forEach(function (key) {
         const input = form.querySelector('[name="mul__' + key + '"]');
         if (input) input.value = data.multipliers[key] || "";
-      });
-    }
-    if (data.equipment_run) {
-      Object.keys(data.equipment_run).forEach(function (id) {
-        const row = form.querySelector('.bs-eq-row[data-eq="' + id + '"]');
-        if (!row) return;
-        const values = data.equipment_run[id] || {};
-        const monthly = row.querySelector('[name="eq__' + id + '__monthly_cum"]');
-        if (monthly) monthly.value = values.monthly_cum || "";
       });
     }
     calcUtility();
