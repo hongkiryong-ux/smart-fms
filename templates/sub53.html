@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/sub53.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user_can_edit(user) %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/53-sub/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set ia_data = daily_data.get('inspect_a', {}) if daily_data else {} %}
+{% set ib_data = daily_data.get('inspect_b', {}) if daily_data else {} %}
+
+<header class="page-header s53-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항 · 엑셀 다운로드{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="s53-tabs" aria-label="53서브 탭">
+  <a class="s53-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="s53-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="s53-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="s53-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide s53-daily">
+  <form method="get" class="s53-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/s53/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/s53/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    <a class="btn btn-secondary btn-sm"
+       href="/admin/inspection-logs2/{{ building.id }}/53-sub/export/daily?log_date={{ log_date.isoformat() }}">
+      엑셀 다운로드
+    </a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="s53-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/53-sub/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div>
+      <a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/53-sub/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted s53-hint">원본 양식 레이아웃 · 노란 칸=전일지침(수기 가능) · 금일지침→다음날 자동 반영 · 시간은 수기 입력 · 드래그·엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+
+  <form method="post" action="{{ save_url }}" id="s53-daily-form" class="s53-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    {# ═══ 가. STEAM & 중온수 사용량 (가로 레이아웃) ═══ #}
+    <div class="s53-sheet">
+      <div class="s53-form-title">{{ schema.title }}</div>
+      <div class="s53-sheet-title">{{ schema.utility.title }}</div>
+      <div class="s53-table-wrap">
+        <table class="s53-excel s53-utility-table">
+          <thead>
+            <tr>
+              {% for meter in schema.utility.meters %}
+              <th class="s53-meter-head" colspan="4">{{ meter.label }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for meter in schema.utility.meters %}
+              <th class="s53-yellow">전일지침</th>
+              <th>금일지침</th>
+              <th>일사용량</th>
+              <th>월누계량</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {% for meter in schema.utility.meters %}
+              {% set item = utility.get(meter.id, {}) %}
+              <td class="s53-yellow" data-utility="{{ meter.id }}" data-multiplier="{{ meter.get('multiplier', 1) }}">
+                <input class="s53-cell s53-prev" name="u__{{ meter.id }}__prev" value="{{ item.get('prev','') }}" inputmode="decimal" />
+                <input class="s53-prev-flag" type="hidden" name="u__{{ meter.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+              </td>
+              <td>
+                <input class="s53-cell" name="u__{{ meter.id }}__today" value="{{ item.get('today','') }}" inputmode="decimal" />
+              </td>
+              <td>
+                <input class="s53-cell s53-readonly" name="u__{{ meter.id }}__daily" value="{{ item.get('daily','') }}" readonly />
+              </td>
+              <td>
+                <input class="s53-cell s53-readonly" name="u__{{ meter.id }}__monthly" value="{{ item.get('monthly','') }}" readonly />
+              </td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 나. 주요 점검내용 (inspect_a) ═══ #}
+    <div class="s53-sheet">
+      <div class="s53-sheet-title">{{ schema.inspect_a.title }}</div>
+      <div class="s53-table-wrap">
+        <table class="s53-excel s53-inspect-table">
+          <thead>
+            <tr>
+              <th rowspan="3">기록시간</th>
+              {% for group in schema.inspect_a.groups %}
+              <th class="s53-meter-head" colspan="{{ group.fields|length }}">{{ group.cat }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for group in schema.inspect_a.groups %}
+                {% for f in group.fields %}
+                <th>{{ f.label }}</th>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            <tr class="s53-std-row">
+              {% for group in schema.inspect_a.groups %}
+                {% for f in group.fields %}
+                <th class="s53-std">{{ f.std or '—' }}</th>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.inspect_a.times %}
+            {% set tid = t.id %}
+            {% set row = ia_data.get(tid, {}) %}
+            <tr>
+              <td class="s53-time-cell">
+                <input class="s53-cell s53-time-input" name="ia__{{ tid }}__time" value="{{ row.get('time', t.default) }}" placeholder="HH:MM" title="시간 수기 입력" />
+              </td>
+              {% for group in schema.inspect_a.groups %}
+                {% for f in group.fields %}
+                <td>
+                  <input class="s53-cell" name="ia__{{ tid }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" inputmode="decimal" />
+                </td>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ═══ 나-2. inspect_b ═══ #}
+    <div class="s53-sheet">
+      {% if schema.inspect_b.title %}<div class="s53-sheet-title">{{ schema.inspect_b.title }}</div>{% endif %}
+      <div class="s53-table-wrap">
+        <table class="s53-excel s53-inspect-table">
+          <thead>
+            <tr>
+              <th rowspan="3">기록시간</th>
+              {% for group in schema.inspect_b.groups %}
+              <th class="s53-meter-head" colspan="{{ group.fields|length }}">{{ group.cat }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for group in schema.inspect_b.groups %}
+                {% for f in group.fields %}
+                <th>{{ f.label }}</th>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            <tr class="s53-std-row">
+              {% for group in schema.inspect_b.groups %}
+                {% for f in group.fields %}
+                <th class="s53-std">{{ f.std or '—' }}</th>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in schema.inspect_b.times %}
+            {% set tid = t.id %}
+            {% set row = ib_data.get(tid, {}) %}
+            <tr>
+              <td class="s53-time-cell">
+                <input class="s53-cell s53-time-input" name="ib__{{ tid }}__time" value="{{ row.get('time', t.default) }}" placeholder="HH:MM" title="시간 수기 입력" />
+              </td>
+              {% for group in schema.inspect_b.groups %}
+                {% for f in group.fields %}
+                <td>
+                  <input class="s53-cell" name="ib__{{ tid }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" inputmode="decimal" />
+                </td>
+                {% endfor %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="s53-sheet s53-notes-box">
+      <div class="s53-sheet-title">※특이사항</div>
+      <textarea class="s53-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
+      <div class="s53-footer-brand"><span>포스코와이드</span><span>광양운영그룹</span></div>
+    </div>
+
+    {% if can_write %}
+    <div class="s53-form-actions">
+      <span id="s53-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/53-sub/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 일지를 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+<script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
+{% if can_write %}<script src="/static/js/sub53.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="s53-date-nav inline-form"><input type="hidden" name="tab" value="monthly" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button><a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/53-sub/export/monthly?year={{ year }}&month={{ month }}">엑셀 다운로드</a></form>
+  <div class="s53-sheet"><div class="s53-sheet-title">{{ year }}년 {{ month }}월 STEAM·중온수 월보</div><div class="s53-table-wrap">
+    <table class="s53-excel s53-month-grid"><thead><tr><th>일</th>{% for meter in monthly.meters %}<th>{{ meter.label or meter.item or meter.id }}</th>{% endfor %}</tr></thead><tbody>
+      {% for day in monthly.days %}<tr><th>{{ day.day }}</th>{% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="s53-sum-row"><th>계</th>{% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="s53-date-nav inline-form"><input type="hidden" name="tab" value="yearly" /><label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label><button class="btn btn-secondary btn-sm">조회</button><a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/53-sub/export/yearly?year={{ year }}">엑셀 다운로드</a></form>
+  <div class="s53-sheet"><div class="s53-sheet-title">{{ year }}년 년보</div><div class="s53-table-wrap">
+    <table class="s53-excel"><thead><tr><th>월</th>{% for meter in yearly.meters %}<th>{{ meter.label or meter.item or meter.id }}</th>{% endfor %}</tr></thead><tbody>
+      {% for m in yearly.months %}<tr><th>{{ m.month }}월</th>{% for meter in yearly.meters %}<td>{{ m.utility.get(meter.id,'') }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="s53-sum-row"><th>계</th>{% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}</tr>
+    </tbody></table>
+  </div></div>
+</section>
+
+{% elif tab == 'notes' %}
+<section class="card card-wide">
+  <form method="get" class="s53-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
+  {% if notes_list.entries %}
+  <ul class="s53-notes-list">{% for e in notes_list.entries %}<li><strong>{{ e.date }}</strong><pre>{{ e.items[0].text }}</pre></li>{% endfor %}</ul>
+  {% else %}<p class="empty">등록된 특이사항이 없습니다.</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

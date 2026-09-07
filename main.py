@@ -101,6 +101,8 @@ from models import (
     Park1538Archive,
     Park1538Daily,
     BaegunArtHallArchive,
+    Sub53Daily,
+    Sub53Archive,
     BaegunArtHallDaily,
     CcrFacilityArchive,
     CcrFacilityDaily,
@@ -1153,6 +1155,9 @@ async def lifespan(app: FastAPI):
             from baegun_art_hall import register_scheduler as register_bahall_scheduler
 
             register_bahall_scheduler(scheduler, AsyncSessionLocal, KST)
+            from sub53 import register_scheduler as register_sub53_scheduler
+
+            register_sub53_scheduler(scheduler, AsyncSessionLocal, KST)
             scheduler.start()
         except Exception as e:
             print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
@@ -8446,6 +8451,20 @@ async def inspection_logs2_page(
         await db.rollback()
         print(f"[ccrf] consolidate skip: {e}", flush=True)
 
+    try:
+        from sub53 import ensure_registered as ensure_sub53_registered
+        from sub53 import ensure_tables as ensure_sub53_tables
+
+        await ensure_sub53_tables(engine)
+        if await ensure_sub53_registered(db):
+            await db.commit()
+            from auth import invalidate_nav_cache
+
+            invalidate_nav_cache()
+    except Exception as e:
+        await db.rollback()
+        print(f"[sub53] ensure register skip: {e}", flush=True)
+
     selected_rows = (
         await db.execute(
             select(InspectionLogBuilding2, Building)
@@ -8645,6 +8664,13 @@ async def inspection_logs2_building_detail(
     if is_baegun_art_hall_building(building):
         return RedirectResponse(
             f"/admin/inspection-logs2/{building_id}/baegun-art-hall",
+            status_code=303,
+        )
+    from sub53 import is_sub53_building
+
+    if is_sub53_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/53-sub",
             status_code=303,
         )
     from baegun_dorm import is_baegun_dorm_building
@@ -10273,6 +10299,416 @@ async def baegun_art_hall_qr_save(
         return JSONResponse({"ok": True, "data": row.data})
     return RedirectResponse(
         f"/bahall/{code}/daily?date={log_date.isoformat()}"
+        f"&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+
+
+@app.get("/admin/inspection-logs2/{building_id}/53-sub")
+async def sub53_page(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from sub53 import (
+        compute_monthly_report,
+        ensure_tables as ensure_s53_tables,
+        fetch_notes_list,
+        fetch_yearly_report_data,
+        get_or_create_daily,
+        sub53_daily_qr_url,
+        is_sub53_building,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_s53_tables(engine)
+    except Exception as exc:
+        print(f"[s53] ensure: {exc}", flush=True)
+
+    registered = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(
+                InspectionLogBuilding2.building_id == building_id,
+                Building.is_active == True,  # noqa: E712
+            )
+        )
+    ).first()
+    if not registered:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    _, building = registered
+    if not is_sub53_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}", status_code=303
+        )
+
+    today = _today_kst()
+    tab = request.query_params.get("tab") or "daily"
+    schema = load_schema()
+    daily_data = {}
+    monthly = {"meters": [], "days": [], "totals": {}}
+    yearly = {"months": [], "totals": {}}
+    notes_list = {"entries": []}
+    log_date = today
+    year, month = today.year, today.month
+
+    if tab == "monthly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        start = date(year, month, 1)
+        end = date(year, month, calendar.monthrange(year, month)[1])
+        rows = (
+            await db.execute(
+                select(Sub53Daily).where(
+                    Sub53Daily.building_id == building_id,
+                    Sub53Daily.log_date >= start,
+                    Sub53Daily.log_date <= end,
+                )
+            )
+        ).scalars().all()
+        previous = (
+            await db.execute(
+                select(Sub53Daily).where(
+                    Sub53Daily.building_id == building_id,
+                    Sub53Daily.log_date == start - timedelta(days=1),
+                )
+            )
+        ).scalar_one_or_none()
+        monthly = compute_monthly_report(year, month, list(rows), previous)
+    elif tab == "yearly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+        except ValueError:
+            year = today.year
+        yearly = await fetch_yearly_report_data(db, building_id, year)
+    elif tab == "notes":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        notes_list = await fetch_notes_list(db, building_id, year, month)
+    else:
+        tab = "daily"
+        try:
+            raw_date = request.query_params.get("date")
+            log_date = date.fromisoformat(raw_date) if raw_date else today
+        except ValueError:
+            log_date = today
+        daily_row = await get_or_create_daily(db, building_id, log_date)
+        await db.commit()
+        daily_data = daily_row.data or {}
+        year, month = log_date.year, log_date.month
+
+    return templates.TemplateResponse(
+        request,
+        "sub53.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": schema,
+            "tab": tab,
+            "log_date": log_date,
+            "today": today,
+            "year": year,
+            "month": month,
+            "daily_data": daily_data,
+            "monthly": monthly,
+            "yearly": yearly,
+            "notes_list": notes_list,
+            "qr_mode": False,
+            "qr_url": (
+                sub53_daily_qr_url(building.code, request) if building.code else ""
+            ),
+            "daily_save_url": (
+                f"/admin/inspection-logs2/{building_id}/53-sub/save"
+            ),
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/53-sub/save")
+async def sub53_save(
+    building_id: int,
+    request: Request,
+    user: User | None = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from sub53 import (
+        finalize_daily_save,
+        get_or_create_daily,
+        is_sub53_building,
+        parse_daily_form,
+        propagate_to_next_day,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_sub53_building(building):
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building_id, log_date)
+    row.data = await finalize_daily_save(
+        db, building_id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    row.updated_at = datetime.utcnow()
+    await propagate_to_next_day(db, building_id, log_date, row.data)
+    await db.commit()
+    if request.headers.get("X-S53-Autosave") == "1":
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"ok": True, "data": row.data})
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/53-sub"
+        f"?tab=daily&date={log_date.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/53-sub/close-day")
+async def sub53_close_day(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from sub53 import (
+        finalize_daily_save,
+        get_or_create_daily,
+        is_sub53_building,
+        parse_daily_form,
+        rollover_at_midnight,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_sub53_building(building):
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building_id, log_date)
+    row.data = await finalize_daily_save(
+        db, building_id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    await db.flush()
+    await rollover_at_midnight(db, building_id, log_date)
+    tomorrow = log_date + timedelta(days=1)
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/53-sub"
+        f"?tab=daily&date={tomorrow.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+
+@app.get("/admin/inspection-logs2/{building_id}/53-sub/export/daily")
+async def sub53_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from sub53 import export_daily_to_excel, get_or_create_daily, is_sub53_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_sub53_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"53서브_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/53-sub/export/monthly")
+async def sub53_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import calendar
+    from urllib.parse import quote
+
+    from sub53 import compute_monthly_report, export_monthly_to_excel, is_sub53_building
+    from models import Sub53Daily
+
+    building = await db.get(Building, building_id)
+    if not building or not is_sub53_building(building):
+        raise HTTPException(404)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(Sub53Daily).where(
+                Sub53Daily.building_id == building_id,
+                Sub53Daily.log_date >= start,
+                Sub53Daily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(Sub53Daily).where(
+                Sub53Daily.building_id == building_id,
+                Sub53Daily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    report = compute_monthly_report(year, month, list(rows), previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"53서브_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/53-sub/export/yearly")
+async def sub53_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from sub53 import export_yearly_to_excel, fetch_yearly_report_data, is_sub53_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_sub53_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"53서브_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/s53/{code}/daily")
+async def sub53_qr_daily(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    from sub53 import (
+        ensure_tables as ensure_s53_tables,
+        get_building_for_qr,
+        get_or_create_daily,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_s53_tables(engine)
+    except Exception:
+        pass
+    building = await get_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    today = _today_kst()
+    try:
+        raw_date = request.query_params.get("date")
+        log_date = date.fromisoformat(raw_date) if raw_date else today
+    except ValueError:
+        log_date = today
+    row = await get_or_create_daily(db, building.id, log_date)
+    await db.commit()
+    return templates.TemplateResponse(
+        request,
+        "sub53.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": load_schema(),
+            "tab": "daily",
+            "log_date": log_date,
+            "today": today,
+            "year": log_date.year,
+            "month": log_date.month,
+            "daily_data": row.data or {},
+            "monthly": {"meters": [], "days": [], "totals": {}},
+            "yearly": {"months": [], "totals": {}},
+            "notes_list": {"entries": []},
+            "qr_mode": True,
+            "qr_url": "",
+            "daily_save_url": f"/s53/{building.code}/daily/save",
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/s53/{code}/daily/save")
+async def sub53_qr_save(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from sub53 import (
+        finalize_daily_save,
+        get_building_for_qr,
+        get_or_create_daily,
+        parse_daily_form,
+        propagate_to_next_day,
+    )
+
+    building = await get_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building.id, log_date)
+    row.data = await finalize_daily_save(
+        db, building.id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    row.updated_at = datetime.utcnow()
+    await propagate_to_next_day(db, building.id, log_date, row.data)
+    await db.commit()
+    if request.headers.get("X-S53-Autosave") == "1":
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"ok": True, "data": row.data})
+    return RedirectResponse(
+        f"/s53/{code}/daily?date={log_date.isoformat()}"
         f"&message={quote('저장되었습니다.')}",
         status_code=303,
     )

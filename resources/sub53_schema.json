@@ -1,0 +1,140 @@
+{
+  "building_name": "53서브",
+  "building_aliases": [
+    "53서브",
+    "53Sub-station",
+    "53Sub",
+    "53S/S",
+    "53 SS",
+    "53서브스테이션"
+  ],
+  "title": "●53Sub-station 운영일보",
+  "utility": {
+    "title": "가. STEAM & 중온수 사용량",
+    "layout": "horizontal",
+    "meters": [
+      {"id": "steam", "label": "STEAM 사용량(TON)", "unit": "TON", "multiplier": 1},
+      {"id": "heat", "label": "중온수 열량(Mwh)", "unit": "MWh", "multiplier": 1},
+      {"id": "flow", "label": "중온수 유량(Ton)", "unit": "Ton", "multiplier": 1}
+    ],
+    "blocks": [
+      {
+        "cat": "STEAM",
+        "building": "",
+        "item": "사용량(TON)",
+        "multiplier_key": null,
+        "rows": [{"id": "steam", "label": "STEAM 사용량(TON)", "unit": "TON", "multiplier": 1}]
+      },
+      {
+        "cat": "중온수",
+        "building": "",
+        "item": "열량(Mwh)",
+        "multiplier_key": null,
+        "rows": [{"id": "heat", "label": "중온수 열량(Mwh)", "unit": "MWh", "multiplier": 1}]
+      },
+      {
+        "cat": "중온수",
+        "building": "",
+        "item": "유량(Ton)",
+        "multiplier_key": null,
+        "rows": [{"id": "flow", "label": "중온수 유량(Ton)", "unit": "Ton", "multiplier": 1}]
+      }
+    ],
+    "monthly_ids": ["steam", "heat", "flow"]
+  },
+  "inspect_a": {
+    "title": "나. 주요 점검내용",
+    "times": [
+      {"id": "t1", "default": "9:00"},
+      {"id": "t2", "default": "14:00"},
+      {"id": "t3", "default": "17:00"},
+      {"id": "t4", "default": "21:00"}
+    ],
+    "groups": [
+      {
+        "cat": "STEAM",
+        "fields": [
+          {"id": "steam_total", "label": "적산량(TON)", "std": ""},
+          {"id": "steam_main", "label": "MAIN(kg/㎠)", "std": "7~12"},
+          {"id": "prv1", "label": "감압변 1차", "std": "4~6"},
+          {"id": "prv2", "label": "감압변 2차", "std": "2~4"}
+        ]
+      },
+      {
+        "cat": "스팀, 급수 유량",
+        "fields": [
+          {"id": "steam_flow", "label": "스팀(ton/H)", "std": "0~35"},
+          {"id": "feed_p", "label": "금당 MAIN 급수(kg/㎠)", "std": "5~7.2"},
+          {"id": "feed_flow", "label": "금당 MAIN 급수(ton/H)", "std": "1~200"}
+        ]
+      },
+      {
+        "cat": "2-WAY 개도상태",
+        "fields": [
+          {"id": "way21", "label": "2-1차 2-1", "std": "0%~100%"},
+          {"id": "way22", "label": "2-1차 2-2", "std": "0%~100%"},
+          {"id": "way23", "label": "2-2차 2-3", "std": "0%~100%"},
+          {"id": "way24", "label": "2-2차 2-4", "std": "0%~100%"}
+        ]
+      },
+      {
+        "cat": "MAIN 중온수",
+        "fields": [
+          {"id": "hw_p_s", "label": "압력 S", "std": "5~7"},
+          {"id": "hw_p_r", "label": "압력 R", "std": "4~5"},
+          {"id": "hw_t_s", "label": "온도 S", "std": "90~120"},
+          {"id": "hw_t_r", "label": "온도 R", "std": "50~70"}
+        ]
+      }
+    ]
+  },
+  "inspect_b": {
+    "title": "",
+    "times": [
+      {"id": "t1", "default": "9:00"},
+      {"id": "t2", "default": "14:00"},
+      {"id": "t3", "default": "17:00"},
+      {"id": "t4", "default": "21:00"}
+    ],
+    "groups": [
+      {
+        "cat": "#1 열교환기(℃)",
+        "fields": [
+          {"id": "hx1_1l", "label": "잠열 #1L", "std": "70~110"},
+          {"id": "hx1_2l", "label": "잠열 #2L", "std": "70~110"},
+          {"id": "hx1_out", "label": "현열출구", "std": "60~90"}
+        ]
+      },
+      {
+        "cat": "#2 열교환기(℃)",
+        "fields": [
+          {"id": "hx2_1l", "label": "잠열 #1L", "std": "70~110"},
+          {"id": "hx2_2l", "label": "잠열 #2L", "std": "70~110"},
+          {"id": "hx2_out", "label": "현열출구", "std": "60~90"}
+        ]
+      },
+      {
+        "cat": "H/D",
+        "fields": [
+          {"id": "hd_p", "label": "공급압력", "std": "4~7"},
+          {"id": "hd_t", "label": "환수온도", "std": "50~70"}
+        ]
+      },
+      {
+        "cat": "응축수",
+        "fields": [
+          {"id": "cond_t", "label": "응축수 온도", "std": "60~90"}
+        ]
+      },
+      {
+        "cat": "53S/S 설비",
+        "fields": [
+          {"id": "mech_heat", "label": "기계설비 난방", "std": "50~60"},
+          {"id": "mech_hot", "label": "기계설비 급탕", "std": "50~60"},
+          {"id": "tr1", "label": "TR No.1", "std": "40~80"},
+          {"id": "tr2", "label": "TR No.2", "std": "40~80"}
+        ]
+      }
+    ]
+  }
+}

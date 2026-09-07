@@ -22,6 +22,7 @@ def inspection_log2_public_daily_path(building: Building | None) -> str | None:
     from baegun_dorm import is_baegun_dorm_building
     from giga_town import is_giga_town_building
     from park1538 import is_park1538_building
+    from sub53 import is_sub53_building
     from ccr_facility import is_ccr_facility_building
     from central_control_room import is_central_control_room_building
 
@@ -36,6 +37,7 @@ def inspection_log2_public_daily_path(building: Building | None) -> str | None:
         (is_baegun_dorm_building, f"/bdorm/{code}/daily"),
         (is_giga_town_building, f"/gtown/{code}/daily"),
         (is_park1538_building, f"/p1538/{code}/daily"),
+        (is_sub53_building, f"/s53/{code}/daily"),
         (is_central_control_room_building, f"/ccr/{code}/daily"),
         (is_ccr_facility_building, f"/ccrf/{code}/daily"),
     ]

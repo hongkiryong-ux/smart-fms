@@ -719,6 +719,46 @@ class BaegunArtHallArchive(Base):
         UniqueConstraint("building_id", "log_date", name="uq_bahall_archive"),
     )
 
+
+class Sub53Daily(Base):
+    """53서브(53Sub-station) 운영일보 1일."""
+
+    __tablename__ = "sub53_daily"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_sub53_daily"),
+    )
+
+
+class Sub53Archive(Base):
+    """53서브 운영일보 1일 아카이브."""
+
+    __tablename__ = "sub53_archives"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    original_name = Column(String(300), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_sub53_archive"),
+    )
+
+
 class InspectionLogFile(Base):
     """점검일지 엑셀 파일."""
 
