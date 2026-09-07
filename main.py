@@ -5999,8 +5999,8 @@ _AI_INTENT_LABELS = {
     "streetlamp": "가로등",
     "d1": "D-1/작업허가",
     "partner": "협력사",
-    "inspection_log": "점검일지",
-    "inspection_log2": "점검일지2",
+    "inspection_log": "점검일지(구)",
+    "inspection_log2": "점검일지",
     "materials": "자재",
     "notices": "공지",
     "schedules": "일정",
@@ -6009,14 +6009,14 @@ _AI_INTENT_LABELS = {
 _AI_EXAMPLES = [
     "전체 시설·설비·정비 현황 요약해줘",
     "제철소본부 운영일보 최근 데이터는?",
-    "점검일지2 등록 건물과 일지 현황",
+    "점검일지 등록 건물과 일지 현황",
     "자재 재고 부족 품목 알려줘",
     "정비의뢰·작업허가 대기 건수는?",
 ]
 
 _AI_EXAMPLES_DETAIL = [
     "정비·PM 지연 원인을 분석하고 우선 조치 순서를 제안해줘",
-    "제철소본부·중앙관제실 점검일지2 데이터를 종합 분석해줘",
+    "제철소본부·중앙관제실 점검일지 데이터를 종합 분석해줘",
     "설비 많은 건물의 정비 리스크를 평가해줘",
 ]
 
@@ -14978,6 +14978,28 @@ async def equipment_mobile(
     )
     msg = request.query_params.get("msg", "")
     error = request.query_params.get("error", "")
+
+    log_write_url = f"/eq/{eq.code}/log"
+    building = None
+    if eq.zone and eq.zone.floor:
+        building = eq.zone.floor.building
+    if building is not None:
+        from inspection_log2_links import inspection_log2_public_daily_path
+
+        registered = (
+            await db.execute(
+                select(InspectionLogBuilding2).where(
+                    InspectionLogBuilding2.building_id == building.id
+                )
+            )
+        ).scalar_one_or_none()
+        if registered:
+            public_path = inspection_log2_public_daily_path(building)
+            if public_path:
+                log_write_url = public_path
+            else:
+                log_write_url = f"/admin/inspection-logs2/{building.id}"
+
     return templates.TemplateResponse(
         request,
         "mobile_equipment.html",
@@ -14992,7 +15014,7 @@ async def equipment_mobile(
             "today": _today_kst(),
             "message": msg,
             "error": error,
-            "log_write_url": f"/eq/{eq.code}/log",
+            "log_write_url": log_write_url,
         },
     )
 

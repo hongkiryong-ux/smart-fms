@@ -171,8 +171,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("sites", "사업장/건물"),
     ("equipment", "설비관리"),
     ("pm", "점검(PM)"),
-    ("inspection_logs", "점검일지"),
-    ("inspection_logs2", "점검일지2"),
+    ("inspection_logs2", "점검일지"),
     ("work_orders", "정비접수/승인(정비섹션)"),
     ("d1", "정비 List(D-1)/협력사"),
     ("facility_section", "작업허가/승인(시설섹션)"),
@@ -203,7 +202,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/buildings", "sites"),
     ("/admin/equipment", "equipment"),
     ("/admin/inspection-logs2", "inspection_logs2"),
-    ("/admin/inspection-logs", "inspection_logs"),
+    ("/admin/inspection-logs", "inspection_logs2"),
     ("/admin/pm", "pm"),
     ("/admin/work-orders", "work_orders"),
     ("/admin/facility-section", "facility_section"),
@@ -223,7 +222,6 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("sites", "/admin/sites"),
     ("equipment", "/admin/equipment"),
     ("pm", "/admin/pm"),
-    ("inspection_logs", "/admin/inspection-logs"),
     ("inspection_logs2", "/admin/inspection-logs2"),
     ("work_orders", "/admin/work-orders"),
     ("d1", "/admin/d1"),
@@ -244,7 +242,7 @@ def default_menu_access(role: UserRole) -> list[str]:
         return list(MENU_KEYS)
     denied = {"users", "server"}
     if role in (UserRole.partner, UserRole.external):
-        denied |= {"equipment", "pm", "inspection_logs", "inspection_logs2", "facility_section", "streetlamp"}
+        denied |= {"equipment", "pm", "inspection_logs2", "facility_section", "streetlamp"}
     return [k for k in MENU_KEYS if k not in denied]
 
 
@@ -273,11 +271,18 @@ def normalize_menu_access(raw) -> list[str]:
     allowed = set(MENU_KEYS)
     out: list[str] = []
     seen: set[str] = set()
+    legacy_old_log = False
     for item in raw:
         key = str(item or "").strip().strip('"').strip("'")
+        # 구 메뉴 키(inspection_logs) → 점검일지(inspection_logs2)로 승계
+        if key == "inspection_logs":
+            legacy_old_log = True
+            continue
         if key in allowed and key not in seen:
             seen.add(key)
             out.append(key)
+    if legacy_old_log and "inspection_logs2" in allowed and "inspection_logs2" not in seen:
+        out.append("inspection_logs2")
     return out
 
 
