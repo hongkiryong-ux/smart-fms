@@ -8431,6 +8431,21 @@ async def inspection_logs2_page(
     except Exception as e:
         print(f"[inspection_logs2] ensure tables: {e}", flush=True)
 
+    try:
+        from ccr_facility import consolidate_facility_into_central, ensure_tables as ensure_ccrf_tables
+
+        await ensure_ccrf_tables(engine)
+        stats = await consolidate_facility_into_central(db)
+        if any(stats.values()):
+            await db.commit()
+            print(f"[ccrf] consolidate into 중앙관제실: {stats}", flush=True)
+            from auth import invalidate_nav_cache
+
+            invalidate_nav_cache()
+    except Exception as e:
+        await db.rollback()
+        print(f"[ccrf] consolidate skip: {e}", flush=True)
+
     selected_rows = (
         await db.execute(
             select(InspectionLogBuilding2, Building)
@@ -8440,7 +8455,13 @@ async def inspection_logs2_page(
             .order_by(InspectionLogBuilding2.id.desc())
         )
     ).all()
-    selected_buildings = _sort_buildings([b for _, b in selected_rows])
+    selected_buildings = _sort_buildings(
+        [
+            b
+            for _, b in selected_rows
+            if (b.name or "").strip() != "중앙관제실(설비)"
+        ]
+    )
     selected_ids = {b.id for b in selected_buildings}
 
     all_buildings = _sort_buildings(
@@ -8454,7 +8475,12 @@ async def inspection_logs2_page(
             ).scalars().all()
         )
     )
-    available_buildings = [b for b in all_buildings if b.id not in selected_ids]
+    # 구 「중앙관제실(설비)」는 중앙관제실로 통합되어 추가 후보에서 제외
+    available_buildings = [
+        b
+        for b in all_buildings
+        if b.id not in selected_ids and (b.name or "").strip() != "중앙관제실(설비)"
+    ]
     building_groups = group_buildings_by_site(selected_buildings)
 
     return templates.TemplateResponse(
@@ -8490,6 +8516,12 @@ async def inspection_logs2_add_building(
     if not building or not building.is_active:
         return RedirectResponse(
             "/admin/inspection-logs2?error=" + quote("건물을 찾을 수 없습니다."),
+            status_code=303,
+        )
+    if (building.name or "").strip() == "중앙관제실(설비)":
+        return RedirectResponse(
+            "/admin/inspection-logs2?error="
+            + quote("「중앙관제실(설비)」는 「중앙관제실」 설비 양식으로 통합되었습니다."),
             status_code=303,
         )
     exists = (
@@ -8636,18 +8668,28 @@ async def inspection_logs2_building_detail(
             f"/admin/inspection-logs2/{building_id}/park1538",
             status_code=303,
         )
-    from ccr_facility import is_ccr_facility_building
-
-    if is_ccr_facility_building(building):
-        return RedirectResponse(
-            f"/admin/inspection-logs2/{building_id}/ccr-facility",
-            status_code=303,
-        )
     from central_control_room import is_central_control_room_building
 
     if is_central_control_room_building(building):
         return RedirectResponse(
             f"/admin/inspection-logs2/{building_id}/central-control-room",
+            status_code=303,
+        )
+    from ccr_facility import is_ccr_facility_legacy_building
+
+    if is_ccr_facility_legacy_building(building):
+        # 구 「중앙관제실(설비)」 → 중앙관제실 설비 화면으로
+        central = (
+            await db.execute(
+                select(Building).where(
+                    Building.name == "중앙관제실",
+                    Building.is_active == True,  # noqa: E712
+                )
+            )
+        ).scalar_one_or_none()
+        target_id = central.id if central else building_id
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{target_id}/ccr-facility",
             status_code=303,
         )
     return templates.TemplateResponse(

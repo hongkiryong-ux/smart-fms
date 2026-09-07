@@ -36,8 +36,8 @@ def inspection_log2_public_daily_path(building: Building | None) -> str | None:
         (is_baegun_dorm_building, f"/bdorm/{code}/daily"),
         (is_giga_town_building, f"/gtown/{code}/daily"),
         (is_park1538_building, f"/p1538/{code}/daily"),
-        (is_ccr_facility_building, f"/ccrf/{code}/daily"),
         (is_central_control_room_building, f"/ccr/{code}/daily"),
+        (is_ccr_facility_building, f"/ccrf/{code}/daily"),
     ]
     for pred, path in checks:
         if pred(building):  # type: ignore[operator]

@@ -341,3 +341,24 @@
     font-size: 0.72rem;
   }
 }
+
+.hs-form-switch {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0 0 0.85rem;
+  flex-wrap: wrap;
+}
+.hs-form-switch-item {
+  padding: 0.45rem 1rem;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  text-decoration: none;
+  font-weight: 700;
+}
+.hs-form-switch-item.active {
+  background: #003876;
+  border-color: #003876;
+  color: #fff;
+}

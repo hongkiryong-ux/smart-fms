@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}점검일지2 · {{ building.name }}{% endblock %}
+{% block title %}점검일지 · {{ building.name }} (설비){% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/ccr_facility.css?v=2" />
+<link rel="stylesheet" href="/static/css/ccr_facility.css?v=3" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -18,7 +18,7 @@
 
 <header class="page-header cf-page-header">
   <div>
-    <h1>{{ schema.title }}</h1>
+    <h1>중앙관제실 운영일보 · 설비</h1>
     <p>{% if qr_mode %}QR · {{ building.name }} · 1일 · 자동 저장{% else %}{{ building.name }} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
   </div>
   {% if not qr_mode %}
@@ -30,6 +30,13 @@
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+{% if not qr_mode %}
+<nav class="cf-form-switch" aria-label="중앙관제실 양식">
+  <a class="cf-form-switch-item" href="/admin/inspection-logs2/{{ building.id }}/central-control-room?tab=daily&date={{ log_date.isoformat() }}">전기</a>
+  <a class="cf-form-switch-item active" href="/admin/inspection-logs2/{{ building.id }}/ccr-facility?tab={{ tab }}&date={{ log_date.isoformat() }}&year={{ year }}&month={{ month }}">설비</a>
+</nav>
+{% endif %}
 
 <nav class="cf-tabs" aria-label="탭">
   <a href="?tab=daily&date={{ log_date.isoformat() }}" class="cf-tab{% if tab == 'daily' %} active{% endif %}">1일</a>

@@ -31,11 +31,18 @@ def load_schema() -> dict:
 
 
 def is_ccr_facility_building(building: Building | None) -> bool:
+    """중앙관제실(전기와 동일 건물) 또는 구 명칭 「중앙관제실(설비)」."""
     if not building:
         return False
     name = (building.name or "").strip()
-    target = load_schema().get("building_name", "중앙관제실(설비)")
-    return name == target
+    return name in ("중앙관제실", "중앙관제실(설비)")
+
+
+def is_ccr_facility_legacy_building(building: Building | None) -> bool:
+    """내비에서 제거할 구 건물명."""
+    if not building:
+        return False
+    return (building.name or "").strip() == "중앙관제실(설비)"
 
 
 def _parse_num(raw: Any) -> float | None:
@@ -629,6 +636,108 @@ async def get_building_for_qr(session: AsyncSession, code: str) -> Building | No
     if not building or not is_ccr_facility_building(building):
         return None
     return building
+
+
+async def consolidate_facility_into_central(session: AsyncSession) -> dict[str, int]:
+    """구 「중앙관제실(설비)」 등록·일지 데이터를 「중앙관제실」로 합치고 설비 건물 등록 해제."""
+    from models import InspectionLogBuilding2
+
+    stats = {"migrated_daily": 0, "migrated_archive": 0, "removed_reg": 0}
+
+    central = (
+        await session.execute(
+            select(Building).where(
+                Building.name == "중앙관제실",
+                Building.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalar_one_or_none()
+    legacy = (
+        await session.execute(
+            select(Building).where(Building.name == "중앙관제실(설비)")
+        )
+    ).scalar_one_or_none()
+
+    if not central:
+        return stats
+
+    # 중앙관제실이 점검일지에 없으면 등록
+    central_reg = (
+        await session.execute(
+            select(InspectionLogBuilding2).where(
+                InspectionLogBuilding2.building_id == central.id
+            )
+        )
+    ).scalar_one_or_none()
+    if not central_reg:
+        session.add(InspectionLogBuilding2(building_id=central.id))
+        await session.flush()
+
+    if legacy and legacy.id != central.id:
+        # daily 이전 (동일 날짜는 중앙 쪽 유지)
+        legacy_dailies = (
+            await session.execute(
+                select(CcrFacilityDaily).where(CcrFacilityDaily.building_id == legacy.id)
+            )
+        ).scalars().all()
+        existing_dates = {
+            r.log_date
+            for r in (
+                await session.execute(
+                    select(CcrFacilityDaily).where(
+                        CcrFacilityDaily.building_id == central.id
+                    )
+                )
+            ).scalars().all()
+        }
+        for row in legacy_dailies:
+            if row.log_date in existing_dates:
+                await session.delete(row)
+            else:
+                row.building_id = central.id
+                stats["migrated_daily"] += 1
+
+        legacy_archives = (
+            await session.execute(
+                select(CcrFacilityArchive).where(
+                    CcrFacilityArchive.building_id == legacy.id
+                )
+            )
+        ).scalars().all()
+        existing_arch = {
+            r.log_date
+            for r in (
+                await session.execute(
+                    select(CcrFacilityArchive).where(
+                        CcrFacilityArchive.building_id == central.id
+                    )
+                )
+            ).scalars().all()
+        }
+        for row in legacy_archives:
+            if row.log_date in existing_arch:
+                await session.delete(row)
+            else:
+                row.building_id = central.id
+                stats["migrated_archive"] += 1
+
+        legacy_reg = (
+            await session.execute(
+                select(InspectionLogBuilding2).where(
+                    InspectionLogBuilding2.building_id == legacy.id
+                )
+            )
+        ).scalar_one_or_none()
+        if legacy_reg:
+            await session.delete(legacy_reg)
+            stats["removed_reg"] += 1
+
+        # 건물 자체는 비활성 (목록·추가 후보에서 제외)
+        if legacy.is_active:
+            legacy.is_active = False
+
+    await session.flush()
+    return stats
 
 
 async def ensure_tables(engine) -> None:

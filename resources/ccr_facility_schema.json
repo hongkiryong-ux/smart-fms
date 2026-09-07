@@ -1,6 +1,8 @@
 {
-  "building_name": "중앙관제실(설비)",
-  "title": "중앙관제실 운영일보",
+  "building_name": "중앙관제실",
+  "building_aliases": ["중앙관제실", "중앙관제실(설비)"],
+  "title": "중앙관제실 운영일보(설비)",
+  "form_label": "설비",
   "section1": {
     "title": "1. 중온수, 전력 사용량(07:00 기준)",
     "meters": [
