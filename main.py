@@ -307,7 +307,7 @@ def _status_label(status: WorkOrderStatus | str) -> str:
         "assigned": "정비의뢰",
         "in_progress": "정비진행",
         "completed": "정비완료",
-        "verified": "정비완료",
+        "verified": "정비완료 최종승인 대기",
         "closed": "정비완료",
     }
     key = status.value if isinstance(status, WorkOrderStatus) else str(status)
@@ -643,6 +643,7 @@ def _wo_d1_sql_gate():
     return (
         WorkOrder.partner_id.is_not(None),
         WorkOrder.d1_approved.is_(True),
+        WorkOrder.completion_approval_pending.is_not(True),
     )
 
 
@@ -2482,7 +2483,17 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
                     0,
                 ),
                 func.coalesce(
-                    func.sum(case((WorkOrder.status.in_(_WO_DONE), 1), else_=0)), 0
+                    func.sum(
+                        case(
+                            (
+                                WorkOrder.status.in_(_WO_DONE)
+                                & WorkOrder.completion_approval_pending.is_not(True),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
                 ),
                 func.coalesce(
                     func.sum(
@@ -5217,7 +5228,10 @@ async def work_orders_list(
         select(WorkOrder)
         .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
         .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
-        .where(WorkOrder.is_active == True)
+        .where(
+            WorkOrder.is_active == True,
+            WorkOrder.completion_approval_pending.is_not(True),
+        )
     )
     filters = []
 
@@ -5375,7 +5389,10 @@ async def work_orders_export(
         select(WorkOrder)
         .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
         .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
-        .where(WorkOrder.is_active == True)
+        .where(
+            WorkOrder.is_active == True,
+            WorkOrder.completion_approval_pending.is_not(True),
+        )
     )
     filters = []
     if q_val:
@@ -5562,7 +5579,17 @@ async def work_order_status(
     if status not in allowed:
         status = "received"
 
-    wo.status = WorkOrderStatus(status)
+    partner_completion = status == "completed" and user.role == UserRole.partner
+    if partner_completion:
+        own_partner_id = await user_own_partner_id(db, user)
+        if not own_partner_id or int(wo.partner_id or 0) != int(own_partner_id):
+            raise HTTPException(403, "본인 협력사의 정비 항목만 완료 요청할 수 있습니다.")
+
+    wo.status = (
+        WorkOrderStatus.verified
+        if partner_completion
+        else WorkOrderStatus(status)
+    )
     wo.action = action.strip() or None
     if cause.strip():
         wo.cause = cause.strip()
@@ -5573,12 +5600,13 @@ async def work_order_status(
     if assignee_name is not None:
         wo.assignee_name = assignee_name.strip() or None
 
-    # 협력사 지정/해제
-    if partner_id and partner_id > 0:
-        partner = await db.get(Partner, partner_id)
-        wo.partner_id = partner.id if partner and partner.is_active else None
-    else:
-        wo.partner_id = None
+    # 협력사 계정은 진행상태만 저장하며 배정 업체는 변경할 수 없음
+    if user.role != UserRole.partner:
+        if partner_id and partner_id > 0:
+            partner = await db.get(Partner, partner_id)
+            wo.partner_id = partner.id if partner and partner.is_active else None
+        else:
+            wo.partner_id = None
 
     # 업체 미지정 시 D-1 승인·하위 단계 해제
     if not wo.partner_id and getattr(wo, "d1_approved", False):
@@ -5611,13 +5639,27 @@ async def work_order_status(
             wo.work_permitted_by = None
             wo.work_permitted_at = None
 
-    if status == "completed":
-        wo.completed_at = datetime.utcnow()
+    now = datetime.utcnow()
+    if partner_completion:
+        wo.completion_approval_pending = True
+        wo.completion_requested_by = _wo_person_label(user)
+        wo.completion_requested_at = now
+        wo.completion_approved_by = None
+        wo.completion_approved_at = None
+        wo.completed_at = None
+    elif status == "completed":
+        wo.completion_approval_pending = False
+        wo.completed_at = now
         await _ensure_maintenance_history(db, wo)
     elif status != "completed":
         # 완료가 아니면 완료시각 유지/해제 — 재진행 시 완료시각 비움
         if status in ("received", "in_progress"):
             wo.completed_at = None
+            wo.completion_approval_pending = False
+            wo.completion_requested_by = None
+            wo.completion_requested_at = None
+            wo.completion_approved_by = None
+            wo.completion_approved_at = None
 
     await db.commit()
     if redirect == "d1":
@@ -6242,11 +6284,157 @@ async def work_order_advance(
     if step == 1:
         wo.status = WorkOrderStatus.in_progress
     elif step == 2:
-        wo.status = WorkOrderStatus.completed
-        wo.completed_at = datetime.utcnow()
-        await _ensure_maintenance_history(db, wo)
+        now = datetime.utcnow()
+        if user.role == UserRole.partner:
+            own_partner_id = await user_own_partner_id(db, user)
+            if not own_partner_id or int(wo.partner_id or 0) != int(own_partner_id):
+                raise HTTPException(403, "본인 협력사의 정비 항목만 완료 요청할 수 있습니다.")
+            wo.status = WorkOrderStatus.verified
+            wo.completion_approval_pending = True
+            wo.completion_requested_by = _wo_person_label(user)
+            wo.completion_requested_at = now
+            wo.completion_approved_by = None
+            wo.completion_approved_at = None
+            wo.completed_at = None
+        else:
+            wo.status = WorkOrderStatus.completed
+            wo.completion_approval_pending = False
+            wo.completed_at = now
+            await _ensure_maintenance_history(db, wo)
     await db.commit()
     return RedirectResponse(f"/admin/work-orders/{wo_id}", status_code=303)
+
+
+def _can_access_completion_approval(user: User) -> bool:
+    return can_access_menu(user, "work_orders") or can_access_menu(
+        user, "facility_section"
+    )
+
+
+def _completion_approval_redirect(
+    *,
+    q: str = "",
+    page: int | str = 1,
+    message: str = "",
+    error: str = "",
+) -> RedirectResponse:
+    params: dict[str, str] = {}
+    if q.strip():
+        params["q"] = q.strip()
+    try:
+        page_number = max(1, int(page))
+    except (TypeError, ValueError):
+        page_number = 1
+    if page_number > 1:
+        params["page"] = str(page_number)
+    if message:
+        params["message"] = message
+    if error:
+        params["error"] = error
+    query = urlencode(params)
+    return RedirectResponse(
+        "/admin/maintenance-final-approvals" + (f"?{query}" if query else ""),
+        status_code=303,
+    )
+
+
+@app.get("/admin/maintenance-final-approvals")
+async def maintenance_final_approvals(
+    request: Request,
+    q: str = "",
+    page: int = Query(1),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """협력사가 완료 요청한 정비의 최종승인 목록."""
+    if not _can_access_completion_approval(user):
+        raise HTTPException(403, "정비완료 최종승인 메뉴 접근 권한이 없습니다.")
+
+    q_value = q.strip()
+    stmt = (
+        select(WorkOrder)
+        .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
+        .where(
+            WorkOrder.is_active == True,  # noqa: E712
+            WorkOrder.completion_approval_pending == True,  # noqa: E712
+        )
+        .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
+    )
+    if q_value:
+        like = f"%{q_value}%"
+        stmt = stmt.where(
+            or_(
+                WorkOrder.title.ilike(like),
+                WorkOrder.description.ilike(like),
+                WorkOrder.action.ilike(like),
+                WorkOrder.completion_requested_by.ilike(like),
+                Equipment.code.ilike(like),
+                Equipment.name.ilike(like),
+            )
+        )
+    pending_orders = (
+        await db.execute(
+            stmt.order_by(
+                WorkOrder.completion_requested_at.asc().nullsfirst(),
+                WorkOrder.id.asc(),
+            )
+        )
+    ).scalars().unique().all()
+    pager = _paginate(list(pending_orders), page)
+    return templates.TemplateResponse(
+        request,
+        "maintenance_final_approvals.html",
+        {
+            "user": user,
+            "orders": pager["items"],
+            "pager": pager,
+            "q": q_value,
+            "flash_message": request.query_params.get("message") or "",
+            "flash_error": request.query_params.get("error") or "",
+        },
+    )
+
+
+@app.post("/admin/maintenance-final-approvals/{wo_id}/approve")
+async def maintenance_final_approval_submit(
+    wo_id: int,
+    q: str = Form(""),
+    page: str = Form("1"),
+    approval_section: str = Form("정비섹션"),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """시설섹션 또는 정비섹션 담당자의 정비완료 최종승인."""
+    if not _can_access_completion_approval(user):
+        raise HTTPException(403, "정비완료 최종승인 권한이 없습니다.")
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+    if not getattr(wo, "completion_approval_pending", False):
+        return _completion_approval_redirect(
+            q=q,
+            page=page,
+            error="이미 처리되었거나 최종승인 대기 중인 항목이 아닙니다.",
+        )
+
+    section = (
+        approval_section
+        if approval_section in {"시설섹션", "정비섹션"}
+        else "정비섹션"
+    )
+    now = datetime.utcnow()
+    wo.status = WorkOrderStatus.completed
+    wo.completion_approval_pending = False
+    wo.completion_approved_by = f"{section} · {_wo_approver_label(user)}"[:100]
+    wo.completion_approved_at = now
+    wo.completed_at = now
+    await _ensure_maintenance_history(db, wo)
+    await db.commit()
+    return _completion_approval_redirect(
+        q=q,
+        page=page,
+        message=f"{wo.title} 정비완료를 최종승인했습니다.",
+    )
 
 
 # ── AI 분석 ───────────────────────────────────────────────────────────
@@ -7606,6 +7794,7 @@ def _facility_sql_gate():
         WorkOrder.partner_id.is_not(None),
         WorkOrder.approval_requested.is_(True),
         WorkOrder.is_active.is_(True),
+        WorkOrder.completion_approval_pending.is_not(True),
     )
 
 

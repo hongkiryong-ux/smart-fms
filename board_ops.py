@@ -230,6 +230,7 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
                     WorkOrder.site_id == s.id,
                     WorkOrder.is_active == True,  # noqa: E712
                     WorkOrder.status.in_(done_st),
+                    WorkOrder.completion_approval_pending.is_not(True),
                 )
             )
         ).scalar() or 0

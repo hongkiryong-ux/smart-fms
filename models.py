@@ -1125,6 +1125,12 @@ class WorkOrder(Base):
     work_permitted = Column(Boolean, default=False)
     work_permitted_by = Column(String(100), nullable=True)
     work_permitted_at = Column(DateTime, nullable=True)
+    # 협력사가 완료로 저장한 뒤 시설/정비섹션의 최종승인을 기다리는 상태
+    completion_approval_pending = Column(Boolean, default=False)
+    completion_requested_by = Column(String(100), nullable=True)
+    completion_requested_at = Column(DateTime, nullable=True)
+    completion_approved_by = Column(String(100), nullable=True)
+    completion_approved_at = Column(DateTime, nullable=True)
     # 협력사별 엑셀(시트명=업체명) 잠재위험·안전대책
     hazard_content = Column(Text, nullable=True)
     safety_measures = Column(Text, nullable=True)

@@ -45,7 +45,14 @@
       <span class="step-label">정비완료</span>
     </li>
   </ol>
-  {% if process_step < 3 %}
+  {% if wo.completion_approval_pending %}
+  <p class="process-done-msg">
+    협력사가 정비완료를 요청했습니다. 시설섹션 또는 정비섹션의 최종승인을 기다리고 있습니다.
+    {% if user_can_access_menu(user, 'work_orders') or user_can_access_menu(user, 'facility_section') %}
+    <a href="/admin/maintenance-final-approvals">최종승인 화면으로 이동</a>
+    {% endif %}
+  </p>
+  {% elif process_step < 3 %}
   <form method="post" action="/admin/work-orders/{{ wo.id }}/advance" class="process-advance">
     <button type="submit" class="btn btn-primary">
       {% if process_step == 1 %}정비진행으로 변경{% else %}정비완료 처리{% endif %}
@@ -73,6 +80,14 @@
       <dt>협력사</dt><dd>{{ wo.partner.name if wo.partner else '-' }}</dd>
       <dt>등록</dt><dd>{{ fmt_kst_date(wo.created_at) }}</dd>
       <dt>완료</dt><dd>{{ fmt_kst_date(wo.completed_at) if wo.completed_at else '-' }}</dd>
+      {% if wo.completion_requested_at %}
+      <dt>완료 요청</dt>
+      <dd>{{ wo.completion_requested_by or '-' }} · {{ fmt_kst(wo.completion_requested_at) }}</dd>
+      {% endif %}
+      {% if wo.completion_approved_at %}
+      <dt>최종승인</dt>
+      <dd>{{ wo.completion_approved_by or '-' }} · {{ fmt_kst(wo.completion_approved_at) }}</dd>
+      {% endif %}
       <dt>작업 승인자</dt>
       <dd>
         {% if wo.d1_approved %}

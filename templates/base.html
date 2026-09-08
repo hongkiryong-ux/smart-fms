@@ -17,16 +17,17 @@
   {% set d1_path = request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path or request.url.path.startswith('/admin/d1') %}
   {% set wo_path = '/work-orders' in request.url.path %}
   {% set fac_path = '/facility-section' in request.url.path %}
+  {% set final_approval_path = '/maintenance-final-approvals' in request.url.path %}
   {% set sl_path = '/admin/streetlamp' in request.url.path %}
   {% set srv_path = '/admin/server' in request.url.path %}
-  {% set maint_path = wo_path or d1_path or fac_path or sl_path %}
+  {% set maint_path = wo_path or d1_path or fac_path or final_approval_path or sl_path %}
   {% set can_wo = user_can_access_menu(user, 'work_orders') %}
   {% set can_d1 = user_can_access_menu(user, 'd1') %}
   {% set can_fac = user_can_access_menu(user, 'facility_section') %}
   {% set can_sl = user_can_access_menu(user, 'streetlamp') %}
   {% set sl_home = '/admin/streetlamp/requests' %}
   {% set maint_home = '/admin/work-orders' if can_wo else ('/admin/d1' if can_d1 else ('/admin/facility-section' if can_fac else sl_home)) %}
-  {% set nav_badges = request.state.nav_maint_badges if request.state.nav_maint_badges is defined else {'total': 0, 'work_orders': 0, 'facility': 0, 'd1_by_partner': {}, 'users': 0} %}
+  {% set nav_badges = request.state.nav_maint_badges if request.state.nav_maint_badges is defined else {'total': 0, 'work_orders': 0, 'facility': 0, 'final_approvals': 0, 'd1_by_partner': {}, 'users': 0} %}
   {% set d1_badges = nav_badges.get('d1_by_partner', {}) if nav_badges is mapping else {} %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
@@ -180,6 +181,12 @@
           <li>
             <a href="/admin/facility-section"
                class="{% if fac_path %}active{% endif %}"><span class="nav-label">작업허가/승인(시설섹션)</span><span class="nav-count-badge" data-nav-badge="facility" data-suppress-active="{{ '1' if fac_path else '0' }}" title="신규 {{ nav_badges.get('facility', 0) }}건"{% if not nav_badges.get('facility') or fac_path %} hidden{% endif %}>{{ nav_badges.get('facility', 0) }}</span></a>
+          </li>
+          {% endif %}
+          {% if can_wo or can_fac %}
+          <li>
+            <a href="/admin/maintenance-final-approvals"
+               class="{% if final_approval_path %}active{% endif %}"><span class="nav-label">정비완료 최종승인</span><span class="nav-count-badge" data-nav-badge="final_approvals" data-suppress-active="{{ '1' if final_approval_path else '0' }}" title="승인 대기 {{ nav_badges.get('final_approvals', 0) }}건"{% if not nav_badges.get('final_approvals') or final_approval_path %} hidden{% endif %}>{{ nav_badges.get('final_approvals', 0) }}</span></a>
           </li>
           {% endif %}
           {% if can_sl %}
@@ -361,7 +368,9 @@
         if (!data) return;
         document.querySelectorAll('[data-nav-badge]').forEach(function (el) {
           var key = el.dataset.navBadge;
-          var label = key === 'users' ? '가입 승인 대기' : '신규';
+          var label = key === 'users'
+            ? '가입 승인 대기'
+            : (key === 'final_approvals' ? '최종승인 대기' : '신규');
           setBadge(el, data[key], label);
         });
         var d1 = data.d1_by_partner || {};

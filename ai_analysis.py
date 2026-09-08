@@ -406,12 +406,21 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
             .limit(25)
         )
     ).scalars().all()
+    completion_pending = await _count(
+        db,
+        select(func.count(WorkOrder.id)).where(
+            WorkOrder.is_active == True,  # noqa: E712
+            WorkOrder.completion_approval_pending == True,  # noqa: E712
+        ),
+    )
     sec["work_orders"] = {
         "by_status": status_map,
         "open_count": open_n,
         "completed": status_map.get("completed", 0)
         + status_map.get("verified", 0)
-        + status_map.get("closed", 0),
+        + status_map.get("closed", 0)
+        - completion_pending,
+        "completion_approval_pending": completion_pending,
         "approval_pending": await _count(
             db,
             select(func.count(WorkOrder.id)).where(

@@ -229,10 +229,28 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS work_permitted_at TIMESTAMP WITHOUT TIME ZONE"
         )
         await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_approval_pending BOOLEAN DEFAULT FALSE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_requested_by VARCHAR(100)"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_requested_at TIMESTAMP WITHOUT TIME ZONE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_approved_by VARCHAR(100)"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_approved_at TIMESTAMP WITHOUT TIME ZONE"
+        )
+        await _exec(
             "UPDATE work_orders SET approval_requested = FALSE WHERE approval_requested IS NULL"
         )
         await _exec(
             "UPDATE work_orders SET work_permitted = FALSE WHERE work_permitted IS NULL"
+        )
+        await _exec(
+            "UPDATE work_orders SET completion_approval_pending = FALSE WHERE completion_approval_pending IS NULL"
         )
         await _exec(
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS requester_name VARCHAR(100)"
@@ -538,6 +556,11 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN work_permitted BOOLEAN DEFAULT 0",
             "ALTER TABLE work_orders ADD COLUMN work_permitted_by VARCHAR(100)",
             "ALTER TABLE work_orders ADD COLUMN work_permitted_at DATETIME",
+            "ALTER TABLE work_orders ADD COLUMN completion_approval_pending BOOLEAN DEFAULT 0",
+            "ALTER TABLE work_orders ADD COLUMN completion_requested_by VARCHAR(100)",
+            "ALTER TABLE work_orders ADD COLUMN completion_requested_at DATETIME",
+            "ALTER TABLE work_orders ADD COLUMN completion_approved_by VARCHAR(100)",
+            "ALTER TABLE work_orders ADD COLUMN completion_approved_at DATETIME",
             "ALTER TABLE work_orders ADD COLUMN requester_name VARCHAR(100)",
             "ALTER TABLE work_orders ADD COLUMN hazard_content TEXT",
             "ALTER TABLE work_orders ADD COLUMN safety_measures TEXT",

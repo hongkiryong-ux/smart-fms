@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}정비완료 최종승인{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>정비완료 최종승인</h1>
+  <p>협력사가 완료 요청한 정비를 시설섹션 또는 정비섹션 담당자가 확인하고 최종승인합니다.</p>
+</header>
+
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
+
+<section class="card card-wide">
+  <div class="wo-list-head">
+    <h2>
+      최종승인 대기
+      <small class="text-muted">({{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small>
+    </h2>
+  </div>
+
+  <form method="get" action="/admin/maintenance-final-approvals" class="wo-filter-bar">
+    <input
+      type="search"
+      name="q"
+      value="{{ q }}"
+      placeholder="설비·정비내용·조치내용·완료요청자 검색"
+      class="wo-filter-q"
+    />
+    <button type="submit" class="btn btn-sm btn-primary">검색</button>
+    <a href="/admin/maintenance-final-approvals" class="btn btn-sm btn-secondary">초기화</a>
+  </form>
+
+  <div class="table-scroll">
+    <table class="data-table wo-list-table">
+      <thead>
+        <tr>
+          <th>설비</th>
+          <th>정비내용</th>
+          <th>협력사</th>
+          <th>조치내용</th>
+          <th>완료 요청자</th>
+          <th>요청일시</th>
+          <th>작업허가</th>
+          <th>처리</th>
+          <th>상세</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for wo in orders %}
+        <tr>
+          <td class="wo-eq-cell">
+            {% if wo.equipment %}
+            <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
+              <code>{{ wo.equipment.code }}</code>
+              <span class="wo-eq-name">{{ wo.equipment.name }}</span>
+            </div>
+            {% else %}-{% endif %}
+          </td>
+          <td class="wo-req-cell" title="{{ wo.description or wo.title }}">
+            <span class="wo-req-text">{{ wo.description or wo.title }}</span>
+          </td>
+          <td>{{ wo.partner.name if wo.partner else '-' }}</td>
+          <td>{{ wo.action or '-' }}</td>
+          <td>{{ wo.completion_requested_by or '-' }}</td>
+          <td class="wo-date">{{ fmt_kst(wo.completion_requested_at) if wo.completion_requested_at else '-' }}</td>
+          <td>
+            {% if wo.work_permitted %}
+            <span class="badge badge-wo">시설 승인완료</span>
+            {% else %}
+            <span class="text-muted">해당 없음</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if user_can_edit(user) %}
+            <form
+              method="post"
+              action="/admin/maintenance-final-approvals/{{ wo.id }}/approve"
+              class="inline-form"
+              onsubmit="return confirm('「{{ wo.description or wo.title }}」 정비완료를 최종승인할까요?');"
+            >
+              <input type="hidden" name="q" value="{{ q }}" />
+              <input type="hidden" name="page" value="{{ pager.page }}" />
+              {% if user_can_access_menu(user, 'work_orders') %}
+              <button type="submit" name="approval_section" value="정비섹션" class="btn btn-sm btn-primary">정비섹션 최종승인</button>
+              {% endif %}
+              {% if user_can_access_menu(user, 'facility_section') %}
+              <button type="submit" name="approval_section" value="시설섹션" class="btn btn-sm btn-secondary">시설섹션 최종승인</button>
+              {% endif %}
+            </form>
+            {% else %}
+            <span class="text-muted">수정 권한 필요</span>
+            {% endif %}
+          </td>
+          <td><a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="empty">최종승인 대기 중인 정비가 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% set qs = [] %}
+  {% if q %}{% set _ = qs.append('q=' ~ (q|urlencode)) %}{% endif %}
+  {% set base_url = '/admin/maintenance-final-approvals' ~ (('?' ~ qs|join('&')) if qs else '') %}
+  {% include "partials/pager.html" %}
+</section>
+{% endblock %}

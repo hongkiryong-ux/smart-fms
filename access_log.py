@@ -37,6 +37,7 @@ DETAIL_LABELS: dict[str, str] = {
 RESOURCE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/inspection-logs2", "점검일지"),
     ("/admin/inspection-logs", "점검일지(구)"),
+    ("/admin/maintenance-final-approvals", "정비완료 최종승인"),
     ("/admin/work-orders", "정비접수/승인"),
     ("/admin/facility-section", "작업허가/승인"),
     ("/admin/risk-assessment", "위험성평가"),

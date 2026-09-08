@@ -182,6 +182,7 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         "total": 0,
         "work_orders": 0,
         "facility": 0,
+        "final_approvals": 0,
         "d1_by_partner": {},
         "users": 0,
     }
@@ -256,6 +257,20 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
                 d1_by_partner[pid] = d1_by_partner.get(pid, 0) + 1
                 d1_total += 1
 
+    final_approvals_count = 0
+    if can_access_menu(user, "work_orders") or can_access_menu(
+        user, "facility_section"
+    ):
+        final_rows = (
+            await db.execute(
+                select(WorkOrder.id).where(
+                    WorkOrder.is_active == True,  # noqa: E712
+                    WorkOrder.completion_approval_pending == True,  # noqa: E712
+                )
+            )
+        ).all()
+        final_approvals_count = len(final_rows)
+
     users_count = 0
     if can_access_menu(user, "users"):
         pending_users = (
@@ -268,7 +283,7 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         ).scalars().all()
         users_count = len(pending_users)
 
-    total = work_orders_count + facility_count + d1_total
+    total = work_orders_count + facility_count + d1_total + final_approvals_count
     # 템플릿에서 p.id(int) / 문자열 키 모두 조회 가능하도록 이중 키 제공
     d1_for_tpl: dict = {}
     for pid, cnt in d1_by_partner.items():
@@ -278,6 +293,7 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         "total": total,
         "work_orders": work_orders_count,
         "facility": facility_count,
+        "final_approvals": final_approvals_count,
         "d1_by_partner": d1_for_tpl,
         "users": users_count,
     }
