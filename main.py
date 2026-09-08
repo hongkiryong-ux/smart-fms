@@ -2543,7 +2543,9 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
             )
         )
     ).scalar() or 0
-    d1_today_plan = int(d1_today_incomplete) + int(d1_today_done)
+    # 대시보드 「오늘 작업」은 클릭 대상(board=today)과 동일하게 현재 미완료 작업만 표시한다.
+    # 오늘 완료된 건은 d1_today_done 실적으로만 집계해 과거 예정 작업의 당일 승인분이 섞이지 않게 한다.
+    d1_today_plan = int(d1_today_incomplete)
 
     energy = _demo_energy_payload(today)
 
