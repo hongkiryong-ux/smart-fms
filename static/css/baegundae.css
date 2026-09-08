@@ -412,5 +412,28 @@
   width: 100%;
 }
 @media (max-width: 900px) {
-  .bdae-utility-row { flex-direction: column; }
+  .bdae-utility-row {
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bdae-utility-col {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: none;
+  }
+  .bdae-utility-col .bdae-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bdae-utility-table {
+    width: max-content;
+    min-width: 34rem;
+  }
 }
