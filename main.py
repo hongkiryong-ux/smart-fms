@@ -1830,6 +1830,35 @@ def _force_admin_menus(user_obj: User) -> None:
         user_obj.menu_access = [k for k in keys if k != "users"]
 
 
+def _users_return_location(raw: str, *, anchor: str = "") -> str:
+    """계정관리 내부 URL만 허용해 저장 후 페이지·필터 위치를 복원."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+
+    parsed = urlsplit((raw or "").strip())
+    if parsed.scheme or parsed.netloc or parsed.path != "/admin/users":
+        base = "/admin/users"
+    else:
+        query = urlencode(
+            [
+                (key, value)
+                for key, value in parse_qsl(parsed.query, keep_blank_values=False)
+                if key not in {"message", "error"}
+            ]
+        )
+        base = parsed.path + (f"?{query}" if query else "")
+    return base + (f"#{anchor}" if anchor else "")
+
+
+def _users_return_with_param(
+    raw: str, key: str, value: str, *, anchor: str = ""
+) -> str:
+    from urllib.parse import quote
+
+    base = _users_return_location(raw)
+    separator = "&" if "?" in base else "?"
+    return f"{base}{separator}{key}={quote(value)}" + (f"#{anchor}" if anchor else "")
+
+
 @app.get("/admin/users")
 async def users_manage_page(
     request: Request,
@@ -2145,11 +2174,10 @@ async def users_update(
     can_edit_flag: str = Form(""),
     can_delete_flag: str = Form(""),
     is_active_flag: str = Form(""),
+    return_to: str = Form("/admin/users"),
     user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
-    from urllib.parse import quote
-
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
@@ -2159,7 +2187,12 @@ async def users_update(
         role_val = target.role
     # 자기 자신의 시스템관리자 역할/활성은 유지
     if target.id == user.id and role_val != UserRole.system_admin:
-        return RedirectResponse("/admin/users?error=self_role", status_code=303)
+        return RedirectResponse(
+            _users_return_with_param(
+                return_to, "error", "self_role", anchor=f"account-{target.id}"
+            ),
+            status_code=303,
+        )
     target.name = name.strip() or target.name
     target.role = role_val
     target.phone = phone.strip() or None
@@ -2182,7 +2215,12 @@ async def users_update(
             target.is_approved = True
     await db.commit()
     return RedirectResponse(
-        "/admin/users?message=" + quote(f"{target.username} 정보가 저장되었습니다."),
+        _users_return_with_param(
+            return_to,
+            "message",
+            f"{target.username} 정보가 저장되었습니다.",
+            anchor=f"account-{target.id}",
+        ),
         status_code=303,
     )
 

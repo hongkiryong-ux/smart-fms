@@ -248,8 +248,9 @@
   {% if active_users %}
   <div class="users-active-list">
     {% for u in active_users %}
-    <article class="users-active-card">
+    <article class="users-active-card" id="account-{{ u.id }}">
       <form method="post" action="/admin/users/{{ u.id }}/update" class="users-active-form" id="update-{{ u.id }}">
+        <input type="hidden" name="return_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}" />
         <div class="users-active-row users-active-row-one">
           <div class="users-active-idname">
             <label class="users-active-field">
@@ -407,7 +408,7 @@
     </thead>
     <tbody>
       {% for u in inactive_users %}
-      <tr>
+      <tr id="account-{{ u.id }}">
         <td><code>{{ u.username }}</code></td>
         <td>{{ u.name }}</td>
         <td>{{ u.company_display or '-' }}</td>
@@ -415,6 +416,7 @@
         <td>
           <div class="users-actions-cell">
             <form method="post" action="/admin/users/{{ u.id }}/update" class="inline-form">
+              <input type="hidden" name="return_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}" />
               <input type="hidden" name="name" value="{{ u.name }}" />
               <input type="hidden" name="role" value="{{ u.role.value }}" />
               <input type="hidden" name="phone" value="{{ u.phone or '' }}" />
