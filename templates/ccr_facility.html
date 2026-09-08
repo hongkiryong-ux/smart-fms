@@ -218,7 +218,7 @@
               <th class="cf-time-label">가동시간 {{ si }}차</th>
               {% for u in schema.section4.units %}
               {% set ud = s4.get(u, {}) %}
-              <td><input name="f__s4__{{ u }}__s{{ si }}" value="{{ ud.get('s' ~ si, '') }}" class="cf-cell cf-s4-shift" data-unit="{{ u }}" /></td>
+              <td><input name="f__s4__{{ u }}__s{{ si }}" value="{{ ud.get('s' ~ si, '') }}" class="cf-cell cf-s4-shift cf-time-range" data-unit="{{ u }}" placeholder="08:00~12:00" /></td>
               {% endfor %}
             </tr>
             {% endfor %}
@@ -352,7 +352,7 @@
   </form>
 </section>
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-{% if can_write %}<script src="/static/js/ccr_facility.js?v=4"></script>{% endif %}
+{% if can_write %}<script src="/static/js/ccr_facility.js?v=5"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">

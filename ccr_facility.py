@@ -201,12 +201,8 @@ def _apply_shift_calc(row: dict, shifts: int, time_to_hr: bool = True) -> None:
 
 
 def _apply_s4_calc(unit: dict) -> None:
-    hrs = [_parse_num(unit.get(f"s{i}")) for i in (1, 2, 3)]
-    hrs = [h for h in hrs if h is not None]
-    if hrs:
-        unit["daily"] = _fmt_num(sum(hrs))
-    else:
-        unit["daily"] = ""
+    daily = _sum_hrs(*(unit.get(f"s{i}") for i in (1, 2, 3)))
+    unit["daily"] = _fmt_num(daily)
     pd = _parse_num(unit.get("prev_day"))
     d = _parse_num(unit.get("daily"))
     if pd is not None and d is not None:

@@ -91,7 +91,9 @@
       let sum = 0;
       let has = false;
       [1, 2, 3].forEach(function (i) {
-        const v = parseNum(form.querySelector('[name="f__s4__' + u + '__s' + i + '"]')?.value);
+        const v = parseTimeRange(
+          form.querySelector('[name="f__s4__' + u + '__s' + i + '"]')?.value
+        );
         if (v != null) {
           sum += v;
           has = true;
