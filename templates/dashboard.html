@@ -31,6 +31,10 @@
       <span class="dash-live"><i></i> LIVE</span>
     </div>
     <div class="dash-top-meta">
+      <button type="button" class="dash-online-btn" data-online-open aria-haspopup="dialog">
+        <span class="ops-online-dot" aria-hidden="true"></span>
+        현재 접속 <strong data-online-count>{{ online_count|default(1) }}</strong>명
+      </button>
       <span>KST <strong id="dash-as-of">{{ kpi.as_of }}</strong></span>
       <span class="dash-dot">·</span>
       <span>30초 자동갱신</span>
@@ -50,6 +54,20 @@
     {% include "dashboard_ops.html" %}
   {% endif %}
 </div>
+
+<dialog id="online-users-dialog" class="online-users-dialog" aria-labelledby="online-users-title">
+  <div class="online-users-head">
+    <div>
+      <h2 id="online-users-title">현재 접속자</h2>
+      <p>최근 2분 이내 활동한 사용자입니다.</p>
+    </div>
+    <button type="button" class="online-users-close" data-online-close aria-label="닫기">&times;</button>
+  </div>
+  <div class="online-users-body">
+    <div class="online-users-loading" id="online-users-loading">접속자 명단을 불러오는 중입니다.</div>
+    <ul class="online-users-list" id="online-users-list" hidden></ul>
+  </div>
+</dialog>
 
 <script>
 (function () {
@@ -118,6 +136,74 @@
     var wd = ['일','월','화','수','목','금','토'][d.getDay()];
     function z(n){ return n < 10 ? '0'+n : ''+n; }
     el.textContent = d.getFullYear()+'.'+z(d.getMonth()+1)+'.'+z(d.getDate())+' ('+wd+') '+z(d.getHours())+':'+z(d.getMinutes());
+  }
+
+  var onlineDialog = document.getElementById('online-users-dialog');
+  var onlineList = document.getElementById('online-users-list');
+  var onlineLoading = document.getElementById('online-users-loading');
+
+  function escapeHtml(value) {
+    var div = document.createElement('div');
+    div.textContent = value == null ? '' : String(value);
+    return div.innerHTML;
+  }
+
+  function renderOnlineUsers(data) {
+    if (!onlineList || !onlineLoading) return;
+    var items = (data && data.items) || [];
+    document.querySelectorAll('[data-online-count]').forEach(function (el) {
+      el.textContent = data && data.count != null ? data.count : items.length;
+    });
+    if (!items.length) {
+      onlineLoading.textContent = '현재 접속 중인 사용자가 없습니다.';
+      onlineLoading.hidden = false;
+      onlineList.hidden = true;
+      return;
+    }
+    onlineList.innerHTML = items.map(function (item) {
+      var initial = escapeHtml((item.name || item.username || '?').charAt(0));
+      var company = item.company ? '<span>' + escapeHtml(item.company) + '</span>' : '';
+      return '<li>' +
+        '<span class="online-user-avatar">' + initial + '</span>' +
+        '<div class="online-user-main"><strong>' + escapeHtml(item.name || item.username) + '</strong>' +
+        '<span>@' + escapeHtml(item.username) + ' · ' + escapeHtml(item.role) + '</span>' +
+        company + '</div>' +
+        '<div class="online-user-seen"><i></i><span>접속 중</span><small>' + escapeHtml(item.last_seen) + '</small></div>' +
+        '</li>';
+    }).join('');
+    onlineLoading.hidden = true;
+    onlineList.hidden = false;
+  }
+
+  function openOnlineUsers() {
+    if (!onlineDialog || typeof onlineDialog.showModal !== 'function') return;
+    onlineLoading.textContent = '접속자 명단을 불러오는 중입니다.';
+    onlineLoading.hidden = false;
+    onlineList.hidden = true;
+    onlineDialog.showModal();
+    fetch('/admin/presence', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (data) renderOnlineUsers(data);
+        else throw new Error('presence');
+      })
+      .catch(function () {
+        onlineLoading.textContent = '접속자 명단을 불러오지 못했습니다.';
+      });
+  }
+
+  document.querySelectorAll('[data-online-open]').forEach(function (button) {
+    button.addEventListener('click', openOnlineUsers);
+  });
+  document.querySelectorAll('[data-online-close]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (onlineDialog && typeof onlineDialog.close === 'function') onlineDialog.close();
+    });
+  });
+  if (onlineDialog) {
+    onlineDialog.addEventListener('click', function (event) {
+      if (event.target === onlineDialog) onlineDialog.close();
+    });
   }
 
   renderSparks(energyInit);

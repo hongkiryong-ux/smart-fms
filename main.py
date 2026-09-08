@@ -1531,6 +1531,8 @@ async def admin_login(
 async def admin_logout(request: Request, db: AsyncSession = Depends(get_db)):
     uid = request.session.get("user_id")
     if uid:
+        from presence import remove_presence
+
         result = await db.execute(select(User).where(User.id == uid))
         user = result.scalar_one_or_none()
         if user:
@@ -1547,6 +1549,8 @@ async def admin_logout(request: Request, db: AsyncSession = Depends(get_db)):
                 resource="로그아웃",
                 summary="로그아웃",
             )
+        await remove_presence(db, int(uid))
+        await db.commit()
     request.session.clear()
     resp = RedirectResponse("/admin/login?logout=1", status_code=303)
     clear_remember_cookie(resp)
@@ -2682,6 +2686,7 @@ async def dashboard(
         load_site_status,
         load_today_schedules,
     )
+    from presence import list_active_users, touch_presence
 
     layout = (preview or "").strip()
     is_preview = layout in DASHBOARD_LAYOUTS
@@ -2707,6 +2712,10 @@ async def dashboard(
     for en, ko in _wd.items():
         now_label = now_label.replace(en, ko)
 
+    await touch_presence(db, user.id, path=request.url.path)
+    online_users = await list_active_users(db)
+    await db.commit()
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -2723,6 +2732,7 @@ async def dashboard(
             "site_status": site_status,
             "now_label": now_label,
             "role_label": ROLE_LABELS.get(user.role, ""),
+            "online_count": len(online_users),
         },
     )
 
@@ -2766,6 +2776,52 @@ async def save_dashboard_layout(
 async def dashboard_kpi(user: User = Depends(require_login)):
     """대시보드 KPI JSON (자동 갱신, 캐시 적중 시 DB 미사용)."""
     return JSONResponse(await _get_dashboard_kpi_cached(None))
+
+
+def _presence_json_item(item: dict) -> dict:
+    role = item.get("role")
+    return {
+        "id": item.get("id"),
+        "name": item.get("name") or "",
+        "username": item.get("username") or "",
+        "role": ROLE_LABELS.get(role, getattr(role, "value", "") or ""),
+        "company": item.get("company") or "",
+        "last_seen": item.get("last_seen") or "",
+        "seconds_ago": item.get("seconds_ago") or 0,
+    }
+
+
+@app.post("/admin/presence/heartbeat")
+async def presence_heartbeat(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from presence import list_active_users, touch_presence
+
+    await touch_presence(db, user.id, path=request.headers.get("X-Presence-Path", ""))
+    active = await list_active_users(db)
+    await db.commit()
+    return JSONResponse({"ok": True, "count": len(active)})
+
+
+@app.get("/admin/presence")
+async def presence_list(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from presence import list_active_users, touch_presence
+
+    await touch_presence(db, user.id, path=request.url.path)
+    active = await list_active_users(db)
+    await db.commit()
+    return JSONResponse(
+        {
+            "count": len(active),
+            "items": [_presence_json_item(item) for item in active],
+        }
+    )
 
 
 @app.get("/admin/server")

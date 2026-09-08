@@ -80,6 +80,10 @@
       </div>
     </div>
     <div class="ops-live-top-right">
+      <button type="button" class="ops-online-btn" data-online-open aria-haspopup="dialog">
+        <span class="ops-online-dot" aria-hidden="true"></span>
+        현재 접속 <strong data-online-count>{{ online_count|default(1) }}</strong>명
+      </button>
       <span class="ops-live-clock" id="ops-clock">{{ now_label or kpi.as_of }}</span>
       <div class="ops-live-user">
         <span class="ops-live-avatar" aria-hidden="true">👤</span>

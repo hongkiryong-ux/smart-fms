@@ -83,6 +83,8 @@ _SKIP_AUDIT_EXACT: frozenset[str] = frozenset(
         "/admin/server/status",
         "/admin/dashboard/kpi",
         "/admin/dashboard/server-status",
+        "/admin/presence",
+        "/admin/presence/heartbeat",
     }
 )
 

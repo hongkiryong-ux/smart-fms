@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20260908nb" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260909online" />
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -419,6 +419,36 @@
   </div>
 
   {% if user %}
+  <script>
+  (function () {
+    var timer = null;
+    function heartbeatPresence() {
+      fetch('/admin/presence/heartbeat', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-Presence-Path': location.pathname
+        }
+      })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || data.count == null) return;
+          document.querySelectorAll('[data-online-count]').forEach(function (el) {
+            el.textContent = data.count;
+          });
+        })
+        .catch(function () {});
+    }
+    heartbeatPresence();
+    timer = setInterval(heartbeatPresence, 45000);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) heartbeatPresence();
+    });
+  })();
+  </script>
+
   <dialog id="user-notify-dialog" class="eq-dialog user-notify-dialog">
     <div class="eq-dialog-top">
       <strong id="user-notify-title">알림</strong>
