@@ -6306,6 +6306,8 @@ async def work_order_advance(
 
 
 def _can_access_completion_approval(user: User) -> bool:
+    if user.role in (UserRole.partner, UserRole.external):
+        return False
     return can_access_menu(user, "work_orders") or can_access_menu(
         user, "facility_section"
     )

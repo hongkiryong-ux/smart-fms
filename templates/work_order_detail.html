@@ -48,7 +48,7 @@
   {% if wo.completion_approval_pending %}
   <p class="process-done-msg">
     협력사가 정비완료를 요청했습니다. 시설섹션 또는 정비섹션의 최종승인을 기다리고 있습니다.
-    {% if user_can_access_menu(user, 'work_orders') or user_can_access_menu(user, 'facility_section') %}
+    {% if user.role.value not in ('partner', 'external') and (user_can_access_menu(user, 'work_orders') or user_can_access_menu(user, 'facility_section')) %}
     <a href="/admin/maintenance-final-approvals">최종승인 화면으로 이동</a>
     {% endif %}
   </p>

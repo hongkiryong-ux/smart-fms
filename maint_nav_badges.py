@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import AppSetting, User, WorkOrder, WorkOrderStatus
+from models import AppSetting, User, UserRole, WorkOrder, WorkOrderStatus
 
 KST = ZoneInfo("Asia/Seoul")
 _BADGE_CACHE_TTL_SEC = 5.0
@@ -258,8 +258,9 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
                 d1_total += 1
 
     final_approvals_count = 0
-    if can_access_menu(user, "work_orders") or can_access_menu(
-        user, "facility_section"
+    if user.role not in (UserRole.partner, UserRole.external) and (
+        can_access_menu(user, "work_orders")
+        or can_access_menu(user, "facility_section")
     ):
         final_rows = (
             await db.execute(
