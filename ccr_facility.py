@@ -144,11 +144,20 @@ def empty_daily_payload() -> dict[str, Any]:
     return data
 
 
-def _calc_meter(prev: str, today: str, prev_monthly: str = "") -> tuple[str, str]:
+def _s1_meter_multiplier(meter_id: str) -> float:
+    for meter in load_schema()["section1"]["meters"]:
+        if meter.get("id") == meter_id:
+            return _parse_num(meter.get("multiplier")) or 1
+    return 1
+
+
+def _calc_meter(
+    prev: str, today: str, prev_monthly: str = "", multiplier: float = 1
+) -> tuple[str, str]:
     p, t = _parse_num(prev), _parse_num(today)
     daily = ""
     if p is not None and t is not None:
-        daily = _fmt_num(t - p)
+        daily = _fmt_num((t - p) * multiplier)
     pm = _parse_num(prev_monthly)
     monthly = ""
     d = _parse_num(daily)
@@ -214,12 +223,19 @@ def recompute_daily(data: dict) -> dict:
 
     for mid in ("heat", "flow"):
         m = s1.setdefault(mid, {})
-        daily, monthly = _calc_meter(m.get("prev", ""), m.get("today", ""), "")
+        daily, monthly = _calc_meter(
+            m.get("prev", ""), m.get("today", ""), "", _s1_meter_multiplier(mid)
+        )
         m["daily"] = daily
         m["monthly"] = monthly
 
     pm = s1.setdefault("power", {})
-    daily, monthly = _calc_meter(pm.get("prev", ""), pm.get("today", ""), pm.get("prev_monthly", ""))
+    daily, monthly = _calc_meter(
+        pm.get("prev", ""),
+        pm.get("today", ""),
+        pm.get("prev_monthly", ""),
+        _s1_meter_multiplier("power"),
+    )
     pm["daily"] = daily
     pm["monthly"] = monthly
 
@@ -294,13 +310,21 @@ async def sync_prev_values(
         m = s1.setdefault(mid, {})
         prev_m = prev_s1.get(mid) or {}
         prev_monthly_val = prev_m.get("monthly", "")
-        daily, monthly = _calc_meter(m.get("prev", ""), m.get("today", ""), prev_monthly_val)
+        daily, monthly = _calc_meter(
+            m.get("prev", ""),
+            m.get("today", ""),
+            prev_monthly_val,
+            _s1_meter_multiplier(mid),
+        )
         m["daily"] = daily
         m["monthly"] = monthly
 
     pm = s1.setdefault("power", {})
     daily, monthly = _calc_meter(
-        pm.get("prev", ""), pm.get("today", ""), pm.get("prev_monthly", "")
+        pm.get("prev", ""),
+        pm.get("today", ""),
+        pm.get("prev_monthly", ""),
+        _s1_meter_multiplier("power"),
     )
     pm["daily"] = daily
     pm["monthly"] = monthly

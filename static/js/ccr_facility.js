@@ -37,20 +37,16 @@
   }
 
   function calcS1() {
-    ["heat", "flow"].forEach(function (mid) {
+    ["heat", "flow", "power"].forEach(function (mid) {
       const prev = parseNum(form.querySelector('[name="f__s1__' + mid + '__prev"]')?.value);
-      const today = parseNum(form.querySelector('[name="f__s1__' + mid + '__today"]')?.value);
+      const todayInput = form.querySelector('[name="f__s1__' + mid + '__today"]');
+      const today = parseNum(todayInput?.value);
+      const multiplier = parseNum(todayInput?.dataset.multiplier) ?? 1;
       let daily = null;
-      if (prev != null && today != null) daily = today - prev;
+      if (prev != null && today != null) daily = (today - prev) * multiplier;
       const outD = document.querySelector('[data-out="' + mid + '-daily"]');
       if (outD) outD.textContent = daily != null ? fmtNum(daily) : "";
     });
-    const prev = parseNum(form.querySelector('[name="f__s1__power__prev"]')?.value);
-    const today = parseNum(form.querySelector('[name="f__s1__power__today"]')?.value);
-    let daily = null;
-    if (prev != null && today != null) daily = today - prev;
-    const outD = document.querySelector('[data-out="power-daily"]');
-    if (outD) outD.textContent = daily != null ? fmtNum(daily) : "";
   }
 
   function calcShiftRow(tr) {

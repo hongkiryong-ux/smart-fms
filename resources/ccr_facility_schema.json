@@ -6,9 +6,9 @@
   "section1": {
     "title": "1. 중온수, 전력 사용량(07:00 기준)",
     "meters": [
-      {"id": "heat", "group": "중온수", "name": "열량", "unit": "MWH", "cols": ["prev", "today", "daily", "monthly"]},
-      {"id": "flow", "group": "중온수", "name": "유량", "unit": "㎥/h", "cols": ["prev", "today", "daily", "monthly"]},
-      {"id": "power", "group": "중앙 관제실 (압연)", "name": "전력량", "unit": "KWH", "cols": ["prev", "today", "daily", "monthly", "prev_monthly"]},
+      {"id": "heat", "group": "중온수", "name": "열량", "unit": "MWH", "multiplier": 1, "cols": ["prev", "today", "daily", "monthly"]},
+      {"id": "flow", "group": "중온수", "name": "유량", "unit": "㎥/h", "multiplier": 1000, "cols": ["prev", "today", "daily", "monthly"]},
+      {"id": "power", "group": "중앙 관제실 (압연)", "name": "전력량", "unit": "KWH", "multiplier": 9600, "cols": ["prev", "today", "daily", "monthly", "prev_monthly"]},
       {"id": "peak", "group": "PEAK", "name": "PEAK", "unit": "", "cols": ["time", "load"], "labels": {"time": "시간", "load": "부하(A)"}}
     ]
   },

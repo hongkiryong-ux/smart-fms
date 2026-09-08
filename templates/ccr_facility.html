@@ -94,8 +94,8 @@
             <tr>
               <th class="cf-corner" rowspan="2">구분</th>
               <th class="cf-group-head" colspan="4">중온수 · 열량(MWH)</th>
-              <th class="cf-group-head" colspan="4">중온수 · 유량(㎥/h)</th>
-              <th class="cf-group-head" colspan="5">중앙 관제실(압연) · 전력량(KWH)</th>
+              <th class="cf-group-head" colspan="4">중온수 · 유량(㎥/h) ×{{ schema.section1.meters[1].multiplier }}</th>
+              <th class="cf-group-head" colspan="5">중앙 관제실(압연) · 전력량(KWH) ×{{ schema.section1.meters[2].multiplier }}</th>
               <th class="cf-group-head" colspan="2">PEAK</th>
             </tr>
             <tr>
@@ -113,15 +113,15 @@
             <tr>
               <th class="cf-time-label">07:00</th>
               <td class="cf-yellow-cell"><input name="f__s1__heat__prev" value="{{ heat.get('prev','') }}" class="cf-cell cf-prev" data-prev-manual="{{ '1' if heat.get('prev_manual') else '0' }}" /><input type="hidden" name="f__s1__heat__prev_manual" value="{{ '1' if heat.get('prev_manual') else '' }}" class="cf-prev-flag" /></td>
-              <td><input name="f__s1__heat__today" value="{{ heat.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="heat" /></td>
+              <td><input name="f__s1__heat__today" value="{{ heat.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="heat" data-multiplier="{{ schema.section1.meters[0].multiplier }}" /></td>
               <td class="cf-calc-out" data-out="heat-daily">{{ heat.get('daily','') }}</td>
               <td class="cf-calc-out" data-out="heat-monthly">{{ heat.get('monthly','') }}</td>
               <td class="cf-yellow-cell"><input name="f__s1__flow__prev" value="{{ flow.get('prev','') }}" class="cf-cell cf-prev" data-prev-manual="{{ '1' if flow.get('prev_manual') else '0' }}" /><input type="hidden" name="f__s1__flow__prev_manual" value="{{ '1' if flow.get('prev_manual') else '' }}" class="cf-prev-flag" /></td>
-              <td><input name="f__s1__flow__today" value="{{ flow.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="flow" /></td>
+              <td><input name="f__s1__flow__today" value="{{ flow.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="flow" data-multiplier="{{ schema.section1.meters[1].multiplier }}" /></td>
               <td class="cf-calc-out" data-out="flow-daily">{{ flow.get('daily','') }}</td>
               <td class="cf-calc-out" data-out="flow-monthly">{{ flow.get('monthly','') }}</td>
               <td class="cf-yellow-cell"><input name="f__s1__power__prev" value="{{ power.get('prev','') }}" class="cf-cell cf-prev" data-prev-manual="{{ '1' if power.get('prev_manual') else '0' }}" /><input type="hidden" name="f__s1__power__prev_manual" value="{{ '1' if power.get('prev_manual') else '' }}" class="cf-prev-flag" /></td>
-              <td><input name="f__s1__power__today" value="{{ power.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="power" /></td>
+              <td><input name="f__s1__power__today" value="{{ power.get('today','') }}" class="cf-cell cf-calc-s1" data-meter="power" data-multiplier="{{ schema.section1.meters[2].multiplier }}" /></td>
               <td class="cf-calc-out" data-out="power-daily">{{ power.get('daily','') }}</td>
               <td class="cf-calc-out" data-out="power-monthly">{{ power.get('monthly','') }}</td>
               <td class="cf-readonly"><input name="f__s1__power__prev_monthly" value="{{ power.get('prev_monthly','') }}" class="cf-cell cf-hidden-calc" readonly tabindex="-1" /></td>
@@ -352,7 +352,7 @@
   </form>
 </section>
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-{% if can_write %}<script src="/static/js/ccr_facility.js?v=3"></script>{% endif %}
+{% if can_write %}<script src="/static/js/ccr_facility.js?v=4"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">
