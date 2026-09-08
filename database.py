@@ -151,6 +151,9 @@ async def ensure_schema_updates() -> None:
 
     if is_pg:
         await _exec(
+            "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'maintenance_section'"
+        )
+        await _exec(
             "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT '설비'"
         )
         await _exec(
