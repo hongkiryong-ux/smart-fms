@@ -9706,7 +9706,7 @@ async def housing_substation_save(
     building_id: int,
     request: Request,
     log_date: str = Form(...),
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -9740,7 +9740,7 @@ async def housing_substation_close_day(
     building_id: int,
     request: Request,
     log_date: str = Form(...),
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -10204,7 +10204,7 @@ async def central_control_room_save(
     building_id: int,
     request: Request,
     log_date: str = Form(...),
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -10238,7 +10238,7 @@ async def central_control_room_close_day(
     building_id: int,
     request: Request,
     log_date: str = Form(...),
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -10556,7 +10556,7 @@ async def baegun_art_hall_page(
 async def baegun_art_hall_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -11002,7 +11002,7 @@ async def sub53_page(
 async def sub53_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -11446,7 +11446,7 @@ async def baegundae_page(
 async def baegundae_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -11889,7 +11889,7 @@ async def baegun_shopping_page(
 async def baegun_shopping_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -12336,7 +12336,7 @@ async def ccr_facility_page(
 async def ccr_facility_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from ccr_facility import (
@@ -12724,7 +12724,7 @@ async def steelworks_hq_page(
 async def steelworks_hq_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from steelworks_hq import (
@@ -13093,7 +13093,7 @@ async def steelworks_hall_page(
 async def steelworks_hall_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -13536,7 +13536,7 @@ async def human_center_page(
 async def human_center_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -13979,7 +13979,7 @@ async def eoulrim_gym_page(
 async def eoulrim_gym_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -14422,7 +14422,7 @@ async def baegun_dorm_page(
 async def baegun_dorm_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -14867,7 +14867,7 @@ async def giga_town_page(
 async def giga_town_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -15314,7 +15314,7 @@ async def park1538_page(
 async def park1538_save(
     building_id: int,
     request: Request,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -15790,7 +15790,7 @@ async def inspection_log_file_edit(
         building_id=building_id,
         file_id=file_id,
         user=user,
-        can_save=can_edit(user),
+        can_save=True,
         editor=editor,
         qr_mode=False,
     )
@@ -15814,7 +15814,6 @@ async def _inspection_log_editor_response(
     onlyoffice_edit_url: str | None = None,
 ):
     import json as _json
-    import ilog_lock
 
     registered = (
         await db.execute(
@@ -15847,61 +15846,15 @@ async def _inspection_log_editor_response(
     cursor_url = cursor_url or (
         f"/admin/inspection-logs/{building_id}/files/{file_id}/cursor"
     )
-    unlock_url = (
-        f"/eq/{qr_eq_code}/log/unlock"
-        if qr_mode and qr_eq_code
-        else f"/admin/inspection-logs/{building_id}/files/{file_id}/unlock"
-    )
-    heartbeat_url = (
-        f"/eq/{qr_eq_code}/log/heartbeat"
-        if qr_mode and qr_eq_code
-        else f"/admin/inspection-logs/{building_id}/files/{file_id}/heartbeat"
-    )
-    back_url = (
-        f"/eq/{qr_eq_code}"
-        if qr_mode and qr_eq_code
-        else f"/admin/inspection-logs/{building_id}"
-    )
-    retry_url = str(request.url)
-
-    # 편집 잠금: 다른 사용자 편집 중이면 진입 차단
-    holder_name = ilog_lock.display_name(user, qr_eq_code=qr_eq_code)
-    session_key = ilog_lock.session_lock_key(request)
-    ok, lock_info = await ilog_lock.acquire_lock(
-        db,
-        file_id=file_id,
-        user=user,
-        session_key=session_key,
-        name=holder_name,
-    )
-    if not ok:
-        await db.rollback()
-        return templates.TemplateResponse(
-            request,
-            "inspection_log_locked.html",
-            {
-                "user": user,
-                "building": building,
-                "doc": doc,
-                "qr_mode": qr_mode,
-                "qr_eq_code": qr_eq_code or "",
-                "lock_holder_name": (lock_info or {}).get("name") or "다른 사용자",
-                "back_url": back_url,
-                "retry_url": retry_url,
-            },
-            status_code=423,
-        )
-    await db.commit()
-
     use_legacy = (editor or "").lower() in ("legacy", "simple", "js")
     want_oo = oo.onlyoffice_enabled() and not use_legacy
     last_edit_pos = getattr(doc, "last_edit_pos", None) or None
     ctx_extra = {
         "qr_mode": qr_mode,
         "qr_eq_code": qr_eq_code or "",
-        "unlock_url": unlock_url,
-        "heartbeat_url": heartbeat_url,
-        "edit_lock_holder": holder_name,
+        "unlock_url": "",
+        "heartbeat_url": "",
+        "edit_lock_holder": "",
     }
 
     if want_oo:
@@ -16204,7 +16157,7 @@ async def inspection_log_file_save(
     building_id: int,
     file_id: int,
     request: Request,
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     """브라우저에서 수정한 엑셀(base64 xlsx)을 저장."""
@@ -17699,7 +17652,6 @@ async def equipment_qr_log(
             {"eq": eq, "user": user, "qr_mode": True},
             status_code=404,
         )
-    can_save = True if user is None else can_edit(user)
     prefix = f"/eq/{eq.code}/log"
     return await _inspection_log_editor_response(
         request=request,
@@ -17707,7 +17659,7 @@ async def equipment_qr_log(
         building_id=doc.building_id,
         file_id=doc.id,
         user=user,
-        can_save=can_save,
+        can_save=True,
         editor=editor,
         qr_mode=True,
         qr_eq_code=eq.code,
@@ -17758,8 +17710,6 @@ async def equipment_qr_log_save(
 ):
     import base64
 
-    if user is not None and not can_edit(user):
-        raise HTTPException(403, detail="수정 권한이 없습니다.")
     eq = await _equipment_for_qr_log(db, code)
     if not eq:
         raise HTTPException(404, detail="설비를 찾을 수 없습니다.")

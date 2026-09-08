@@ -5,7 +5,7 @@
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
-{% set can_write = qr_mode or user_can_edit(user) %}
+{% set can_write = qr_mode or user is not none %}
 {% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/baegun-art-hall/save') %}
 {% set utility = daily_data.get('utility', {}) if daily_data else {} %}
 {% set multipliers = daily_data.get('multipliers', {}) if daily_data else {} %}

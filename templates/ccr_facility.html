@@ -5,7 +5,7 @@
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
-{% set can_write = qr_mode or user_can_edit(user) %}
+{% set can_write = qr_mode or user is not none %}
 {% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/ccr-facility/save') %}
 {% set s1 = daily_data.get('s1', {}) %}
 {% set s2 = daily_data.get('s2', {}) %}

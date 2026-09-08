@@ -5,7 +5,7 @@
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
-{% set can_write = qr_mode or user_can_edit(user) %}
+{% set can_write = qr_mode or user is not none %}
 {% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/baegun-dorm/save') %}
 {% set utility = daily_data.get('utility', {}) if daily_data else {} %}
 {% set el_data = daily_data.get('electrical', {}) if daily_data else {} %}
