@@ -128,6 +128,8 @@ def classify_event(method: str, path: str) -> str:
                 "export",
                 "download",
                 "backup.zip",
+                "database-backup",
+                ".dump",
                 "manual.pptx",
                 "presentation.pptx",
                 ".xlsx",

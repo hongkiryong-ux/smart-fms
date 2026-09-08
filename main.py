@@ -2659,6 +2659,63 @@ async def server_backup_zip(
     )
 
 
+_DB_BACKUP_LOCK = asyncio.Lock()
+
+
+@app.get("/admin/server/database-backup.dump")
+async def server_database_backup(
+    user: User = Depends(require_user_manager),
+):
+    """Render smart-fms-db 전체를 pg_dump 형식으로 내려받기."""
+    import tempfile
+
+    from database_backup import DatabaseBackupError, create_postgres_dump
+
+    if _DB_BACKUP_LOCK.locked():
+        raise HTTPException(409, "DB 백업을 이미 생성 중입니다. 잠시 후 다시 시도하세요.")
+
+    tmp = tempfile.NamedTemporaryFile(
+        prefix="smart-fms-db-",
+        suffix=".dump",
+        delete=False,
+    )
+    tmp_path = tmp.name
+    tmp.close()
+
+    def _cleanup() -> None:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    async with _DB_BACKUP_LOCK:
+        try:
+            await asyncio.to_thread(create_postgres_dump, tmp_path)
+        except DatabaseBackupError as exc:
+            _cleanup()
+            raise HTTPException(503, str(exc)) from exc
+        except Exception:
+            _cleanup()
+            raise
+
+    stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
+    filename = f"smart-fms-db_{stamp}.dump"
+    return FileResponse(
+        tmp_path,
+        media_type="application/octet-stream",
+        filename=filename,
+        background=BackgroundTask(_cleanup),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"; '
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 _MANUAL_PPTX = Path(__file__).resolve().parent / "docs" / "Smart_FMS_사용매뉴얼.pptx"
 _PRESENTATION_PPTX = Path(__file__).resolve().parent / "docs" / "Smart_FMS_발표자료.pptx"
 
