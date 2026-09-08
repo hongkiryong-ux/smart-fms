@@ -73,6 +73,11 @@
   <p>가입 승인 · CRUD/메뉴 권한 · 비밀번호 변경 · 계정 추가/삭제</p>
 </header>
 
+<nav class="users-page-tabs" aria-label="계정관리 메뉴">
+  <a href="/admin/users" class="{% if active_tab == 'accounts' %}active{% endif %}">계정관리</a>
+  <a href="/admin/users?tab=menu" class="{% if active_tab == 'menu' %}active{% endif %}">메뉴접근 설정</a>
+</nav>
+
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 {% if error == 'required' %}
 <div class="alert alert-error">필수 항목을 입력하세요.</div>
@@ -92,6 +97,7 @@
 
 <section class="card card-wide users-filter-card">
   <form method="get" action="/admin/users" class="users-filter-form">
+    {% if active_tab == 'menu' %}<input type="hidden" name="tab" value="menu" />{% endif %}
     <label class="users-filter-field users-filter-search">
       <span>통합검색</span>
       <input
@@ -120,6 +126,7 @@
         {% endfor %}
       </select>
     </label>
+    {% if active_tab == 'accounts' %}
     <label class="users-filter-field">
       <span>계정 상태</span>
       <select name="account_status">
@@ -129,6 +136,7 @@
         <option value="inactive" {% if filter_values.status == 'inactive' %}selected{% endif %}>비활성</option>
       </select>
     </label>
+    {% endif %}
     <label class="users-filter-field">
       <span>메뉴 접근권한</span>
       <select name="menu_key" id="users-filter-menu">
@@ -147,11 +155,12 @@
     </label>
     <div class="users-filter-actions">
       <button type="submit" class="btn btn-primary">필터 적용</button>
-      <a href="/admin/users" class="btn btn-secondary">초기화</a>
+      <a href="/admin/users{% if active_tab == 'menu' %}?tab=menu{% endif %}" class="btn btn-secondary">초기화</a>
     </div>
   </form>
   <p class="text-muted users-filter-result">
-    전체 {{ total_count }}개 중 <strong>{{ filtered_count }}개</strong> 계정이 표시됩니다.
+    {% if active_tab == 'menu' %}메뉴 설정 대상{% else %}전체{% endif %}
+    {{ total_count }}개 중 <strong>{{ filtered_count }}개</strong> 계정이 표시됩니다.
   </p>
 </section>
 
@@ -159,6 +168,7 @@
 <div class="alert">조건에 맞는 계정이 없습니다. 필터를 변경하거나 초기화하세요.</div>
 {% endif %}
 
+{% if active_tab == 'accounts' %}
 {% if pending_users %}
 <section class="card card-wide users-section">
   <h2>가입 승인 대기 <small class="text-muted">({{ pending_users|length }}건)</small></h2>
@@ -232,7 +242,7 @@
               <span>이름</span>
               <input type="text" name="name" value="{{ u.name }}" required class="users-cell-input" />
             </label>
-            <a href="#menu-access-{{ u.id }}"
+            <a href="/admin/users?tab=menu#menu-access-{{ u.id }}"
                class="btn btn-sm btn-secondary users-menu-jump"
                data-menu-target="menu-access-{{ u.id }}">메뉴접근 설정</a>
           </div>
@@ -415,10 +425,12 @@
 </section>
 {% endif %}
 
-{% if active_users %}
+{% endif %}
+
+{% if active_tab == 'menu' and active_users %}
 <section class="card card-wide users-section" id="menu-access-section">
   <h2>메뉴 접근 설정</h2>
-  <p class="text-muted users-menu-section-hint">활성 계정 옆의 「메뉴접근 설정」을 누르면 해당 계정으로 이동합니다.</p>
+  <p class="text-muted users-menu-section-hint">계정별로 접근을 허용할 메뉴를 선택한 후 저장하세요.</p>
   <div class="users-menu-list">
     {% for u in active_users %}
     <article class="users-menu-card" id="menu-access-{{ u.id }}">
@@ -485,6 +497,7 @@
     a.addEventListener('click', function (e) {
       var id = a.getAttribute('data-menu-target');
       if (!id) return;
+      if (!document.getElementById(id)) return;
       e.preventDefault();
       history.replaceState(null, '', '#' + id);
       highlightMenuCard(id);

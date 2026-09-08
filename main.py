@@ -1827,6 +1827,7 @@ def _force_admin_menus(user_obj: User) -> None:
 @app.get("/admin/users")
 async def users_manage_page(
     request: Request,
+    tab: str = "accounts",
     q: str = "",
     company: str = "",
     menu_key: str = "",
@@ -1843,8 +1844,14 @@ async def users_manage_page(
             .order_by(User.is_approved.asc(), User.created_at.desc())
         )
     ).scalars().unique().all()
+    active_tab = "menu" if tab == "menu" else "accounts"
+    scope_rows = (
+        [target for target in all_rows if target.is_approved and target.is_active]
+        if active_tab == "menu"
+        else all_rows
+    )
     company_options = sorted(
-        {u.company_display.strip() for u in all_rows if u.company_display.strip()},
+        {u.company_display.strip() for u in scope_rows if u.company_display.strip()},
         key=str.casefold,
     )
 
@@ -1856,7 +1863,8 @@ async def users_manage_page(
     role_filter = role_filter if role_filter in valid_roles else ""
     account_status = (
         account_status
-        if account_status in {"pending", "active", "inactive"}
+        if active_tab == "accounts"
+        and account_status in {"pending", "active", "inactive"}
         else ""
     )
 
@@ -1891,7 +1899,7 @@ async def users_manage_page(
                 return False
         return True
 
-    rows = [target for target in all_rows if _matches(target)]
+    rows = [target for target in scope_rows if _matches(target)]
     pending = [u for u in rows if not u.is_approved and u.is_active]
     active = [u for u in rows if u.is_approved and u.is_active]
     inactive = [u for u in rows if not u.is_active]
@@ -1911,6 +1919,7 @@ async def users_manage_page(
             "partners": partners,
             "roles": list(UserRole),
             "menu_items": MENU_ITEMS,
+            "active_tab": active_tab,
             "company_options": company_options,
             "filter_values": {
                 "q": q.strip(),
@@ -1921,7 +1930,7 @@ async def users_manage_page(
                 "status": account_status,
             },
             "filtered_count": len(rows),
-            "total_count": len(all_rows),
+            "total_count": len(scope_rows),
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -2115,7 +2124,7 @@ async def users_menu_access(
     user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
-    """하단 메뉴 접근 설정 전용 저장."""
+    """메뉴접근 설정 탭 전용 저장."""
     from urllib.parse import quote
 
     from sqlalchemy.orm.attributes import flag_modified
@@ -2127,7 +2136,7 @@ async def users_menu_access(
     if target.role == UserRole.system_admin:
         # 시스템관리자는 항상 전체 메뉴 — 저장해도 변경하지 않음
         return RedirectResponse(
-            "/admin/users?message="
+            "/admin/users?tab=menu&message="
             + quote("시스템관리자는 모든 메뉴에 접근합니다.")
             + f"#menu-access-{target.id}",
             status_code=303,
@@ -2138,7 +2147,7 @@ async def users_menu_access(
     await db.commit()
     await db.refresh(target)
     return RedirectResponse(
-        "/admin/users?message="
+        "/admin/users?tab=menu&message="
         + quote(f"{target.username} 메뉴 접근이 저장되었습니다. ({len(keys)}개)")
         + f"#menu-access-{target.id}",
         status_code=303,
