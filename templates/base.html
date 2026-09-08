@@ -26,7 +26,7 @@
   {% set can_sl = user_can_access_menu(user, 'streetlamp') %}
   {% set sl_home = '/admin/streetlamp/requests' %}
   {% set maint_home = '/admin/work-orders' if can_wo else ('/admin/d1' if can_d1 else ('/admin/facility-section' if can_fac else sl_home)) %}
-  {% set nav_badges = request.state.nav_maint_badges if request.state.nav_maint_badges is defined else {'total': 0, 'work_orders': 0, 'facility': 0, 'd1_by_partner': {}} %}
+  {% set nav_badges = request.state.nav_maint_badges if request.state.nav_maint_badges is defined else {'total': 0, 'work_orders': 0, 'facility': 0, 'd1_by_partner': {}, 'users': 0} %}
   {% set d1_badges = nav_badges.get('d1_by_partner', {}) if nav_badges is mapping else {} %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
@@ -235,7 +235,14 @@
       <li><a href="/admin/partners" class="{% if '/partners' in request.url.path %}active{% endif %}">협력사</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'users') %}
-      <li><a href="/admin/users" class="{% if '/admin/users' in request.url.path %}active{% endif %}">계정관리</a></li>
+      <li>
+        <a href="/admin/users" class="{% if '/admin/users' in request.url.path %}active{% endif %}">
+          <span class="nav-label">계정관리</span>
+          {% if nav_badges.get('users') %}
+          <span class="nav-count-badge" title="가입 승인 대기 {{ nav_badges.get('users') }}건">{{ nav_badges.get('users') }}</span>
+          {% endif %}
+        </a>
+      </li>
       {% endif %}
       {% if user_can_access_menu(user, 'server') %}
       <li><a href="/admin/server" class="{% if srv_path %}active{% endif %}">서버관리</a></li>

@@ -179,6 +179,7 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         "work_orders": 0,
         "facility": 0,
         "d1_by_partner": {},
+        "users": 0,
     }
     if user is None:
         return empty
@@ -246,6 +247,18 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
                 d1_by_partner[pid] = d1_by_partner.get(pid, 0) + 1
                 d1_total += 1
 
+    users_count = 0
+    if can_access_menu(user, "users"):
+        pending_users = (
+            await db.execute(
+                select(User).where(
+                    User.is_active == True,  # noqa: E712
+                    User.is_approved == False,  # noqa: E712
+                )
+            )
+        ).scalars().all()
+        users_count = len(pending_users)
+
     total = work_orders_count + facility_count + d1_total
     # 템플릿에서 p.id(int) / 문자열 키 모두 조회 가능하도록 이중 키 제공
     d1_for_tpl: dict = {}
@@ -257,4 +270,5 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         "work_orders": work_orders_count,
         "facility": facility_count,
         "d1_by_partner": d1_for_tpl,
+        "users": users_count,
     }
