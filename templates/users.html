@@ -488,7 +488,7 @@
   {% endif %}
 
   <div class="users-page-numbers">
-    {% for item in pagination.items %}
+    {% for item in pagination["items"] %}
       {% if item %}
       <a
         href="{{ item.url }}"
