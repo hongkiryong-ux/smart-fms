@@ -142,7 +142,9 @@ def empty_footer_payload(footer_schema: dict | None = None) -> dict[str, Any]:
     times = footer_schema.get("times") or []
     out: dict[str, Any] = {
         "transformer": {"times": {t: {} for t in times}},
-        "notes": {t: "" for t in times},
+        # 특이사항은 시간·구분 없이 한 칸에 기록한다. 기존 시간별 키는
+        # 과거 데이터 호환을 위해 유지한다.
+        "notes": {"content": "", **{t: "" for t in times}},
     }
     if footer_schema.get("facilities"):
         out["facilities"] = {"prev": {}, "prev_manual": {}, "times": {t: {} for t in times}}
@@ -295,17 +297,19 @@ async def fetch_notes_list(
     entries: list[dict[str, Any]] = []
     for row in rows:
         notes = ((row.data or {}).get("footer") or {}).get("notes") or {}
-        day_notes = []
-        for t in times:
-            text = (notes.get(t) or "").strip()
-            if text:
-                day_notes.append({"time": t, "text": text})
-        if day_notes:
+        text = str(notes.get("content") or "").strip()
+        if not text:
+            text = "\n".join(
+                str(notes.get(t) or "").strip()
+                for t in times
+                if str(notes.get(t) or "").strip()
+            )
+        if text:
             entries.append(
                 {
                     "date": row.log_date.isoformat(),
                     "day": row.log_date.day,
-                    "items": day_notes,
+                    "items": [{"text": text}],
                 }
             )
     return {"year": year, "month": month, "entries": entries}
@@ -506,9 +510,20 @@ async def sync_daily_prev(
     """스키마 키 보정 후 전일 22:00 지침으로 prev 동기화."""
     merged = merge_daily_save(empty_daily_payload(), data)
     prev_vals = await _prev_day_readings(session, building_id, log_date)
+    notes = (merged.get("footer") or {}).get("notes") or {}
+    migrated_notes = False
+    if not str(notes.get("content") or "").strip():
+        legacy_text = "\n".join(
+            str(notes.get(t) or "").strip()
+            for t in _footer_times(get_daily_footer_schema())
+            if str(notes.get(t) or "").strip()
+        )
+        if legacy_text:
+            notes["content"] = legacy_text
+            migrated_notes = True
     changed = apply_prev_readings(merged, prev_vals)
     merged, footer_changed = await sync_footer_prev(session, building_id, log_date, merged)
-    return merged, changed or footer_changed
+    return merged, changed or footer_changed or migrated_notes
 
 
 async def propagate_prev_to_next_day(
@@ -1234,6 +1249,7 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
         for col in grp.get("columns") or []:
             main_cols.append(col["id"])
     tf_cols = [f["col"] for f in (footer_schema.get("transformer") or {}).get("fields") or []]
+    notes_content = str(notes.get("content") or "").strip()
     for t in footer_times:
         row = footer_row_map.get(t)
         if not row:
@@ -1247,8 +1263,10 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
             if val not in (None, ""):
                 ws[f"{col}{row}"] = val
         note = notes.get(t)
-        if note not in (None, ""):
+        if not notes_content and note not in (None, ""):
             ws[f"S{row}"] = note
+    if notes_content:
+        ws["S44"] = notes_content
 
     buf = io.BytesIO()
     wb.save(buf)

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지 · {{ building.name }} (전기){% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/central_control_room.css?v=12" />
+<link rel="stylesheet" href="/static/css/central_control_room.css?v=13" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -344,29 +344,10 @@
 
     <div class="hs-sheet hs-footer-sheet">
       <div class="hs-sheet-title">{{ daily_footer.notes.title }}</div>
-      <div class="hs-table-wrap">
-        <table class="hs-excel">
-          <thead>
-            <tr>
-              <th class="hs-corner">구분</th>
-              <th class="hs-group-head">내용</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for t in daily_footer.times %}
-            <tr>
-              <th class="hs-time-label">{{ t }}</th>
-              <td class="hs-data-cell hs-notes-cell">
-                <input type="text"
-                       name="footer__notes__{{ t }}"
-                       value="{{ notes_data.get(t, '') }}"
-                       class="hs-cell hs-note" />
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      <textarea name="footer__notes__content"
+                class="hs-cell hs-note hs-notes-content"
+                rows="6"
+                placeholder="특이사항을 입력하세요">{{ notes_data.get('content', '') }}</textarea>
     </div>
     {% endif %}
 
@@ -636,7 +617,7 @@
     </label>
     <button type="submit" class="btn btn-secondary btn-sm">조회</button>
   </form>
-  <p class="text-muted hs-hint">1일 일지에 작성된 특이사항을 날짜·시간별로 모아서 보여줍니다.</p>
+  <p class="text-muted hs-hint">1일 일지에 작성된 특이사항을 날짜별로 모아서 보여줍니다.</p>
 
   {% if notes_list['entries'] %}
   <div class="hs-notes-list">
@@ -647,7 +628,7 @@
       </h3>
       <ul>
         {% for item in entry['items'] %}
-        <li><strong>{{ item.time }}</strong> — {{ item.text }}</li>
+        <li>{{ item.text }}</li>
         {% endfor %}
       </ul>
     </article>
