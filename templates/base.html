@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20260307gyf" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260908nb" />
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -133,7 +133,7 @@
       <li class="nav-expandable nav-maint-root{% if maint_path %} is-open{% endif %}" id="nav-maintenance">
         <div class="nav-parent-row">
           <a href="{{ maint_home }}"
-             class="nav-parent-link{% if maint_path %} active{% endif %}"><span class="nav-label">정비관리</span>{% if nav_badges.get('total') and not maint_path %}<span class="nav-count-badge" title="신규 {{ nav_badges.get('total') }}건">{{ nav_badges.get('total') }}</span>{% endif %}</a>
+             class="nav-parent-link{% if maint_path %} active{% endif %}"><span class="nav-label">정비관리</span><span class="nav-count-badge" data-nav-badge="total" data-suppress-active="{{ '1' if maint_path else '0' }}" title="신규 {{ nav_badges.get('total', 0) }}건"{% if not nav_badges.get('total') or maint_path %} hidden{% endif %}>{{ nav_badges.get('total', 0) }}</span></a>
           <button type="button"
                   class="nav-toggle"
                   aria-expanded="{% if maint_path %}true{% else %}false{% endif %}"
@@ -146,7 +146,7 @@
           {% if can_wo %}
           <li>
             <a href="/admin/work-orders"
-               class="{% if wo_path %}active{% endif %}"><span class="nav-label">정비접수/승인(정비섹션)</span>{% if nav_badges.get('work_orders') and not wo_path %}<span class="nav-count-badge" title="신규 {{ nav_badges.get('work_orders') }}건">{{ nav_badges.get('work_orders') }}</span>{% endif %}</a>
+               class="{% if wo_path %}active{% endif %}"><span class="nav-label">정비접수/승인(정비섹션)</span><span class="nav-count-badge" data-nav-badge="work_orders" data-suppress-active="{{ '1' if wo_path else '0' }}" title="신규 {{ nav_badges.get('work_orders', 0) }}건"{% if not nav_badges.get('work_orders') or wo_path %} hidden{% endif %}>{{ nav_badges.get('work_orders', 0) }}</span></a>
           </li>
           {% endif %}
           {% if can_d1 %}
@@ -168,7 +168,7 @@
               <li>
                 <a href="/admin/d1?partner_id={{ p.id }}&board=receipt"
                    class="{% if d1_path and nav_pid == p.id|string %}active{% endif %}"
-                   title="{{ p.name }}"><span class="nav-label">{{ p.name }}</span>{% if d1_badges.get(p.id) and not (d1_path and nav_pid == p.id|string) %}<span class="nav-count-badge" title="신규 {{ d1_badges.get(p.id) }}건">{{ d1_badges.get(p.id) }}</span>{% endif %}</a>
+                   title="{{ p.name }}"><span class="nav-label">{{ p.name }}</span><span class="nav-count-badge" data-nav-d1-badge="{{ p.id }}" data-suppress-active="{{ '1' if d1_path and nav_pid == p.id|string else '0' }}" title="신규 {{ d1_badges.get(p.id, 0) }}건"{% if not d1_badges.get(p.id) or (d1_path and nav_pid == p.id|string) %} hidden{% endif %}>{{ d1_badges.get(p.id, 0) }}</span></a>
               </li>
               {% else %}
               <li class="nav-sub-empty">등록된 업체 없음</li>
@@ -179,7 +179,7 @@
           {% if can_fac %}
           <li>
             <a href="/admin/facility-section"
-               class="{% if fac_path %}active{% endif %}"><span class="nav-label">작업허가/승인(시설섹션)</span>{% if nav_badges.get('facility') and not fac_path %}<span class="nav-count-badge" title="신규 {{ nav_badges.get('facility') }}건">{{ nav_badges.get('facility') }}</span>{% endif %}</a>
+               class="{% if fac_path %}active{% endif %}"><span class="nav-label">작업허가/승인(시설섹션)</span><span class="nav-count-badge" data-nav-badge="facility" data-suppress-active="{{ '1' if fac_path else '0' }}" title="신규 {{ nav_badges.get('facility', 0) }}건"{% if not nav_badges.get('facility') or fac_path %} hidden{% endif %}>{{ nav_badges.get('facility', 0) }}</span></a>
           </li>
           {% endif %}
           {% if can_sl %}
@@ -238,9 +238,7 @@
       <li>
         <a href="/admin/users" class="{% if '/admin/users' in request.url.path %}active{% endif %}">
           <span class="nav-label">계정관리</span>
-          {% if nav_badges.get('users') %}
-          <span class="nav-count-badge" title="가입 승인 대기 {{ nav_badges.get('users') }}건">{{ nav_badges.get('users') }}</span>
-          {% endif %}
+          <span class="nav-count-badge" data-nav-badge="users" title="가입 승인 대기 {{ nav_badges.get('users', 0) }}건"{% if not nav_badges.get('users') %} hidden{% endif %}>{{ nav_badges.get('users', 0) }}</span>
         </a>
       </li>
       {% endif %}
@@ -342,6 +340,65 @@
       window.addEventListener('resize', function () {
         if (!isMobileNav()) setNavOpen(false);
       });
+    })();
+
+    /* 활성 화면에서 메뉴 숫자만 갱신한다. 페이지 전체는 새로고침하지 않는다. */
+    (function () {
+      if (!document.getElementById('nav-maintenance')) return;
+      var POLL_MS = 10000;
+      var timer = null;
+      var inFlight = false;
+
+      function setBadge(el, count, label) {
+        if (!el) return;
+        var value = Number(count) || 0;
+        el.textContent = String(value);
+        el.title = label + ' ' + value + '건';
+        el.hidden = value < 1 || el.dataset.suppressActive === '1';
+      }
+
+      function applyBadges(data) {
+        if (!data) return;
+        document.querySelectorAll('[data-nav-badge]').forEach(function (el) {
+          var key = el.dataset.navBadge;
+          var label = key === 'users' ? '가입 승인 대기' : '신규';
+          setBadge(el, data[key], label);
+        });
+        var d1 = data.d1_by_partner || {};
+        document.querySelectorAll('[data-nav-d1-badge]').forEach(function (el) {
+          setBadge(el, d1[String(el.dataset.navD1Badge)], '신규');
+        });
+      }
+
+      function schedule() {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(poll, POLL_MS);
+      }
+
+      function poll() {
+        if (document.hidden || inFlight) {
+          schedule();
+          return;
+        }
+        inFlight = true;
+        fetch('/admin/nav-badges', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(applyBadges)
+          .catch(function () {})
+          .finally(function () {
+            inFlight = false;
+            schedule();
+          });
+      }
+
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) poll();
+      });
+      schedule();
     })();
   })();
   </script>

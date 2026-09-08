@@ -1576,6 +1576,31 @@ async def notifications_unread(
     )
 
 
+@app.get("/admin/nav-badges")
+async def nav_badges_status(
+    request: Request,
+    user: User = Depends(require_login),
+):
+    """화면 전체를 새로고침하지 않고 메뉴 숫자만 갱신한다."""
+    badges = getattr(request.state, "nav_maint_badges", None) or {}
+    d1_raw = badges.get("d1_by_partner") or {}
+    d1 = {
+        str(partner_id): int(count or 0)
+        for partner_id, count in d1_raw.items()
+        if str(partner_id).isdigit() and int(count or 0) > 0
+    }
+    return JSONResponse(
+        {
+            "total": int(badges.get("total") or 0),
+            "work_orders": int(badges.get("work_orders") or 0),
+            "facility": int(badges.get("facility") or 0),
+            "users": int(badges.get("users") or 0),
+            "d1_by_partner": d1,
+        },
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.post("/admin/notifications/{note_id}/read")
 async def notification_mark_read(
     note_id: int,

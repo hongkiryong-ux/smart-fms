@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import AppSetting, User, WorkOrder, WorkOrderStatus
 
 KST = ZoneInfo("Asia/Seoul")
+_BADGE_CACHE_TTL_SEC = 5.0
+_badge_cache: dict[int, tuple[float, dict]] = {}
 
 _WO_REQUEST = (
     WorkOrderStatus.received,
@@ -158,6 +161,7 @@ async def mark_maint_seen(
     *,
     partner_id: int | None = None,
 ) -> None:
+    _badge_cache.pop(user_id, None)
     state = await get_maint_seen(db, user_id)
     now = _now_iso()
     if section == "work_orders":
@@ -183,6 +187,11 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
     }
     if user is None:
         return empty
+
+    now = time.monotonic()
+    cached = _badge_cache.get(user.id)
+    if cached and now < cached[0]:
+        return cached[1]
 
     seen = await get_maint_seen(db, user.id)
     today = _today_kst()
@@ -265,10 +274,12 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
     for pid, cnt in d1_by_partner.items():
         d1_for_tpl[pid] = cnt
         d1_for_tpl[str(pid)] = cnt
-    return {
+    result = {
         "total": total,
         "work_orders": work_orders_count,
         "facility": facility_count,
         "d1_by_partner": d1_for_tpl,
         "users": users_count,
     }
+    _badge_cache[user.id] = (now + _BADGE_CACHE_TTL_SEC, result)
+    return result

@@ -105,6 +105,10 @@ body {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
 
+.nav-count-badge[hidden] {
+  display: none !important;
+}
+
 .nav-menu a:hover, .nav-menu a.active {
   background: rgba(255,255,255,0.12);
   color: #fff;
