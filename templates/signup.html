@@ -9,8 +9,8 @@
     </div>
     {% if error == 'required' %}
     <div class="alert alert-error">아이디·이름·비밀번호·역할은 필수입니다.</div>
-    {% elif error == 'short' %}
-    <div class="alert alert-error">비밀번호는 6자 이상이어야 합니다.</div>
+    {% elif error == 'password_policy' or error == 'short' %}
+    <div class="alert alert-error">비밀번호는 8자 이상이며 영문·숫자·특수문자를 각각 1자 이상 포함해야 합니다.</div>
     {% elif error == 'mismatch' %}
     <div class="alert alert-error">비밀번호 확인이 일치하지 않습니다.</div>
     {% elif error == 'exists' %}
@@ -55,11 +55,17 @@
       </div>
       <div class="login-field">
         <label for="signup-password">비밀번호</label>
-        <input type="password" id="signup-password" name="password" required minlength="6" autocomplete="new-password" />
+        <input type="password" id="signup-password" name="password" required minlength="8" autocomplete="new-password" aria-describedby="signup-password-policy" />
+        <div class="signup-password-policy" id="signup-password-policy" aria-live="polite">
+          <span data-password-rule="length">8자 이상</span>
+          <span data-password-rule="letter">영문 1자 이상</span>
+          <span data-password-rule="number">숫자 1자 이상</span>
+          <span data-password-rule="special">특수문자 1자 이상</span>
+        </div>
       </div>
       <div class="login-field">
         <label for="signup-password2">비밀번호 확인</label>
-        <input type="password" id="signup-password2" name="password2" required minlength="6" autocomplete="new-password" />
+        <input type="password" id="signup-password2" name="password2" required minlength="8" autocomplete="new-password" />
       </div>
       <div class="login-field">
         <label for="signup-phone">연락처</label>
@@ -78,14 +84,59 @@
 (function () {
   var sel = document.getElementById('signup-company-partner');
   var input = document.getElementById('signup-company-name');
-  if (!sel || !input) return;
-  function sync() {
-    var custom = sel.value === '__custom__';
-    input.style.display = custom ? '' : 'none';
-    if (!custom) input.value = '';
+  if (sel && input) {
+    function sync() {
+      var custom = sel.value === '__custom__';
+      input.style.display = custom ? '' : 'none';
+      if (!custom) input.value = '';
+    }
+    sel.addEventListener('change', sync);
+    sync();
   }
-  sel.addEventListener('change', sync);
-  sync();
+
+  var password = document.getElementById('signup-password');
+  var password2 = document.getElementById('signup-password2');
+  var form = password ? password.form : null;
+  var specials = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+  var policyMessage = '8자 이상이며 영문·숫자·특수문자를 각각 1자 이상 포함해 주세요.';
+
+  function passwordRules(value) {
+    return {
+      length: value.length >= 8,
+      letter: /[A-Za-z]/.test(value),
+      number: /[0-9]/.test(value),
+      special: Array.from(value).some(function (char) { return specials.indexOf(char) >= 0; })
+    };
+  }
+
+  function validatePassword() {
+    if (!password) return false;
+    var rules = passwordRules(password.value);
+    var valid = rules.length && rules.letter && rules.number && rules.special;
+    document.querySelectorAll('[data-password-rule]').forEach(function (item) {
+      item.classList.toggle('is-valid', !!rules[item.getAttribute('data-password-rule')]);
+    });
+    password.setCustomValidity(password.value && !valid ? policyMessage : '');
+    var matches = true;
+    if (password2) {
+      matches = !password2.value || password2.value === password.value;
+      password2.setCustomValidity(
+        matches ? '' : '비밀번호가 일치하지 않습니다.'
+      );
+    }
+    return valid && matches;
+  }
+
+  if (password) password.addEventListener('input', validatePassword);
+  if (password2) password2.addEventListener('input', validatePassword);
+  if (form) {
+    form.addEventListener('submit', function (event) {
+      if (!validatePassword()) {
+        event.preventDefault();
+        form.reportValidity();
+      }
+    });
+  }
 })();
 </script>
 {% endblock %}

@@ -363,6 +363,32 @@ body {
   margin-bottom: 0;
 }
 
+.signup-password-policy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+  margin-top: 0.1rem;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+.signup-password-policy span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.signup-password-policy span::before {
+  content: "○";
+  color: #94a3b8;
+}
+.signup-password-policy span.is-valid {
+  color: #047857;
+  font-weight: 700;
+}
+.signup-password-policy span.is-valid::before {
+  content: "✓";
+  color: #059669;
+}
+
 .login-card .form-stack input,
 .login-card .form-stack select {
   display: block;

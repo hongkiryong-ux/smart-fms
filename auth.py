@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import os
 import secrets
+import string
 import time
 from datetime import datetime, timedelta
 from typing import Callable
@@ -30,6 +31,16 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return secrets.compare_digest(hash_password(password), password_hash)
+
+
+def signup_password_is_valid(password: str) -> bool:
+    """가입신청 비밀번호: 8자 이상 + 영문·숫자·특수문자 각 1자 이상."""
+    return (
+        len(password) >= 8
+        and any(char in string.ascii_letters for char in password)
+        and any(char in string.digits for char in password)
+        and any(char in string.punctuation for char in password)
+    )
 
 
 APP_SECRET_KEY = os.environ.get("APP_SECRET_KEY", "change_this_secret_in_prod")

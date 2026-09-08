@@ -59,6 +59,7 @@ from auth import (
     require_can_edit,
     require_login,
     require_user_manager,
+    signup_password_is_valid,
     verify_password,
     verify_remember_token,
 )
@@ -1658,12 +1659,12 @@ async def admin_signup(
 
     uname = username.strip()
     nm = name.strip()
-    pw = password.strip()
+    pw = password
     if not uname or not nm or not pw:
         return RedirectResponse("/admin/signup?error=required", status_code=303)
-    if len(pw) < 6:
-        return RedirectResponse("/admin/signup?error=short", status_code=303)
-    if pw != password2.strip():
+    if not signup_password_is_valid(pw):
+        return RedirectResponse("/admin/signup?error=password_policy", status_code=303)
+    if pw != password2:
         return RedirectResponse("/admin/signup?error=mismatch", status_code=303)
     if not all(c.isalnum() or c in "._-" for c in uname):
         return RedirectResponse("/admin/signup?error=username", status_code=303)
