@@ -3032,6 +3032,56 @@ button.link-action:hover { text-decoration: underline; }
   margin: 0.65rem 0 0;
   font-size: 0.86rem;
 }
+.users-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 1rem 0 0.25rem;
+}
+.users-page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.users-pagination a,
+.users-pagination .users-page-arrow,
+.users-page-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.55rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 9px;
+  background: #fff;
+  color: #475569;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.users-pagination a:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.users-pagination a.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  box-shadow: 0 3px 9px rgba(37, 99, 235, 0.24);
+  color: #fff;
+}
+.users-pagination .users-page-arrow {
+  min-width: 72px;
+}
+.users-pagination .disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+.users-page-ellipsis {
+  border-color: transparent;
+  background: transparent;
+}
 @media (max-width: 1350px) {
   .users-filter-form {
     grid-template-columns: repeat(3, minmax(160px, 1fr));
@@ -3043,6 +3093,22 @@ button.link-action:hover { text-decoration: underline; }
 @media (max-width: 700px) {
   .users-filter-form {
     grid-template-columns: 1fr;
+  }
+  .users-pagination {
+    gap: 0.35rem;
+  }
+  .users-pagination .users-page-arrow {
+    min-width: 36px;
+    padding: 0 0.45rem;
+    font-size: 0;
+  }
+  .users-pagination .users-page-arrow[aria-label="이전 페이지"]::before {
+    content: "‹";
+    font-size: 1rem;
+  }
+  .users-pagination .users-page-arrow[aria-label="다음 페이지"]::before {
+    content: "›";
+    font-size: 1rem;
   }
 }
 .users-menu-access {

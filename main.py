@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -1834,6 +1834,7 @@ async def users_manage_page(
     menu_access: str = "allowed",
     role_filter: str = "",
     account_status: str = "",
+    page: int = 1,
     user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1845,11 +1846,20 @@ async def users_manage_page(
         )
     ).scalars().unique().all()
     active_tab = "menu" if tab == "menu" else "accounts"
+    page_size = 10
     scope_rows = (
         [target for target in all_rows if target.is_approved and target.is_active]
         if active_tab == "menu"
         else all_rows
     )
+    menu_page_by_user = {
+        target.id: (index // page_size) + 1
+        for index, target in enumerate(
+            target
+            for target in all_rows
+            if target.is_approved and target.is_active
+        )
+    }
     company_options = sorted(
         {u.company_display.strip() for u in scope_rows if u.company_display.strip()},
         key=str.casefold,
@@ -1899,7 +1909,47 @@ async def users_manage_page(
                 return False
         return True
 
-    rows = [target for target in scope_rows if _matches(target)]
+    filtered_rows = [target for target in scope_rows if _matches(target)]
+    total_pages = max(1, (len(filtered_rows) + page_size - 1) // page_size)
+    current_page = min(max(1, page), total_pages)
+    page_start = (current_page - 1) * page_size
+    rows = filtered_rows[page_start : page_start + page_size]
+
+    query_values = {
+        "tab": "menu" if active_tab == "menu" else "",
+        "q": q.strip(),
+        "company": company,
+        "menu_key": menu_key,
+        "menu_access": menu_access if menu_key else "",
+        "role_filter": role_filter,
+        "account_status": account_status,
+    }
+
+    def _page_url(number: int) -> str:
+        params = {key: value for key, value in query_values.items() if value}
+        if number > 1:
+            params["page"] = str(number)
+        query = urlencode(params)
+        return f"/admin/users?{query}" if query else "/admin/users"
+
+    nearby = {1, total_pages}
+    nearby.update(
+        range(max(1, current_page - 2), min(total_pages, current_page + 2) + 1)
+    )
+    page_items: list[dict | None] = []
+    previous_number = 0
+    for number in sorted(nearby):
+        if previous_number and number > previous_number + 1:
+            page_items.append(None)
+        page_items.append(
+            {
+                "number": number,
+                "url": _page_url(number),
+                "current": number == current_page,
+            }
+        )
+        previous_number = number
+
     pending = [u for u in rows if not u.is_approved and u.is_active]
     active = [u for u in rows if u.is_approved and u.is_active]
     inactive = [u for u in rows if not u.is_active]
@@ -1920,6 +1970,7 @@ async def users_manage_page(
             "roles": list(UserRole),
             "menu_items": MENU_ITEMS,
             "active_tab": active_tab,
+            "menu_page_by_user": menu_page_by_user,
             "company_options": company_options,
             "filter_values": {
                 "q": q.strip(),
@@ -1929,8 +1980,21 @@ async def users_manage_page(
                 "role": role_filter,
                 "status": account_status,
             },
-            "filtered_count": len(rows),
+            "filtered_count": len(filtered_rows),
             "total_count": len(scope_rows),
+            "pagination": {
+                "page": current_page,
+                "total_pages": total_pages,
+                "items": page_items,
+                "prev_url": _page_url(current_page - 1) if current_page > 1 else "",
+                "next_url": (
+                    _page_url(current_page + 1)
+                    if current_page < total_pages
+                    else ""
+                ),
+                "range_start": page_start + 1 if rows else 0,
+                "range_end": page_start + len(rows),
+            },
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -2130,13 +2194,37 @@ async def users_menu_access(
     from sqlalchemy.orm.attributes import flag_modified
 
     form = await request.form()
+    try:
+        return_page = max(1, int(form.get("return_page", "1")))
+    except (TypeError, ValueError):
+        return_page = 1
+    return_params: dict[str, str] = {"tab": "menu"}
+    return_q = str(form.get("return_q", "")).strip()[:200]
+    return_company = str(form.get("return_company", "")).strip()[:200]
+    return_menu_key = str(form.get("return_menu_key", "")).strip()
+    return_menu_access = str(form.get("return_menu_access", "")).strip()
+    return_role = str(form.get("return_role", "")).strip()
+    if return_q:
+        return_params["q"] = return_q
+    if return_company:
+        return_params["company"] = return_company
+    if return_menu_key in dict(MENU_ITEMS):
+        return_params["menu_key"] = return_menu_key
+        if return_menu_access in {"allowed", "denied"}:
+            return_params["menu_access"] = return_menu_access
+    if return_role in {role.value for role in UserRole}:
+        return_params["role_filter"] = return_role
+    if return_page > 1:
+        return_params["page"] = str(return_page)
+    return_url = "/admin/users?" + urlencode(return_params)
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
     if target.role == UserRole.system_admin:
         # 시스템관리자는 항상 전체 메뉴 — 저장해도 변경하지 않음
         return RedirectResponse(
-            "/admin/users?tab=menu&message="
+            return_url
+            + "&message="
             + quote("시스템관리자는 모든 메뉴에 접근합니다.")
             + f"#menu-access-{target.id}",
             status_code=303,
@@ -2147,7 +2235,8 @@ async def users_menu_access(
     await db.commit()
     await db.refresh(target)
     return RedirectResponse(
-        "/admin/users?tab=menu&message="
+        return_url
+        + "&message="
         + quote(f"{target.username} 메뉴 접근이 저장되었습니다. ({len(keys)}개)")
         + f"#menu-access-{target.id}",
         status_code=303,

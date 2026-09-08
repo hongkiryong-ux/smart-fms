@@ -177,7 +177,8 @@
   </form>
   <p class="text-muted users-filter-result">
     {% if active_tab == 'menu' %}메뉴 설정 대상{% else %}전체{% endif %}
-    {{ total_count }}개 중 <strong>{{ filtered_count }}개</strong> 계정이 표시됩니다.
+    {{ total_count }}개 중 검색 결과 <strong>{{ filtered_count }}개</strong>
+    {% if filtered_count %}· 현재 {{ pagination.range_start }}–{{ pagination.range_end }}번째{% endif %}
   </p>
 </section>
 
@@ -259,7 +260,7 @@
               <span>이름</span>
               <input type="text" name="name" value="{{ u.name }}" required class="users-cell-input" />
             </label>
-            <a href="/admin/users?tab=menu#menu-access-{{ u.id }}"
+            <a href="/admin/users?tab=menu{% if menu_page_by_user.get(u.id, 1) > 1 %}&amp;page={{ menu_page_by_user.get(u.id) }}{% endif %}#menu-access-{{ u.id }}"
                class="btn btn-sm btn-secondary users-menu-jump"
                data-menu-target="menu-access-{{ u.id }}">메뉴접근 설정</a>
           </div>
@@ -456,6 +457,12 @@
         <span class="text-muted">{{ role_labels.get(u.role, u.role.value) }}</span>
       </div>
       <form method="post" action="/admin/users/{{ u.id }}/menu-access" class="users-menu-form">
+        <input type="hidden" name="return_page" value="{{ pagination.page }}" />
+        <input type="hidden" name="return_q" value="{{ filter_values.q }}" />
+        <input type="hidden" name="return_company" value="{{ filter_values.company }}" />
+        <input type="hidden" name="return_menu_key" value="{{ filter_values.menu_key }}" />
+        <input type="hidden" name="return_menu_access" value="{{ filter_values.menu_access }}" />
+        <input type="hidden" name="return_role" value="{{ filter_values.role }}" />
         {% if u.role.value == 'system_admin' %}
         {{ menu_access_fields(None, u, locked=true) }}
         <p class="text-muted" style="margin:0.35rem 0 0;font-size:0.82rem">시스템관리자는 모든 메뉴에 접근합니다.</p>
@@ -470,6 +477,36 @@
     {% endfor %}
   </div>
 </section>
+{% endif %}
+
+{% if pagination.total_pages > 1 %}
+<nav class="users-pagination" aria-label="계정 목록 페이지">
+  {% if pagination.prev_url %}
+  <a href="{{ pagination.prev_url }}" class="users-page-arrow" aria-label="이전 페이지">‹ 이전</a>
+  {% else %}
+  <span class="users-page-arrow disabled" aria-label="이전 페이지" aria-disabled="true">‹ 이전</span>
+  {% endif %}
+
+  <div class="users-page-numbers">
+    {% for item in pagination.items %}
+      {% if item %}
+      <a
+        href="{{ item.url }}"
+        class="{% if item.current %}active{% endif %}"
+        {% if item.current %}aria-current="page"{% endif %}
+      >{{ item.number }}</a>
+      {% else %}
+      <span class="users-page-ellipsis" aria-hidden="true">…</span>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  {% if pagination.next_url %}
+  <a href="{{ pagination.next_url }}" class="users-page-arrow" aria-label="다음 페이지">다음 ›</a>
+  {% else %}
+  <span class="users-page-arrow disabled" aria-label="다음 페이지" aria-disabled="true">다음 ›</span>
+  {% endif %}
+</nav>
 {% endif %}
 
 <script>
