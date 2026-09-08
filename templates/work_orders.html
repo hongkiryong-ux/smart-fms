@@ -120,6 +120,7 @@
         <th>진행</th>
         <th>조치내용</th>
         <th>작업 승인자</th>
+        <th>최종승인자</th>
         <th>저장</th>
         <th>D-1</th>
         <th>상세</th>
@@ -225,6 +226,9 @@
           <span class="text-muted">-</span>
           {% endif %}
         </td>
+        <td class="wo-approver-cell" title="{{ wo.completion_approved_by or '' }}{% if wo.completion_approved_at %} · {{ fmt_kst(wo.completion_approved_at) }}{% endif %}">
+          <span class="wo-approver">{{ wo.completion_approved_by or '-' }}</span>
+        </td>
         <td>
           <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
         </td>
@@ -286,7 +290,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}15{% else %}14{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}16{% else %}15{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>

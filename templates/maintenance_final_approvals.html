@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-header">
   <h1>정비완료 최종승인</h1>
-  <p>협력사가 완료 요청한 정비를 시설섹션 또는 정비섹션 담당자가 확인하고 최종승인합니다.</p>
+  <p>협력사가 완료 요청한 정비를 선택하여 한 번에 최종승인합니다.</p>
 </header>
 
 {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
@@ -29,10 +29,29 @@
     <a href="/admin/maintenance-final-approvals" class="btn btn-sm btn-secondary">초기화</a>
   </form>
 
+  {% if user_can_edit(user) %}
+  <form id="final-approval-bulk-form" method="post" action="/admin/maintenance-final-approvals/approve-selected">
+    <input type="hidden" name="q" value="{{ q }}" />
+    <input type="hidden" name="page" value="{{ pager.page }}" />
+  </form>
+  <div class="wo-bulk-bar" id="final-approval-bulk-bar">
+    <span class="wo-bulk-count">선택 <strong id="final-approval-count">0</strong>건</span>
+    <span class="wo-bulk-hint">완료 내용과 조치내용을 확인한 뒤 승인하세요.</span>
+    <button type="submit" form="final-approval-bulk-form" class="btn btn-sm btn-primary" id="final-approval-submit" disabled>
+      선택 항목 일괄 최종승인
+    </button>
+  </div>
+  {% endif %}
+
   <div class="table-scroll">
     <table class="data-table wo-list-table">
       <thead>
         <tr>
+          <th class="wo-sel-col">
+            {% if user_can_edit(user) %}
+            <input type="checkbox" id="final-approval-select-all" title="현재 페이지 전체 선택" aria-label="현재 페이지 전체 선택" />
+            {% endif %}
+          </th>
           <th>설비</th>
           <th>정비내용</th>
           <th>협력사</th>
@@ -40,13 +59,24 @@
           <th>완료 요청자</th>
           <th>요청일시</th>
           <th>작업허가</th>
-          <th>처리</th>
           <th>상세</th>
         </tr>
       </thead>
       <tbody>
         {% for wo in orders %}
         <tr>
+          <td class="wo-sel-col">
+            {% if user_can_edit(user) %}
+            <input
+              type="checkbox"
+              class="final-approval-row-check"
+              name="wo_ids"
+              value="{{ wo.id }}"
+              form="final-approval-bulk-form"
+              aria-label="{{ wo.description or wo.title }} 선택"
+            />
+            {% endif %}
+          </td>
           <td class="wo-eq-cell">
             {% if wo.equipment %}
             <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
@@ -69,27 +99,6 @@
             <span class="text-muted">해당 없음</span>
             {% endif %}
           </td>
-          <td>
-            {% if user_can_edit(user) %}
-            <form
-              method="post"
-              action="/admin/maintenance-final-approvals/{{ wo.id }}/approve"
-              class="inline-form"
-              onsubmit="return confirm('「{{ wo.description or wo.title }}」 정비완료를 최종승인할까요?');"
-            >
-              <input type="hidden" name="q" value="{{ q }}" />
-              <input type="hidden" name="page" value="{{ pager.page }}" />
-              {% if user_can_access_menu(user, 'work_orders') %}
-              <button type="submit" name="approval_section" value="정비섹션" class="btn btn-sm btn-primary">정비섹션 최종승인</button>
-              {% endif %}
-              {% if user_can_access_menu(user, 'facility_section') %}
-              <button type="submit" name="approval_section" value="시설섹션" class="btn btn-sm btn-secondary">시설섹션 최종승인</button>
-              {% endif %}
-            </form>
-            {% else %}
-            <span class="text-muted">수정 권한 필요</span>
-            {% endif %}
-          </td>
           <td><a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
         </tr>
         {% else %}
@@ -104,4 +113,40 @@
   {% set base_url = '/admin/maintenance-final-approvals' ~ (('?' ~ qs|join('&')) if qs else '') %}
   {% include "partials/pager.html" %}
 </section>
+<script>
+(function () {
+  var selectAll = document.getElementById('final-approval-select-all');
+  var checks = Array.prototype.slice.call(document.querySelectorAll('.final-approval-row-check'));
+  var count = document.getElementById('final-approval-count');
+  var submit = document.getElementById('final-approval-submit');
+  var form = document.getElementById('final-approval-bulk-form');
+
+  function syncSelection() {
+    var selected = checks.filter(function (item) { return item.checked; }).length;
+    if (count) count.textContent = String(selected);
+    if (submit) submit.disabled = selected < 1;
+    if (selectAll) {
+      selectAll.checked = checks.length > 0 && selected === checks.length;
+      selectAll.indeterminate = selected > 0 && selected < checks.length;
+    }
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      checks.forEach(function (item) { item.checked = selectAll.checked; });
+      syncSelection();
+    });
+  }
+  checks.forEach(function (item) { item.addEventListener('change', syncSelection); });
+  if (form) {
+    form.addEventListener('submit', function (event) {
+      var selected = checks.filter(function (item) { return item.checked; }).length;
+      if (!selected || !confirm('선택한 ' + selected + '건을 정비완료로 최종승인할까요?')) {
+        event.preventDefault();
+      }
+    });
+  }
+  syncSelection();
+})();
+</script>
 {% endblock %}

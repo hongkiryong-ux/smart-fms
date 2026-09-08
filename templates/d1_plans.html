@@ -20,6 +20,7 @@
         <th>진행</th>
         <th>조치내용</th>
         <th>승인자</th>
+        <th>최종승인자</th>
         <th>저장</th>
         <th>작업허가 승인요청</th>
         <th class="fac-risk-col-head">잠재위험·안전대책</th>
@@ -133,6 +134,9 @@
         <td class="wo-approver-cell" title="{{ wo.approved_by or '' }}{% if wo.approved_at %} · {{ fmt_kst(wo.approved_at) }}{% endif %}">
           <span class="wo-approver">{{ wo.approved_by or '-' }}</span>
         </td>
+        <td class="wo-approver-cell" title="{{ wo.completion_approved_by or '' }}{% if wo.completion_approved_at %} · {{ fmt_kst(wo.completion_approved_at) }}{% endif %}">
+          <span class="wo-approver">{{ wo.completion_approved_by or '-' }}</span>
+        </td>
         <td>
           <button type="submit" form="d1-wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
         </td>
@@ -200,7 +204,7 @@
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}17{% else %}16{% endif %}" class="empty">{{ empty_msg }}</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}18{% else %}17{% endif %}" class="empty">{{ empty_msg }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -6397,45 +6397,71 @@ async def maintenance_final_approvals(
     )
 
 
-@app.post("/admin/maintenance-final-approvals/{wo_id}/approve")
-async def maintenance_final_approval_submit(
-    wo_id: int,
-    q: str = Form(""),
-    page: str = Form("1"),
-    approval_section: str = Form("정비섹션"),
+@app.post("/admin/maintenance-final-approvals/approve-selected")
+async def maintenance_final_approval_selected(
+    request: Request,
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
-    """시설섹션 또는 정비섹션 담당자의 정비완료 최종승인."""
+    """선택한 협력사 완료 요청을 한 번에 최종승인."""
     if not _can_access_completion_approval(user):
         raise HTTPException(403, "정비완료 최종승인 권한이 없습니다.")
-    wo = await db.get(WorkOrder, wo_id)
-    if not wo or not wo.is_active:
-        raise HTTPException(404)
-    if not getattr(wo, "completion_approval_pending", False):
+
+    form = await request.form()
+    q = str(form.get("q") or "")
+    page = str(form.get("page") or "1")
+    selected_ids: list[int] = []
+    seen: set[int] = set()
+    for raw in form.getlist("wo_ids"):
+        try:
+            work_order_id = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if work_order_id > 0 and work_order_id not in seen:
+            seen.add(work_order_id)
+            selected_ids.append(work_order_id)
+    if not selected_ids:
         return _completion_approval_redirect(
             q=q,
             page=page,
-            error="이미 처리되었거나 최종승인 대기 중인 항목이 아닙니다.",
+            error="최종승인할 항목을 선택하세요.",
         )
 
-    section = (
-        approval_section
-        if approval_section in {"시설섹션", "정비섹션"}
-        else "정비섹션"
-    )
     now = datetime.utcnow()
-    wo.status = WorkOrderStatus.completed
-    wo.completion_approval_pending = False
-    wo.completion_approved_by = f"{section} · {_wo_approver_label(user)}"[:100]
-    wo.completion_approved_at = now
-    wo.completed_at = now
-    await _ensure_maintenance_history(db, wo)
+    approver = _wo_approver_label(user)
+    approved_count = 0
+    skipped_count = 0
+    for work_order_id in selected_ids:
+        wo = await db.get(WorkOrder, work_order_id)
+        if (
+            not wo
+            or not wo.is_active
+            or not getattr(wo, "completion_approval_pending", False)
+        ):
+            skipped_count += 1
+            continue
+        wo.status = WorkOrderStatus.completed
+        wo.completion_approval_pending = False
+        wo.completion_approved_by = approver
+        wo.completion_approved_at = now
+        wo.completed_at = now
+        await _ensure_maintenance_history(db, wo)
+        approved_count += 1
+
+    if not approved_count:
+        return _completion_approval_redirect(
+            q=q,
+            page=page,
+            error="선택한 항목이 이미 처리되었거나 최종승인 대기 상태가 아닙니다.",
+        )
     await db.commit()
+    message = f"{approved_count}건의 정비완료를 최종승인했습니다."
+    if skipped_count:
+        message += f" ({skipped_count}건은 이미 처리되어 제외)"
     return _completion_approval_redirect(
         q=q,
         page=page,
-        message=f"{wo.title} 정비완료를 최종승인했습니다.",
+        message=message,
     )
 
 
