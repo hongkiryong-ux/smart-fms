@@ -1827,16 +1827,71 @@ def _force_admin_menus(user_obj: User) -> None:
 @app.get("/admin/users")
 async def users_manage_page(
     request: Request,
+    q: str = "",
+    company: str = "",
+    menu_key: str = "",
+    menu_access: str = "allowed",
+    role_filter: str = "",
+    account_status: str = "",
     user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
-    rows = (
+    all_rows = (
         await db.execute(
             select(User)
             .options(selectinload(User.partner))
             .order_by(User.is_approved.asc(), User.created_at.desc())
         )
     ).scalars().unique().all()
+    company_options = sorted(
+        {u.company_display.strip() for u in all_rows if u.company_display.strip()},
+        key=str.casefold,
+    )
+
+    q_norm = q.strip().casefold()
+    company = company.strip()
+    menu_key = menu_key.strip() if menu_key.strip() in dict(MENU_ITEMS) else ""
+    menu_access = menu_access if menu_access in {"allowed", "denied"} else "allowed"
+    valid_roles = {role.value for role in UserRole}
+    role_filter = role_filter if role_filter in valid_roles else ""
+    account_status = (
+        account_status
+        if account_status in {"pending", "active", "inactive"}
+        else ""
+    )
+
+    def _status(target: User) -> str:
+        if not target.is_active:
+            return "inactive"
+        return "active" if target.is_approved else "pending"
+
+    def _matches(target: User) -> bool:
+        if q_norm:
+            search_values = (
+                target.username,
+                target.name,
+                target.phone,
+                target.email,
+                target.company_display,
+            )
+            if not any(q_norm in (value or "").casefold() for value in search_values):
+                return False
+        if company == "__none__":
+            if target.company_display.strip():
+                return False
+        elif company and target.company_display.strip() != company:
+            return False
+        if role_filter and target.role.value != role_filter:
+            return False
+        if account_status and _status(target) != account_status:
+            return False
+        if menu_key:
+            allowed = menu_key in effective_menu_access(target)
+            if (menu_access == "allowed") != allowed:
+                return False
+        return True
+
+    rows = [target for target in all_rows if _matches(target)]
     pending = [u for u in rows if not u.is_approved and u.is_active]
     active = [u for u in rows if u.is_approved and u.is_active]
     inactive = [u for u in rows if not u.is_active]
@@ -1856,6 +1911,17 @@ async def users_manage_page(
             "partners": partners,
             "roles": list(UserRole),
             "menu_items": MENU_ITEMS,
+            "company_options": company_options,
+            "filter_values": {
+                "q": q.strip(),
+                "company": company,
+                "menu_key": menu_key,
+                "menu_access": menu_access,
+                "role": role_filter,
+                "status": account_status,
+            },
+            "filtered_count": len(rows),
+            "total_count": len(all_rows),
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },

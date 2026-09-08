@@ -2935,6 +2935,58 @@ button.link-action:hover { text-decoration: underline; }
   font-size: 0.82rem;
   white-space: nowrap;
 }
+.users-filter-card {
+  padding-bottom: 0.75rem;
+}
+.users-filter-form {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.6fr) repeat(5, minmax(130px, 1fr)) auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+.users-filter-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.users-filter-field > span {
+  color: var(--text-muted, #64748b);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.users-filter-field input,
+.users-filter-field select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+}
+.users-filter-field select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.users-filter-actions {
+  display: flex;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+.users-filter-result {
+  margin: 0.65rem 0 0;
+  font-size: 0.86rem;
+}
+@media (max-width: 1350px) {
+  .users-filter-form {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+  .users-filter-actions {
+    align-self: end;
+  }
+}
+@media (max-width: 700px) {
+  .users-filter-form {
+    grid-template-columns: 1fr;
+  }
+}
 .users-menu-access {
   margin-top: 0.45rem;
   padding-top: 0.4rem;

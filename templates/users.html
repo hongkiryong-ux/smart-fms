@@ -90,6 +90,75 @@
 <div class="alert alert-error">마지막 시스템관리자 계정은 삭제할 수 없습니다.</div>
 {% endif %}
 
+<section class="card card-wide users-filter-card">
+  <form method="get" action="/admin/users" class="users-filter-form">
+    <label class="users-filter-field users-filter-search">
+      <span>통합검색</span>
+      <input
+        type="search"
+        name="q"
+        value="{{ filter_values.q }}"
+        placeholder="아이디 · 이름 · 연락처 · 이메일 · 회사명"
+      />
+    </label>
+    <label class="users-filter-field">
+      <span>회사명</span>
+      <select name="company">
+        <option value="">전체 회사</option>
+        <option value="__none__" {% if filter_values.company == '__none__' %}selected{% endif %}>미지정</option>
+        {% for company_name in company_options %}
+        <option value="{{ company_name }}" {% if filter_values.company == company_name %}selected{% endif %}>{{ company_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="users-filter-field">
+      <span>역할</span>
+      <select name="role_filter">
+        <option value="">전체 역할</option>
+        {% for r in roles %}
+        <option value="{{ r.value }}" {% if filter_values.role == r.value %}selected{% endif %}>{{ role_labels.get(r, r.value) }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="users-filter-field">
+      <span>계정 상태</span>
+      <select name="account_status">
+        <option value="">전체 상태</option>
+        <option value="active" {% if filter_values.status == 'active' %}selected{% endif %}>활성</option>
+        <option value="pending" {% if filter_values.status == 'pending' %}selected{% endif %}>승인 대기</option>
+        <option value="inactive" {% if filter_values.status == 'inactive' %}selected{% endif %}>비활성</option>
+      </select>
+    </label>
+    <label class="users-filter-field">
+      <span>메뉴 접근권한</span>
+      <select name="menu_key" id="users-filter-menu">
+        <option value="">전체 메뉴</option>
+        {% for key, label in menu_items %}
+        <option value="{{ key }}" {% if filter_values.menu_key == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="users-filter-field">
+      <span>접근 여부</span>
+      <select name="menu_access" id="users-filter-access" {% if not filter_values.menu_key %}disabled{% endif %}>
+        <option value="allowed" {% if filter_values.menu_access == 'allowed' %}selected{% endif %}>접근 가능</option>
+        <option value="denied" {% if filter_values.menu_access == 'denied' %}selected{% endif %}>접근 불가</option>
+      </select>
+    </label>
+    <div class="users-filter-actions">
+      <button type="submit" class="btn btn-primary">필터 적용</button>
+      <a href="/admin/users" class="btn btn-secondary">초기화</a>
+    </div>
+  </form>
+  <p class="text-muted users-filter-result">
+    전체 {{ total_count }}개 중 <strong>{{ filtered_count }}개</strong> 계정이 표시됩니다.
+  </p>
+</section>
+
+{% if filtered_count == 0 %}
+<div class="alert">조건에 맞는 계정이 없습니다. 필터를 변경하거나 초기화하세요.</div>
+{% endif %}
+
 {% if pending_users %}
 <section class="card card-wide users-section">
   <h2>가입 승인 대기 <small class="text-muted">({{ pending_users|length }}건)</small></h2>
@@ -376,6 +445,14 @@
 
 <script>
 (function () {
+  var menuFilter = document.getElementById('users-filter-menu');
+  var accessFilter = document.getElementById('users-filter-access');
+  if (menuFilter && accessFilter) {
+    menuFilter.addEventListener('change', function () {
+      accessFilter.disabled = !menuFilter.value;
+    });
+  }
+
   function syncCompanySelect(sel) {
     if (!sel) return;
     var id = sel.getAttribute('data-custom-input');
