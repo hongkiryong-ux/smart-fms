@@ -4,10 +4,11 @@ from __future__ import annotations
 import json
 from calendar import Calendar, monthrange
 from datetime import date, datetime, timedelta
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -54,6 +55,8 @@ DEFAULT_DASH_CONFIG = {
     "order": list(DASH_WIDGET_KEYS),
     "visible": {k: True for k in DASH_WIDGET_KEYS},
 }
+GWANGYANG_FACILITIES_SETTING_KEY = "dashboard.gwangyang_public_facilities"
+GWANGYANG_EXCEL_MAX_BYTES = 5 * 1024 * 1024
 
 
 def _today_kst() -> date:
@@ -532,20 +535,105 @@ async def notices_delete(
 # ── 대시보드 설정 ─────────────────────────────────────────
 
 
+async def _load_effective_gwangyang_facilities(db: AsyncSession) -> dict:
+    from gwangyang_facilities import load_gwangyang_facilities
+
+    row = await db.get(AppSetting, GWANGYANG_FACILITIES_SETTING_KEY)
+    if row and row.value:
+        try:
+            payload = json.loads(row.value)
+            if isinstance(payload, dict) and isinstance(payload.get("left"), list):
+                return payload
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+    return load_gwangyang_facilities()
+
+
 @router.get("/admin/dashboard/gwangyang-facilities")
 async def gwangyang_facilities_page(
     request: Request,
     user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
 ):
-    from gwangyang_facilities import load_gwangyang_facilities
-
     return templates.TemplateResponse(
         request,
         "gwangyang_facilities.html",
         {
             "user": user,
-            "data": load_gwangyang_facilities(),
+            "data": await _load_effective_gwangyang_facilities(db),
+            "can_import": can_edit(user),
         },
+    )
+
+
+@router.get("/admin/dashboard/gwangyang-facilities/export")
+async def gwangyang_facilities_export(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from gwangyang_facilities import export_gwangyang_facilities_xlsx
+
+    content = export_gwangyang_facilities_xlsx(
+        await _load_effective_gwangyang_facilities(db)
+    )
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="gwangyang_public_facilities.xlsx"'
+        },
+    )
+
+
+@router.post("/admin/dashboard/gwangyang-facilities/import")
+async def gwangyang_facilities_import(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from gwangyang_facilities import (
+        GWANGYANG_FACILITIES_PATH,
+        import_gwangyang_facilities_xlsx,
+    )
+
+    if not can_edit(user):
+        raise HTTPException(403, "가져오기 권한이 없습니다.")
+    form = await request.form(
+        max_files=1,
+        max_fields=5,
+        max_part_size=GWANGYANG_EXCEL_MAX_BYTES,
+    )
+    upload = form.get("excel_file")
+    filename = str(getattr(upload, "filename", "") or "")
+    if not upload or not filename.lower().endswith(".xlsx"):
+        return RedirectResponse(
+            f"{GWANGYANG_FACILITIES_PATH}?error={quote('.xlsx 파일을 선택하세요.')}",
+            status_code=303,
+        )
+    content = await upload.read()
+    if not content or len(content) > GWANGYANG_EXCEL_MAX_BYTES:
+        return RedirectResponse(
+            f"{GWANGYANG_FACILITIES_PATH}?error={quote('엑셀 파일은 5MB 이하만 가져올 수 있습니다.')}",
+            status_code=303,
+        )
+    try:
+        payload, imported_count = import_gwangyang_facilities_xlsx(content)
+    except ValueError as exc:
+        return RedirectResponse(
+            f"{GWANGYANG_FACILITIES_PATH}?error={quote(str(exc))}",
+            status_code=303,
+        )
+
+    row = await db.get(AppSetting, GWANGYANG_FACILITIES_SETTING_KEY)
+    encoded = json.dumps(payload, ensure_ascii=False)
+    if row:
+        row.value = encoded
+    else:
+        db.add(AppSetting(key=GWANGYANG_FACILITIES_SETTING_KEY, value=encoded))
+    await db.commit()
+    return RedirectResponse(
+        f"{GWANGYANG_FACILITIES_PATH}?flash=imported&count={imported_count}",
+        status_code=303,
     )
 
 

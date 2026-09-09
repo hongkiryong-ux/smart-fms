@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ data.title }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/gwangyang_facilities.css?v=1" />
+<link rel="stylesheet" href="/static/css/gwangyang_facilities.css?v=2" />
 {% endblock %}
 {% block content %}
 <header class="page-header gyf-page-header">
@@ -10,11 +10,27 @@
     <p class="gyf-asof">({{ data.as_of }})</p>
   </div>
   <div class="gyf-actions">
+    <a class="btn btn-secondary" href="/admin/dashboard/gwangyang-facilities/export">엑셀 내보내기</a>
     <a class="btn btn-secondary" href="/admin/dashboard">← 운영 대시보드</a>
   </div>
 </header>
 
-<p class="gyf-note">엑셀 원본(<code>{{ data.source }}</code>)을 UTF-8로 변환해 표시합니다. 글자 깨짐 없이 가로 스크롤로 전체 표를 확인할 수 있습니다.</p>
+{% if request.query_params.get('flash') == 'imported' %}
+<p class="alert alert-ok">엑셀에서 공공시설물 {{ request.query_params.get('count', '0') }}건을 가져왔습니다.</p>
+{% elif request.query_params.get('error') %}
+<p class="alert alert-error">{{ request.query_params.get('error') }}</p>
+{% endif %}
+
+{% if can_import %}
+<form class="gyf-import-form" method="post" action="/admin/dashboard/gwangyang-facilities/import" enctype="multipart/form-data">
+  <label for="gyf-excel-file"><strong>엑셀 가져오기</strong></label>
+  <input id="gyf-excel-file" type="file" name="excel_file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+  <button type="submit" class="btn btn-primary" onclick="return confirm('엑셀 내용으로 현재 공공시설물 현황을 변경할까요?');">가져오기</button>
+  <small>내보낸 양식(.xlsx)을 수정한 파일만 사용할 수 있습니다.</small>
+</form>
+{% endif %}
+
+<p class="gyf-note">현재 자료(<code>{{ data.source }}</code>)입니다. 엑셀로 내보내 수정한 뒤 다시 가져올 수 있으며, 가로 스크롤로 전체 표를 확인할 수 있습니다.</p>
 
 <div class="gyf-wrap">
   <div class="gyf-panels">
