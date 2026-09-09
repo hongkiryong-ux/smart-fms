@@ -38,7 +38,7 @@ NOTICE_CATEGORIES = ("긴급", "안전", "일반")
 DASH_WIDGETS: tuple[tuple[str, str], ...] = (
     ("maintenance_status", "정비 의뢰 현황"),
     ("sites_status", "사업장 현황"),
-    ("energy", "에너지 / 유틸리티"),
+    ("energy", "주택변전소 전력사용량"),
     ("schedules", "주요 설비 일정"),
     ("notices", "공지사항"),
 )
@@ -46,7 +46,7 @@ DASH_WIDGET_KEYS = [k for k, _ in DASH_WIDGETS]
 DASH_WIDGET_HINTS = {
     "maintenance_status": "긴급·의뢰·해결·오늘 작업 KPI 카드 (전체 폭)",
     "sites_status": "사업장별 정비의뢰·미해결·완료 순위 (좌측)",
-    "energy": "전력·급수·가스 등 (좌측 · 현재 예시 그래픽)",
+    "energy": "No.1~3 TR 전일 사용량·부하율·최근 7일 그래프 (좌측)",
     "schedules": "오늘 등록된 주요설비 일정 (우측)",
     "notices": "최근 공지 목록 (우측)",
 }

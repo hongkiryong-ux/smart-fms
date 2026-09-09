@@ -628,6 +628,85 @@ def _breaker_row_from_daily(
     )
 
 
+def compute_dashboard_tr_energy(
+    daily_rows: list[HousingSubstationDaily],
+    end_date: date,
+    days: int = 7,
+) -> dict[str, Any]:
+    """No.1~3 인커밍의 완료 일사용량·최대전류·부하율 대시보드 데이터."""
+    days = max(1, days)
+    start_date = end_date - timedelta(days=days - 1)
+    by_date = {row.log_date: row.data or {} for row in daily_rows}
+    blocks = {block["id"]: block for block in load_schema().get("daily_blocks") or []}
+    labels = [
+        (start_date + timedelta(days=offset)).strftime("%m/%d")
+        for offset in range(days)
+    ]
+    result = []
+
+    for block_id, display_name in (
+        ("no1", "No.1 TR"),
+        ("no2", "No.2 TR"),
+        ("no3", "No.3 TR"),
+    ):
+        block_def = blocks.get(block_id) or {}
+        meter = next(
+            (
+                item
+                for item in block_def.get("meters") or []
+                if "INCOMMING" in str(item.get("name") or "").upper()
+            ),
+            None,
+        )
+        values: list[float | None] = []
+        max_values: list[float | None] = []
+        rolling_prev: float | None = None
+        if meter:
+            seed_data = by_date.get(start_date - timedelta(days=1), {}).get(block_id, {})
+            rolling_prev = _parse_num(_meter_reading_at_2200(seed_data, meter))
+
+        for offset in range(days):
+            current_date = start_date + timedelta(days=offset)
+            block_data = by_date.get(current_date, {}).get(block_id, {})
+            if not meter:
+                values.append(None)
+                max_values.append(None)
+                continue
+            prev_map = block_data.get("prev") or {}
+            if meter["id"] in prev_map and prev_map.get(meter["id"]) not in (None, ""):
+                manual_prev = _parse_num(prev_map.get(meter["id"]))
+                if manual_prev is not None:
+                    rolling_prev = manual_prev
+            row, next_prev = _breaker_row_from_daily(block_data, meter, rolling_prev)
+            values.append(_parse_num(row.get("usage")))
+            max_values.append(_parse_num(row.get("max_a")))
+            if next_prev is not None:
+                rolling_prev = next_prev
+
+        max_a = max_values[-1] if max_values else None
+        result.append(
+            {
+                "id": block_id,
+                "name": display_name,
+                "usage": values[-1] if values else None,
+                "max_a": max_a,
+                "load_pct": round(max_a / 350 * 100, 1) if max_a is not None else None,
+                "values": values,
+            }
+        )
+
+    return {
+        "is_demo": False,
+        "as_of": end_date.isoformat(),
+        "labels": labels,
+        "trs": result,
+        "note": (
+            f"주택변전소 점검일지 · {end_date.strftime('%Y.%m.%d')} 전일 기준 · "
+            "부하율 = 일 최대전류 ÷ 350A × 100"
+        ),
+    }
+
+
 def compute_monthly_report(
     building_id: int,
     year: int,

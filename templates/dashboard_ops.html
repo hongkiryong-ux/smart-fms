@@ -164,55 +164,28 @@
         {% elif key == 'energy' and show_e %}
         <section class="ops-card" data-widget="energy">
           <div class="ops-card-head">
-            <h2>에너지 / 유틸리티 현황 <span class="ops-sub">(최근 7일)</span></h2>
-            <span class="dash-badge-demo">예시 · 점검일지 연동 예정</span>
+            <h2>주택변전소 전력사용량 <span class="ops-sub">(전일 기준 · 최근 7일)</span></h2>
           </div>
-          {% set util = kpi.energy.utility if kpi.energy and kpi.energy.utility else {} %}
-          <div class="ops-energy-grid">
-            <div class="ops-energy-tile">
+          <div class="ops-energy-grid ops-tr-energy-grid">
+            {% for tr in kpi.energy.trs %}
+            <div class="ops-energy-tile ops-tr-energy-tile tone-{{ loop.index }}">
               <span class="ops-e-ico yellow">⚡</span>
               <div>
-                <span class="ops-e-label">전력 사용량</span>
-                <strong id="nrg-kepco">{{ kpi.energy.power.today.kepco }}</strong>
-                <em>kWh · {{ util.get('power_delta', '예시') }}</em>
+                <span class="ops-e-label">{{ tr.name }} · 전일 전력사용량</span>
+                <strong>
+                  <span id="nrg-{{ tr.id }}-usage">{{ "{:,.0f}".format(tr.usage) if tr.usage is not none else '-' }}</span>
+                  <small>KWH</small>
+                </strong>
+                <em>
+                  부하율
+                  (<span id="nrg-{{ tr.id }}-amp">{{ "{:,.1f}".format(tr.max_a).rstrip('0').rstrip('.') if tr.max_a is not none else '-' }}</span>A /
+                  <span id="nrg-{{ tr.id }}-load">{{ "{:,.1f}".format(tr.load_pct).rstrip('0').rstrip('.') if tr.load_pct is not none else '-' }}</span>%)
+                </em>
               </div>
-              <canvas class="ops-spark" id="spark-power" width="80" height="28"></canvas>
+              <canvas class="ops-spark ops-tr-spark" id="spark-{{ tr.id }}" width="110" height="42"
+                      title="{{ tr.name }} 최근 7일 전력사용량"></canvas>
             </div>
-            <div class="ops-energy-tile">
-              <span class="ops-e-ico blue">💧</span>
-              <div>
-                <span class="ops-e-label">급수 사용량</span>
-                <strong id="nrg-water">{{ kpi.energy.water.today }}</strong>
-                <em>m³ · {{ util.get('water_delta', '예시') }}</em>
-              </div>
-              <canvas class="ops-spark" id="spark-water" width="80" height="28"></canvas>
-            </div>
-            <div class="ops-energy-tile">
-              <span class="ops-e-ico red">🔥</span>
-              <div>
-                <span class="ops-e-label">가스 사용량</span>
-                <strong id="nrg-gas">{{ util.get('gas_today', '-') }}</strong>
-                <em>m³/h · {{ util.get('gas_delta', '예시') }}</em>
-              </div>
-              <canvas class="ops-spark" id="spark-gas" width="80" height="28"></canvas>
-            </div>
-            <div class="ops-energy-tile">
-              <span class="ops-e-ico gray">📊</span>
-              <div>
-                <span class="ops-e-label">최대수요전력</span>
-                <strong id="nrg-peak">{{ util.get('peak_today', '-') }}</strong>
-                <em>kW · {{ util.get('peak_delta', '예시') }}</em>
-              </div>
-              <canvas class="ops-spark" id="spark-peak" width="80" height="28"></canvas>
-            </div>
-            <div class="ops-energy-alert">
-              <span class="ops-e-ico red">⚠</span>
-              <div>
-                <span class="ops-e-label">이상 알람</span>
-                <strong>{{ util.get('alarm_count', 0) }} 건</strong>
-                <p>{{ util.get('alarm_text', '추후 점검일지 연동 예정입니다.') }}</p>
-              </div>
-            </div>
+            {% endfor %}
           </div>
           <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
         </section>

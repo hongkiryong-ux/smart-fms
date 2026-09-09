@@ -2387,63 +2387,43 @@ def _kst_day_naive_utc_range(day: date) -> tuple[datetime, datetime]:
     return start, end
 
 
-def _demo_energy_payload(today: date | None = None) -> dict:
-    """에너지 사용현황 예시 데이터 (점검일지 연동 전 데모)."""
-    import random
+async def _housing_tr_energy_payload(db: AsyncSession, today: date) -> dict:
+    """주택변전소 전일 기준 No.1~3 TR 최근 7일 전력 현황."""
+    from housing_substation import compute_dashboard_tr_energy
 
-    day = today or _today_kst()
-    rng = random.Random(int(day.strftime("%Y%m%d")))
-    labels = [(day - timedelta(days=i)).strftime("%m/%d") for i in range(6, -1, -1)]
-
-    def series(base: float, variance: float) -> list[float]:
-        return [round(base + rng.uniform(-variance, variance), 1) for _ in labels]
-
-    kepco = series(8200, 450)
-    receive = series(6100, 380)
-    rolling = series(2400, 220)
-    medium = series(185, 18)  # 중온 (t/h 예시)
-    water = series(920, 70)  # 급수 (m³ 예시)
-    gas = series(180, 12)
-    peak = series(2450, 80)
-    return {
-        "is_demo": True,
-        "note": "예시 데이터입니다. 추후 점검일지와 연동하여 자동 집계·그래프화합니다.",
-        "as_of": day.isoformat(),
-        "labels": labels,
-        "power": {
-            "unit": "kWh",
-            "kepco": kepco,
-            "receive": receive,
-            "rolling": rolling,
-            "today": {
-                "kepco": kepco[-1],
-                "receive": receive[-1],
-                "rolling": rolling[-1],
-            },
-        },
-        "medium_temp": {
-            "unit": "t/h",
-            "values": medium,
-            "today": medium[-1],
-        },
-        "water": {
-            "unit": "m³",
-            "values": water,
-            "today": water[-1],
-        },
-        "utility": {
-            "power_delta": "전주 대비 ▼ 4.2%",
-            "water_delta": "전주 대비 ▲ 18.7%",
-            "gas_today": gas[-1],
-            "gas_values": gas,
-            "gas_delta": "전주 대비 ▼ 2.1%",
-            "peak_today": peak[-1],
-            "peak_values": peak,
-            "peak_delta": "전주 대비 ▼ 1.8%",
-            "alarm_count": 2,
-            "alarm_text": "B사업장 급수 사용량이 전주 대비 급증했습니다. (예시)",
-        },
-    }
+    end_date = today - timedelta(days=1)
+    start_date = end_date - timedelta(days=6)
+    building_id = (
+        await db.execute(
+            select(Building.id)
+            .where(
+                Building.is_active == True,  # noqa: E712
+                Building.name.contains("주택변전소"),
+            )
+            .order_by(
+                case((Building.name == "주택변전소", 0), else_=1),
+                Building.id,
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    rows: list[HousingSubstationDaily] = []
+    if building_id is not None:
+        rows = list(
+            (
+                await db.execute(
+                    select(HousingSubstationDaily)
+                    .where(
+                        HousingSubstationDaily.building_id == building_id,
+                        HousingSubstationDaily.log_date
+                        >= start_date - timedelta(days=1),
+                        HousingSubstationDaily.log_date <= end_date,
+                    )
+                    .order_by(HousingSubstationDaily.log_date)
+                )
+            ).scalars().all()
+        )
+    return compute_dashboard_tr_energy(rows, end_date, days=7)
 
 
 async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
@@ -2589,7 +2569,7 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
     # 오늘 완료된 건은 d1_today_done 실적으로만 집계해 과거 예정 작업의 당일 승인분이 섞이지 않게 한다.
     d1_today_plan = int(d1_today_incomplete)
 
-    energy = _demo_energy_payload(today)
+    energy = await _housing_tr_energy_payload(db, today)
 
     return {
         "as_of": today.isoformat(),

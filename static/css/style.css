@@ -5735,7 +5735,12 @@ tr.wo-row-selected {
 }
 .ops-site-link:hover { border-color: #94a3b8; background: #f8fafc; }
 .ops-energy-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.85rem; }
+.ops-tr-energy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ops-energy-tile, .ops-energy-alert { display: flex; gap: 0.65rem; align-items: flex-start; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.95rem; }
+.ops-tr-energy-tile { min-width: 0; align-items: center; }
+.ops-tr-energy-tile.tone-1 { border-top: 3px solid #2563eb; }
+.ops-tr-energy-tile.tone-2 { border-top: 3px solid #7c3aed; }
+.ops-tr-energy-tile.tone-3 { border-top: 3px solid #ea580c; }
 .ops-energy-alert { grid-column: 1 / -1; background: #fff7ed; border-color: #fed7aa; }
 .ops-e-ico { width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 8px; background: #fff; }
 .ops-e-ico.yellow { background: #fef3c7; }
@@ -5744,9 +5749,11 @@ tr.wo-row-selected {
 .ops-e-ico.gray { background: #e2e8f0; }
 .ops-e-label { display: block; font-size: 0.78rem; color: #64748b; }
 .ops-energy-tile strong, .ops-energy-alert strong { display: block; font-size: 1.15rem; color: #0f172a; }
+.ops-energy-tile strong small { font-size: 0.68rem; color: #64748b; font-weight: 600; }
 .ops-energy-tile em { font-style: normal; font-size: 0.75rem; color: #94a3b8; }
 .ops-energy-alert p { margin: 0.25rem 0 0; font-size: 0.82rem; color: #9a3412; }
 .ops-spark { margin-left: auto; align-self: center; }
+.ops-tr-spark { flex: 0 0 110px; max-width: 34%; }
 .ops-schedule-list, .ops-notice-list, .notice-admin-list, .sched-list { list-style: none; margin: 0; padding: 0; }
 .ops-schedule-list li { display: grid; grid-template-columns: 48px auto 1fr; gap: 0.5rem; align-items: start; padding: 0.7rem 0; border-bottom: 1px solid #eef2f7; }
 .ops-schedule-list li:last-child, .ops-notice-list li:last-child { border-bottom: 0; }
@@ -5825,11 +5832,12 @@ tr.wo-row-selected {
 
 @media (max-width: 1100px) {
   .ops-maint-grid { grid-template-columns: 1fr 1fr; }
+  .ops-tr-energy-grid { grid-template-columns: 1fr 1fr; }
   .ops-live-body { grid-template-columns: 1fr; }
   .sched-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
-  .ops-maint-grid, .ops-energy-grid { grid-template-columns: 1fr; }
+  .ops-maint-grid, .ops-energy-grid, .ops-tr-energy-grid { grid-template-columns: 1fr; }
   .ops-site-list li { grid-template-columns: 28px 1fr; }
   .ops-site-thumb, .ops-site-link, .ops-site-metrics { display: none; }
   .ops-live-top-right { width: 100%; flex-wrap: wrap; }

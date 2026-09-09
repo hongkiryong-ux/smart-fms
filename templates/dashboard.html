@@ -85,29 +85,42 @@
     var ctx = c.getContext('2d');
     var w = c.width, h = c.height;
     ctx.clearRect(0, 0, w, h);
-    var min = Math.min.apply(null, values);
-    var max = Math.max.apply(null, values);
+    var valid = values.filter(function (v) { return v != null && Number.isFinite(Number(v)); }).map(Number);
+    if (!valid.length) return;
+    var min = Math.min.apply(null, valid);
+    var max = Math.max.apply(null, valid);
     var span = (max - min) || 1;
     ctx.beginPath();
     ctx.strokeStyle = color || '#3b82f6';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
+    var drawing = false;
     values.forEach(function (v, i) {
+      if (v == null || !Number.isFinite(Number(v))) {
+        drawing = false;
+        return;
+      }
       var x = (i / (values.length - 1 || 1)) * (w - 2) + 1;
-      var y = h - 2 - ((v - min) / span) * (h - 4);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      var y = h - 3 - ((Number(v) - min) / span) * (h - 8);
+      if (!drawing) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      drawing = true;
     });
     ctx.stroke();
   }
 
   function renderSparks(energy) {
     if (!energy) return;
-    var p = (energy.power && energy.power.kepco) || [];
-    var w = (energy.water && energy.water.values) || [];
-    var u = energy.utility || {};
-    drawSpark('spark-power', p, '#f59e0b');
-    drawSpark('spark-water', w, '#3b82f6');
-    drawSpark('spark-gas', u.gas_values || [], '#ef4444');
-    drawSpark('spark-peak', u.peak_values || [], '#64748b');
+    var colors = ['#2563eb', '#7c3aed', '#ea580c'];
+    (energy.trs || []).forEach(function (tr, index) {
+      drawSpark('spark-' + tr.id, tr.values || [], colors[index % colors.length]);
+    });
+  }
+
+  function formatEnergy(value, decimals) {
+    if (value == null || !Number.isFinite(Number(value))) return '-';
+    return Number(value).toLocaleString('ko-KR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: decimals || 0
+    });
   }
 
   function applyKpi(data) {
@@ -118,13 +131,12 @@
     setText('kpi-wo-unresolved', data.wo_unresolved);
     setText('kpi-d1-plan', data.d1_today_plan);
     if (data.energy) {
-      var p = data.energy.power || {};
-      var t = p.today || {};
-      if (t.kepco != null) setText('nrg-kepco', Number(t.kepco).toLocaleString());
-      if (data.energy.water && data.energy.water.today != null) setText('nrg-water', data.energy.water.today);
-      var u = data.energy.utility || {};
-      if (u.gas_today != null) setText('nrg-gas', u.gas_today);
-      if (u.peak_today != null) setText('nrg-peak', Number(u.peak_today).toLocaleString());
+      (data.energy.trs || []).forEach(function (tr) {
+        setText('nrg-' + tr.id + '-usage', formatEnergy(tr.usage, 0));
+        setText('nrg-' + tr.id + '-amp', formatEnergy(tr.max_a, 1));
+        setText('nrg-' + tr.id + '-load', formatEnergy(tr.load_pct, 1));
+      });
+      setText('energy-note', data.energy.note);
       renderSparks(data.energy);
     }
   }
