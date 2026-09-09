@@ -143,6 +143,7 @@ async def load_recent_notices(db: AsyncSession, limit: int = 6) -> list[dict]:
                 "id": r.id,
                 "title": r.title,
                 "category": r.category or "일반",
+                "body": r.body or "",
                 "date_label": pub.strftime("%m/%d") if pub else "",
                 "is_pinned": bool(r.is_pinned),
             }

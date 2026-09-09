@@ -69,10 +69,23 @@
   </div>
 </dialog>
 
+<dialog id="notice-detail-dialog" class="notice-detail-dialog" aria-labelledby="notice-detail-title">
+  <div class="notice-detail-head">
+    <div>
+      <span id="notice-detail-category" class="ops-badge">일반</span>
+      <h2 id="notice-detail-title">공지사항</h2>
+      <time id="notice-detail-date"></time>
+    </div>
+    <button type="button" class="online-users-close" data-notice-close aria-label="닫기">&times;</button>
+  </div>
+  <div class="notice-detail-body" id="notice-detail-body"></div>
+</dialog>
+
 <script>
 (function () {
   var INTERVAL = 30000;
   var energyInit = {{ kpi.energy | tojson }};
+  var noticeItems = {{ recent_notices | tojson }};
 
   function setText(id, val) {
     var el = document.getElementById(id);
@@ -222,6 +235,48 @@
   if (onlineDialog) {
     onlineDialog.addEventListener('click', function (event) {
       if (event.target === onlineDialog) onlineDialog.close();
+    });
+  }
+
+  var noticeDialog = document.getElementById('notice-detail-dialog');
+  var noticeCategory = document.getElementById('notice-detail-category');
+  var noticeTitle = document.getElementById('notice-detail-title');
+  var noticeDate = document.getElementById('notice-detail-date');
+  var noticeBody = document.getElementById('notice-detail-body');
+  var noticeTrigger = null;
+
+  function openNotice(id, trigger) {
+    if (!noticeDialog || typeof noticeDialog.showModal !== 'function') return;
+    var item = noticeItems.find(function (notice) {
+      return String(notice.id) === String(id);
+    });
+    if (!item) return;
+    noticeTrigger = trigger || null;
+    noticeCategory.textContent = item.category || '일반';
+    noticeCategory.className = 'ops-badge cat-' + (item.category || '일반');
+    noticeTitle.textContent = item.title || '공지사항';
+    noticeDate.textContent = item.date_label || '';
+    noticeBody.textContent = item.body || '등록된 내용이 없습니다.';
+    noticeDialog.showModal();
+  }
+
+  document.querySelectorAll('[data-notice-open]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      openNotice(button.getAttribute('data-notice-open'), button);
+    });
+  });
+  document.querySelectorAll('[data-notice-close]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (noticeDialog && typeof noticeDialog.close === 'function') noticeDialog.close();
+    });
+  });
+  if (noticeDialog) {
+    noticeDialog.addEventListener('click', function (event) {
+      if (event.target === noticeDialog) noticeDialog.close();
+    });
+    noticeDialog.addEventListener('close', function () {
+      if (noticeTrigger) noticeTrigger.focus();
+      noticeTrigger = null;
     });
   }
 

@@ -5840,7 +5840,24 @@ tr.wo-row-selected {
 .ops-time { font-weight: 700; color: #334155; font-size: 0.85rem; }
 .ops-schedule-list strong, .ops-notice-list strong { display: block; font-size: 0.9rem; color: #0f172a; }
 .ops-schedule-list em { font-style: normal; font-size: 0.78rem; color: #94a3b8; }
-.ops-notice-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem; align-items: center; padding: 0.65rem 0; border-bottom: 1px solid #eef2f7; }
+.ops-notice-list li { display: block; padding: 0; border-bottom: 1px solid #eef2f7; }
+.ops-notice-open {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.65rem 0.3rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ops-notice-open:hover { background: #f8fafc; }
+.ops-notice-open:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .ops-date { color: #94a3b8; font-size: 0.8rem; }
 .ops-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 2.4rem; border-radius: 6px; padding: 0.15rem 0.4rem; font-size: 0.72rem; font-weight: 700; color: #fff; background: #64748b; }
 .ops-badge.cat-긴급 { background: #ef4444; }
@@ -5849,6 +5866,42 @@ tr.wo-row-selected {
 .ops-badge.cat-검수 { background: #22c55e; }
 .ops-badge.cat-안전 { background: #2563eb; }
 .ops-badge.cat-일반 { background: #94a3b8; }
+.notice-detail-dialog {
+  width: min(620px, calc(100vw - 2rem));
+  max-height: min(80vh, 720px);
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  color: #0f172a;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+}
+.notice-detail-dialog::backdrop { background: rgba(15, 23, 42, 0.55); }
+.notice-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.notice-detail-head h2 {
+  margin: 0.55rem 0 0.25rem;
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+.notice-detail-head time { color: #64748b; font-size: 0.8rem; }
+.notice-detail-body {
+  min-height: 120px;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 1.25rem;
+  color: #334155;
+  font-size: 0.92rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 
 /* 일정 캘린더 */
 .sched-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1rem; align-items: start; }

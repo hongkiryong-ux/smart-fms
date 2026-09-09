@@ -246,9 +246,11 @@
           <ul class="ops-notice-list">
             {% for n in recent_notices %}
             <li>
-              <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
-              <strong>{{ n.title }}</strong>
-              <span class="ops-date">{{ n.date_label }}</span>
+              <button type="button" class="ops-notice-open" data-notice-open="{{ n.id }}" aria-label="{{ n.title }} 공지 내용 보기">
+                <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
+                <strong>{{ n.title }}</strong>
+                <span class="ops-date">{{ n.date_label }}</span>
+              </button>
             </li>
             {% endfor %}
           </ul>
