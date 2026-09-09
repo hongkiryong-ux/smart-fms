@@ -6022,20 +6022,13 @@ tr.wo-row-selected {
 .notice-author { font-size: 0.8rem; }
 .notice-body { margin: 0.5rem 0; color: #475569; white-space: pre-wrap; line-height: 1.5; }
 .notice-card-actions { display: flex; align-items: flex-start; gap: 0.45rem; margin-top: 0.65rem; flex-wrap: wrap; }
-.notice-edit-form > summary {
-  width: fit-content;
-  list-style: none;
-  cursor: pointer;
-}
-.notice-edit-form > summary::-webkit-details-marker { display: none; }
-.notice-edit-form[open] { order: 2; flex: 1 0 100%; }
-.notice-edit-form[open] > summary { margin-bottom: 0.65rem; }
-.notice-edit-form > form {
+.notice-inline-edit {
   padding: 0.85rem;
   border: 1px solid #cbd5e1;
   border-radius: 9px;
   background: #f8fafc;
 }
+.notice-inline-edit[hidden], .notice-card-view[hidden] { display: none; }
 .dash-settings-list li { align-items: center; }
 .dash-settings-num { width: 1.6rem; height: 1.6rem; border-radius: 50%; background: #003876; color: #fff; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
 .dash-settings-check span { display: flex; flex-direction: column; gap: 0.15rem; }

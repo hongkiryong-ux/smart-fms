@@ -55,48 +55,51 @@
     <ul class="notice-admin-list">
       {% for n in notices %}
       <li class="notice-card{% if n.is_pinned %} is-pinned{% endif %}">
-        <div class="notice-card-head">
-          <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
-          {% if n.is_pinned %}<span class="notice-pin">고정</span>{% endif %}
-          <span class="notice-date">{{ (n.published_at or n.created_at).strftime('%Y-%m-%d %H:%M') if (n.published_at or n.created_at) else '' }}</span>
-        </div>
-        <strong class="notice-title">{{ n.title }}</strong>
-        <span class="text-muted notice-author">{{ n.created_by or '-' }}</span>
-        {% if n.body %}<p class="notice-body">{{ n.body }}</p>{% endif %}
-        <div class="notice-card-actions">
-          {% if can_edit %}
-          <details class="notice-edit-form">
-            <summary class="btn btn-secondary btn-sm">수정</summary>
-            <form method="post" action="/admin/notices/{{ n.id }}/edit" class="form-grid">
-              <label class="full">제목
-                <input type="text" name="title" required maxlength="300" value="{{ n.title }}" />
-              </label>
-              <label>구분
-                <select name="category">
-                  {% for c in categories %}
-                  <option value="{{ c }}"{% if c == n.category %} selected{% endif %}>{{ c }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-              <label class="board-pin-check">
-                <input type="checkbox" name="is_pinned" value="1"{% if n.is_pinned %} checked{% endif %} />
-                상단 고정
-              </label>
-              <label class="full">내용
-                <textarea name="body" rows="8" placeholder="공지 내용을 입력하세요">{{ n.body or '' }}</textarea>
-              </label>
-              <div class="full board-form-actions">
-                <button type="submit" class="btn btn-primary">수정 저장</button>
-              </div>
+        <div class="notice-card-view" data-notice-view="{{ n.id }}">
+          <div class="notice-card-head">
+            <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
+            {% if n.is_pinned %}<span class="notice-pin">고정</span>{% endif %}
+            <span class="notice-date">{{ (n.published_at or n.created_at).strftime('%Y-%m-%d %H:%M') if (n.published_at or n.created_at) else '' }}</span>
+          </div>
+          <strong class="notice-title">{{ n.title }}</strong>
+          <span class="text-muted notice-author">{{ n.created_by or '-' }}</span>
+          {% if n.body %}<p class="notice-body">{{ n.body }}</p>{% endif %}
+          <div class="notice-card-actions">
+            {% if can_edit %}
+            <button type="button" class="btn btn-secondary btn-sm" data-notice-edit="{{ n.id }}">수정</button>
+            {% endif %}
+            {% if can_delete %}
+            <form method="post" action="/admin/notices/{{ n.id }}/delete" onsubmit="return confirm('이 공지를 삭제할까요?');">
+              <button type="submit" class="btn btn-secondary btn-sm">삭제</button>
             </form>
-          </details>
-          {% endif %}
-          {% if can_delete %}
-          <form method="post" action="/admin/notices/{{ n.id }}/delete" onsubmit="return confirm('이 공지를 삭제할까요?');">
-            <button type="submit" class="btn btn-secondary btn-sm">삭제</button>
-          </form>
-          {% endif %}
+            {% endif %}
+          </div>
         </div>
+        {% if can_edit %}
+        <form method="post" action="/admin/notices/{{ n.id }}/edit" class="form-grid notice-inline-edit" data-notice-form="{{ n.id }}" hidden>
+          <label class="full">제목
+            <input type="text" name="title" required maxlength="300" value="{{ n.title }}" />
+          </label>
+          <label>구분
+            <select name="category">
+              {% for c in categories %}
+              <option value="{{ c }}"{% if c == n.category %} selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="board-pin-check">
+            <input type="checkbox" name="is_pinned" value="1"{% if n.is_pinned %} checked{% endif %} />
+            상단 고정
+          </label>
+          <label class="full">내용
+            <textarea name="body" rows="8" placeholder="공지 내용을 입력하세요">{{ n.body or '' }}</textarea>
+          </label>
+          <div class="full board-form-actions">
+            <button type="submit" class="btn btn-primary">수정 저장</button>
+            <button type="button" class="btn btn-secondary" data-notice-cancel="{{ n.id }}">취소</button>
+          </div>
+        </form>
+        {% endif %}
       </li>
       {% endfor %}
     </ul>
@@ -105,4 +108,36 @@
     {% endif %}
   </section>
 </div>
+<script>
+(function () {
+  function toggleNoticeEdit(id, editing) {
+    var view = document.querySelector('[data-notice-view="' + id + '"]');
+    var form = document.querySelector('[data-notice-form="' + id + '"]');
+    if (!view || !form) return;
+    view.hidden = editing;
+    form.hidden = !editing;
+    if (editing) {
+      var title = form.querySelector('input[name="title"]');
+      if (title) {
+        title.focus();
+        title.select();
+      }
+    }
+  }
+
+  document.querySelectorAll('[data-notice-edit]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      toggleNoticeEdit(button.getAttribute('data-notice-edit'), true);
+    });
+  });
+  document.querySelectorAll('[data-notice-cancel]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var id = button.getAttribute('data-notice-cancel');
+      var form = document.querySelector('[data-notice-form="' + id + '"]');
+      if (form) form.reset();
+      toggleNoticeEdit(id, false);
+    });
+  });
+})();
+</script>
 {% endblock %}
