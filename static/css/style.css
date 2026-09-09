@@ -5747,18 +5747,12 @@ tr.wo-row-selected {
 .ops-tr-energy-tile.tone-2 { border-left: 3px solid #7c3aed; }
 .ops-tr-energy-tile.tone-3 { border-left: 3px solid #ea580c; }
 .ops-tr-energy-line {
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  flex: 1;
+  display: block;
   width: 100%;
   min-width: 0;
-  white-space: nowrap;
   overflow: visible;
   color: #475569;
-  font-size: 0.78rem;
 }
-.ops-tr-energy-line strong { color: #0f172a; font-size: 0.86rem; }
 .ops-energy-alert { grid-column: 1 / -1; background: #fff7ed; border-color: #fed7aa; }
 .ops-e-ico { width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 8px; background: #fff; }
 .ops-e-ico.yellow { background: #fef3c7; }
@@ -5767,6 +5761,20 @@ tr.wo-row-selected {
 .ops-e-ico.gray { background: #e2e8f0; }
 .ops-e-label { display: block; font-size: 0.78rem; color: #64748b; }
 .ops-energy-tile strong, .ops-energy-alert strong { display: block; font-size: 1.15rem; color: #0f172a; }
+.ops-tr-energy-line > strong {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+.ops-tr-energy-metrics {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  letter-spacing: -0.025em;
+}
 .ops-energy-tile strong small { font-size: 0.68rem; color: #64748b; font-weight: 600; }
 .ops-energy-tile em { font-style: normal; font-size: 0.75rem; color: #94a3b8; }
 .ops-energy-alert p { margin: 0.25rem 0 0; font-size: 0.82rem; color: #9a3412; }

@@ -55,9 +55,11 @@
       <div class="ops-energy-tile ops-tr-energy-tile tone-{{ loop.index }}">
         <div class="ops-tr-energy-line">
           <strong>{{ tr.name }}</strong>
-          <span><span id="nrg-{{ tr.id }}-usage">{{ "{:,.0f}".format(tr.usage) if tr.usage is not none else '-' }}</span> KWH,</span>
-          <span>부하율(<span id="nrg-{{ tr.id }}-amp">{{ "{:,.1f}".format(tr.max_a).rstrip('0').rstrip('.') if tr.max_a is not none else '-' }}</span>A,
-            <span id="nrg-{{ tr.id }}-load">{{ "{:,.1f}".format(tr.load_pct).rstrip('0').rstrip('.') if tr.load_pct is not none else '-' }}</span>%)</span>
+          <div class="ops-tr-energy-metrics">
+            <span><span id="nrg-{{ tr.id }}-usage">{{ "{:,.0f}".format(tr.usage) if tr.usage is not none else '-' }}</span> KWH,</span>
+            <span>부하율(<span id="nrg-{{ tr.id }}-amp">{{ "{:,.1f}".format(tr.max_a).rstrip('0').rstrip('.') if tr.max_a is not none else '-' }}</span>A,
+              <span id="nrg-{{ tr.id }}-load">{{ "{:,.1f}".format(tr.load_pct).rstrip('0').rstrip('.') if tr.load_pct is not none else '-' }}</span>%)</span>
+          </div>
         </div>
         <canvas class="ops-spark ops-tr-spark" id="spark-{{ tr.id }}" width="110" height="42"
                 title="{{ tr.name }} 최근 7일 전력사용량"></canvas>
