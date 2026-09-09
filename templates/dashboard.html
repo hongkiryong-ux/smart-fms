@@ -136,6 +136,9 @@
         setText('nrg-' + tr.id + '-amp', formatEnergy(tr.max_a, 1));
         setText('nrg-' + tr.id + '-load', formatEnergy(tr.load_pct, 1));
       });
+      var central = data.energy.central || {};
+      setText('nrg-central-usage', formatEnergy(central.usage, 0));
+      setText('nrg-central-amp', formatEnergy(central.max_a, 1));
       setText('energy-note', data.energy.note);
       renderSparks(data.energy);
     }

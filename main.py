@@ -2387,8 +2387,9 @@ def _kst_day_naive_utc_range(day: date) -> tuple[datetime, datetime]:
     return start, end
 
 
-async def _housing_tr_energy_payload(db: AsyncSession, today: date) -> dict:
-    """주택변전소 전일 기준 No.1~3 TR 최근 7일 전력 현황."""
+async def _dashboard_energy_payload(db: AsyncSession, today: date) -> dict:
+    """주택변전소 TR 및 중앙관제실 전일 전력 현황."""
+    from central_control_room import compute_dashboard_incoming_power
     from housing_substation import compute_dashboard_tr_energy
 
     end_date = today - timedelta(days=1)
@@ -2423,7 +2424,40 @@ async def _housing_tr_energy_payload(db: AsyncSession, today: date) -> dict:
                 )
             ).scalars().all()
         )
-    return compute_dashboard_tr_energy(rows, end_date, days=7)
+    payload = compute_dashboard_tr_energy(rows, end_date, days=7)
+
+    central_building_id = (
+        await db.execute(
+            select(Building.id)
+            .where(
+                Building.is_active == True,  # noqa: E712
+                Building.name.contains("중앙관제실"),
+            )
+            .order_by(
+                case((Building.name == "중앙관제실", 0), else_=1),
+                Building.id,
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    central_rows: list[CentralControlRoomDaily] = []
+    if central_building_id is not None:
+        central_rows = list(
+            (
+                await db.execute(
+                    select(CentralControlRoomDaily)
+                    .where(
+                        CentralControlRoomDaily.building_id == central_building_id,
+                        CentralControlRoomDaily.log_date
+                        >= end_date - timedelta(days=1),
+                        CentralControlRoomDaily.log_date <= end_date,
+                    )
+                    .order_by(CentralControlRoomDaily.log_date)
+                )
+            ).scalars().all()
+        )
+    payload["central"] = compute_dashboard_incoming_power(central_rows, end_date)
+    return payload
 
 
 async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
@@ -2569,7 +2603,7 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
     # 오늘 완료된 건은 d1_today_done 실적으로만 집계해 과거 예정 작업의 당일 승인분이 섞이지 않게 한다.
     d1_today_plan = int(d1_today_incomplete)
 
-    energy = await _housing_tr_energy_payload(db, today)
+    energy = await _dashboard_energy_payload(db, today)
 
     return {
         "as_of": today.isoformat(),

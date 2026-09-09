@@ -5785,6 +5785,33 @@ tr.wo-row-selected {
   height: 30px;
   margin: 0.35rem 0 0;
 }
+.ops-central-energy {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.85rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid #bfdbfe;
+  border-left: 3px solid #0284c7;
+  border-radius: 10px;
+  background: #f0f9ff;
+}
+.ops-central-energy > strong {
+  flex: 0 0 auto;
+  color: #075985;
+  font-size: 0.9rem;
+}
+.ops-central-energy-values {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  color: #475569;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.ops-central-energy-values span:first-child { color: #0f172a; font-weight: 700; }
+.ops-central-energy-values b { color: #0f172a; }
 .ops-schedule-list, .ops-notice-list, .notice-admin-list, .sched-list { list-style: none; margin: 0; padding: 0; }
 .ops-schedule-list li { display: grid; grid-template-columns: 48px auto 1fr; gap: 0.5rem; align-items: start; padding: 0.7rem 0; border-bottom: 1px solid #eef2f7; }
 .ops-schedule-list li:last-child, .ops-notice-list li:last-child { border-bottom: 0; }
@@ -5873,6 +5900,8 @@ tr.wo-row-selected {
     overflow-x: auto;
     padding-bottom: 0.25rem;
   }
+  .ops-central-energy { align-items: flex-start; flex-direction: column; gap: 0.35rem; }
+  .ops-central-energy-values { max-width: 100%; overflow-x: auto; }
   .ops-site-list li { grid-template-columns: 28px 1fr; }
   .ops-site-thumb, .ops-site-link, .ops-site-metrics { display: none; }
   .ops-live-top-right { width: 100%; flex-wrap: wrap; }

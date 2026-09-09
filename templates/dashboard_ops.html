@@ -182,6 +182,15 @@
             </div>
             {% endfor %}
           </div>
+          {% set central = kpi.energy.central %}
+          <div class="ops-central-energy">
+            <strong>중앙관제실 전력사용량</strong>
+            <div class="ops-central-energy-values">
+              <span>{{ central.name }}</span>
+              <span>전일 전력사용량 <b id="nrg-central-usage">{{ "{:,.0f}".format(central.usage) if central.usage is not none else '-' }}</b> KWH,</span>
+              <span>전일 최대 <b id="nrg-central-amp">{{ "{:,.1f}".format(central.max_a).rstrip('0').rstrip('.') if central.max_a is not none else '-' }}</b>A</span>
+            </div>
+          </div>
           <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
         </section>
         {% endif %}

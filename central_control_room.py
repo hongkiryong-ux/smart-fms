@@ -658,6 +658,51 @@ def _breaker_row_from_daily(
     )
 
 
+def compute_dashboard_incoming_power(
+    daily_rows: list[CentralControlRoomDaily],
+    target_date: date,
+) -> dict[str, Any]:
+    """압연/수전 LINE INCOMING의 지정일 사용량과 최대전류."""
+    block_def = next(
+        (
+            block
+            for block in load_schema().get("daily_blocks") or []
+            if block.get("id") == "main"
+        ),
+        {},
+    )
+    meter = next(
+        (
+            item
+            for item in block_def.get("meters") or []
+            if item.get("name") == "압연 / 수전 LINE INCOMING"
+        ),
+        None,
+    )
+    by_date = {row.log_date: row.data or {} for row in daily_rows}
+    if not meter:
+        return {
+            "name": "압연 / 수전 LINE INCOMING",
+            "usage": None,
+            "max_a": None,
+        }
+
+    previous_data = by_date.get(target_date - timedelta(days=1), {}).get("main", {})
+    previous_reading = _parse_num(_meter_reading_at_2200(previous_data, meter))
+    target_data = by_date.get(target_date, {}).get("main", {})
+    prev_map = target_data.get("prev") or {}
+    if prev_map.get(meter["id"]) not in (None, ""):
+        manual_prev = _parse_num(prev_map.get(meter["id"]))
+        if manual_prev is not None:
+            previous_reading = manual_prev
+    row, _ = _breaker_row_from_daily(target_data, meter, previous_reading)
+    return {
+        "name": "압연 / 수전 LINE INCOMING",
+        "usage": _parse_num(row.get("usage")),
+        "max_a": _parse_num(row.get("max_a")),
+    }
+
+
 def compute_monthly_report(
     building_id: int,
     year: int,
