@@ -38,7 +38,7 @@ NOTICE_CATEGORIES = ("긴급", "안전", "일반")
 DASH_WIDGETS: tuple[tuple[str, str], ...] = (
     ("maintenance_status", "정비 의뢰 현황"),
     ("sites_status", "사업장 현황"),
-    ("energy", "주택변전소 전력사용량"),
+    ("energy", "주택변전소 전력사용량(전일 기준. 사용량 Trend 최근 7일)"),
     ("schedules", "주요 설비 일정"),
     ("notices", "공지사항"),
 )
