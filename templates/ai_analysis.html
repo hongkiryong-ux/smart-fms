@@ -372,13 +372,9 @@
       setStatus('질문을 입력해 주세요.', 'error');
       return;
     }
-    if (!aiReady) {
-      showKeyRequired();
-      return;
-    }
     sending = true;
     if (sendBtn) sendBtn.disabled = true;
-    setStatus('GPT 답변 생성 중…', 'saving');
+    setStatus('데이터 분석 중…', 'saving');
     try {
       var data = await chatRequest({ question: q });
       if (data.needs_api_key) {
@@ -395,7 +391,17 @@
         evidenceWrap.style.display = '';
         evidenceEl.textContent = data.evidence;
       }
-      setStatus('답변 완료. 이어서 질문하거나 「새 대화」를 누르세요.');
+      if (data.download_url) {
+        var download = document.createElement('a');
+        download.href = data.download_url;
+        download.style.display = 'none';
+        document.body.appendChild(download);
+        download.click();
+        download.remove();
+        setStatus('정비완료 내역 엑셀 다운로드를 시작했습니다.');
+      } else {
+        setStatus('답변 완료. 이어서 질문하거나 「새 대화」를 누르세요.');
+      }
     } catch (_e) {
       setStatus('통신 오류가 발생했습니다.', 'error');
     } finally {

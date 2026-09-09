@@ -6705,6 +6705,7 @@ _AI_EXAMPLES = [
 ]
 
 _AI_EXAMPLES_DETAIL = [
+    "정비의뢰 내용에 대한 정비완료건을 정리해서 엑셀로 만들어줘",
     "정비·PM 지연 원인을 분석하고 우선 조치 순서를 제안해줘",
     "제철소본부·중앙관제실 점검일지 데이터를 종합 분석해줘",
     "설비 많은 건물의 정비 리스크를 평가해줘",
@@ -6751,6 +6752,30 @@ async def ai_analysis_page(
     )
 
 
+@app.get("/admin/ai-analysis/work-orders/completed.xlsx")
+async def ai_analysis_completed_work_orders_excel(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_analysis import (
+        export_completed_work_orders_xlsx,
+        load_completed_work_order_rows,
+    )
+
+    if not can_access_menu(user, "ai_analysis"):
+        raise HTTPException(403, "AI 분석 접근 권한이 없습니다.")
+    rows = await load_completed_work_order_rows(db)
+    content = export_completed_work_orders_xlsx(rows)
+    filename = quote(
+        f"정비의뢰_정비완료내역_{datetime.now(KST).strftime('%Y%m%d_%H%M')}.xlsx"
+    )
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
 @app.post("/admin/ai-analysis/ask")
 async def ai_analysis_ask(
     request: Request,
@@ -6759,11 +6784,15 @@ async def ai_analysis_ask(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    from ai_analysis import run_analysis
+    from ai_analysis import completed_work_order_excel_requested, run_analysis
     from risk_assessment import mask_api_key, user_openai_credentials
 
     if not can_access_menu(user, "ai_analysis"):
         return RedirectResponse("/admin/account", status_code=303)
+    if completed_work_order_excel_requested(question):
+        return RedirectResponse(
+            "/admin/ai-analysis/work-orders/completed.xlsx", status_code=303
+        )
 
     # 세션 캐시가 아닌 DB 최신 키 사용
     db_user = await db.get(User, user.id) or user
@@ -6866,6 +6895,7 @@ async def ai_analysis_chat(
             "intent": result.get("intent") or "",
             "intent_label": _AI_INTENT_LABELS.get(result.get("intent") or "", ""),
             "error": result.get("error") or "",
+            "download_url": result.get("download_url") or "",
         }
     )
 

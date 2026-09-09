@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import json
 import re
+from io import BytesIO
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -89,8 +92,184 @@ def _clip(text: Any, n: int = 200) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def completed_work_order_excel_requested(question: str) -> bool:
+    """정비완료 내역의 엑셀 생성을 요청한 자연어인지 판별."""
+    q = (question or "").strip().lower()
+    return (
+        any(word in q for word in ("정비", "워크오더", "work order", "cmms"))
+        and any(
+            word in q
+            for word in ("완료", "조치", "수리", "complete", "completed", "completion")
+        )
+        and any(word in q for word in ("엑셀", "excel", "xlsx", "파일"))
+    )
+
+
+def _completed_work_order_details_requested(question: str) -> bool:
+    q = (question or "").strip().lower()
+    return any(word in q for word in ("정비", "워크오더", "work order", "cmms")) and any(
+        word in q
+        for word in ("완료", "조치", "수리", "complete", "completed", "completion")
+    )
+
+
 async def _count(db: AsyncSession, stmt) -> int:
     return int((await db.execute(stmt)).scalar() or 0)
+
+
+async def load_completed_work_order_rows(db: AsyncSession) -> list[dict[str, Any]]:
+    """최종 완료된 정비의뢰 전체를 엑셀·AI 공통 구조로 조회."""
+    rows = (
+        await db.execute(
+            select(WorkOrder)
+            .where(
+                WorkOrder.is_active == True,  # noqa: E712
+                WorkOrder.status.in_(
+                    (
+                        WorkOrderStatus.completed,
+                        WorkOrderStatus.verified,
+                        WorkOrderStatus.closed,
+                    )
+                ),
+                WorkOrder.completion_approval_pending.is_not(True),
+            )
+            .options(
+                selectinload(WorkOrder.equipment)
+                .selectinload(Equipment.zone)
+                .selectinload(Zone.floor)
+                .selectinload(Floor.building)
+                .selectinload(Building.site),
+                selectinload(WorkOrder.partner),
+            )
+            .order_by(WorkOrder.completed_at.desc().nullslast(), WorkOrder.id.desc())
+        )
+    ).scalars().all()
+    site_ids = {int(row.site_id) for row in rows if row.site_id}
+    site_map: dict[int, str] = {}
+    if site_ids:
+        site_map = {
+            int(site_id): str(name or "")
+            for site_id, name in (
+                await db.execute(select(Site.id, Site.name).where(Site.id.in_(site_ids)))
+            ).all()
+        }
+
+    result = []
+    for row in rows:
+        equipment = row.equipment
+        zone = equipment.zone if equipment else None
+        floor = zone.floor if zone else None
+        building = floor.building if floor else None
+        site_name = building.site.name if building and building.site else ""
+        if not site_name and row.site_id:
+            site_name = site_map.get(int(row.site_id), "")
+        result.append(
+            {
+                "id": row.id,
+                "status": _enum_val(row.status),
+                "site": site_name,
+                "building": building.name if building else "",
+                "equipment_code": equipment.code if equipment else "",
+                "equipment_name": equipment.name if equipment else "",
+                "title": row.title or "",
+                "description": row.description or "",
+                "cause": row.cause or "",
+                "action": row.action or "",
+                "parts_used": row.parts_used or "",
+                "partner": row.partner.name if row.partner else "",
+                "assignee": row.assignee_name or "",
+                "requester": row.requester_name or "",
+                "priority": row.priority or "",
+                "work_type": row.work_type or "",
+                "scheduled_date": str(row.scheduled_date or ""),
+                "completed_at": str(row.completed_at or ""),
+                "work_hours": row.work_hours,
+                "cost": row.cost,
+                "completion_approved_by": row.completion_approved_by or "",
+                "completion_approved_at": str(row.completion_approved_at or ""),
+            }
+        )
+    return result
+
+
+def export_completed_work_orders_xlsx(rows: list[dict[str, Any]]) -> bytes:
+    """정비의뢰·완료내용을 한 행에 정리한 엑셀."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "정비완료 내역"
+    headers = [
+        "번호",
+        "상태",
+        "사업장",
+        "건물",
+        "설비코드",
+        "설비명",
+        "정비의뢰 제목",
+        "정비의뢰 내용",
+        "고장원인",
+        "정비완료 조치내용",
+        "사용부품",
+        "협력사",
+        "담당자",
+        "요청자",
+        "우선순위",
+        "작업유형",
+        "예정일",
+        "완료일시",
+        "작업시간",
+        "비용",
+        "최종승인자",
+        "최종승인일시",
+    ]
+    fill = PatternFill("solid", fgColor="DBEAFE")
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.fill = fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    keys = [
+        "id",
+        "status",
+        "site",
+        "building",
+        "equipment_code",
+        "equipment_name",
+        "title",
+        "description",
+        "cause",
+        "action",
+        "parts_used",
+        "partner",
+        "assignee",
+        "requester",
+        "priority",
+        "work_type",
+        "scheduled_date",
+        "completed_at",
+        "work_hours",
+        "cost",
+        "completion_approved_by",
+        "completion_approved_at",
+    ]
+    wrap = Alignment(vertical="top", wrap_text=True)
+    for row_no, item in enumerate(rows, 2):
+        for col, key in enumerate(keys, 1):
+            value = item.get(key)
+            cell = ws.cell(row=row_no, column=col, value=value if value is not None else "")
+            cell.alignment = wrap
+            if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+                cell.value = "'" + value
+
+    widths = [9, 12, 16, 18, 15, 20, 28, 42, 30, 42, 25, 18, 14, 14, 11, 14, 13, 20, 11, 14, 14, 20]
+    for col, width in enumerate(widths, 1):
+        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = width
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:V{max(1, len(rows) + 1)}"
+    ws.sheet_view.showGridLines = False
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
 
 
 def _summarize_log2_daily(data: dict | None) -> dict[str, Any]:
@@ -444,6 +623,19 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
             for wo in recent_wo
         ],
     }
+    if _completed_work_order_details_requested(question):
+        completed_rows = await load_completed_work_order_rows(db)
+        sec["work_orders"]["completed_details_total"] = len(completed_rows)
+        sec["work_orders"]["completed_details"] = [
+            {
+                **row,
+                "description": _clip(row.get("description"), 300),
+                "cause": _clip(row.get("cause"), 240),
+                "action": _clip(row.get("action"), 400),
+                "parts_used": _clip(row.get("parts_used"), 200),
+            }
+            for row in completed_rows[:50]
+        ]
 
     today = _today()
     due_soon = await _count(
@@ -790,6 +982,16 @@ def build_aggregate_answer(ctx: dict[str, Any], question: str) -> str:
             f"  · #{r['id']} [{r['status']}] {r['title']}"
             + (" (D-1승인)" if r.get("d1_approved") else "")
         )
+    if "completed_details_total" in wo:
+        wo_lines.append(
+            f"  정비완료 상세 조회: 총 {wo.get('completed_details_total', 0)}건"
+        )
+        for row in wo.get("completed_details", [])[:10]:
+            wo_lines.append(
+                f"  · #{row.get('id')} {row.get('title')}"
+                f" / 의뢰: {_clip(row.get('description'), 80) or '-'}"
+                f" / 완료: {_clip(row.get('action'), 100) or '-'}"
+            )
     lines.extend(_format_section_lines("정비의뢰", wo_lines))
 
     pm = sec.get("pm", {})
@@ -1033,6 +1235,31 @@ async def run_chat_turn(
             "evidence": "",
             "intent": "overview",
             "error": "질문을 입력해 주세요.",
+        }
+
+    if completed_work_order_excel_requested(q):
+        rows = await load_completed_work_order_rows(db)
+        history = list(chat_messages or [])
+        history.append({"role": "user", "content": q})
+        if rows:
+            answer = (
+                f"최종 완료된 정비의뢰 {len(rows)}건을 정비의뢰 내용과 "
+                "정비완료 조치내용이 함께 나오도록 엑셀로 정리했습니다."
+            )
+            download_url = "/admin/ai-analysis/work-orders/completed.xlsx"
+        else:
+            answer = "최종 승인된 정비완료 내역이 없어 엑셀을 만들 수 없습니다."
+            download_url = ""
+        history.append({"role": "assistant", "content": answer})
+        return {
+            "ok": True,
+            "needs_api_key": False,
+            "messages": history[-20:],
+            "answer": answer,
+            "evidence": "",
+            "intent": "work_order",
+            "error": "",
+            "download_url": download_url,
         }
 
     key = (api_key or "").strip()
