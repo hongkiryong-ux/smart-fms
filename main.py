@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -154,13 +154,28 @@ async def _parse_multipart_form(request: Request):
 
 
 def _safe_login_next(raw: str | None) -> str | None:
-    """로그인 후 복귀 URL — 내부 /admin 경로만 허용 (오픈 리다이렉트 방지)."""
+    """로그인 후 복귀 URL — 모든 내부 화면 허용, 외부 URL은 차단."""
     value = (raw or "").strip()
-    if not value.startswith("/") or value.startswith("//"):
+    if (
+        not value.startswith("/")
+        or value.startswith("//")
+        or "\\" in value
+        or "\r" in value
+        or "\n" in value
+    ):
         return None
-    if not value.startswith("/admin"):
+    parsed = urlsplit(value)
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/"):
         return None
-    if value.startswith("/admin/login") or value.startswith("/admin/logout"):
+    blocked = (
+        "/admin/login",
+        "/admin/logout",
+        "/admin/signup",
+        "/static/",
+        "/health",
+        "/oo/",
+    )
+    if any(parsed.path == prefix or parsed.path.startswith(prefix) for prefix in blocked):
         return None
     return value
 
@@ -1226,21 +1241,71 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="POSCO WIDE Smart FMS", lifespan=lifespan)
 
 
+_AUTH_PUBLIC_EXACT = {
+    "/health",
+    "/favicon.ico",
+    "/robots.txt",
+    "/admin/login",
+    "/admin/signup",
+}
+_AUTH_PUBLIC_PREFIXES = ("/static/", "/oo/")
+
+
+def _is_auth_public_path(path: str) -> bool:
+    return path in _AUTH_PUBLIC_EXACT or any(
+        path.startswith(prefix) for prefix in _AUTH_PUBLIC_PREFIXES
+    )
+
+
+def _login_redirect_for_request(request: Request) -> RedirectResponse:
+    next_url = None
+    if request.method.upper() in ("GET", "HEAD"):
+        next_url = _safe_login_next(request.url.path)
+        if next_url and request.url.query:
+            next_url = f"{next_url}?{request.url.query}"
+    login_url = "/admin/login"
+    if next_url:
+        login_url = f"{login_url}?next={quote(next_url)}"
+    return RedirectResponse(login_url, status_code=303)
+
+
 class _AdminDbMiddleware(BaseHTTPMiddleware):
-    """/admin: 사용자·메뉴·네비만 짧게 조회 후 연결 즉시 반환."""
+    """전체 화면 로그인 보호 + /admin 사용자·메뉴·네비 초기화."""
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path or ""
-        if not path.startswith("/admin"):
+        if _is_auth_public_path(path):
+            if path.startswith(("/admin/login", "/admin/signup")):
+                if not request.session.get("user_id"):
+                    from auth import apply_nav_state
+
+                    apply_nav_state(request, {})
             return await call_next(request)
 
-        # 로그인·가입(비로그인)은 DB 없이 통과 — 연결 풀 절약
-        if path.startswith("/admin/login") or path.startswith("/admin/signup"):
-            if not (request.session.get("user_id") if "session" in request.scope else None):
-                from auth import apply_nav_state
+        user_id = request.session.get("user_id")
+        if not user_id:
+            return _login_redirect_for_request(request)
 
-                apply_nav_state(request, {})
-                return await call_next(request)
+        if not path.startswith("/admin"):
+            from auth import apply_nav_state
+
+            async with AsyncSessionLocal() as session:
+                user = (
+                    await session.execute(
+                        select(User).where(
+                            User.id == user_id,
+                            User.is_active == True,  # noqa: E712
+                            User.is_approved == True,  # noqa: E712
+                        )
+                    )
+                ).scalar_one_or_none()
+            request.state._current_user_loaded = True
+            apply_nav_state(request, {})
+            if user is None:
+                request.session.clear()
+                return _login_redirect_for_request(request)
+            request.state.current_user = user
+            return await call_next(request)
 
         async with AsyncSessionLocal() as session:
             try:
@@ -1253,6 +1318,9 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
                 denied = None
             if denied is not None:
                 return denied
+        if getattr(request.state, "current_user", None) is None:
+            request.session.clear()
+            return _login_redirect_for_request(request)
         return await call_next(request)
 
 
@@ -1266,7 +1334,7 @@ if os.environ.get("RENDER", "").lower() in ("true", "1", "yes") or os.environ.ge
     "COOKIE_HTTPS_ONLY", ""
 ).lower() in ("1", "true", "yes"):
     _session_kw["https_only"] = True
-# 안쪽(감사·메뉴) → Session → Proxy 순으로 add (마지막이 가장 바깥)
+# 안쪽(감사·인증·메뉴) → Session → Proxy 순으로 add (마지막이 가장 바깥)
 app.add_middleware(AuditLogMiddleware)
 app.add_middleware(_AdminDbMiddleware)
 app.add_middleware(SessionMiddleware, **_session_kw)
