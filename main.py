@@ -2388,9 +2388,12 @@ def _kst_day_naive_utc_range(day: date) -> tuple[datetime, datetime]:
 
 
 async def _dashboard_energy_payload(db: AsyncSession, today: date) -> dict:
-    """주택변전소 TR 및 중앙관제실 전일 전력 현황."""
+    """주택변전소·중앙관제실·제철소본부 전일 전력 현황."""
     from central_control_room import compute_dashboard_incoming_power
     from housing_substation import compute_dashboard_tr_energy
+    from steelworks_hq import (
+        compute_dashboard_incoming_power as compute_steelworks_incoming_power,
+    )
 
     end_date = today - timedelta(days=1)
     start_date = end_date - timedelta(days=6)
@@ -2457,6 +2460,37 @@ async def _dashboard_energy_payload(db: AsyncSession, today: date) -> dict:
             ).scalars().all()
         )
     payload["central"] = compute_dashboard_incoming_power(central_rows, end_date)
+
+    steelworks_building_id = (
+        await db.execute(
+            select(Building.id)
+            .where(
+                Building.is_active == True,  # noqa: E712
+                Building.name == "제철소본부",
+            )
+            .order_by(Building.id)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    steelworks_rows: list[SteelworksHqDaily] = []
+    if steelworks_building_id is not None:
+        steelworks_rows = list(
+            (
+                await db.execute(
+                    select(SteelworksHqDaily)
+                    .where(
+                        SteelworksHqDaily.building_id == steelworks_building_id,
+                        SteelworksHqDaily.log_date
+                        >= end_date - timedelta(days=1),
+                        SteelworksHqDaily.log_date <= end_date,
+                    )
+                    .order_by(SteelworksHqDaily.log_date)
+                )
+            ).scalars().all()
+        )
+    payload["steelworks"] = compute_steelworks_incoming_power(
+        steelworks_rows, end_date
+    )
     return payload
 
 

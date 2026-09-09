@@ -75,6 +75,18 @@
         <span>전일 최대 <b id="nrg-central-amp">{{ "{:,.1f}".format(central.max_a).rstrip('0').rstrip('.') if central.max_a is not none else '-' }}</b>A</span>
       </div>
     </div>
+    <div class="ops-steelworks-energy">
+      <strong>제철소본부 전력사용량</strong>
+      <div class="ops-steelworks-energy-list">
+        {% for item in kpi.energy.steelworks["items"] %}
+        <div class="ops-central-energy-values">
+          <span>{{ item.name }}</span>
+          <span>전일 전력사용량 <b id="nrg-steelworks-{{ item.id }}-usage">{{ "{:,.0f}".format(item.usage) if item.usage is not none else '-' }}</b> KWH,</span>
+          <span>전일 최대 <b id="nrg-steelworks-{{ item.id }}-amp">{{ "{:,.1f}".format(item.max_a).rstrip('0').rstrip('.') if item.max_a is not none else '-' }}</b>A</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
     <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
   </section>
 </div>
