@@ -174,6 +174,7 @@ def _safe_login_next(raw: str | None) -> str | None:
         "/static/",
         "/health",
         "/oo/",
+        "/cron/streetlamp/",
     )
     if any(parsed.path == prefix or parsed.path.startswith(prefix) for prefix in blocked):
         return None
@@ -1248,7 +1249,7 @@ _AUTH_PUBLIC_EXACT = {
     "/admin/login",
     "/admin/signup",
 }
-_AUTH_PUBLIC_PREFIXES = ("/static/", "/oo/")
+_AUTH_PUBLIC_PREFIXES = ("/static/", "/oo/", "/cron/streetlamp/")
 
 
 def _is_auth_public_path(path: str) -> bool:
