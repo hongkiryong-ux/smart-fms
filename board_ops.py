@@ -483,6 +483,35 @@ async def notices_create(
     return RedirectResponse("/admin/notices?flash=created", status_code=303)
 
 
+@router.post("/admin/notices/{notice_id}/edit")
+async def notices_update(
+    notice_id: int,
+    title: str = Form(...),
+    category: str = Form("일반"),
+    body: str = Form(""),
+    is_pinned: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_menu(user, "notices")
+    if not can_edit(user):
+        raise HTTPException(403, "수정 권한이 없습니다.")
+    row = await db.get(Notice, notice_id)
+    if not row or not row.is_active:
+        raise HTTPException(404)
+    clean_title = title.strip()
+    if not clean_title:
+        raise HTTPException(400, "공지 제목을 입력하세요.")
+    row.title = clean_title[:300]
+    row.category = (
+        category.strip() if category.strip() in NOTICE_CATEGORIES else "일반"
+    )
+    row.body = body.strip() or None
+    row.is_pinned = is_pinned in ("1", "on", "true", "True")
+    await db.commit()
+    return RedirectResponse("/admin/notices?flash=updated", status_code=303)
+
+
 @router.post("/admin/notices/{notice_id}/delete")
 async def notices_delete(
     notice_id: int,

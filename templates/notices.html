@@ -14,6 +14,8 @@
 
 {% if request.query_params.get('flash') == 'created' %}
 <p class="alert alert-ok">공지를 등록했습니다.</p>
+{% elif request.query_params.get('flash') == 'updated' %}
+<p class="alert alert-ok">공지를 수정했습니다.</p>
 {% elif request.query_params.get('flash') == 'deleted' %}
 <p class="alert alert-ok">공지를 삭제했습니다.</p>
 {% endif %}
@@ -61,11 +63,40 @@
         <strong class="notice-title">{{ n.title }}</strong>
         <span class="text-muted notice-author">{{ n.created_by or '-' }}</span>
         {% if n.body %}<p class="notice-body">{{ n.body }}</p>{% endif %}
-        {% if can_delete %}
-        <form method="post" action="/admin/notices/{{ n.id }}/delete" onsubmit="return confirm('이 공지를 삭제할까요?');">
-          <button type="submit" class="btn btn-secondary btn-sm">삭제</button>
-        </form>
-        {% endif %}
+        <div class="notice-card-actions">
+          {% if can_edit %}
+          <details class="notice-edit-form">
+            <summary class="btn btn-secondary btn-sm">수정</summary>
+            <form method="post" action="/admin/notices/{{ n.id }}/edit" class="form-grid">
+              <label class="full">제목
+                <input type="text" name="title" required maxlength="300" value="{{ n.title }}" />
+              </label>
+              <label>구분
+                <select name="category">
+                  {% for c in categories %}
+                  <option value="{{ c }}"{% if c == n.category %} selected{% endif %}>{{ c }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="board-pin-check">
+                <input type="checkbox" name="is_pinned" value="1"{% if n.is_pinned %} checked{% endif %} />
+                상단 고정
+              </label>
+              <label class="full">내용
+                <textarea name="body" rows="8" placeholder="공지 내용을 입력하세요">{{ n.body or '' }}</textarea>
+              </label>
+              <div class="full board-form-actions">
+                <button type="submit" class="btn btn-primary">수정 저장</button>
+              </div>
+            </form>
+          </details>
+          {% endif %}
+          {% if can_delete %}
+          <form method="post" action="/admin/notices/{{ n.id }}/delete" onsubmit="return confirm('이 공지를 삭제할까요?');">
+            <button type="submit" class="btn btn-secondary btn-sm">삭제</button>
+          </form>
+          {% endif %}
+        </div>
       </li>
       {% endfor %}
     </ul>
