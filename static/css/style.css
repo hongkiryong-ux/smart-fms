@@ -5737,7 +5737,12 @@ tr.wo-row-selected {
 .ops-energy-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.85rem; }
 .ops-tr-energy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ops-energy-tile, .ops-energy-alert { display: flex; gap: 0.65rem; align-items: flex-start; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.95rem; }
-.ops-tr-energy-tile { min-width: 0; align-items: center; }
+.ops-tr-energy-tile {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+}
 .ops-tr-energy-tile.tone-1 { border-left: 3px solid #2563eb; }
 .ops-tr-energy-tile.tone-2 { border-left: 3px solid #7c3aed; }
 .ops-tr-energy-tile.tone-3 { border-left: 3px solid #ea580c; }
@@ -5746,14 +5751,13 @@ tr.wo-row-selected {
   align-items: baseline;
   gap: 0.35rem;
   flex: 1;
+  width: 100%;
   min-width: 0;
   white-space: nowrap;
-  overflow-x: auto;
+  overflow: visible;
   color: #475569;
   font-size: 0.78rem;
-  scrollbar-width: none;
 }
-.ops-tr-energy-line::-webkit-scrollbar { display: none; }
 .ops-tr-energy-line strong { color: #0f172a; font-size: 0.86rem; }
 .ops-energy-alert { grid-column: 1 / -1; background: #fff7ed; border-color: #fed7aa; }
 .ops-e-ico { width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 8px; background: #fff; }
@@ -5767,7 +5771,12 @@ tr.wo-row-selected {
 .ops-energy-tile em { font-style: normal; font-size: 0.75rem; color: #94a3b8; }
 .ops-energy-alert p { margin: 0.25rem 0 0; font-size: 0.82rem; color: #9a3412; }
 .ops-spark { margin-left: auto; align-self: center; }
-.ops-tr-spark { flex: 0 0 70px; max-width: 24%; }
+.ops-tr-spark {
+  width: 100%;
+  max-width: none;
+  height: 30px;
+  margin: 0.35rem 0 0;
+}
 .ops-schedule-list, .ops-notice-list, .notice-admin-list, .sched-list { list-style: none; margin: 0; padding: 0; }
 .ops-schedule-list li { display: grid; grid-template-columns: 48px auto 1fr; gap: 0.5rem; align-items: start; padding: 0.7rem 0; border-bottom: 1px solid #eef2f7; }
 .ops-schedule-list li:last-child, .ops-notice-list li:last-child { border-bottom: 0; }
