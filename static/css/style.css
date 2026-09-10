@@ -2877,6 +2877,21 @@ button.link-action:hover { text-decoration: underline; }
   min-height: 4rem;
   resize: vertical;
 }
+.eq-wo-request-meta {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) minmax(10rem, 1.4fr);
+  gap: 0.55rem;
+}
+.eq-wo-request-meta label {
+  margin: 0;
+}
+.eq-wo-request-meta select {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+@media (max-width: 700px) {
+  .eq-wo-request-meta { grid-template-columns: 1fr; }
+}
 .eq-popup-actions {
   display: flex;
   flex-wrap: wrap;

@@ -4483,6 +4483,12 @@ async def equipment_list(
         db, [e.id for e in equipment]
     ) if equipment else {}
 
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)  # noqa: E712
+        )
+    ).scalars().all()
+
     return templates.TemplateResponse(
         request,
         "equipment.html",
@@ -4506,6 +4512,7 @@ async def equipment_list(
             "change_logs_by_eq": change_logs_by_eq,
             "pm_inspections_by_eq": pm_inspections_by_eq,
             "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
+            "partners": partners,
         },
     )
 
@@ -5013,6 +5020,11 @@ async def equipment_detail(
     ]
     pm_inspections_by_eq = _equipment_pm_inspections_map([eq])
     change_logs = list(eq.change_logs or [])[:30]
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)  # noqa: E712
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "equipment_detail.html",
@@ -5025,6 +5037,7 @@ async def equipment_detail(
             "open_orders": open_orders,
             "change_logs": change_logs,
             "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
+            "partners": partners,
         },
     )
 
@@ -5063,6 +5076,11 @@ async def equipment_popup(
         not in (WorkOrderStatus.completed, WorkOrderStatus.verified, WorkOrderStatus.closed)
     ]
     change_logs = list(eq.change_logs or [])[:15]
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)  # noqa: E712
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "partials/equipment_popup.html",
@@ -5073,6 +5091,7 @@ async def equipment_popup(
             "history": history,
             "open_orders": open_orders,
             "change_logs": change_logs,
+            "partners": partners,
         },
     )
 
@@ -5083,6 +5102,7 @@ async def equipment_maintenance_request(
     title: str = Form(""),
     description: str = Form(""),
     priority: str = Form("normal"),
+    partner_id: int = Form(0),
     assignee_name: str = Form(""),
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
@@ -5103,6 +5123,15 @@ async def equipment_maintenance_request(
     if eq.zone and eq.zone.floor and eq.zone.floor.building:
         site_id = eq.zone.floor.building.site_id
 
+    partner = None
+    partner_fk = None
+    if partner_id and partner_id > 0:
+        partner = await db.get(Partner, partner_id)
+        if partner and partner.is_active:
+            partner_fk = partner.id
+        else:
+            partner = None
+
     wo_title = title.strip() or f"[정비의뢰] {eq.code} {eq.name}"
     person = _wo_person_label(user)
     desc = description.strip()
@@ -5120,9 +5149,13 @@ async def equipment_maintenance_request(
         requester_user_id=user.id,
         equipment_id=eq.id,
         site_id=site_id,
+        partner_id=partner_fk,
         status=WorkOrderStatus.received,
         work_type="정비",
     )
+    if partner is not None:
+        wo.partner = partner
+        _wo_apply_partner_risk_from_excel(wo)
     db.add(wo)
     await db.commit()
     await db.refresh(wo)

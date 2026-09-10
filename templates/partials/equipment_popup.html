@@ -14,6 +14,22 @@
       <input type="hidden" name="title" value="[정비의뢰] {{ eq.code }} {{ eq.name }}" />
       <label>정비의뢰 내용</label>
       <textarea name="description" rows="3" required placeholder="정비의뢰 내용을 입력하세요"></textarea>
+      <div class="eq-wo-request-meta">
+        <label>우선순위
+          <select name="priority">
+            <option value="normal" selected>일반</option>
+            <option value="high">긴급</option>
+          </select>
+        </label>
+        <label>협력사
+          <select name="partner_id">
+            <option value="0">미지정</option>
+            {% for p in partners or [] %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
       <button type="submit" class="btn btn-primary">정비의뢰 접수</button>
     </form>
     <a class="btn btn-secondary" href="/admin/equipment/{{ eq.id }}/edit">수정</a>
