@@ -5525,7 +5525,12 @@ async def work_orders_list(
 
     all_orders = list(
         (
-            await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
+            await db.execute(
+                stmt.order_by(
+                    case((WorkOrder.priority == "high", 0), else_=1),
+                    WorkOrder.created_at.desc(),
+                )
+            )
         ).scalars().unique().all()
     )
     pager = _paginate(all_orders, page)
@@ -5681,7 +5686,12 @@ async def work_orders_export(
         stmt = stmt.where(and_(*filters))
 
     orders = (
-        await db.execute(stmt.order_by(WorkOrder.created_at.desc()))
+        await db.execute(
+            stmt.order_by(
+                case((WorkOrder.priority == "high", 0), else_=1),
+                WorkOrder.created_at.desc(),
+            )
+        )
     ).scalars().unique().all()
     return _work_orders_excel_response(orders, "정비관리")
 
