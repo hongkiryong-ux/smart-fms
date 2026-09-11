@@ -31,6 +31,7 @@ class UserRole(str, enum.Enum):
     part_leader = "part_leader"
     facility_manager = "facility_manager"
     maintenance_section = "maintenance_section"
+    operations_support_section = "operations_support_section"
     partner = "partner"
     external = "external"
     viewer = "viewer"
