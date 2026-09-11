@@ -47,23 +47,35 @@ except Exception:  # pragma: no cover
     Lamp = None
     LampRequest = None
 
-_CONTEXT_MAX_CHARS = 52000
+_CONTEXT_MAX_CHARS = 72000
+_CONTENT_EXTRACT_MAX_CHARS = 28000
 
 
 def classify_intent(question: str) -> str:
     q = (question or "").strip().lower()
     rules: list[tuple[str, tuple[str, ...]]] = [
         ("equipment", ("설비", "장비", "자산", "equipment", "건물별 설비")),
-        ("work_order", ("정비의뢰", "정비접수", "워크오더", "work order", "cmms", "고장수리")),
-        ("pm", ("예방점검", "pm", "점검주기", "점검결과", "지연점검")),
+        ("work_order", ("정비의뢰", "정비접수", "워크오더", "work order", "cmms", "고장수리", "정비내용", "조치내용")),
+        ("pm", ("예방점검", "pm", "점검주기", "점검결과", "지연점검", "점검내용")),
         ("streetlamp", ("가로등", "lamp", "불점등", "시민")),
         ("d1", ("d-1", "d1", "작업허가", "협력사 작업", "시설섹션")),
         ("partner", ("협력사", "업체", "partner")),
-        ("inspection_log", ("점검일지", "일지", "엑셀일지")),
         (
             "inspection_log2",
-            ("점검일지2", "주택변전소", "중앙관제실", "제철소본부", "운영일보"),
+            (
+                "점검일지2",
+                "주택변전소",
+                "중앙관제실",
+                "중앙관제",
+                "제철소본부",
+                "제철회관",
+                "휴먼센터",
+                "운영일보",
+                "특이사항",
+                "일지내용",
+            ),
         ),
+        ("inspection_log", ("엑셀일지", "점검일지파일", "구일지")),
         ("materials", ("자재", "재고", "소모품", "material")),
         ("notices", ("공지", "notice")),
         ("schedules", ("일정", "캘린더", "schedule")),
@@ -74,9 +86,49 @@ def classify_intent(question: str) -> str:
         score = sum(1 for kw in kws if kw in q)
         if score:
             scores[intent] = score
+    # "일지"는 운영일보/점검일지2 쪽을 우선
+    if "일지" in q and not scores.get("inspection_log"):
+        scores["inspection_log2"] = scores.get("inspection_log2", 0) + 1
     if not scores:
         return "overview"
     return max(scores, key=scores.get)
+
+
+def _content_body_requested(question: str) -> bool:
+    """일지·정비·점검 본문(특이사항 등) 검색·추출이 필요한 질문인지."""
+    q = (question or "").strip().lower()
+    if not q:
+        return False
+    keys = (
+        "특이사항",
+        "특이",
+        "일지내용",
+        "일지",
+        "운영일보",
+        "점검일지",
+        "점검내용",
+        "정비내용",
+        "조치내용",
+        "고장원인",
+        "추출",
+        "검색",
+        "메모",
+        "비고",
+        "본문",
+        "notes",
+        "주택변전소",
+        "중앙관제",
+        "제철소본부",
+        "제철회관",
+        "휴먼센터",
+        "어울림",
+        "백운",
+        "기가타운",
+        "파크1538",
+    )
+    if any(k in q for k in keys):
+        return True
+    return ("정비" in q or "점검" in q) and ("내용" in q or "알려" in q or "요약" in q)
 
 
 def _today() -> date:
@@ -553,6 +605,61 @@ def export_completed_work_orders_xlsx(rows: list[dict[str, Any]]) -> bytes:
     return buffer.getvalue()
 
 
+def _extract_notes_from_daily_data(data: dict | None) -> str:
+    """일지 JSON에서 특이사항·메모 본문을 모아 문자열로 반환."""
+    data = data or {}
+    parts: list[str] = []
+
+    def _add(text: Any, prefix: str = "") -> None:
+        s = str(text or "").strip()
+        if not s:
+            return
+        parts.append(f"{prefix}{s}" if prefix else s)
+
+    footer_notes = (data.get("footer") or {}).get("notes")
+    if isinstance(footer_notes, dict):
+        content = str(footer_notes.get("content") or "").strip()
+        if content:
+            _add(content)
+        else:
+            for key, text in footer_notes.items():
+                if key == "content":
+                    continue
+                _add(text, prefix=f"{key}: ")
+    elif isinstance(footer_notes, str):
+        _add(footer_notes)
+
+    fac = data.get("facility") or {}
+    fac_notes = fac.get("notes")
+    if isinstance(fac_notes, str):
+        _add(fac_notes, prefix="시설: ")
+    elif isinstance(fac_notes, dict):
+        for key, text in fac_notes.items():
+            _add(text, prefix=f"시설 {key}: ")
+
+    top_notes = data.get("notes")
+    if isinstance(top_notes, str):
+        _add(top_notes)
+    elif isinstance(top_notes, dict):
+        for key, text in top_notes.items():
+            _add(text, prefix=f"{key}: ")
+
+    hv_notes = ((data.get("electrical") or {}).get("hv") or {}).get("notes")
+    if isinstance(hv_notes, dict):
+        for key, text in hv_notes.items():
+            _add(text, prefix=f"HV {key}: ")
+
+    for sec_key in ("s2", "s5"):
+        block = data.get(sec_key)
+        if not isinstance(block, dict):
+            continue
+        for rid, row in block.items():
+            if isinstance(row, dict):
+                _add(row.get("notes"), prefix=f"{sec_key}.{rid}: ")
+
+    return " | ".join(parts)
+
+
 def _summarize_log2_daily(data: dict | None) -> dict[str, Any]:
     data = data or {}
     out: dict[str, Any] = {}
@@ -571,9 +678,9 @@ def _summarize_log2_daily(data: dict | None) -> dict[str, Any]:
     elec = data.get("electrical") or {}
     if elec:
         out["electrical_blocks"] = list(elec.keys())
-    notes = fac.get("notes") or data.get("notes")
+    notes = _extract_notes_from_daily_data(data)
     if notes:
-        out["notes"] = _clip(notes, 300)
+        out["notes"] = _clip(notes, 800)
     return out
 
 
@@ -636,6 +743,237 @@ def _extract_year_month(question: str) -> tuple[int | None, int | None]:
     return year, month
 
 
+def _target_year_months(question: str) -> list[tuple[int, int]]:
+    """질문의 연·월. 없으면 당월+전월."""
+    year, month = _extract_year_month(question)
+    today = _today()
+    if year and month:
+        return [(year, month)]
+    if month and not year:
+        return [(today.year, month)]
+    if year and not month:
+        if year == today.year:
+            start = max(1, today.month - 2)
+            return [(year, m) for m in range(start, today.month + 1)]
+        return [(year, m) for m in range(10, 13)]
+    cur = (today.year, today.month)
+    if today.month == 1:
+        prev = (today.year - 1, 12)
+    else:
+        prev = (today.year, today.month - 1)
+    return [cur, prev]
+
+
+def _compact_notes_entries(entries: list[dict[str, Any]], *, limit: int = 90) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for entry in entries[:limit]:
+        items = []
+        for item in entry.get("items") or []:
+            text = str(item.get("text") or "").strip()
+            if not text:
+                continue
+            row = {"text": _clip(text, 400)}
+            if item.get("time"):
+                row["time"] = item.get("time")
+            if item.get("section"):
+                row["section"] = item.get("section")
+            items.append(row)
+        if items:
+            out.append({"date": entry.get("date"), "day": entry.get("day"), "items": items})
+    return out
+
+
+_LOG_NOTES_MODULES: list[tuple[str, tuple[str, ...], str, str]] = [
+    ("주택변전소", ("주택변전소", "주택"), "housing_substation", "is_housing_substation_building"),
+    ("중앙관제실", ("중앙관제실", "중앙관제"), "central_control_room", "is_central_control_room_building"),
+    ("중앙관제실(설비)", ("중앙관제실(설비)", "관제설비"), "ccr_facility", "is_ccr_facility_building"),
+    ("제철소본부", ("제철소본부",), "steelworks_hq", "is_steelworks_hq_building"),
+    ("제철회관", ("제철회관",), "steelworks_hall", "is_steelworks_hall_building"),
+    ("휴먼센터", ("휴먼센터",), "human_center", "is_human_center_building"),
+    ("어울림체육관", ("어울림", "체육관"), "eoulrim_gym", "is_eoulrim_gym_building"),
+    ("백운생활관", ("백운생활관", "생활관"), "baegun_dorm", "is_baegun_dorm_building"),
+    ("기가타운", ("기가타운",), "giga_town", "is_giga_town_building"),
+    ("파크1538", ("파크1538", "park1538"), "park1538", "is_park1538_building"),
+    ("백운아트홀", ("아트홀", "백운아트"), "baegun_art_hall", "is_baegun_art_hall_building"),
+    ("제5변전소", ("제5변전소", "5변전", "sub53"), "sub53", "is_sub53_building"),
+    ("백운대", ("백운대",), "baegundae", "is_baegundae_building"),
+    ("백운쇼핑", ("백운쇼핑", "쇼핑센터"), "baegun_shopping", "is_baegun_shopping_building"),
+]
+
+
+async def _gather_daily_log_notes(
+    db: AsyncSession,
+    question: str,
+    building_rows: list[Building],
+) -> list[dict[str, Any]]:
+    """운영일보·점검일지2 특이사항/메모를 DB에서 월별로 추출."""
+    import importlib
+
+    q = (question or "").strip().lower()
+    months = _target_year_months(question)
+    # 연도만 지정된 경우 12개월은 과다 → 최근 3개월로 제한
+    if len(months) > 3:
+        months = months[-3:]
+
+    specific = [
+        (label, keys, mod, fn)
+        for label, keys, mod, fn in _LOG_NOTES_MODULES
+        if any(k.lower() in q for k in keys)
+    ]
+    targets = specific or list(_LOG_NOTES_MODULES)
+
+    results: list[dict[str, Any]] = []
+    total_days = 0
+    for label, _keys, module_name, checker_name in targets:
+        try:
+            module = importlib.import_module(module_name)
+            is_building = getattr(module, checker_name, None)
+            fetch_notes = getattr(module, "fetch_notes_list", None)
+        except Exception:
+            continue
+        if not callable(is_building) or not callable(fetch_notes):
+            continue
+        for b in building_rows:
+            try:
+                if not is_building(b):
+                    continue
+            except Exception:
+                continue
+            for year, month in months:
+                try:
+                    payload = await fetch_notes(db, b.id, year, month)
+                except Exception:
+                    continue
+                entries = _compact_notes_entries(payload.get("entries") or [])
+                if not entries:
+                    continue
+                total_days += len(entries)
+                results.append(
+                    {
+                        "source": label,
+                        "building": b.name,
+                        "building_id": b.id,
+                        "year": year,
+                        "month": month,
+                        "entry_count": len(entries),
+                        "entries": entries,
+                    }
+                )
+                if total_days >= 120:
+                    return results
+    return results
+
+
+async def _gather_work_and_inspection_texts(
+    db: AsyncSession,
+    question: str,
+) -> dict[str, Any]:
+    """정비의뢰·정비이력·PM 점검 본문을 검색용으로 추출."""
+    q = (question or "").strip().lower()
+    out: dict[str, Any] = {}
+
+    want_wo = any(
+        k in q
+        for k in (
+            "정비",
+            "워크오더",
+            "work order",
+            "조치",
+            "고장",
+            "수리",
+            "정비내용",
+            "조치내용",
+        )
+    ) or not any(k in q for k in ("일지", "특이", "운영일보", "주택변전소", "중앙관제", "제철소"))
+    want_pm = any(k in q for k in ("pm", "예방점검", "점검내용", "점검결과", "점검")) or want_wo
+
+    if want_wo or _content_body_requested(question):
+        wo_rows = (
+            await db.execute(
+                select(WorkOrder)
+                .where(WorkOrder.is_active == True)  # noqa: E712
+                .order_by(WorkOrder.id.desc())
+                .limit(80)
+            )
+        ).scalars().all()
+        out["work_orders"] = [
+            {
+                "id": wo.id,
+                "title": _clip(wo.title, 120),
+                "status": _enum_val(wo.status),
+                "description": _clip(wo.description, 400),
+                "cause": _clip(wo.cause, 240),
+                "action": _clip(wo.action, 400),
+                "parts_used": _clip(wo.parts_used, 160),
+                "assignee": wo.assignee_name or "",
+                "completed_at": str(wo.completed_at or ""),
+                "scheduled_date": str(wo.scheduled_date or ""),
+            }
+            for wo in wo_rows
+            if any(
+                str(x or "").strip()
+                for x in (wo.description, wo.cause, wo.action, wo.parts_used, wo.title)
+            )
+        ]
+        maint_rows = (
+            await db.execute(
+                select(MaintenanceRecord).order_by(MaintenanceRecord.id.desc()).limit(60)
+            )
+        ).scalars().all()
+        out["maintenance_records"] = [
+            {
+                "id": m.id,
+                "equipment_id": m.equipment_id,
+                "title": _clip(m.title, 120),
+                "work_date": str(m.work_date or ""),
+                "cause": _clip(m.cause, 240),
+                "action": _clip(m.action, 400),
+                "parts_used": _clip(m.parts_used, 160),
+                "worker": m.worker_name or "",
+            }
+            for m in maint_rows
+        ]
+
+    if want_pm or _content_body_requested(question):
+        pm_rows = (
+            await db.execute(select(PMInspection).order_by(PMInspection.id.desc()).limit(60))
+        ).scalars().all()
+        out["pm_inspections"] = [
+            {
+                "id": p.id,
+                "equipment_id": p.equipment_id,
+                "result": _enum_val(p.result),
+                "inspected_at": str(p.inspected_at or ""),
+                "inspector": p.inspector_name or "",
+                "notes": _clip(p.note, 400),
+            }
+            for p in pm_rows
+        ]
+
+    return out
+
+
+async def _gather_content_extracts(
+    db: AsyncSession,
+    question: str,
+    building_rows: list[Building],
+) -> dict[str, Any]:
+    """질문 관련 일지·정비·점검 본문을 우선 추출."""
+    if not _content_body_requested(question):
+        return {}
+    extracts: dict[str, Any] = {
+        "hint": "아래는 DB에서 추출한 일지 특이사항·정비/점검 본문입니다. 이 내용을 우선 근거로 답하세요.",
+        "daily_log_notes": await _gather_daily_log_notes(db, question, building_rows),
+    }
+    texts = await _gather_work_and_inspection_texts(db, question)
+    extracts.update(texts)
+    # 비어 있으면 힌트만 남기지 않음
+    has_data = bool(extracts.get("daily_log_notes")) or any(
+        extracts.get(k) for k in ("work_orders", "maintenance_records", "pm_inspections")
+    )
+    return extracts if has_data else {"hint": "관련 본문 데이터가 DB에 없거나 해당 월 입력이 없습니다.", "daily_log_notes": []}
+
+
 def _compact_housing_monthly_power(report: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for sec in report.get("sections") or []:
@@ -679,7 +1017,11 @@ async def _gather_housing_monthly_reports(
     """주택변전소 월보(일별·월합계 전력사용량) — 질문 연·월 기준."""
     import calendar
 
-    from housing_substation import fetch_monthly_report_data, is_housing_substation_building
+    from housing_substation import (
+        fetch_monthly_report_data,
+        fetch_notes_list,
+        is_housing_substation_building,
+    )
 
     q = question or ""
     year, month = _extract_year_month(q)
@@ -689,7 +1031,8 @@ async def _gather_housing_monthly_reports(
 
     power_kw = any(k in q for k in ("전력", "사용량", "kwh", "kw", "월보", "전기", "전류"))
     housing_kw = any(k in q for k in ("주택변전소", "주택"))
-    if not (housing_kw or power_kw or year is not None or month is not None):
+    notes_kw = any(k in q for k in ("특이사항", "특이", "일지", "메모", "비고", "노트"))
+    if not (housing_kw or power_kw or notes_kw or year is not None or month is not None):
         return []
 
     target_year = year or _today().year
@@ -709,16 +1052,19 @@ async def _gather_housing_monthly_reports(
             ),
         )
         monthly = await fetch_monthly_report_data(db, b.id, target_year, target_month)
-        reports_out.append(
-            {
-                "building": b.name,
-                "building_id": b.id,
-                "year": target_year,
-                "month": target_month,
-                "daily_rows_in_month": row_count,
-                "power_usage": _compact_housing_monthly_power(monthly),
-            }
-        )
+        item: dict[str, Any] = {
+            "building": b.name,
+            "building_id": b.id,
+            "year": target_year,
+            "month": target_month,
+            "daily_rows_in_month": row_count,
+            "power_usage": _compact_housing_monthly_power(monthly),
+        }
+        if housing_kw or notes_kw or not power_kw:
+            notes_payload = await fetch_notes_list(db, b.id, target_year, target_month)
+            item["special_notes"] = _compact_notes_entries(notes_payload.get("entries") or [])
+            item["special_notes_count"] = len(item["special_notes"])
+        reports_out.append(item)
     return reports_out
 
 
@@ -900,6 +1246,9 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
                 "partner_id": wo.partner_id,
                 "assignee": wo.assignee_name or "",
                 "scheduled_date": str(wo.scheduled_date or ""),
+                "description": _clip(wo.description, 220),
+                "cause": _clip(wo.cause, 160),
+                "action": _clip(wo.action, 220),
             }
             for wo in recent_wo
         ],
@@ -956,7 +1305,7 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
                 "id": p.id,
                 "result": _enum_val(p.result),
                 "inspected_at": str(p.inspected_at or ""),
-                "notes": _clip(p.note, 100),
+                "notes": _clip(p.note, 300),
             }
             for p in recent_pm
         ],
@@ -1134,7 +1483,9 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
                 "equipment_id": m.equipment_id,
                 "title": _clip(m.title, 80),
                 "work_date": str(m.work_date or ""),
-                "action": _clip(m.action, 100),
+                "action": _clip(m.action, 240),
+                "cause": _clip(m.cause, 200),
+                "parts_used": _clip(m.parts_used, 120),
                 "cost": m.cost,
             }
             for m in recent_maint
@@ -1181,6 +1532,10 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
     housing_monthly = await _gather_housing_monthly_reports(db, question, building_rows)
     if housing_monthly:
         sec["housing_monthly_reports"] = housing_monthly
+
+    content_extracts = await _gather_content_extracts(db, question, building_rows)
+    if content_extracts:
+        sec["content_extracts"] = content_extracts
 
     return ctx
 
@@ -1238,7 +1593,38 @@ def build_aggregate_answer(ctx: dict[str, Any], question: str) -> str:
             for d in sec_pwr.get("daily_usage_kwh") or []:
                 parts = ", ".join(f"{k}={v}kWh" for k, v in (d.get("usage") or {}).items())
                 hm_lines.append(f"    · {d.get('day')}일: {parts}")
-        lines.extend(_format_section_lines("주택변전소 전력 사용량", hm_lines))
+        notes = rep.get("special_notes") or []
+        if notes:
+            hm_lines.append(f"  [특이사항 {rep.get('special_notes_count', len(notes))}건]")
+            for entry in notes[:20]:
+                texts = []
+                for item in entry.get("items") or []:
+                    t = item.get("time") or ""
+                    txt = item.get("text") or ""
+                    texts.append(f"{t} {txt}".strip() if t else txt)
+                if texts:
+                    hm_lines.append(f"    · {entry.get('date')}: " + " / ".join(texts))
+        lines.extend(_format_section_lines("주택변전소 전력 사용량·특이사항", hm_lines))
+
+    extracts = sec.get("content_extracts") or {}
+    log_notes = extracts.get("daily_log_notes") or []
+    if log_notes:
+        n_lines: list[str] = []
+        for block in log_notes[:8]:
+            n_lines.append(
+                f"  [{block.get('source')}] {block.get('building')} "
+                f"{block.get('year')}년 {block.get('month')}월 "
+                f"({block.get('entry_count', 0)}일)"
+            )
+            for entry in (block.get("entries") or [])[:12]:
+                bits = []
+                for item in entry.get("items") or []:
+                    t = item.get("time") or ""
+                    txt = _clip(item.get("text"), 120)
+                    bits.append(f"{t} {txt}".strip() if t else txt)
+                if bits:
+                    n_lines.append(f"    · {entry.get('date')}: " + " / ".join(bits))
+        lines.extend(_format_section_lines("일지 특이사항·메모 추출", n_lines))
 
     lines.append(f"[Smart FMS 전체 데이터] 기준 시각: {ctx.get('as_of', '')}")
     lines.append(
@@ -1387,8 +1773,10 @@ def _gpt_system_base() -> str:
         "당신은 POSCO WIDE Smart FMS 시설관리 분석 도우미입니다. "
         "제공된 JSON은 Smart FMS에 등록된 전체 운영 데이터의 최신 스냅샷입니다 "
         "(사업장·건물·설비·정비의뢰·PM·D-1·협력사·점검일지·점검일지2·자재·공지·일정·가로등 등). "
-        "housing_monthly_reports에는 주택변전소 월보 전력사용량(일별·월합계 kWh)이 포함됩니다. "
-        "JSON에 있는 수치·목록만 근거로 질문에 한국어로 답하세요. "
+        "content_extracts에는 DB에서 추출한 일지 특이사항·정비/점검 본문이 들어 있습니다. "
+        "housing_monthly_reports의 special_notes는 주택변전소 일지 특이사항입니다. "
+        "본문·특이사항 질문에는 content_extracts와 special_notes를 최우선으로 사용하세요. "
+        "JSON에 있는 수치·목록·본문만 근거로 질문에 한국어로 답하세요. "
         "없는 정보는 추측하지 말고 '데이터에 없음'이라고 하세요. "
         "이전 대화 맥락을 유지하며 후속 질문·추가 설명 요청에도 답하세요. "
         "목록·비교·집계는 가능하면 마크다운 표로 정리하세요. "
@@ -1400,14 +1788,53 @@ def _gpt_system_base() -> str:
 
 
 def _build_gpt_system_message(context: dict[str, Any]) -> str:
-    payload_ctx = json.dumps(context, ensure_ascii=False, default=str, separators=(",", ":"))
+    sec = context.get("sections") or {}
+    priority: dict[str, Any] = {}
+    if sec.get("content_extracts"):
+        priority["content_extracts"] = sec["content_extracts"]
+    if sec.get("housing_monthly_reports"):
+        priority["housing_monthly_reports"] = [
+            {
+                "building": r.get("building"),
+                "year": r.get("year"),
+                "month": r.get("month"),
+                "special_notes_count": r.get("special_notes_count"),
+                "special_notes": r.get("special_notes") or [],
+                "daily_rows_in_month": r.get("daily_rows_in_month"),
+                "power_usage": r.get("power_usage") or [],
+            }
+            for r in sec["housing_monthly_reports"]
+        ]
+    if sec.get("question_buildings"):
+        priority["question_buildings"] = sec["question_buildings"]
+
+    priority_json = ""
+    if priority:
+        priority_json = json.dumps(priority, ensure_ascii=False, default=str, separators=(",", ":"))
+        if len(priority_json) > _CONTENT_EXTRACT_MAX_CHARS:
+            priority_json = priority_json[:_CONTENT_EXTRACT_MAX_CHARS] + "..."
+
+    # 우선 섹션은 전체 스냅샷에서 중복 제거해 토큰 절약
+    slim_ctx = dict(context)
+    slim_sec = dict(sec)
+    for key in ("content_extracts",):
+        slim_sec.pop(key, None)
+    slim_ctx["sections"] = slim_sec
+    payload_ctx = json.dumps(slim_ctx, ensure_ascii=False, default=str, separators=(",", ":"))
     if len(payload_ctx) > _CONTEXT_MAX_CHARS:
         payload_ctx = payload_ctx[:_CONTEXT_MAX_CHARS] + "..."
-    return (
-        f"{_gpt_system_base()}\n\n"
-        f"데이터 기준 시각: {context.get('as_of', '')}\n"
-        f"Smart FMS 전체 데이터(JSON):\n{payload_ctx}"
-    )
+
+    parts = [
+        _gpt_system_base(),
+        "",
+        f"데이터 기준 시각: {context.get('as_of', '')}",
+    ]
+    if priority_json:
+        parts.append("우선 참고(본문·특이사항 추출 JSON):")
+        parts.append(priority_json)
+    parts.append("Smart FMS 전체 데이터(JSON):")
+    parts.append(payload_ctx)
+    return "\n".join(parts)
 
 
 def _openai_chat_completion(*, api_key: str, model: str, messages: list[dict[str, str]]) -> str:
