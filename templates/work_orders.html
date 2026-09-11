@@ -110,6 +110,7 @@
         <th class="wo-sel-col">
           <input type="checkbox" id="wo-select-all" title="미승인 전체 선택" aria-label="미승인 전체 선택" />
         </th>
+        <th>상세</th>
         <th class="wo-eq-col-head">설비</th>
         <th>정비의뢰내용</th>
         <th>정비의뢰자</th>
@@ -123,7 +124,6 @@
         <th>최종승인자</th>
         <th>저장</th>
         <th>D-1</th>
-        <th>상세</th>
         {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
       </tr>
     </thead>
@@ -144,6 +144,9 @@
           {% else %}
           <span class="wo-sel-done" title="이미 승인됨">✓</span>
           {% endif %}
+        </td>
+        <td>
+          <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
         </td>
         <td class="wo-eq-cell">
           {% if wo.equipment %}
@@ -269,9 +272,6 @@
                     title="반려">반려</button>
           </div>
           {% endif %}
-        </td>
-        <td>
-          <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
         </td>
         {% if user_can_delete(user) %}
         <td>
