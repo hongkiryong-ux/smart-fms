@@ -105,6 +105,287 @@ def completed_work_order_excel_requested(question: str) -> bool:
     )
 
 
+def excel_export_requested(question: str) -> bool:
+    """GPT 답변·조회 결과를 엑셀로 정리해달라는 요청인지 판별."""
+    q = (question or "").strip().lower()
+    if not q or completed_work_order_excel_requested(q):
+        return False
+    if not any(token in q for token in ("엑셀", "excel", "xlsx")):
+        return False
+    action_tokens = (
+        "정리",
+        "만들",
+        "생성",
+        "다운",
+        "내려",
+        "내보내",
+        "추출",
+        "뽑아",
+        "저장",
+        "파일",
+        "표로",
+        "시트",
+        "변환",
+        "작성",
+        "부탁",
+        "해줘",
+        "해주세요",
+        "해 줘",
+        "로 줘",
+        "로줘",
+    )
+    if any(token in q for token in action_tokens):
+        return True
+    return "엑셀로" in q or "excel로" in q or "to excel" in q
+
+
+_AI_EXCEL_SETTING_PREFIX = "ai_excel_export."
+_EXCEL_MAX_SHEETS = 10
+_EXCEL_MAX_COLS = 60
+_EXCEL_MAX_ROWS = 5000
+_MD_TABLE_BLOCK_RE = re.compile(
+    r"(?:^\|[^\n]+\|\s*\n^\|[\s:\-|]+\|\s*\n(?:^\|[^\n]+\|\s*\n?)+)",
+    re.MULTILINE,
+)
+
+
+def ai_excel_setting_key(user_id: int) -> str:
+    return f"{_AI_EXCEL_SETTING_PREFIX}{int(user_id)}"
+
+
+def _split_md_row(line: str) -> list[str]:
+    return [part.strip() for part in line.strip().strip("|").split("|")]
+
+
+def extract_markdown_tables(text: str) -> list[dict[str, Any]]:
+    """마크다운 표를 엑셀 시트 구조로 추출."""
+    sheets: list[dict[str, Any]] = []
+    for idx, block in enumerate(_MD_TABLE_BLOCK_RE.findall(text or ""), 1):
+        lines = [ln.strip() for ln in block.strip().splitlines() if ln.strip()]
+        if len(lines) < 2:
+            continue
+        headers = _split_md_row(lines[0])
+        if not any(headers):
+            continue
+        rows: list[list[Any]] = []
+        for line in lines[2:]:
+            cells = _split_md_row(line)
+            if len(cells) < len(headers):
+                cells.extend([""] * (len(headers) - len(cells)))
+            elif len(cells) > len(headers):
+                cells = cells[: len(headers)]
+            rows.append(cells)
+        sheets.append({"title": f"표{idx}", "headers": headers, "rows": rows})
+    return sheets
+
+
+def normalize_excel_export_payload(payload: Any) -> dict[str, Any] | None:
+    """GPT/파서 결과를 안전한 엑셀 payload로 정규화."""
+    if not isinstance(payload, dict):
+        return None
+    sheets_in = payload.get("sheets")
+    if not isinstance(sheets_in, list):
+        return None
+    sheets: list[dict[str, Any]] = []
+    for raw in sheets_in[:_EXCEL_MAX_SHEETS]:
+        if not isinstance(raw, dict):
+            continue
+        headers_raw = raw.get("headers")
+        rows_raw = raw.get("rows")
+        if not isinstance(headers_raw, list) or not headers_raw:
+            continue
+        headers = [str(h if h is not None else "").strip() or f"열{i}" for i, h in enumerate(headers_raw[:_EXCEL_MAX_COLS], 1)]
+        if not isinstance(rows_raw, list):
+            rows_raw = []
+        rows: list[list[Any]] = []
+        for row in rows_raw[:_EXCEL_MAX_ROWS]:
+            if isinstance(row, dict):
+                cells = [row.get(h, "") for h in headers]
+            elif isinstance(row, (list, tuple)):
+                cells = list(row[: len(headers)])
+            else:
+                cells = [row]
+            if len(cells) < len(headers):
+                cells.extend([""] * (len(headers) - len(cells)))
+            normalized: list[Any] = []
+            for cell in cells:
+                if cell is None:
+                    normalized.append("")
+                elif isinstance(cell, (int, float, bool)):
+                    normalized.append(cell)
+                else:
+                    normalized.append(str(cell))
+            rows.append(normalized)
+        title = str(raw.get("title") or f"Sheet{len(sheets) + 1}").strip() or f"Sheet{len(sheets) + 1}"
+        title = re.sub(r'[\\/*?:\[\]]', "_", title)[:31]
+        sheets.append({"title": title, "headers": headers, "rows": rows})
+    if not sheets:
+        return None
+    summary = str(payload.get("summary") or "").strip()
+    if not summary:
+        total_rows = sum(len(s["rows"]) for s in sheets)
+        summary = f"{len(sheets)}개 시트로 총 {total_rows}행을 엑셀로 정리했습니다."
+    stem = str(payload.get("filename_stem") or "AI_답변_엑셀").strip() or "AI_답변_엑셀"
+    stem = re.sub(r'[\\/:*?"<>|]+', "_", stem)[:80]
+    return {"summary": summary, "filename_stem": stem, "sheets": sheets}
+
+
+def parse_excel_json_response(text: str) -> dict[str, Any] | None:
+    """GPT 응답에서 엑셀 JSON을 추출·정규화."""
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw, re.IGNORECASE)
+    if fence:
+        raw = fence.group(1).strip()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start < 0 or end <= start:
+            return None
+        try:
+            payload = json.loads(raw[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+    return normalize_excel_export_payload(payload)
+
+
+def export_ai_sheets_xlsx(sheets: list[dict[str, Any]]) -> bytes:
+    """정규화된 sheets 목록을 xlsx 바이트로 생성."""
+    wb = Workbook()
+    header_fill = PatternFill("solid", fgColor="DBEAFE")
+    wrap = Alignment(vertical="top", wrap_text=True)
+    first = True
+    for sheet in sheets:
+        title = str(sheet.get("title") or "Sheet1")[:31]
+        if first:
+            ws = wb.active
+            ws.title = title
+            first = False
+        else:
+            ws = wb.create_sheet(title=title)
+        headers = list(sheet.get("headers") or [])
+        rows = list(sheet.get("rows") or [])
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for row_no, row in enumerate(rows, 2):
+            for col, value in enumerate(row, 1):
+                cell = ws.cell(row=row_no, column=col, value=value if value is not None else "")
+                cell.alignment = wrap
+                if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+                    cell.value = "'" + value
+        for col, header in enumerate(headers, 1):
+            width = max(10, min(42, len(str(header)) + 4))
+            if rows:
+                sample = max((len(str(r[col - 1])) if col - 1 < len(r) else 0) for r in rows[:50])
+                width = max(width, min(42, sample + 2))
+            ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = width
+        if headers:
+            ws.freeze_panes = "A2"
+            ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=len(headers)).column_letter}{max(1, len(rows) + 1)}"
+        ws.sheet_view.showGridLines = False
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+_EXCEL_JSON_RULES = (
+    "응답은 반드시 JSON 객체 하나만 출력하세요. 설명 문장·마크다운·코드펜스는 넣지 마세요.\n"
+    "형식:\n"
+    '{"summary":"한국어 짧은 안내","filename_stem":"파일명짧은제목",'
+    '"sheets":[{"title":"시트명","headers":["열1","열2"],"rows":[["값1","값2"]]}]}\n'
+    "규칙: 사실에 근거한 표만 넣고, 없으면 sheets는 []로 두며 summary에 이유를 적으세요. "
+    "시트명은 31자 이내, 열·행은 과도하게 늘리지 마세요."
+)
+
+
+def call_openai_excel_payload(
+    *,
+    api_key: str,
+    model: str,
+    question: str,
+    context: dict[str, Any] | None = None,
+    source_text: str = "",
+) -> dict[str, Any]:
+    """질문·이전 답변·FMS 데이터를 엑셀용 JSON payload로 변환."""
+    if source_text.strip():
+        system = (
+            "당신은 Smart FMS AI 답변을 엑셀 표로 구조화하는 도우미입니다. "
+            "원본 답변의 사실만 사용하고 추측하지 마세요. "
+            + _EXCEL_JSON_RULES
+        )
+        user_msg = (
+            f"사용자 요청:\n{question}\n\n"
+            f"원본 답변:\n{source_text.strip()[:20000]}\n\n"
+            "위 원본을 엑셀 시트로 정리하세요."
+        )
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
+        ]
+    else:
+        ctx = context or {}
+        system = (
+            _build_gpt_system_message(ctx)
+            + "\n\n사용자가 엑셀 정리를 요청했습니다. "
+            + _EXCEL_JSON_RULES
+        )
+        user_msg = (
+            f"질문:\n{question}\n\n"
+            "Smart FMS 데이터만 근거로 엑셀용 JSON을 만드세요."
+        )
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
+        ]
+    text = _openai_chat_completion(api_key=api_key, model=model, messages=messages)
+    payload = parse_excel_json_response(text)
+    if not payload:
+        raise RuntimeError("엑셀용 표 구조를 만들지 못했습니다. 질문을 조금 더 구체적으로 해 주세요.")
+    return payload
+
+
+async def save_ai_excel_export(db: AsyncSession, user_id: int, payload: dict[str, Any]) -> None:
+    """사용자별 최근 AI 엑셀 payload 저장."""
+    from models import AppSetting
+
+    key = ai_excel_setting_key(user_id)
+    raw = json.dumps(payload, ensure_ascii=False, default=str)
+    row = await db.get(AppSetting, key)
+    if row is None:
+        db.add(AppSetting(key=key, value=raw))
+    else:
+        row.value = raw
+    await db.commit()
+
+
+async def load_ai_excel_export(db: AsyncSession, user_id: int) -> dict[str, Any] | None:
+    from models import AppSetting
+
+    row = await db.get(AppSetting, ai_excel_setting_key(user_id))
+    if not row or not row.value:
+        return None
+    try:
+        data = json.loads(row.value)
+    except json.JSONDecodeError:
+        return None
+    return normalize_excel_export_payload(data)
+
+
+async def clear_ai_excel_export(db: AsyncSession, user_id: int) -> None:
+    from models import AppSetting
+
+    row = await db.get(AppSetting, ai_excel_setting_key(user_id))
+    if row is not None:
+        await db.delete(row)
+        await db.commit()
+
+
 def _completed_work_order_details_requested(question: str) -> bool:
     q = (question or "").strip().lower()
     return any(word in q for word in ("정비", "워크오더", "work order", "cmms")) and any(
@@ -1110,6 +1391,9 @@ def _gpt_system_base() -> str:
         "JSON에 있는 수치·목록만 근거로 질문에 한국어로 답하세요. "
         "없는 정보는 추측하지 말고 '데이터에 없음'이라고 하세요. "
         "이전 대화 맥락을 유지하며 후속 질문·추가 설명 요청에도 답하세요. "
+        "목록·비교·집계는 가능하면 마크다운 표로 정리하세요. "
+        "사용자가 엑셀 정리를 요청하면 시스템이 표 데이터를 파일로 만들어 주므로, "
+        "표·목록을 명확히 제시하면 됩니다. "
         "비밀번호·API키·개인 연락처는 언급하지 마세요. "
         "답변 서두에 'GPT 분석'이라고 쓰지 말고 바로 본론부터 작성하세요."
     )
@@ -1262,6 +1546,91 @@ async def run_chat_turn(
             "download_url": download_url,
         }
 
+    history = list(chat_messages or [])
+    if excel_export_requested(q):
+        prior_answer = ""
+        for msg in reversed(history):
+            if msg.get("role") == "assistant" and str(msg.get("content") or "").strip():
+                prior_answer = str(msg.get("content") or "").strip()
+                break
+
+        excel_payload = None
+        md_sheets = extract_markdown_tables(prior_answer) if prior_answer else []
+        if md_sheets:
+            excel_payload = normalize_excel_export_payload(
+                {
+                    "summary": (
+                        f"이전 답변의 표 {len(md_sheets)}개를 엑셀로 정리했습니다."
+                    ),
+                    "filename_stem": "AI_답변_엑셀",
+                    "sheets": md_sheets,
+                }
+            )
+
+        if excel_payload is None:
+            key = (api_key or "").strip()
+            if not key:
+                return {
+                    "ok": False,
+                    "needs_api_key": True,
+                    "messages": history,
+                    "answer": "",
+                    "evidence": "",
+                    "intent": "overview",
+                    "error": "OpenAI API 키가 필요합니다.",
+                }
+            combined_q = " ".join(
+                m["content"] for m in history if m.get("role") == "user"
+            )
+            if combined_q:
+                combined_q += " "
+            combined_q += q
+            intent = classify_intent(combined_q)
+            context = (
+                {}
+                if prior_answer
+                else await gather_context(db, intent, combined_q)
+            )
+            try:
+                excel_payload = await asyncio.to_thread(
+                    call_openai_excel_payload,
+                    api_key=key,
+                    model=model or "gpt-4o-mini",
+                    question=q,
+                    context=context,
+                    source_text=prior_answer,
+                )
+            except Exception as e:
+                history.append({"role": "user", "content": q})
+                err_answer = f"엑셀 정리에 실패했습니다.\n{e}"
+                history.append({"role": "assistant", "content": err_answer})
+                return {
+                    "ok": False,
+                    "needs_api_key": False,
+                    "messages": history[-20:],
+                    "answer": err_answer,
+                    "evidence": "",
+                    "intent": intent,
+                    "error": str(e),
+                }
+        else:
+            intent = classify_intent(q)
+
+        history.append({"role": "user", "content": q})
+        answer = excel_payload["summary"]
+        history.append({"role": "assistant", "content": answer})
+        return {
+            "ok": True,
+            "needs_api_key": False,
+            "messages": history[-20:],
+            "answer": answer,
+            "evidence": "",
+            "intent": intent,
+            "error": "",
+            "download_url": "/admin/ai-analysis/export.xlsx",
+            "excel_export": excel_payload,
+        }
+
     key = (api_key or "").strip()
     if not key:
         return {
@@ -1274,7 +1643,6 @@ async def run_chat_turn(
             "error": "OpenAI API 키가 필요합니다.",
         }
 
-    history = list(chat_messages or [])
     combined_q = " ".join(m["content"] for m in history if m.get("role") == "user")
     if combined_q:
         combined_q += " "

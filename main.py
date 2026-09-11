@@ -6752,8 +6752,8 @@ _AI_EXAMPLES_DETAIL = [
     "정비·PM 지연 원인을 분석하고 우선 조치 순서를 제안해줘",
     "제철소본부·중앙관제실 점검일지 데이터를 종합 분석해줘",
     "설비 많은 건물의 정비 리스크를 평가해줘",
+    "방금 답변 내용을 엑셀로 정리해줘",
 ]
-
 
 _AI_SESSION_CHAT = "ai_gpt_chat"
 
@@ -6812,6 +6812,28 @@ async def ai_analysis_completed_work_orders_excel(
     filename = quote(
         f"정비의뢰_정비완료내역_{datetime.now(KST).strftime('%Y%m%d_%H%M')}.xlsx"
     )
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
+@app.get("/admin/ai-analysis/export.xlsx")
+async def ai_analysis_export_excel(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_analysis import export_ai_sheets_xlsx, load_ai_excel_export
+
+    if not can_access_menu(user, "ai_analysis"):
+        raise HTTPException(403, "AI 분석 접근 권한이 없습니다.")
+    payload = await load_ai_excel_export(db, user.id)
+    if not payload:
+        raise HTTPException(404, "다운로드할 엑셀이 없습니다. AI 질문에서 다시 요청해 주세요.")
+    content = export_ai_sheets_xlsx(payload["sheets"])
+    stem = payload.get("filename_stem") or "AI_답변_엑셀"
+    filename = quote(f"{stem}_{datetime.now(KST).strftime('%Y%m%d_%H%M')}.xlsx")
     return StreamingResponse(
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -6910,7 +6932,10 @@ async def ai_analysis_chat(
 
     reset = bool(body.get("reset"))
     if reset:
+        from ai_analysis import clear_ai_excel_export
+
         request.session.pop(_AI_SESSION_CHAT, None)
+        await clear_ai_excel_export(db, user.id)
         return JSONResponse({"ok": True, "reset": True, "messages": []})
 
     question = str(body.get("question") or "").strip()
@@ -6927,6 +6952,11 @@ async def ai_analysis_chat(
     )
     if result.get("ok"):
         request.session[_AI_SESSION_CHAT] = {"messages": result.get("messages") or []}
+        excel_export = result.get("excel_export")
+        if excel_export:
+            from ai_analysis import save_ai_excel_export
+
+            await save_ai_excel_export(db, user.id, excel_export)
 
     return JSONResponse(
         {

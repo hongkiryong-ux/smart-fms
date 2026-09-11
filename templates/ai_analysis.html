@@ -214,7 +214,7 @@
       <h2 style="margin:0">AI 질문 (GPT)</h2>
       <button type="button" class="btn btn-sm btn-secondary" id="ai-chat-new-btn">새 대화</button>
     </div>
-    <p class="ai-panel-desc">대화형으로 이어서 질문할 수 있습니다. 완료 후 「새 대화」로 다시 시작하세요.</p>
+    <p class="ai-panel-desc">대화형으로 이어서 질문할 수 있습니다. 「답변을 엑셀로 정리해줘」라고 하면 표로 내려받을 수 있습니다. 완료 후 「새 대화」로 다시 시작하세요.</p>
 
     {% if not ai_ready %}
     <div class="ai-chat-key-alert" id="ai-chat-key-alert" role="alert">
@@ -398,7 +398,7 @@
         document.body.appendChild(download);
         download.click();
         download.remove();
-        setStatus('정비완료 내역 엑셀 다운로드를 시작했습니다.');
+        setStatus('엑셀 파일 다운로드를 시작했습니다.');
       } else {
         setStatus('답변 완료. 이어서 질문하거나 「새 대화」를 누르세요.');
       }
