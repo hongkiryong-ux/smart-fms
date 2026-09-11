@@ -291,17 +291,32 @@ async def schedules_page(
 ):
     _require_menu(user, "schedules")
     today = _today_kst()
-    y = year or today.year
-    m = month or today.month
-    if m < 1 or m > 12:
-        raise HTTPException(400, "잘못된 월")
-    selected = today
+
+    parsed_day: date | None = None
     if day:
         try:
-            selected = date.fromisoformat(day)
-            y, m = selected.year, selected.month
+            parsed_day = date.fromisoformat(day)
         except ValueError:
-            selected = today
+            parsed_day = None
+
+    # year/month가 명시되면 그 달력을 유지한다 (이전/다음 이동).
+    # day만 있으면 해당 날짜의 연·월로 이동한다.
+    if year is not None or month is not None:
+        y = year if year is not None else (parsed_day.year if parsed_day else today.year)
+        m = month if month is not None else (parsed_day.month if parsed_day else today.month)
+    else:
+        base = parsed_day or today
+        y, m = base.year, base.month
+
+    if m < 1 or m > 12:
+        raise HTTPException(400, "잘못된 월")
+
+    if parsed_day and parsed_day.year == y and parsed_day.month == m:
+        selected = parsed_day
+    elif today.year == y and today.month == m:
+        selected = today
+    else:
+        selected = date(y, m, 1)
 
     cal = Calendar(firstweekday=6)  # 일요일 시작
     weeks = cal.monthdatescalendar(y, m)

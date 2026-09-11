@@ -21,9 +21,9 @@
 <div class="board-split">
   <section class="card board-split-main">
     <div class="sched-cal-nav">
-      <a class="btn btn-secondary btn-sm" href="/admin/schedules?year={{ prev_y }}&month={{ prev_m }}{% if selected %}&day={{ selected.isoformat() }}{% endif %}">&larr; 이전</a>
+      <a class="btn btn-secondary btn-sm" href="/admin/schedules?year={{ prev_y }}&month={{ prev_m }}">&larr; 이전</a>
       <h2>{{ year }}년 {{ month }}월</h2>
-      <a class="btn btn-secondary btn-sm" href="/admin/schedules?year={{ next_y }}&month={{ next_m }}{% if selected %}&day={{ selected.isoformat() }}{% endif %}">다음 &rarr;</a>
+      <a class="btn btn-secondary btn-sm" href="/admin/schedules?year={{ next_y }}&month={{ next_m }}">다음 &rarr;</a>
       <a class="btn btn-secondary btn-sm" href="/admin/schedules?day={{ today.isoformat() }}">오늘</a>
     </div>
     <table class="sched-cal">
@@ -39,7 +39,7 @@
           {% set key = d.isoformat() %}
           {% set cnt = by_day.get(key, [])|length %}
           <td class="{% if d.month != month %}other{% endif %}{% if d == today %} today{% endif %}{% if d == selected %} selected{% endif %}">
-            <a href="/admin/schedules?year={{ year }}&month={{ month }}&day={{ key }}" title="{{ cnt }}건">
+            <a href="/admin/schedules?year={{ d.year }}&month={{ d.month }}&day={{ key }}" title="{{ cnt }}건">
               <span class="dnum">{{ d.day }}</span>
               {% if cnt %}<span class="ddot">{{ cnt }}</span>{% endif %}
             </a>
