@@ -2892,6 +2892,37 @@ button.link-action:hover { text-decoration: underline; }
 @media (max-width: 700px) {
   .eq-wo-request-meta { grid-template-columns: 1fr; }
 }
+.eq-wo-risk-fields {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border, #ccd3dc);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.eq-wo-risk-fields[hidden] {
+  display: none !important;
+}
+.eq-wo-risk-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted, #666);
+}
+.eq-wo-risk-fields label {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.eq-wo-risk-fields textarea,
+.eq-wo-risk-fields input {
+  width: 100%;
+  margin-top: 0.25rem;
+  box-sizing: border-box;
+}
+.eq-wo-grade-field input {
+  max-width: 12rem;
+}
 .eq-popup-actions {
   display: flex;
   flex-wrap: wrap;

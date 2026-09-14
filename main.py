@@ -780,6 +780,11 @@ def _partner_risk_resolved(partner: Partner | None) -> dict[str, str]:
     return out
 
 
+def _partner_risk_by_id(partners: list) -> dict[str, dict[str, str]]:
+    """설비 정비의뢰 폼용 — 협력사 id → 잠재위험/안전대책."""
+    return {str(p.id): _partner_risk_resolved(p) for p in (partners or [])}
+
+
 def _save_partner_risk_defaults(
     partner: Partner,
     *,
@@ -4708,6 +4713,7 @@ async def equipment_list(
             "pm_inspections_by_eq": pm_inspections_by_eq,
             "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
             "partners": partners,
+            "partner_risk_by_id": _partner_risk_by_id(partners),
         },
     )
 
@@ -5233,6 +5239,7 @@ async def equipment_detail(
             "change_logs": change_logs,
             "pm_inspections_json": json.dumps(pm_inspections_by_eq, ensure_ascii=False),
             "partners": partners,
+            "partner_risk_by_id": _partner_risk_by_id(partners),
         },
     )
 
@@ -5287,6 +5294,7 @@ async def equipment_popup(
             "open_orders": open_orders,
             "change_logs": change_logs,
             "partners": partners,
+            "partner_risk_by_id": _partner_risk_by_id(partners),
         },
     )
 
@@ -5298,6 +5306,9 @@ async def equipment_maintenance_request(
     description: str = Form(""),
     priority: str = Form("normal"),
     partner_id: int = Form(0),
+    hazard_content: str = Form(""),
+    safety_measures: str = Form(""),
+    risk_grade: str = Form(""),
     assignee_name: str = Form(""),
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
@@ -5350,7 +5361,15 @@ async def equipment_maintenance_request(
     )
     if partner is not None:
         wo.partner = partner
-        _wo_apply_partner_risk_from_excel(wo)
+        form_hazard = (hazard_content or "").strip()
+        form_safety = (safety_measures or "").strip()
+        form_grade = (risk_grade or "").strip()[:20]
+        if form_hazard or form_safety or form_grade:
+            wo.hazard_content = form_hazard or None
+            wo.safety_measures = form_safety or None
+            wo.risk_grade = form_grade or None
+        else:
+            _wo_apply_partner_risk_from_excel(wo)
     db.add(wo)
     await db.commit()
     await db.refresh(wo)

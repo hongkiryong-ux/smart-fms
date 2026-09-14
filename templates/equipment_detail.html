@@ -23,7 +23,7 @@
             </select>
           </label>
           <label>협력사
-            <select name="partner_id">
+            <select name="partner_id" class="eq-wo-partner-select">
               <option value="0">미지정</option>
               {% for p in partners or [] %}
               <option value="{{ p.id }}">{{ p.name }}</option>
@@ -31,6 +31,7 @@
             </select>
           </label>
         </div>
+        {% include "partials/eq_wo_risk_fields.html" %}
         <button type="submit" class="btn btn-sm btn-primary">정비의뢰 접수</button>
       </form>
       <a class="btn btn-sm btn-secondary" href="/admin/equipment/{{ eq.id }}/export">Excel 내보내기</a>
@@ -361,6 +362,35 @@
       var form = input.closest('form');
       if (form) form.submit();
     });
+  });
+
+  var partnerRiskById = {{ partner_risk_by_id | default({}) | tojson }};
+  function fillEqWoRisk(form, partnerId) {
+    if (!form) return;
+    var box = form.querySelector('.eq-wo-risk-fields');
+    var hazard = form.querySelector('.eq-wo-hazard');
+    var safety = form.querySelector('.eq-wo-safety');
+    var grade = form.querySelector('.eq-wo-grade');
+    if (!box) return;
+    var pid = String(partnerId || '0');
+    var risk = partnerRiskById[pid];
+    if (!pid || pid === '0') {
+      box.hidden = true;
+      if (hazard) hazard.value = '';
+      if (safety) safety.value = '';
+      if (grade) grade.value = '';
+      return;
+    }
+    box.hidden = false;
+    risk = risk || {};
+    if (hazard) hazard.value = risk.hazard_content || '';
+    if (safety) safety.value = risk.safety_measures || '';
+    if (grade) grade.value = risk.risk_grade || '';
+  }
+  document.addEventListener('change', function (e) {
+    var sel = e.target && e.target.closest ? e.target.closest('.eq-wo-partner-select') : null;
+    if (!sel) return;
+    fillEqWoRisk(sel.closest('.eq-wo-request-form'), sel.value);
   });
 })();
 </script>
