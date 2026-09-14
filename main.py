@@ -2101,7 +2101,202 @@ async def users_manage_page(
             },
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
+            "export_url": (
+                "/admin/users/export.xlsx?"
+                + urlencode({k: v for k, v in query_values.items() if v})
+                if any(query_values.values())
+                else "/admin/users/export.xlsx"
+            ),
         },
+    )
+
+
+def _user_account_status_label(target: User) -> str:
+    if not target.is_active:
+        return "비활성"
+    if not target.is_approved:
+        return "승인 대기"
+    return "활성"
+
+
+def _users_excel_bytes(rows: list[User]) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    from auth import MENU_ACCESS_FLAG_LABELS, MENU_LABELS
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "계정리스트"
+    headers = [
+        "번호",
+        "아이디",
+        "이름",
+        "역할",
+        "회사명",
+        "협력사ID",
+        "연락처",
+        "이메일",
+        "계정상태",
+        "활성",
+        "승인",
+        "추가(CRUD)",
+        "수정(CRUD)",
+        "삭제(CRUD)",
+        "메뉴접근(허용)",
+        "메뉴접근(비허용)",
+        "메뉴권한설정",
+        "특수권한",
+        "OpenAI모델",
+        "API키등록",
+        "등록일시",
+    ]
+    fill = PatternFill("solid", fgColor="DBEAFE")
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.fill = fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    wrap = Alignment(vertical="top", wrap_text=True)
+    for row_no, target in enumerate(rows, 2):
+        allowed = effective_menu_access(target)
+        allowed_labels = [
+            MENU_LABELS.get(key, key) for key, _ in MENU_ITEMS if key in allowed
+        ]
+        denied_labels = [
+            MENU_LABELS.get(key, key) for key, _ in MENU_ITEMS if key not in allowed
+        ]
+        raw_menu = getattr(target, "menu_access", None)
+        if target.role == UserRole.system_admin:
+            menu_mode = "전체(시스템관리자)"
+        elif raw_menu is None:
+            menu_mode = "역할 기본값"
+        else:
+            menu_mode = "개별 설정"
+        flags = menu_access_flags_for_edit(target)
+        flag_labels = [
+            MENU_ACCESS_FLAG_LABELS.get(flag, flag) for flag in sorted(flags)
+        ]
+        values = [
+            target.id,
+            target.username or "",
+            target.name or "",
+            ROLE_LABELS.get(target.role, getattr(target.role, "value", "") or ""),
+            target.company_display or "",
+            target.partner_id or "",
+            target.phone or "",
+            target.email or "",
+            _user_account_status_label(target),
+            "Y" if target.is_active else "N",
+            "Y" if target.is_approved else "N",
+            "Y" if target.can_create or target.role == UserRole.system_admin else "N",
+            "Y" if target.can_edit or target.role == UserRole.system_admin else "N",
+            "Y" if target.can_delete or target.role == UserRole.system_admin else "N",
+            ", ".join(allowed_labels),
+            ", ".join(denied_labels),
+            menu_mode,
+            ", ".join(flag_labels),
+            (target.openai_model or "").strip(),
+            "Y" if (target.openai_api_key or "").strip() else "N",
+            _fmt_kst(target.created_at) if target.created_at else "",
+        ]
+        for col, value in enumerate(values, 1):
+            cell = ws.cell(row=row_no, column=col, value=value if value is not None else "")
+            cell.alignment = wrap
+
+    widths = [
+        8, 14, 12, 14, 20, 10, 14, 24, 10, 8, 8, 10, 10, 10, 42, 28, 16, 28, 14, 10, 18
+    ]
+    for col, width in enumerate(widths, 1):
+        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = width
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:U{max(1, len(rows) + 1)}"
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@app.get("/admin/users/export.xlsx")
+async def users_export_excel(
+    tab: str = "accounts",
+    q: str = "",
+    company: str = "",
+    menu_key: str = "",
+    menu_access: str = "allowed",
+    role_filter: str = "",
+    account_status: str = "",
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """계정관리 필터 조건의 계정 상세(권한·메뉴 포함) 엑셀 다운로드."""
+    all_rows = (
+        await db.execute(
+            select(User)
+            .options(selectinload(User.partner))
+            .order_by(User.is_approved.asc(), User.created_at.desc())
+        )
+    ).scalars().unique().all()
+    active_tab = "menu" if tab == "menu" else "accounts"
+    scope_rows = (
+        [target for target in all_rows if target.is_approved and target.is_active]
+        if active_tab == "menu"
+        else all_rows
+    )
+
+    q_norm = q.strip().casefold()
+    company = company.strip()
+    menu_key = menu_key.strip() if menu_key.strip() in dict(MENU_ITEMS) else ""
+    menu_access = menu_access if menu_access in {"allowed", "denied"} else "allowed"
+    valid_roles = {role.value for role in UserRole}
+    role_filter = role_filter if role_filter in valid_roles else ""
+    account_status = (
+        account_status
+        if active_tab == "accounts"
+        and account_status in {"pending", "active", "inactive"}
+        else ""
+    )
+
+    def _status(target: User) -> str:
+        if not target.is_active:
+            return "inactive"
+        return "active" if target.is_approved else "pending"
+
+    def _matches(target: User) -> bool:
+        if q_norm:
+            search_values = (
+                target.username,
+                target.name,
+                target.phone,
+                target.email,
+                target.company_display,
+            )
+            if not any(q_norm in (value or "").casefold() for value in search_values):
+                return False
+        if company == "__none__":
+            if target.company_display.strip():
+                return False
+        elif company and target.company_display.strip() != company:
+            return False
+        if role_filter and target.role.value != role_filter:
+            return False
+        if account_status and _status(target) != account_status:
+            return False
+        if menu_key:
+            allowed = menu_key in effective_menu_access(target)
+            if (menu_access == "allowed") != allowed:
+                return False
+        return True
+
+    filtered_rows = [target for target in scope_rows if _matches(target)]
+    content = _users_excel_bytes(filtered_rows)
+    filename = quote(
+        f"계정리스트_{datetime.now(KST).strftime('%Y%m%d_%H%M')}.xlsx"
+    )
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
     )
 
 

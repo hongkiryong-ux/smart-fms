@@ -173,12 +173,14 @@
     <div class="users-filter-actions">
       <button type="submit" class="btn btn-primary">필터 적용</button>
       <a href="/admin/users{% if active_tab == 'menu' %}?tab=menu{% endif %}" class="btn btn-secondary">초기화</a>
+      <a href="{{ export_url }}" class="btn btn-secondary">Excel 내보내기</a>
     </div>
   </form>
   <p class="text-muted users-filter-result">
     {% if active_tab == 'menu' %}메뉴 설정 대상{% else %}전체{% endif %}
     {{ total_count }}개 중 검색 결과 <strong>{{ filtered_count }}개</strong>
     {% if filtered_count %}· 현재 {{ pagination.range_start }}–{{ pagination.range_end }}번째{% endif %}
+    · 엑셀은 현재 필터 조건의 전체 계정을 상세(권한·메뉴) 포함해 내려받습니다.
   </p>
 </section>
 
