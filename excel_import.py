@@ -483,7 +483,7 @@ async def ensure_site_and_building(
     session: AsyncSession,
     building_name: str,
     *,
-    allow_create_site: bool = True,
+    allow_create_site: bool = False,
     reactivate_site: bool = False,
 ) -> tuple[Site, Building, Zone]:
     site = (
@@ -499,11 +499,8 @@ async def ensure_site_and_building(
         if site and not site.is_active:
             site.is_active = True
     if not site:
-        if not allow_create_site:
-            raise ValueError("활성 광양운영그룹 사업장이 없어 건물을 등록하지 않습니다.")
-        site = Site(name=SITE_NAME, code=SITE_CODE, address="전라남도 광양시")
-        session.add(site)
-        await session.flush()
+        # 광양운영그룹은 삭제 후 자동 재생성하지 않음
+        raise ValueError("활성 광양운영그룹 사업장이 없어 건물을 등록하지 않습니다.")
 
     bcode = _building_code(building_name)
     building = await _lookup_building(session, site.id, building_name, bcode)

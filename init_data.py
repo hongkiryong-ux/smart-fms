@@ -365,7 +365,6 @@ async def ensure_category_demo(session: AsyncSession) -> None:
         seed_sites_key = "seed.default_sites_v2"
         seed_sites_done = await session.get(AppSetting, seed_sites_key)
         default_sites = (
-            ("광양운영그룹", "GY-OP"),
             ("금호시설섹션", "GH-FAC"),
             ("해수담수섹션", "SW-DESAL"),
             ("RIST", "RIST"),
@@ -398,6 +397,37 @@ async def ensure_category_demo(session: AsyncSession) -> None:
                 if existing and existing.is_active and existing.name != name:
                     existing.name = name
             await session.commit()
+
+        # 광양운영그룹 사업장 삭제(소프트): 사이드바에서 제거. 시드가 복구하지 않음.
+        deactivate_gy_op_key = "seed.deactivate_gy_op_v1"
+        deactivate_gy_op_done = await session.get(AppSetting, deactivate_gy_op_key)
+        if not deactivate_gy_op_done or not (deactivate_gy_op_done.value or "").strip():
+            gy_sites = (
+                await session.execute(
+                    select(Site).where(
+                        (Site.code == "GY-OP")
+                        | (Site.code.like("GY-OP-deleted-%"))
+                        | (Site.name == "광양운영그룹")
+                    )
+                )
+            ).scalars().all()
+            for gy in gy_sites:
+                if gy.is_active:
+                    gy.is_active = False
+                code = (gy.code or "").strip() or f"SITE{gy.id}"
+                if "-deleted-" not in code:
+                    gy.code = f"{code}-deleted-{gy.id}"
+                await session.execute(
+                    update(Building)
+                    .where(Building.site_id == gy.id)
+                    .values(is_active=False)
+                )
+            if deactivate_gy_op_done is None:
+                session.add(AppSetting(key=deactivate_gy_op_key, value="1"))
+            else:
+                deactivate_gy_op_done.value = "1"
+            await session.commit()
+            print("[seed] GY-OP site soft-deleted (once)", flush=True)
 
         # 광양운영그룹 안내도 바로가기 → 금호시설섹션으로 이전(최초 1회)
         try:
@@ -460,6 +490,7 @@ async def ensure_category_demo(session: AsyncSession) -> None:
         except Exception as e:
             print(f"[seed] GH-FAC map migrate skipped: {e}", flush=True)
 
+        # 활성 광양운영그룹이 있을 때만 건물 시드 (삭제된 사업장은 복구하지 않음)
         from excel_import import ensure_all_buildings, backfill_all_building_default_categories
 
         await ensure_all_buildings(session)
