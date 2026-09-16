@@ -291,6 +291,36 @@ def _sanitize_equipment_code(raw: str) -> str:
     return code[:64]
 
 
+def _building_name_prefix(building_name: str, building_code: str = "") -> str:
+    """설비 코드 앞에 붙일 건물명 (공백·금지문자 정리)."""
+    prefix = re.sub(r"\s+", "", (building_name or "").strip())
+    prefix = re.sub(r"[\\/:*?\"<>|]", "-", prefix)
+    if not prefix:
+        prefix = re.sub(r"\s+", "", (building_code or "").strip()) or "BLD"
+    return prefix[:30]
+
+
+def _compose_building_excel_code(
+    building_name: str, building_code: str, excel_code: str
+) -> str:
+    """엑셀 코드 앞에 건물명을 붙여 최종 설비 코드 생성.
+
+    예: 건물 '러닝센타' + 엑셀 'AHU-01' → '러닝센타-AHU-01'
+    이미 건물명(또는 건물코드)으로 시작하면 중복 부착하지 않음.
+    """
+    excel_code = _sanitize_equipment_code(excel_code)
+    if not excel_code:
+        return ""
+    prefix = _building_name_prefix(building_name, building_code)
+    candidates = [p for p in (prefix, _sanitize_equipment_code(building_code)) if p]
+    for p in candidates:
+        if excel_code == p:
+            return excel_code[:64]
+        if excel_code.startswith(f"{p}-") or excel_code.startswith(f"{p}_"):
+            return excel_code[:64]
+    return f"{prefix}-{excel_code}"[:64]
+
+
 # 건물 등록 시 기본으로 만드는 대분류(설비 탭) — 각 1코드
 DEFAULT_BUILDING_CATEGORIES = ("위생기기", "조명기기", "기타 설비")
 
@@ -526,13 +556,16 @@ async def import_excel_to_building(
                         break
 
             if excel_code:
-                code = excel_code
+                code = _compose_building_excel_code(
+                    building.name or building_name, bcode, excel_code
+                )
+                base_for_dup = code
                 # 같은 파일 내 중복 코드는 접미사로 구분
                 if code in used_codes:
                     suffix = 2
-                    while f"{excel_code}-{suffix}"[:64] in used_codes:
+                    while f"{base_for_dup}-{suffix}"[:64] in used_codes:
                         suffix += 1
-                    code = f"{excel_code}-{suffix}"[:64]
+                    code = f"{base_for_dup}-{suffix}"[:64]
             else:
                 seq = idx
                 code = _equipment_code(bcode, sheet_name, seq, name)
