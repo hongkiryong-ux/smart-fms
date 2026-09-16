@@ -14,6 +14,7 @@
   {% if user and not is_popup %}
   {% set ilog2_path = '/inspection-logs2' in request.url.path %}
   {% set eq_path = '/equipment' in request.url.path %}
+  {% set sites_path = '/sites' in request.url.path or '/buildings' in request.url.path %}
   {% set d1_path = request.url.path == '/admin/d1' or '/admin/d1/' in request.url.path or request.url.path.startswith('/admin/d1') %}
   {% set wo_path = '/work-orders' in request.url.path %}
   {% set fac_path = '/facility-section' in request.url.path %}
@@ -34,6 +35,8 @@
   {% set nav_pid = request.query_params.get('partner_id') %}
   {% set ilog2_path_parts = request.url.path.split('/') %}
   {% set ilog2_bid = ilog2_path_parts[3] if ilog2_path and ilog2_path_parts|length > 3 and ilog2_path_parts[3].isdigit() else none %}
+  {% set sites_path_parts = request.url.path.split('/') %}
+  {% set sites_bid = sites_path_parts[3] if '/buildings' in request.url.path and sites_path_parts|length > 3 and sites_path_parts[3].isdigit() else none %}
   <header class="mobile-topbar" aria-label="모바일 상단">
     <button type="button" class="mobile-nav-btn" id="nav-open-btn" aria-controls="app-sidebar" aria-expanded="false" title="메뉴 열기">
       <span aria-hidden="true">☰</span>
@@ -67,7 +70,37 @@
       <li><a href="/admin/notices" class="{% if '/notices' in request.url.path %}active{% endif %}">공지사항</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'sites') %}
-      <li><a href="/admin/sites" class="{% if '/sites' in request.url.path or '/buildings' in request.url.path %}active{% endif %}">사업장/건물</a></li>
+      <li class="nav-expandable{% if sites_path %} is-open{% endif %}" id="nav-sites">
+        <div class="nav-parent-row">
+          <a href="/admin/sites"
+             class="nav-parent-link{% if sites_path and not sites_bid %} active{% endif %}">사업장/건물</a>
+          <button type="button"
+                  class="nav-toggle"
+                  aria-expanded="{% if sites_path %}true{% else %}false{% endif %}"
+                  aria-controls="nav-sites-sub"
+                  title="건물 목록 펼치기">
+            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <ul class="nav-sub" id="nav-sites-sub">
+          {% for g in request.state.nav_building_groups or [] %}
+          <li class="nav-site-group">
+            <div class="nav-site-label" title="{{ g.site_name }}">{{ g.site_name }}</div>
+            <ul class="nav-site-buildings">
+              {% for b in g.buildings %}
+              <li>
+                <a href="/admin/buildings/{{ b.id }}"
+                   class="{% if sites_bid == b.id|string %}active{% endif %}"
+                   title="{{ b.name }}">{{ b.name }}</a>
+              </li>
+              {% endfor %}
+            </ul>
+          </li>
+          {% else %}
+          <li class="nav-sub-empty">등록된 건물 없음</li>
+          {% endfor %}
+        </ul>
+      </li>
       {% endif %}
       {% if user_can_access_menu(user, 'equipment') %}
       <li class="nav-expandable{% if eq_path %} is-open{% endif %}" id="nav-equipment">
@@ -262,7 +295,7 @@
   </nav>
   <script>
   (function () {
-    var topLevelNavIds = ['nav-equipment', 'nav-inspection-logs2', 'nav-maintenance'];
+    var topLevelNavIds = ['nav-sites', 'nav-equipment', 'nav-inspection-logs2', 'nav-maintenance'];
     var nestedNavIds = ['nav-d1', 'nav-streetlamp'];
 
     function closeNavGroupExcept(exceptId, groupIds) {
@@ -338,6 +371,7 @@
       }
       item._navSetOpen = setOpen;
     }
+    bindNavExpandable('nav-sites', 'nav-sites-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-equipment', 'nav-eq-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-maintenance', 'nav-maint-open', {
