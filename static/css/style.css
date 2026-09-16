@@ -1923,10 +1923,24 @@ a.dm:hover {
   align-items: center;
 }
 .eq-excel-import-date {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.82rem;
-  color: var(--muted, #666);
+  font-weight: 600;
+  color: #1f4e79;
+  background: #e8f1fa;
+  border: 1px solid #c5d8ec;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
   white-space: nowrap;
   margin-left: 0.15rem;
+  line-height: 1.2;
+}
+.eq-excel-import-date.is-empty {
+  color: #6b7280;
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  font-weight: 500;
 }
 .eq-building-grid {
   display: grid;

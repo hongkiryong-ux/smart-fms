@@ -41,13 +41,21 @@
       <button type="submit" class="btn btn-primary">업로드 · 기존 자료 대체 Import</button>
     </form>
     {% if selected_building %}
-    <p style="margin-top:1rem">
+    <p class="eq-building-actions" style="margin-top:1rem">
       <a class="btn btn-secondary" href="/admin/equipment/export/{{ selected_building.id }}">
         {{ selected_building.name }} 엑셀 출력
       </a>
       <a class="btn btn-secondary" href="/admin/equipment?building_id={{ selected_building.id }}">
         설비 목록 보기
       </a>
+      <span class="eq-excel-import-date{% if not selected_building.excel_imported_at %} is-empty{% endif %}"
+            title="이 건물의 마지막 엑셀 import 시각">
+        {% if selected_building.excel_imported_at %}
+        마지막 import {{ fmt_kst(selected_building.excel_imported_at) }}
+        {% else %}
+        마지막 import 없음
+        {% endif %}
+      </span>
     </p>
     {% endif %}
   </section>
