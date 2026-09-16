@@ -2030,6 +2030,87 @@ a.dm:hover {
   justify-content: flex-end;
   margin-top: 0.35rem;
 }
+
+/* 사업장 분할 화면 */
+.sites-split-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--split-cols, 2), minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.sites-split-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+.sites-split-panel.is-selected {
+  border-color: #003876;
+  box-shadow: 0 0 0 2px rgba(0, 56, 118, 0.15);
+}
+.sites-split-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  background: #f4f7fb;
+  border-bottom: 1px solid var(--border);
+}
+.sites-split-panel-head h3 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+.sites-split-panel-body {
+  position: relative;
+  flex: 1;
+  min-height: 180px;
+  background: #eef2f7;
+}
+.sites-split-panel-body .site-map-frame {
+  min-height: 180px;
+  height: 100%;
+}
+.sites-split-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 180px;
+  padding: 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.sites-split-placeholder p {
+  margin: 0;
+}
+.sites-split-grid.is-edit .sites-split-panel {
+  cursor: pointer;
+}
+.sites-split-grid.is-edit .sites-split-panel-body {
+  outline: 2px dashed transparent;
+  transition: outline-color 0.15s;
+}
+.sites-split-grid.is-edit .sites-split-panel.is-selected .sites-split-panel-body {
+  outline-color: #003876;
+}
+.sites-split-card.is-placing .sites-split-panel.is-selected .site-map-frame {
+  cursor: crosshair;
+}
+.sites-split-head h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
 .card-wide > h2 {
   display: flex;
   flex-wrap: wrap;

@@ -3422,7 +3422,7 @@ async def sites_list(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    from site_maps import build_site_map_payload, site_has_map
+    from site_maps import build_site_map_payload, build_sites_grid_payload, site_has_map
 
     result = await db.execute(
         select(Site)
@@ -3439,8 +3439,16 @@ async def sites_list(
             sites = [selected_site]
 
     site_map = None
+    sites_grid = None
     view_mode = (view or "").strip().lower()
-    if selected_site is not None and site_has_map(selected_site):
+
+    if selected_site is None:
+        if view_mode == "list":
+            view_mode = "list"
+        else:
+            view_mode = "grid"
+            sites_grid = await build_sites_grid_payload(db, all_sites)
+    elif site_has_map(selected_site):
         if view_mode not in ("map", "list"):
             view_mode = "map"
         if view_mode == "map":
@@ -3458,10 +3466,44 @@ async def sites_list(
             "selected_site": selected_site,
             "site_id": site_id,
             "site_map": site_map,
+            "sites_grid": sites_grid,
             "view_mode": view_mode,
             "error": error or "",
         },
     )
+
+
+@app.post("/admin/sites/{site_id}/map-image")
+async def site_map_image_upload(
+    site_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """사업장 분할 화면용 안내도 이미지 업로드."""
+    from site_maps import MAP_IMAGE_EXTS, save_site_map_image_url, site_map_upload_dir
+
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active:
+        raise HTTPException(404, detail="사업장을 찾을 수 없습니다.")
+
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in MAP_IMAGE_EXTS:
+        raise HTTPException(400, detail="jpg, png, webp, gif 이미지만 업로드할 수 있습니다.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, detail="빈 파일입니다.")
+
+    upload_dir = site_map_upload_dir(site_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    dest_name = f"map{suffix}"
+    dest_path = upload_dir / dest_name
+    dest_path.write_bytes(content)
+
+    url = f"/static/uploads/sites/{site_id}/{dest_name}?v={int(datetime.utcnow().timestamp())}"
+    await save_site_map_image_url(db, site_id, url)
+    return JSONResponse({"ok": True, "image": url})
 
 
 @app.post("/admin/sites/{site_id}/map-hotspots")
@@ -3472,11 +3514,11 @@ async def site_map_hotspots_save(
     db: AsyncSession = Depends(get_db),
 ):
     """안내도 핫스팟 좌표·건물 연동 저장."""
-    from site_maps import save_site_map_hotspots, site_has_map
+    from site_maps import save_site_map_hotspots
 
     site = await db.get(Site, site_id)
-    if not site or not site.is_active or not site_has_map(site):
-        raise HTTPException(404, detail="지도를 지원하는 사업장이 아닙니다.")
+    if not site or not site.is_active:
+        raise HTTPException(404, detail="사업장을 찾을 수 없습니다.")
     try:
         body = await request.json()
     except Exception:

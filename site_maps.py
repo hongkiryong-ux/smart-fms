@@ -1,9 +1,11 @@
 # site_maps.py
-"""사업장 지도 뷰 — 핫스팟 로드/저장 (AppSetting) + 기본 좌표."""
+"""사업장 지도 — 이미지·핫스팟 로드/저장 (AppSetting)."""
 from __future__ import annotations
 
 import json
+import math
 import uuid
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +18,6 @@ GY_OP_SITE_NAMES = frozenset({"광양운영그룹"})
 GY_OP_MAP_IMAGE = "/static/maps/gwangyang_op_group.jpg"
 GY_OP_MAP_TITLE = "광양운영그룹 안내도"
 
-# 최초 1회 시드용 기본 좌표 (이후 DB에 저장된 값이 우선)
 DEFAULT_GY_OP_HOTSPOTS = [
     {"label": "러닝센타", "names": ["러닝센타", "러닝센터"], "x": 22.0, "y": 78.5, "w": 7.5, "h": 3.2},
     {"label": "기술교육센터", "names": ["기술교육센터"], "x": 27.5, "y": 36.5, "w": 8.5, "h": 3.2},
@@ -58,17 +59,40 @@ DEFAULT_GY_OP_HOTSPOTS = [
     {"label": "금호빗물펌프장", "names": ["금호빗물펌프장"], "x": 18.5, "y": 72.0, "w": 9.0, "h": 3.2},
 ]
 
+MAP_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
 
 def site_has_map(site: Any) -> bool:
-    if site is None:
-        return False
-    code = (getattr(site, "code", None) or "").strip()
-    name = (getattr(site, "name", None) or "").strip()
-    return code in GY_OP_SITE_CODES or name in GY_OP_SITE_NAMES
+    """모든 활성 사업장은 분할 지도 패널 지원."""
+    return site is not None and getattr(site, "is_active", True)
 
 
 def site_map_setting_key(site_id: int) -> str:
     return f"site_map.hotspots.{int(site_id)}"
+
+
+def site_map_image_setting_key(site_id: int) -> str:
+    return f"site_map.image.{int(site_id)}"
+
+
+def site_map_upload_dir(site_id: int) -> Path:
+    return Path("static") / "uploads" / "sites" / str(int(site_id))
+
+
+def grid_columns(site_count: int) -> int:
+    """사업장 수에 따른 분할 열 수 (2×2 기본, 증가 시 확장)."""
+    n = max(0, int(site_count))
+    if n <= 1:
+        return 1
+    if n <= 4:
+        return 2
+    return max(2, min(4, math.ceil(math.sqrt(n))))
+
+
+def _is_gy_op(site: Any) -> bool:
+    code = (getattr(site, "code", None) or "").strip()
+    name = (getattr(site, "name", None) or "").strip()
+    return code in GY_OP_SITE_CODES or name in GY_OP_SITE_NAMES
 
 
 def _norm(s: str) -> str:
@@ -106,23 +130,13 @@ def _active_buildings(site: Any, buildings: list | None = None) -> list:
     return [b for b in src if getattr(b, "is_active", True)]
 
 
-def _building_by_id(buildings: list, building_id: int | None):
-    if building_id is None:
-        return None
-    try:
-        bid = int(building_id)
-    except (TypeError, ValueError):
-        return None
-    for b in buildings:
-        if getattr(b, "id", None) == bid:
-            return b
-    return None
-
-
-def default_hotspots_for_buildings(buildings: list) -> list[dict]:
-    """이름 매칭으로 기본 핫스팟 생성."""
+def default_hotspots_for_buildings(site: Any, buildings: list) -> list[dict]:
+    if _is_gy_op(site):
+        templates = DEFAULT_GY_OP_HOTSPOTS
+    else:
+        templates = []
     out: list[dict] = []
-    for h in DEFAULT_GY_OP_HOTSPOTS:
+    for h in templates:
         b = _match_building(buildings, list(h.get("names") or []) + [h.get("label") or ""])
         out.append(
             {
@@ -139,7 +153,6 @@ def default_hotspots_for_buildings(buildings: list) -> list[dict]:
 
 
 def normalize_hotspots(raw: list | None, buildings: list) -> list[dict]:
-    """저장/표시용으로 핫스팟 정리. 건물 없으면 building_id 유지하되 matched는 갱신."""
     by_id = {int(b.id): b for b in buildings if getattr(b, "id", None) is not None}
     out: list[dict] = []
     for item in raw or []:
@@ -172,11 +185,32 @@ def normalize_hotspots(raw: list | None, buildings: list) -> list[dict]:
     return out
 
 
+async def get_site_map_image_url(db: AsyncSession, site: Any) -> str | None:
+    if site is None or getattr(site, "id", None) is None:
+        return None
+    row = await db.get(AppSetting, site_map_image_setting_key(site.id))
+    if row and (row.value or "").strip():
+        return row.value.strip()
+    if _is_gy_op(site):
+        return GY_OP_MAP_IMAGE
+    return None
+
+
+async def save_site_map_image_url(db: AsyncSession, site_id: int, url: str) -> str:
+    key = site_map_image_setting_key(site_id)
+    row = await db.get(AppSetting, key)
+    if row is None:
+        db.add(AppSetting(key=key, value=url))
+    else:
+        row.value = url
+    await db.commit()
+    return url
+
+
 async def load_site_map_hotspots(db: AsyncSession, site: Any) -> list[dict]:
-    """DB 저장값 우선, 없으면 기본 좌표로 시드(메모리만 — 저장은 사용자가 할 때)."""
     buildings = _active_buildings(site)
     if site is None or getattr(site, "id", None) is None:
-        return normalize_hotspots(default_hotspots_for_buildings(buildings), buildings)
+        return normalize_hotspots(default_hotspots_for_buildings(site, buildings), buildings)
 
     row = await db.get(AppSetting, site_map_setting_key(site.id))
     if row and (row.value or "").strip():
@@ -187,7 +221,7 @@ async def load_site_map_hotspots(db: AsyncSession, site: Any) -> list[dict]:
                 return normalize_hotspots(raw, buildings)
         except Exception:
             pass
-    return normalize_hotspots(default_hotspots_for_buildings(buildings), buildings)
+    return normalize_hotspots(default_hotspots_for_buildings(site, buildings), buildings)
 
 
 async def save_site_map_hotspots(
@@ -224,16 +258,29 @@ async def build_site_map_payload(db: AsyncSession, site: Any) -> dict | None:
         return None
     buildings = _active_buildings(site)
     hotspots = await load_site_map_hotspots(db, site)
-    # 편집 UI용 건물 목록
+    image = await get_site_map_image_url(db, site)
     building_options = [
         {"id": b.id, "name": b.name or f"건물#{b.id}"}
         for b in sorted(buildings, key=lambda x: (x.name or "").casefold())
     ]
     return {
-        "image": GY_OP_MAP_IMAGE,
-        "title": GY_OP_MAP_TITLE,
+        "image": image,
+        "title": f"{getattr(site, 'name', '') or '사업장'} 안내도",
         "site_id": site.id,
+        "site_name": getattr(site, "name", "") or "",
+        "site_code": getattr(site, "code", "") or "",
         "hotspots": hotspots,
         "matched_count": sum(1 for h in hotspots if h.get("matched")),
         "buildings": building_options,
+        "has_image": bool(image),
     }
+
+
+async def build_sites_grid_payload(db: AsyncSession, sites: list) -> dict:
+    panels = []
+    for site in sites:
+        panel = await build_site_map_payload(db, site)
+        if panel:
+            panels.append(panel)
+    cols = grid_columns(len(panels))
+    return {"columns": cols, "panels": panels, "site_count": len(panels)}
