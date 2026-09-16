@@ -4874,14 +4874,17 @@ async def equipment_import_page(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    buildings = (
-        await db.execute(
-            select(Building)
-            .where(Building.is_active == True)
-            .options(selectinload(Building.site))
-            .order_by(Building.name)
+    buildings = _sort_buildings(
+        list(
+            (
+                await db.execute(
+                    select(Building)
+                    .where(Building.is_active == True)
+                    .options(selectinload(Building.site))
+                )
+            ).scalars().all()
         )
-    ).scalars().all()
+    )
     selected = await db.get(Building, building_id) if building_id else None
     return templates.TemplateResponse(
         request,
