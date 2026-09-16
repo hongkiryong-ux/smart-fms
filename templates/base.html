@@ -349,25 +349,24 @@
     enforceSingleOpen(topLevelNavIds);
     enforceSingleOpen(nestedNavIds);
 
-    /* 다른(펼침이 아닌) 메뉴·하위 링크 선택 시, 포함되지 않은 펼침 메뉴는 닫기 */
-    var navRoot = document.querySelector('#app-sidebar .nav');
+    /* 공지사항 등 일반 메뉴·다른 하위 링크 선택 시, 관련 없는 펼침은 닫기 */
+    function closeExpandablesOutside(anchor) {
+      topLevelNavIds.concat(nestedNavIds).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el || typeof el._navSetOpen !== 'function') return;
+        if (anchor && el.contains(anchor)) return;
+        el._navSetOpen(false);
+      });
+    }
+
+    var navRoot = document.querySelector('#app-sidebar .nav-menu') || document.getElementById('app-sidebar');
     if (navRoot) {
       navRoot.addEventListener('click', function (e) {
         var a = e.target.closest('a[href]');
         if (!a) return;
+        /* 펼침용 부모 링크는 각 expandable 핸들러가 처리 */
         if (a.classList.contains('nav-parent-link')) return;
-        topLevelNavIds.forEach(function (id) {
-          var el = document.getElementById(id);
-          if (!el || typeof el._navSetOpen !== 'function') return;
-          if (el.contains(a)) return;
-          el._navSetOpen(false);
-        });
-        nestedNavIds.forEach(function (id) {
-          var el = document.getElementById(id);
-          if (!el || typeof el._navSetOpen !== 'function') return;
-          if (el.contains(a)) return;
-          el._navSetOpen(false);
-        });
+        closeExpandablesOutside(a);
       });
     }
 
