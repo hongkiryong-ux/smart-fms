@@ -31,14 +31,13 @@
 {% endif %}
 
 <p class="gyf-note">
-  원본 도면과 표 자료를 함께 표시합니다.
-  표 내용은 엑셀로 내보낸 뒤 수정·다시 가져올 수 있습니다.
+  현황표 이미지를 표시합니다. 내용은 엑셀로 내보낸 뒤 수정·다시 가져올 수 있습니다.
   {% if data.source %}(자료: <code>{{ data.source }}</code>){% endif %}
 </p>
 
 <section class="gyf-source-card card">
   <div class="gyf-source-head">
-    <h2>원본 현황표</h2>
+    <h2>공공시설물 현황</h2>
     <a class="btn btn-sm btn-secondary" href="/static/img/gwangyang_public_facilities.jpg" target="_blank" rel="noopener">이미지 크게 보기</a>
   </div>
   <div class="gyf-source-frame">
@@ -48,47 +47,4 @@
          decoding="async" />
   </div>
 </section>
-
-<div class="gyf-wrap">
-  <h2 class="gyf-table-title">상세 현황 표 (엑셀 수정용)</h2>
-  <div class="gyf-panels">
-    {% for side, rows in [("left", data.left), ("right", data.right)] %}
-    <div class="gyf-panel">
-      <table class="gyf-table">
-        <thead>
-          <tr>
-            {% for h in data.headers %}
-            <th>{{ h }}</th>
-            {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in rows %}
-            {% if row %}
-            <tr class="gyf-{{ row.kind }}{% if row.category %} gyf-has-cat{% endif %}">
-              {% if row.kind == 'total' %}
-              <td class="gyf-total-label" colspan="4">{{ row.name or row.category }}</td>
-              <td class="gyf-num">{{ row.area }}</td>
-              <td class="gyf-num">{{ row.pyeong }}</td>
-              <td>{{ row.note }}</td>
-              {% else %}
-              <td class="gyf-cat">{{ row.category }}</td>
-              <td class="gyf-name">{{ row.name }}</td>
-              <td class="gyf-date">{{ row.completed }}</td>
-              <td class="gyf-num">{{ row.cost }}</td>
-              <td class="gyf-num">{{ row.area }}</td>
-              <td class="gyf-num">{{ row.pyeong }}</td>
-              <td class="gyf-note-cell">{{ row.note }}</td>
-              {% endif %}
-            </tr>
-            {% else %}
-            <tr class="gyf-empty"><td colspan="7">&nbsp;</td></tr>
-            {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endfor %}
-  </div>
-</div>
 {% endblock %}
