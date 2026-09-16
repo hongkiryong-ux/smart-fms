@@ -6047,6 +6047,26 @@ tr.wo-row-selected {
 .ops-card-head h2 { margin: 0; font-size: 1.05rem; color: #0f172a; font-weight: 700; }
 .ops-card-head a, .ops-card-head-right a { color: #2563eb; text-decoration: none; font-size: 0.85rem; }
 .ops-card-head-right { display: flex; gap: 0.75rem; align-items: center; color: #64748b; font-size: 0.85rem; flex-wrap: wrap; }
+.ops-sites-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+.ops-sites-head h2 {
+  margin: 0;
+  flex: 0 0 auto;
+}
+.ops-sites-eq-count {
+  color: #64748b;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.ops-sites-all-link {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
 .ops-facilities-link {
   font-weight: 600 !important;
   padding: 0.2rem 0.55rem;
@@ -6054,6 +6074,7 @@ tr.wo-row-selected {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   white-space: nowrap;
+  font-size: 0.82rem !important;
 }
 .ops-facilities-link:hover {
   background: #dbeafe;
