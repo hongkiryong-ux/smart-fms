@@ -307,6 +307,7 @@ async def seed_if_empty(session: AsyncSession) -> None:
 
     await session.commit()
     print("[seed] demo data created", flush=True)
+    await ensure_category_demo(session)
 
 
 async def ensure_guest1_user(session: AsyncSession) -> None:
