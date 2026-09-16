@@ -3417,30 +3417,48 @@ async def dashboard_server_status_compat(
 async def sites_list(
     request: Request,
     site_id: int | None = None,
+    view: str | None = None,
     error: str | None = None,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    from site_maps import build_site_map_payload, site_has_map
+
     result = await db.execute(
         select(Site)
         .where(Site.is_active == True)
         .options(selectinload(Site.buildings))
         .order_by(Site.name)
     )
-    sites = _sort_sites(list(result.scalars().unique().all()))
+    all_sites = _sort_sites(list(result.scalars().unique().all()))
     selected_site = None
+    sites = all_sites
     if site_id is not None:
-        selected_site = next((s for s in sites if s.id == site_id), None)
+        selected_site = next((s for s in all_sites if s.id == site_id), None)
         if selected_site is not None:
             sites = [selected_site]
+
+    site_map = None
+    view_mode = (view or "").strip().lower()
+    if selected_site is not None and site_has_map(selected_site):
+        if view_mode not in ("map", "list"):
+            view_mode = "map"
+        if view_mode == "map":
+            site_map = build_site_map_payload(selected_site)
+    else:
+        view_mode = "list"
+
     return templates.TemplateResponse(
         request,
         "sites.html",
         {
             "user": user,
             "sites": sites,
+            "all_sites": all_sites,
             "selected_site": selected_site,
             "site_id": site_id,
+            "site_map": site_map,
+            "view_mode": view_mode,
             "error": error or "",
         },
     )
