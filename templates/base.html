@@ -33,6 +33,7 @@
   {% set d1_badges = nav_badges.get('d1_by_partner', {}) if nav_badges is mapping else {} %}
   {% set nav_bid = request.query_params.get('building_id') %}
   {% set nav_pid = request.query_params.get('partner_id') %}
+  {% set nav_site_id = request.query_params.get('site_id') %}
   {% set ilog2_path_parts = request.url.path.split('/') %}
   {% set ilog2_bid = ilog2_path_parts[3] if ilog2_path and ilog2_path_parts|length > 3 and ilog2_path_parts[3].isdigit() else none %}
   {% set sites_path_parts = request.url.path.split('/') %}
@@ -73,31 +74,51 @@
       <li class="nav-expandable{% if sites_path %} is-open{% endif %}" id="nav-sites">
         <div class="nav-parent-row">
           <a href="/admin/sites"
-             class="nav-parent-link{% if sites_path and not sites_bid %} active{% endif %}">사업장/건물</a>
+             class="nav-parent-link{% if sites_path and not sites_bid and not nav_site_id %} active{% endif %}">사업장/건물</a>
           <button type="button"
                   class="nav-toggle"
                   aria-expanded="{% if sites_path %}true{% else %}false{% endif %}"
                   aria-controls="nav-sites-sub"
-                  title="건물 목록 펼치기">
+                  title="사업장 목록 펼치기">
             <span class="nav-toggle-icon" aria-hidden="true">▾</span>
           </button>
         </div>
         <ul class="nav-sub" id="nav-sites-sub">
           {% for g in request.state.nav_building_groups or [] %}
-          <li class="nav-site-group">
-            <div class="nav-site-label" title="{{ g.site_name }}">{{ g.site_name }}</div>
-            <ul class="nav-site-buildings">
+          {% set site_ns = namespace(open=(nav_site_id is not none and g.site_id is not none and nav_site_id == g.site_id|string)) %}
+          {% if sites_bid %}
+            {% for b in g.buildings %}
+              {% if b.id|string == sites_bid %}{% set site_ns.open = true %}{% endif %}
+            {% endfor %}
+          {% endif %}
+          <li class="nav-expandable nav-nested{% if site_ns.open %} is-open{% endif %}"
+              id="nav-site-{{ g.site_id or loop.index }}">
+            <div class="nav-parent-row">
+              <a href="/admin/sites?site_id={{ g.site_id }}"
+                 class="nav-parent-link{% if nav_site_id and g.site_id is not none and nav_site_id == g.site_id|string %} active{% endif %}"
+                 title="{{ g.site_name }}">{{ g.site_name }}</a>
+              <button type="button"
+                      class="nav-toggle"
+                      aria-expanded="{% if site_ns.open %}true{% else %}false{% endif %}"
+                      aria-controls="nav-site-{{ g.site_id or loop.index }}-sub"
+                      title="건물 목록 펼치기">
+                <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+              </button>
+            </div>
+            <ul class="nav-sub" id="nav-site-{{ g.site_id or loop.index }}-sub">
               {% for b in g.buildings %}
               <li>
                 <a href="/admin/buildings/{{ b.id }}"
                    class="{% if sites_bid == b.id|string %}active{% endif %}"
                    title="{{ b.name }}">{{ b.name }}</a>
               </li>
+              {% else %}
+              <li class="nav-sub-empty">등록된 건물 없음</li>
               {% endfor %}
             </ul>
           </li>
           {% else %}
-          <li class="nav-sub-empty">등록된 건물 없음</li>
+          <li class="nav-sub-empty">등록된 사업장 없음</li>
           {% endfor %}
         </ul>
       </li>
@@ -297,6 +318,10 @@
   (function () {
     var topLevelNavIds = ['nav-sites', 'nav-equipment', 'nav-inspection-logs2', 'nav-maintenance'];
     var nestedNavIds = ['nav-d1', 'nav-streetlamp'];
+    var siteNavIds = Array.prototype.map.call(
+      document.querySelectorAll('#nav-sites-sub > .nav-expandable.nav-nested[id]'),
+      function (el) { return el.id; }
+    );
 
     function closeNavGroupExcept(exceptId, groupIds) {
       (groupIds || []).forEach(function (id) {
@@ -380,12 +405,16 @@
     });
     bindNavExpandable('nav-d1', 'nav-d1-open', { accordionGroup: nestedNavIds });
     bindNavExpandable('nav-streetlamp', 'nav-streetlamp-open', { accordionGroup: nestedNavIds });
+    siteNavIds.forEach(function (id) {
+      bindNavExpandable(id, id + '-open', { accordionGroup: siteNavIds });
+    });
     enforceSingleOpen(topLevelNavIds);
     enforceSingleOpen(nestedNavIds);
+    enforceSingleOpen(siteNavIds);
 
     /* 공지사항 등 일반 메뉴·다른 하위 링크 선택 시, 관련 없는 펼침은 닫기 */
     function closeExpandablesOutside(anchor) {
-      topLevelNavIds.concat(nestedNavIds).forEach(function (id) {
+      topLevelNavIds.concat(nestedNavIds, siteNavIds).forEach(function (id) {
         var el = document.getElementById(id);
         if (!el || typeof el._navSetOpen !== 'function') return;
         if (anchor && el.contains(anchor)) return;

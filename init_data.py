@@ -358,6 +358,30 @@ async def ensure_category_demo(session: AsyncSession) -> None:
             await session.commit()
             print("[seed] demo site GY deactivated", flush=True)
 
+        # 사이드바 사업장 메뉴용 기본 사업장 보장
+        for name, code in (
+            ("광양운영그룹", "GY-OP"),
+            ("해수담수섹션", "SW-DESAL"),
+            ("RIST", "RIST"),
+        ):
+            existing = (
+                await session.execute(select(Site).where(Site.code == code))
+            ).scalar_one_or_none()
+            if existing:
+                if not existing.is_active:
+                    existing.is_active = True
+                if existing.name != name:
+                    existing.name = name
+            else:
+                session.add(
+                    Site(
+                        name=name,
+                        code=code,
+                        address="전라남도 광양시",
+                    )
+                )
+        await session.commit()
+
         from excel_import import ensure_all_buildings, backfill_all_building_default_categories
 
         await ensure_all_buildings(session)

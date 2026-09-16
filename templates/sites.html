@@ -3,7 +3,16 @@
 {% block content %}
 <header class="page-header">
   <h1>사업장 / 건물 관리</h1>
+  {% if selected_site %}
+  <p>
+    <a href="/admin/sites">전체 사업장</a>
+    <span>›</span>
+    <strong>{{ selected_site.name }}</strong>
+    · 건물 목록
+  </p>
+  {% else %}
   <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
+  {% endif %}
 </header>
 
 {% if error %}
@@ -12,7 +21,7 @@
 
 <div class="grid-2 sites-layout">
   <section class="card card-wide">
-    <h2>사업장 목록</h2>
+    <h2>{% if selected_site %}{{ selected_site.name }} 건물{% else %}사업장 목록{% endif %}</h2>
     {% for site in sites %}
     <article class="site-card">
       <div class="site-card-head">

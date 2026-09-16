@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import AsyncSessionLocal
-from models import Building, InspectionLogBuilding, InspectionLogBuilding2, Partner, User, UserRole
+from models import Building, InspectionLogBuilding, InspectionLogBuilding2, Partner, Site, User, UserRole
 
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PW = os.environ.get("ADMIN_PW", "password123")
@@ -154,6 +154,40 @@ def group_buildings_by_site(buildings: list) -> list[dict]:
         groups[key]["buildings"].append(item)
 
     result = list(groups.values())
+    for g in result:
+        g["buildings"] = sorted(
+            g["buildings"],
+            key=lambda x: nav_building_sort_key(
+                x.get("name") if isinstance(x, dict) else getattr(x, "name", None)
+            ),
+        )
+    result.sort(key=lambda g: nav_building_sort_key(g.get("site_name")))
+    return result
+
+
+def merge_sites_into_building_groups(
+    sites: list, building_groups: list[dict]
+) -> list[dict]:
+    """활성 사업장을 모두 포함(건물 없는 사업장도). 사이드바 사업장 메뉴용."""
+    by_id: dict[int | str, dict] = {}
+    for g in building_groups or []:
+        sid = g.get("site_id")
+        key: int | str = sid if sid is not None else "_none"
+        by_id[key] = {
+            "site_id": sid,
+            "site_name": (g.get("site_name") or "").strip() or "미지정 사업장",
+            "buildings": list(g.get("buildings") or []),
+        }
+    for site in sites or []:
+        sid = getattr(site, "id", None)
+        if sid is None:
+            continue
+        name = (getattr(site, "name", None) or "").strip() or "미지정 사업장"
+        if sid not in by_id:
+            by_id[sid] = {"site_id": sid, "site_name": name, "buildings": []}
+        else:
+            by_id[sid]["site_name"] = name
+    result = list(by_id.values())
     for g in result:
         g["buildings"] = sorted(
             g["buildings"],
@@ -506,6 +540,12 @@ async def _load_nav_state(db: AsyncSession) -> dict:
             )
         ).scalars().all()
         building_groups = group_buildings_by_site(list(rows))
+        site_rows = (
+            await db.execute(select(Site).where(Site.is_active == True))  # noqa: E712
+        ).scalars().all()
+        building_groups = merge_sites_into_building_groups(
+            list(site_rows), building_groups
+        )
         buildings = [b for g in building_groups for b in g.get("buildings", [])]
     except Exception:
         pass

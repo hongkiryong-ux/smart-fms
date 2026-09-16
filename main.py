@@ -3416,6 +3416,7 @@ async def dashboard_server_status_compat(
 @app.get("/admin/sites")
 async def sites_list(
     request: Request,
+    site_id: int | None = None,
     error: str | None = None,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
@@ -3427,8 +3428,21 @@ async def sites_list(
         .order_by(Site.name)
     )
     sites = _sort_sites(list(result.scalars().unique().all()))
+    selected_site = None
+    if site_id is not None:
+        selected_site = next((s for s in sites if s.id == site_id), None)
+        if selected_site is not None:
+            sites = [selected_site]
     return templates.TemplateResponse(
-        request, "sites.html", {"user": user, "sites": sites, "error": error or ""}
+        request,
+        "sites.html",
+        {
+            "user": user,
+            "sites": sites,
+            "selected_site": selected_site,
+            "site_id": site_id,
+            "error": error or "",
+        },
     )
 
 
@@ -3444,6 +3458,7 @@ async def site_create(
     site = Site(name=name.strip(), code=code.strip(), address=address, manager_name=manager_name)
     db.add(site)
     await db.commit()
+    invalidate_nav_cache()
     return RedirectResponse("/admin/sites", status_code=303)
 
 
@@ -3480,6 +3495,7 @@ async def site_edit(
     site.address = address
     site.manager_name = manager_name
     await db.commit()
+    invalidate_nav_cache()
     return RedirectResponse("/admin/sites", status_code=303)
 
 
@@ -3497,6 +3513,7 @@ async def site_delete(
     for b in result.scalars().all():
         b.is_active = False
     await db.commit()
+    invalidate_nav_cache()
     return RedirectResponse("/admin/sites", status_code=303)
 
 
