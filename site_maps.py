@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,7 @@ DEFAULT_GY_OP_HOTSPOTS = [
 ]
 
 MAP_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+MAP_UPLOAD_EXTS = MAP_IMAGE_EXTS | {".pdf"}
 
 
 def site_has_map(site: Any) -> bool:
@@ -205,6 +207,46 @@ async def save_site_map_image_url(db: AsyncSession, site_id: int, url: str) -> s
         row.value = url
     await db.commit()
     return url
+
+
+def _pdf_first_page_to_jpg(pdf_path: Path, jpg_path: Path, scale: float = 2.0) -> None:
+    import pymupdf
+
+    doc = pymupdf.open(str(pdf_path))
+    try:
+        if doc.page_count < 1:
+            raise ValueError("PDF에 페이지가 없습니다.")
+        page = doc[0]
+        pix = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
+        pix.save(str(jpg_path))
+    finally:
+        doc.close()
+
+
+def store_site_map_upload(site_id: int, content: bytes, suffix: str) -> tuple[str, str]:
+    """업로드 저장. PDF는 1페이지를 JPG로 변환해 반환 URL 생성."""
+    upload_dir = site_map_upload_dir(site_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    suffix = suffix.lower()
+    version = str(int(time.time()))
+
+    if suffix == ".pdf":
+        pdf_path = upload_dir / "map.pdf"
+        jpg_path = upload_dir / "map.jpg"
+        pdf_path.write_bytes(content)
+        _pdf_first_page_to_jpg(pdf_path, jpg_path)
+        return f"/static/uploads/sites/{site_id}/map.jpg?v={version}", "map.jpg"
+
+    dest_name = f"map{suffix}"
+    (upload_dir / dest_name).write_bytes(content)
+    return f"/static/uploads/sites/{site_id}/{dest_name}?v={version}", dest_name
+
+
+async def save_site_map_image_upload(
+    db: AsyncSession, site_id: int, content: bytes, suffix: str
+) -> str:
+    url, _ = store_site_map_upload(site_id, content, suffix)
+    return await save_site_map_image_url(db, site_id, url)
 
 
 async def load_site_map_hotspots(db: AsyncSession, site: Any) -> list[dict]:
