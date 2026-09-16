@@ -41,6 +41,40 @@
   margin: 0 0 0.85rem;
   color: #64748b;
   font-size: 0.86rem;
+  line-height: 1.45;
+}
+.gyf-source-card {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem 1rem;
+}
+.gyf-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+  flex-wrap: wrap;
+}
+.gyf-source-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.gyf-source-frame {
+  overflow: auto;
+  max-height: min(70vh, 820px);
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.gyf-source-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-width: 960px;
+}
+.gyf-table-title {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
 }
 .gyf-note code {
   font-size: 0.8rem;

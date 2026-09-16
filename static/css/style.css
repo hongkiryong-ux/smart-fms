@@ -6046,7 +6046,18 @@ tr.wo-row-selected {
 }
 .ops-card-head h2 { margin: 0; font-size: 1.05rem; color: #0f172a; font-weight: 700; }
 .ops-card-head a, .ops-card-head-right a { color: #2563eb; text-decoration: none; font-size: 0.85rem; }
-.ops-card-head-right { display: flex; gap: 0.75rem; align-items: center; color: #64748b; font-size: 0.85rem; }
+.ops-card-head-right { display: flex; gap: 0.75rem; align-items: center; color: #64748b; font-size: 0.85rem; flex-wrap: wrap; }
+.ops-facilities-link {
+  font-weight: 600 !important;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  white-space: nowrap;
+}
+.ops-facilities-link:hover {
+  background: #dbeafe;
+}
 .ops-sub { color: #94a3b8; font-weight: 500; font-size: 0.85rem; }
 .ops-settings-btn { display: inline-flex; align-items: center; gap: 0.3rem; background: #f1f5f9; color: #334155 !important; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.4rem 0.7rem; font-size: 0.85rem; text-decoration: none; }
 .ops-settings-only { justify-content: flex-end; }

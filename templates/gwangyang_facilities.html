@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block title %}{{ data.title }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/gwangyang_facilities.css?v=2" />
+<link rel="stylesheet" href="/static/css/gwangyang_facilities.css?v=3" />
 {% endblock %}
 {% block content %}
 <header class="page-header gyf-page-header">
   <div>
-    <h1>{{ data.title }}</h1>
-    <p class="gyf-asof">({{ data.as_of }})</p>
+    <h1>광양운영그룹 공공시설물 상세 현황</h1>
+    <p class="gyf-asof">{{ data.title }} · ({{ data.as_of }})</p>
   </div>
   <div class="gyf-actions">
     <a class="btn btn-secondary" href="/admin/dashboard/gwangyang-facilities/export">엑셀 내보내기</a>
@@ -30,9 +30,27 @@
 </form>
 {% endif %}
 
-<p class="gyf-note">현재 자료(<code>{{ data.source }}</code>)입니다. 엑셀로 내보내 수정한 뒤 다시 가져올 수 있으며, 가로 스크롤로 전체 표를 확인할 수 있습니다.</p>
+<p class="gyf-note">
+  원본 도면과 표 자료를 함께 표시합니다.
+  표 내용은 엑셀로 내보낸 뒤 수정·다시 가져올 수 있습니다.
+  {% if data.source %}(자료: <code>{{ data.source }}</code>){% endif %}
+</p>
+
+<section class="gyf-source-card card">
+  <div class="gyf-source-head">
+    <h2>원본 현황표</h2>
+    <a class="btn btn-sm btn-secondary" href="/static/img/gwangyang_public_facilities.jpg" target="_blank" rel="noopener">이미지 크게 보기</a>
+  </div>
+  <div class="gyf-source-frame">
+    <img class="gyf-source-img"
+         src="/static/img/gwangyang_public_facilities.jpg"
+         alt="광양 주택지역 공공시설물 현황 원본"
+         decoding="async" />
+  </div>
+</section>
 
 <div class="gyf-wrap">
+  <h2 class="gyf-table-title">상세 현황 표 (엑셀 수정용)</h2>
   <div class="gyf-panels">
     {% for side, rows in [("left", data.left), ("right", data.right)] %}
     <div class="gyf-panel">
