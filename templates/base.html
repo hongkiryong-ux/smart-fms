@@ -262,6 +262,34 @@
   </nav>
   <script>
   (function () {
+    var topLevelNavIds = ['nav-equipment', 'nav-inspection-logs2', 'nav-maintenance'];
+    var nestedNavIds = ['nav-d1', 'nav-streetlamp'];
+
+    function closeNavGroupExcept(exceptId, groupIds) {
+      (groupIds || []).forEach(function (id) {
+        if (id === exceptId) return;
+        var el = document.getElementById(id);
+        if (el && typeof el._navSetOpen === 'function') el._navSetOpen(false);
+      });
+    }
+
+    function enforceSingleOpen(groupIds) {
+      var openIds = (groupIds || []).filter(function (id) {
+        var el = document.getElementById(id);
+        return el && el.classList.contains('is-open');
+      });
+      if (openIds.length <= 1) return;
+      var keep = openIds.find(function (id) {
+        var el = document.getElementById(id);
+        return el && el.querySelector('a.active');
+      }) || openIds[openIds.length - 1];
+      openIds.forEach(function (id) {
+        if (id === keep) return;
+        var el = document.getElementById(id);
+        if (el && typeof el._navSetOpen === 'function') el._navSetOpen(false);
+      });
+    }
+
     function bindNavExpandable(itemId, storageKey, opts) {
       opts = opts || {};
       var item = document.getElementById(itemId);
@@ -273,6 +301,9 @@
         item.classList.toggle('is-open', !!open);
         if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         try { sessionStorage.setItem(storageKey, open ? '1' : '0'); } catch (e) {}
+        if (open && opts.accordionGroup) {
+          closeNavGroupExcept(itemId, opts.accordionGroup);
+        }
       }
 
       var stored = null;
@@ -307,11 +338,38 @@
       }
       item._navSetOpen = setOpen;
     }
-    bindNavExpandable('nav-equipment', 'nav-eq-open');
-    bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open');
-    bindNavExpandable('nav-maintenance', 'nav-maint-open', { mobileToggleOnly: true });
-    bindNavExpandable('nav-d1', 'nav-d1-open');
-    bindNavExpandable('nav-streetlamp', 'nav-streetlamp-open');
+    bindNavExpandable('nav-equipment', 'nav-eq-open', { accordionGroup: topLevelNavIds });
+    bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open', { accordionGroup: topLevelNavIds });
+    bindNavExpandable('nav-maintenance', 'nav-maint-open', {
+      mobileToggleOnly: true,
+      accordionGroup: topLevelNavIds,
+    });
+    bindNavExpandable('nav-d1', 'nav-d1-open', { accordionGroup: nestedNavIds });
+    bindNavExpandable('nav-streetlamp', 'nav-streetlamp-open', { accordionGroup: nestedNavIds });
+    enforceSingleOpen(topLevelNavIds);
+    enforceSingleOpen(nestedNavIds);
+
+    /* 다른(펼침이 아닌) 메뉴·하위 링크 선택 시, 포함되지 않은 펼침 메뉴는 닫기 */
+    var navRoot = document.querySelector('#app-sidebar .nav');
+    if (navRoot) {
+      navRoot.addEventListener('click', function (e) {
+        var a = e.target.closest('a[href]');
+        if (!a) return;
+        if (a.classList.contains('nav-parent-link')) return;
+        topLevelNavIds.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el || typeof el._navSetOpen !== 'function') return;
+          if (el.contains(a)) return;
+          el._navSetOpen(false);
+        });
+        nestedNavIds.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el || typeof el._navSetOpen !== 'function') return;
+          if (el.contains(a)) return;
+          el._navSetOpen(false);
+        });
+      });
+    }
 
     /* 모바일: 사이드 메뉴 열기/닫기 */
     (function () {
