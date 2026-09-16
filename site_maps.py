@@ -2,6 +2,7 @@
 """사업장 지도 — 이미지·핫스팟 로드/저장 (AppSetting)."""
 from __future__ import annotations
 
+import base64
 import json
 import math
 import time
@@ -22,6 +23,14 @@ GEUMHO_FAC_SITE_NAMES = frozenset({"금호시설섹션"})
 HOUSING_MAP_IMAGE = "/static/maps/gwangyang_op_group.jpg?v=20260916housing"
 GY_OP_MAP_IMAGE = HOUSING_MAP_IMAGE  # 하위 호환
 GY_OP_MAP_TITLE = "금호시설섹션 안내도"
+
+MIME_BY_EXT = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
 
 DEFAULT_GY_OP_HOTSPOTS = [
     {"label": "러닝센타", "names": ["러닝센타", "러닝센터"], "x": 22.0, "y": 78.5, "w": 7.5, "h": 3.2},
@@ -87,6 +96,18 @@ def site_grid_image_setting_key(site_id: int) -> str:
     return f"site_map.grid_image.{int(site_id)}"
 
 
+def site_map_blob_key(site_id: int, kind: str = "map") -> str:
+    """이미지 바이너리(Base64) DB 저장 키 — Render 재배포에도 유지."""
+    k = "grid" if kind == "grid" else "map"
+    return f"site_map.blob.{k}.{int(site_id)}"
+
+
+def site_map_file_url(site_id: int, kind: str = "map", version: str | None = None) -> str:
+    k = "grid" if kind == "grid" else "map"
+    v = version or str(int(time.time()))
+    return f"/admin/sites/{int(site_id)}/map-file?kind={k}&v={v}"
+
+
 def site_map_upload_dir(site_id: int) -> Path:
     return Path("static") / "uploads" / "sites" / str(int(site_id))
 
@@ -99,6 +120,10 @@ def _image_setting_key(site_id: int, kind: str) -> str:
 
 def _image_basename(kind: str) -> str:
     return "grid" if kind == "grid" else "map"
+
+
+def _mime_for_suffix(suffix: str) -> str:
+    return MIME_BY_EXT.get(suffix.lower(), "image/jpeg")
 
 
 def grid_columns(site_count: int) -> int:
@@ -267,12 +292,29 @@ async def _buildings_for_site_map(db: AsyncSession, site: Any) -> list:
 
 
 async def get_site_image_url(db: AsyncSession, site: Any, kind: str = "map") -> str | None:
-    """kind: 'map'(안내도) | 'grid'(4분할). 서로 독립 저장."""
+    """kind: 'map'(안내도) | 'grid'(4분할). 서로 독립 저장.
+    DB blob이 있으면 재배포에도 유지되는 map-file URL을 반환한다.
+    """
     if site is None or getattr(site, "id", None) is None:
         return None
-    row = await db.get(AppSetting, _image_setting_key(site.id, kind))
+    sid = int(site.id)
+    blob = await load_site_image_blob(db, sid, kind)
+    if blob is not None:
+        row = await db.get(AppSetting, _image_setting_key(sid, kind))
+        version = None
+        if row and row.value and "v=" in row.value:
+            version = row.value.rsplit("v=", 1)[-1].split("&")[0]
+        return site_map_file_url(sid, kind, version)
+
+    row = await db.get(AppSetting, _image_setting_key(sid, kind))
     if row and (row.value or "").strip():
-        return row.value.strip()
+        url = row.value.strip()
+        # 예전 /static/uploads 경로: 디스크에 있으면 DB로 승격
+        if "/static/uploads/" in url:
+            migrated = await _migrate_disk_image_to_blob(db, sid, kind, url)
+            if migrated:
+                return migrated
+        return url
     if kind == "map" and _is_housing_map_site(site):
         return HOUSING_MAP_IMAGE
     return None
@@ -301,6 +343,58 @@ async def save_site_map_image_url(db: AsyncSession, site_id: int, url: str) -> s
     return await save_site_image_url(db, site_id, url, "map")
 
 
+async def save_site_image_blob(
+    db: AsyncSession, site_id: int, content: bytes, mime: str, kind: str = "map"
+) -> None:
+    key = site_map_blob_key(site_id, kind)
+    payload = json.dumps(
+        {"mime": mime or "image/jpeg", "b64": base64.b64encode(content).decode("ascii")},
+        ensure_ascii=False,
+    )
+    row = await db.get(AppSetting, key)
+    if row is None:
+        db.add(AppSetting(key=key, value=payload))
+    else:
+        row.value = payload
+    await db.commit()
+
+
+async def load_site_image_blob(
+    db: AsyncSession, site_id: int, kind: str = "map"
+) -> tuple[bytes, str] | None:
+    row = await db.get(AppSetting, site_map_blob_key(site_id, kind))
+    if not row or not (row.value or "").strip():
+        return None
+    try:
+        data = json.loads(row.value)
+        raw = base64.b64decode(data.get("b64") or "")
+        mime = str(data.get("mime") or "image/jpeg")
+        if not raw:
+            return None
+        return raw, mime
+    except Exception:
+        return None
+
+
+async def _migrate_disk_image_to_blob(
+    db: AsyncSession, site_id: int, kind: str, url: str
+) -> str | None:
+    path_part = url.split("?", 1)[0]
+    if path_part.startswith("/"):
+        path_part = path_part[1:]
+    path = Path(path_part)
+    if not path.is_file():
+        return None
+    content = path.read_bytes()
+    if not content:
+        return None
+    mime = _mime_for_suffix(path.suffix)
+    await save_site_image_blob(db, site_id, content, mime, kind)
+    new_url = site_map_file_url(site_id, kind)
+    await save_site_image_url(db, site_id, new_url, kind)
+    return new_url
+
+
 def _pdf_first_page_to_jpg(pdf_path: Path, jpg_path: Path, scale: float = 2.0) -> None:
     import pymupdf
 
@@ -315,14 +409,15 @@ def _pdf_first_page_to_jpg(pdf_path: Path, jpg_path: Path, scale: float = 2.0) -
         doc.close()
 
 
-def store_site_image_upload(site_id: int, content: bytes, suffix: str, kind: str = "map") -> tuple[str, str]:
-    """업로드 저장. PDF는 1페이지를 JPG로 변환. kind별 파일명 분리(map/grid)."""
+def store_site_image_upload(
+    site_id: int, content: bytes, suffix: str, kind: str = "map"
+) -> tuple[bytes, str, str]:
+    """디스크 캐시 저장 후 (이미지바이트, mime, 파일명) 반환. PDF는 JPG로 변환."""
     if kind not in ("map", "grid"):
         kind = "map"
     upload_dir = site_map_upload_dir(site_id)
     upload_dir.mkdir(parents=True, exist_ok=True)
     suffix = suffix.lower()
-    version = str(int(time.time()))
     base = _image_basename(kind)
 
     if suffix == ".pdf":
@@ -330,21 +425,28 @@ def store_site_image_upload(site_id: int, content: bytes, suffix: str, kind: str
         jpg_path = upload_dir / f"{base}.jpg"
         pdf_path.write_bytes(content)
         _pdf_first_page_to_jpg(pdf_path, jpg_path)
-        return f"/static/uploads/sites/{site_id}/{base}.jpg?v={version}", f"{base}.jpg"
+        raw = jpg_path.read_bytes()
+        return raw, "image/jpeg", f"{base}.jpg"
 
     dest_name = f"{base}{suffix}"
-    (upload_dir / dest_name).write_bytes(content)
-    return f"/static/uploads/sites/{site_id}/{dest_name}?v={version}", dest_name
+    dest = upload_dir / dest_name
+    dest.write_bytes(content)
+    return content, _mime_for_suffix(suffix), dest_name
 
 
 def store_site_map_upload(site_id: int, content: bytes, suffix: str) -> tuple[str, str]:
-    return store_site_image_upload(site_id, content, suffix, "map")
+    raw, _mime, name = store_site_image_upload(site_id, content, suffix, "map")
+    version = str(int(time.time()))
+    return f"/static/uploads/sites/{site_id}/{name}?v={version}", name
 
 
 async def save_site_image_upload(
     db: AsyncSession, site_id: int, content: bytes, suffix: str, kind: str = "map"
 ) -> str:
-    url, _ = store_site_image_upload(site_id, content, suffix, kind)
+    """이미지를 DB(blob)+디스크에 저장하고 재배포 내구성 URL을 반환."""
+    raw, mime, _name = store_site_image_upload(site_id, content, suffix, kind)
+    await save_site_image_blob(db, site_id, raw, mime, kind)
+    url = site_map_file_url(site_id, kind)
     return await save_site_image_url(db, site_id, url, kind)
 
 

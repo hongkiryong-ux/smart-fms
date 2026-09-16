@@ -3473,6 +3473,55 @@ async def sites_list(
     )
 
 
+@app.get("/admin/sites/{site_id}/map-file")
+async def site_map_file(
+    site_id: int,
+    kind: str = "map",
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """사업장 안내도/4분할 이미지 — DB 저장본 우선 (재배포 후에도 유지)."""
+    from site_maps import (
+        _image_basename,
+        _migrate_disk_image_to_blob,
+        load_site_image_blob,
+        site_map_upload_dir,
+    )
+
+    k = "grid" if (kind or "").strip().lower() == "grid" else "map"
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active:
+        raise HTTPException(404, detail="사업장을 찾을 수 없습니다.")
+
+    blob = await load_site_image_blob(db, site_id, k)
+    if blob is None:
+        # 디스크 캐시가 남아 있으면 DB로 승격
+        upload_dir = site_map_upload_dir(site_id)
+        base = _image_basename(k)
+        for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+            candidate = upload_dir / f"{base}{ext}"
+            if candidate.is_file():
+                migrated = await _migrate_disk_image_to_blob(
+                    db,
+                    site_id,
+                    k,
+                    f"/static/uploads/sites/{site_id}/{base}{ext}",
+                )
+                if migrated:
+                    blob = await load_site_image_blob(db, site_id, k)
+                break
+
+    if blob is None:
+        raise HTTPException(404, detail="등록된 사진이 없습니다.")
+
+    content, mime = blob
+    return Response(
+        content=content,
+        media_type=mime or "image/jpeg",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
 @app.post("/admin/sites/{site_id}/map-image")
 async def site_map_image_upload(
     site_id: int,
