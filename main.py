@@ -3480,7 +3480,7 @@ async def site_map_image_upload(
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
-    """사업장 안내도 이미지 업로드 (PDF는 1페이지를 JPG로 변환)."""
+    """사업장 안내도 이미지 업로드 (PDF는 1페이지를 JPG로 변환). 4분할과 별개."""
     from site_maps import MAP_UPLOAD_EXTS, save_site_map_image_upload
 
     site = await db.get(Site, site_id)
@@ -3497,6 +3497,38 @@ async def site_map_image_upload(
 
     try:
         url = await save_site_map_image_upload(db, site_id, content, suffix)
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    except Exception as exc:
+        detail = "PDF 변환에 실패했습니다." if suffix == ".pdf" else "이미지 저장에 실패했습니다."
+        raise HTTPException(400, detail=detail) from exc
+    return JSONResponse({"ok": True, "image": url})
+
+
+@app.post("/admin/sites/{site_id}/grid-image")
+async def site_grid_image_upload(
+    site_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """4분할 화면 전용 이미지 업로드 (안내도와 별개)."""
+    from site_maps import MAP_UPLOAD_EXTS, save_site_grid_image_upload
+
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active:
+        raise HTTPException(404, detail="사업장을 찾을 수 없습니다.")
+
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in MAP_UPLOAD_EXTS:
+        raise HTTPException(400, detail="jpg, png, webp, gif, pdf 파일만 업로드할 수 있습니다.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, detail="빈 파일입니다.")
+
+    try:
+        url = await save_site_grid_image_upload(db, site_id, content, suffix)
     except ValueError as exc:
         raise HTTPException(400, detail=str(exc)) from exc
     except Exception as exc:

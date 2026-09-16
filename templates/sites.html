@@ -42,7 +42,8 @@
       ({{ sites_grid.site_count }}개 사업장 · {{ sites_grid.columns }}열)
     </p>
     <p class="site-map-edit-hint" id="sites-split-edit-hint" hidden>
-      <strong>수정 모드:</strong> 패널을 클릭해 선택한 뒤 <strong>사진 변경</strong>으로 이미지를 바꿀 수 있습니다.
+      <strong>수정 모드:</strong> 패널을 클릭해 선택한 뒤 <strong>사진 변경</strong>으로
+      4분할용 이미지만 바꿉니다. (안내도 사진과는 별개입니다)
     </p>
   </div>
 
@@ -54,7 +55,7 @@
              data-site-id="{{ panel.site_id }}"
              data-site-name="{{ panel.site_name }}"
              data-site-url="{{ panel.site_url }}"
-             data-image-url="/admin/sites/{{ panel.site_id }}/map-image">
+             data-image-url="/admin/sites/{{ panel.site_id }}/grid-image">
       <header class="sites-split-panel-head">
         <a class="sites-split-title-link" href="{{ panel.site_url }}" title="{{ panel.site_name }} 안내도">
           <span class="site-badge">{{ panel.site_code }}</span>
@@ -127,7 +128,7 @@
     <p class="text-muted site-map-hint" id="site-map-hint">
       지도의 바로가기를 누르면 해당 건물 현황으로 이동합니다.
       연결 {{ site_map.matched_count }}곳
-      · 사진 변경으로 안내도 이미지(jpg·png·pdf 등)를 바꿀 수 있습니다.
+      · 사진 변경은 안내도용이며, 4분할 사진과는 별개입니다. (jpg·png·pdf 등)
     </p>
     <p class="site-map-edit-hint" id="site-map-edit-hint" hidden>
       <strong>수정 모드:</strong> 핀을 드래그해 위치를 옮기세요.

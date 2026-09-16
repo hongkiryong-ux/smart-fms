@@ -74,11 +74,27 @@ def site_map_setting_key(site_id: int) -> str:
 
 
 def site_map_image_setting_key(site_id: int) -> str:
+    """안내도(건물 바로가기) 이미지 설정 키."""
     return f"site_map.image.{int(site_id)}"
+
+
+def site_grid_image_setting_key(site_id: int) -> str:
+    """4분할 썸네일 이미지 설정 키."""
+    return f"site_map.grid_image.{int(site_id)}"
 
 
 def site_map_upload_dir(site_id: int) -> Path:
     return Path("static") / "uploads" / "sites" / str(int(site_id))
+
+
+def _image_setting_key(site_id: int, kind: str) -> str:
+    if kind == "grid":
+        return site_grid_image_setting_key(site_id)
+    return site_map_image_setting_key(site_id)
+
+
+def _image_basename(kind: str) -> str:
+    return "grid" if kind == "grid" else "map"
 
 
 def grid_columns(site_count: int) -> int:
@@ -187,10 +203,11 @@ def normalize_hotspots(raw: list | None, buildings: list) -> list[dict]:
     return out
 
 
-async def get_site_map_image_url(db: AsyncSession, site: Any) -> str | None:
+async def get_site_image_url(db: AsyncSession, site: Any, kind: str = "map") -> str | None:
+    """kind: 'map'(안내도) | 'grid'(4분할). 서로 독립 저장."""
     if site is None or getattr(site, "id", None) is None:
         return None
-    row = await db.get(AppSetting, site_map_image_setting_key(site.id))
+    row = await db.get(AppSetting, _image_setting_key(site.id, kind))
     if row and (row.value or "").strip():
         return row.value.strip()
     if _is_gy_op(site):
@@ -198,8 +215,16 @@ async def get_site_map_image_url(db: AsyncSession, site: Any) -> str | None:
     return None
 
 
-async def save_site_map_image_url(db: AsyncSession, site_id: int, url: str) -> str:
-    key = site_map_image_setting_key(site_id)
+async def get_site_map_image_url(db: AsyncSession, site: Any) -> str | None:
+    return await get_site_image_url(db, site, "map")
+
+
+async def get_site_grid_image_url(db: AsyncSession, site: Any) -> str | None:
+    return await get_site_image_url(db, site, "grid")
+
+
+async def save_site_image_url(db: AsyncSession, site_id: int, url: str, kind: str = "map") -> str:
+    key = _image_setting_key(site_id, kind)
     row = await db.get(AppSetting, key)
     if row is None:
         db.add(AppSetting(key=key, value=url))
@@ -207,6 +232,10 @@ async def save_site_map_image_url(db: AsyncSession, site_id: int, url: str) -> s
         row.value = url
     await db.commit()
     return url
+
+
+async def save_site_map_image_url(db: AsyncSession, site_id: int, url: str) -> str:
+    return await save_site_image_url(db, site_id, url, "map")
 
 
 def _pdf_first_page_to_jpg(pdf_path: Path, jpg_path: Path, scale: float = 2.0) -> None:
@@ -223,30 +252,49 @@ def _pdf_first_page_to_jpg(pdf_path: Path, jpg_path: Path, scale: float = 2.0) -
         doc.close()
 
 
-def store_site_map_upload(site_id: int, content: bytes, suffix: str) -> tuple[str, str]:
-    """업로드 저장. PDF는 1페이지를 JPG로 변환해 반환 URL 생성."""
+def store_site_image_upload(site_id: int, content: bytes, suffix: str, kind: str = "map") -> tuple[str, str]:
+    """업로드 저장. PDF는 1페이지를 JPG로 변환. kind별 파일명 분리(map/grid)."""
+    if kind not in ("map", "grid"):
+        kind = "map"
     upload_dir = site_map_upload_dir(site_id)
     upload_dir.mkdir(parents=True, exist_ok=True)
     suffix = suffix.lower()
     version = str(int(time.time()))
+    base = _image_basename(kind)
 
     if suffix == ".pdf":
-        pdf_path = upload_dir / "map.pdf"
-        jpg_path = upload_dir / "map.jpg"
+        pdf_path = upload_dir / f"{base}.pdf"
+        jpg_path = upload_dir / f"{base}.jpg"
         pdf_path.write_bytes(content)
         _pdf_first_page_to_jpg(pdf_path, jpg_path)
-        return f"/static/uploads/sites/{site_id}/map.jpg?v={version}", "map.jpg"
+        return f"/static/uploads/sites/{site_id}/{base}.jpg?v={version}", f"{base}.jpg"
 
-    dest_name = f"map{suffix}"
+    dest_name = f"{base}{suffix}"
     (upload_dir / dest_name).write_bytes(content)
     return f"/static/uploads/sites/{site_id}/{dest_name}?v={version}", dest_name
+
+
+def store_site_map_upload(site_id: int, content: bytes, suffix: str) -> tuple[str, str]:
+    return store_site_image_upload(site_id, content, suffix, "map")
+
+
+async def save_site_image_upload(
+    db: AsyncSession, site_id: int, content: bytes, suffix: str, kind: str = "map"
+) -> str:
+    url, _ = store_site_image_upload(site_id, content, suffix, kind)
+    return await save_site_image_url(db, site_id, url, kind)
 
 
 async def save_site_map_image_upload(
     db: AsyncSession, site_id: int, content: bytes, suffix: str
 ) -> str:
-    url, _ = store_site_map_upload(site_id, content, suffix)
-    return await save_site_map_image_url(db, site_id, url)
+    return await save_site_image_upload(db, site_id, content, suffix, "map")
+
+
+async def save_site_grid_image_upload(
+    db: AsyncSession, site_id: int, content: bytes, suffix: str
+) -> str:
+    return await save_site_image_upload(db, site_id, content, suffix, "grid")
 
 
 async def load_site_map_hotspots(db: AsyncSession, site: Any) -> list[dict]:
@@ -319,10 +367,10 @@ async def build_site_map_payload(db: AsyncSession, site: Any) -> dict | None:
 
 
 async def build_site_grid_panel(db: AsyncSession, site: Any) -> dict | None:
-    """분할 화면용 — 사진·사업장 정보만 (건물 핫스팟 제외)."""
+    """분할 화면용 — 4분할 전용 사진 (안내도와 별개)."""
     if not site_has_map(site):
         return None
-    image = await get_site_map_image_url(db, site)
+    image = await get_site_grid_image_url(db, site)
     sid = int(site.id)
     name = getattr(site, "name", "") or "사업장"
     return {
