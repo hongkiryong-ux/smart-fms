@@ -1,4 +1,4 @@
-/* site_grid_editor.js — 사업장 분할 화면: 사진 변경만 */
+/* site_grid_editor.js — 사업장 분할 화면: 사진 변경 · 클릭 시 안내도 이동 */
 (function () {
   var root = document.getElementById("sites-split-root");
   if (!root) return;
@@ -29,19 +29,22 @@
     }, this);
   };
 
-  Panel.prototype.ensureLink = function (img) {
-    var link = this.frame.querySelector(".sites-split-link");
-    if (!link) {
-      link = document.createElement("a");
-      link.className = "sites-split-link";
-      link.href = this.siteUrl;
-      link.title = this.siteName + " 안내도";
-      this.frame.insertBefore(link, img);
-      link.appendChild(img);
-    } else {
-      link.href = this.siteUrl;
-      link.title = this.siteName + " 안내도";
+  Panel.prototype.setImage = function (url) {
+    var frame = this.frame;
+    if (!frame) return;
+    var placeholder = frame.querySelector(".sites-split-placeholder");
+    if (placeholder) placeholder.remove();
+    var img = frame.querySelector(".site-map-img");
+    if (!img) {
+      img = document.createElement("img");
+      img.className = "site-map-img";
+      img.draggable = false;
+      img.decoding = "async";
+      frame.appendChild(img);
     }
+    img.src = url;
+    img.alt = this.siteName;
+    this.el.classList.remove("is-no-image");
   };
 
   function initPanels() {
@@ -53,6 +56,9 @@
       el.addEventListener("click", function (ev) {
         if (!editing) return;
         if (ev.target.closest(".sites-split-panel-actions")) return;
+        if (ev.target.closest("a.sites-split-link, a.sites-split-title-link")) {
+          ev.preventDefault();
+        }
         p.select();
       });
 
@@ -76,22 +82,7 @@
         return res.json();
       })
       .then(function (data) {
-        var frame = panel.frame;
-        var placeholder = frame.querySelector(".sites-split-placeholder");
-        if (placeholder) placeholder.remove();
-
-        var img = frame.querySelector(".site-map-img");
-        if (!img) {
-          img = document.createElement("img");
-          img.className = "site-map-img";
-          img.draggable = false;
-          img.decoding = "async";
-          frame.appendChild(img);
-        }
-        img.src = data.image;
-        img.alt = panel.siteName;
-        panel.ensureLink(img);
-        panel.el.classList.remove("is-no-image");
+        panel.setImage(data.image);
         panel.select();
       })
       .catch(function () {

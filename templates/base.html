@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20260916split1" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260916split2" />
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -94,9 +94,9 @@
           <li class="nav-expandable nav-nested{% if site_ns.open %} is-open{% endif %}"
               id="nav-site-{{ g.site_id or loop.index }}">
             <div class="nav-parent-row">
-              <a href="/admin/sites?site_id={{ g.site_id }}"
+              <a href="/admin/sites?site_id={{ g.site_id }}&view=map"
                  class="nav-parent-link{% if nav_site_id and g.site_id is not none and nav_site_id == g.site_id|string %} active{% endif %}"
-                 title="{{ g.site_name }}">{{ g.site_name }}</a>
+                 title="{{ g.site_name }} 안내도">{{ g.site_name }}</a>
               <button type="button"
                       class="nav-toggle"
                       aria-expanded="{% if site_ns.open %}true{% else %}false{% endif %}"
