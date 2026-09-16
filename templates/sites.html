@@ -20,42 +20,66 @@
 {% endif %}
 
 {% if site_map and view_mode == 'map' %}
-<section class="card site-map-card">
+<section class="card site-map-card"
+         id="site-map-root"
+         data-site-id="{{ selected_site.id }}"
+         data-save-url="/admin/sites/{{ selected_site.id }}/map-hotspots"
+         data-can-edit="{{ '1' if user_can_edit(user) else '0' }}">
   <div class="site-map-head">
     <h2>
       {{ selected_site.name }} 안내도
       <span class="site-view-actions">
         <a class="btn btn-sm btn-secondary"
            href="/admin/sites?site_id={{ selected_site.id }}&view=list">사업장 목록</a>
+        {% if user_can_edit(user) %}
+        <button type="button" class="btn btn-sm btn-secondary" id="site-map-edit-btn">위치 수정</button>
+        <button type="button" class="btn btn-sm btn-secondary" id="site-map-add-btn" hidden>추가</button>
+        <button type="button" class="btn btn-sm btn-primary" id="site-map-save-btn" hidden>저장</button>
+        <button type="button" class="btn btn-sm btn-secondary" id="site-map-cancel-btn" hidden>취소</button>
+        {% endif %}
       </span>
     </h2>
-    <p class="text-muted site-map-hint">
-      지도의 건물명(또는 번호 마커) 위를 누르면 해당 건물 현황으로 이동합니다.
+    <p class="text-muted site-map-hint" id="site-map-hint">
+      지도의 바로가기를 누르면 해당 건물 현황으로 이동합니다.
       연결 {{ site_map.matched_count }}곳 ·
       <a href="/admin/sites?site_id={{ selected_site.id }}&view=list">목록에서 찾기</a>
     </p>
+    <p class="site-map-edit-hint" id="site-map-edit-hint" hidden>
+      <strong>수정 모드:</strong> 핀을 드래그해 위치를 옮기세요.
+      <strong>추가</strong>를 누른 뒤 지도를 클릭하면 바로가기가 생기고, 연동할 건물을 선택합니다.
+      핀의 ×로 삭제할 수 있습니다. 끝나면 <strong>저장</strong>하세요.
+    </p>
   </div>
-  <div class="site-map-frame">
+  <div class="site-map-frame" id="site-map-frame">
     <img class="site-map-img"
+         id="site-map-img"
          src="{{ site_map.image }}"
          alt="{{ site_map.title }}"
          width="1024"
          height="893"
-         decoding="async" />
-    <div class="site-map-hotspots" aria-label="건물 선택">
-      {% for h in site_map.hotspots %}
-      {% if h.building_id %}
-      <a class="site-map-hotspot is-linked"
-         href="/admin/buildings/{{ h.building_id }}"
-         style="left: {{ h.x }}%; top: {{ h.y }}%; width: {{ h.w }}%; height: {{ h.h }}%;"
-         title="{{ h.building_name or h.label }} 현황">
-        <span class="sr-only">{{ h.label }}</span>
-      </a>
-      {% endif %}
-      {% endfor %}
-    </div>
+         decoding="async"
+         draggable="false" />
+    <div class="site-map-hotspots" id="site-map-hotspots" aria-label="건물 선택"></div>
   </div>
 </section>
+
+<dialog class="site-map-dialog" id="site-map-link-dialog">
+  <form method="dialog" class="site-map-dialog-body" id="site-map-link-form">
+    <h3>건물 연동</h3>
+    <p class="text-muted">이 바로가기에 연결할 건물을 선택하세요.</p>
+    <label for="site-map-building-select">건물</label>
+    <select id="site-map-building-select" required>
+      <option value="">선택</option>
+    </select>
+    <div class="site-map-dialog-actions">
+      <button type="submit" class="btn btn-primary" value="ok">연결</button>
+      <button type="submit" class="btn btn-secondary" value="cancel">취소</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="application/json" id="site-map-data">{{ site_map | tojson }}</script>
+<script src="/static/js/site_map_editor.js?v=20260916a" defer></script>
 {% else %}
 <div class="grid-2 sites-layout">
   <section class="card card-wide">

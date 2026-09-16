@@ -1910,6 +1910,121 @@ a.dm:hover {
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
+.site-map-card.is-editing .site-map-hotspot.is-linked:hover::after,
+.site-map-card.is-editing .site-map-hotspot.is-linked:focus-visible::after {
+  content: none;
+}
+.site-map-card.is-editing .site-map-frame {
+  cursor: default;
+}
+.site-map-card.is-placing .site-map-frame {
+  cursor: crosshair;
+}
+.site-map-edit-hint {
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  background: #eef5ff;
+  border: 1px solid #c5d8ec;
+  color: #1f4e79;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.site-map-hotspot.is-edit {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.15rem 0.25rem;
+  background: rgba(255, 224, 77, 0.95);
+  border: 1px solid #003876;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  cursor: grab;
+  z-index: 3;
+  min-width: 4.5rem;
+  width: auto !important;
+  height: auto !important;
+  max-width: 10rem;
+}
+.site-map-hotspot.is-edit.is-unlinked {
+  background: rgba(248, 250, 252, 0.95);
+  border-style: dashed;
+}
+.site-map-hotspot.is-edit.is-dragging {
+  cursor: grabbing;
+  opacity: 0.92;
+  z-index: 5;
+}
+.site-map-pin-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #003876;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  pointer-events: none;
+}
+.site-map-pin-del {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.45rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: none;
+  border-radius: 999px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.site-map-pin-link {
+  border: none;
+  border-radius: 4px;
+  background: #003876;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.12rem 0.3rem;
+  cursor: pointer;
+}
+.site-map-dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  max-width: 420px;
+  width: calc(100% - 2rem);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.site-map-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+.site-map-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+}
+.site-map-dialog-body h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.site-map-dialog-body select {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.site-map-dialog-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.35rem;
+}
 .card-wide > h2 {
   display: flex;
   flex-wrap: wrap;

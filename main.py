@@ -3444,7 +3444,7 @@ async def sites_list(
         if view_mode not in ("map", "list"):
             view_mode = "map"
         if view_mode == "map":
-            site_map = build_site_map_payload(selected_site)
+            site_map = await build_site_map_payload(db, selected_site)
     else:
         view_mode = "list"
 
@@ -3462,6 +3462,52 @@ async def sites_list(
             "error": error or "",
         },
     )
+
+
+@app.post("/admin/sites/{site_id}/map-hotspots")
+async def site_map_hotspots_save(
+    site_id: int,
+    request: Request,
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """안내도 핫스팟 좌표·건물 연동 저장."""
+    from site_maps import save_site_map_hotspots, site_has_map
+
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active or not site_has_map(site):
+        raise HTTPException(404, detail="지도를 지원하는 사업장이 아닙니다.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, detail="잘못된 요청입니다.")
+    raw = body.get("hotspots") if isinstance(body, dict) else None
+    if not isinstance(raw, list):
+        raise HTTPException(400, detail="hotspots 배열이 필요합니다.")
+    cleaned = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        bid = item.get("building_id")
+        try:
+            bid_i = int(bid) if bid is not None and bid != "" else None
+        except (TypeError, ValueError):
+            bid_i = None
+        if bid_i is None:
+            continue
+        cleaned.append(
+            {
+                "id": item.get("id"),
+                "label": (item.get("label") or "").strip(),
+                "building_id": bid_i,
+                "x": item.get("x"),
+                "y": item.get("y"),
+                "w": item.get("w", 7),
+                "h": item.get("h", 3),
+            }
+        )
+    saved = await save_site_map_hotspots(db, site_id, cleaned)
+    return JSONResponse({"ok": True, "count": len(saved), "hotspots": saved})
 
 
 @app.post("/admin/sites")
