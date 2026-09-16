@@ -3695,12 +3695,16 @@ async def site_delete(
     if not site:
         raise HTTPException(404)
     site.is_active = False
+    # 시드/엑셀 ensure가 동일 코드로 다시 붙지 않도록 코드 변경
+    code = (site.code or "").strip() or f"SITE{site_id}"
+    if "-deleted-" not in code:
+        site.code = f"{code}-deleted-{site_id}"
     result = await db.execute(select(Building).where(Building.site_id == site_id))
     for b in result.scalars().all():
         b.is_active = False
     await db.commit()
     invalidate_nav_cache()
-    return RedirectResponse("/admin/sites", status_code=303)
+    return RedirectResponse("/admin/sites?view=list", status_code=303)
 
 
 @app.get("/admin/buildings/{building_id}")

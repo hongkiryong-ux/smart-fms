@@ -18,7 +18,14 @@
     <input type="text" name="manager_name" value="{{ site.manager_name or '' }}" />
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">저장</button>
-      <a class="btn btn-secondary" href="/admin/sites">취소</a>
+      <a class="btn btn-secondary" href="/admin/sites?view=list">취소</a>
+      {% if user_can_delete(user) %}
+      <form method="post" action="/admin/sites/{{ site.id }}/delete" class="inline-form"
+            onsubmit="return confirm('사업장 「{{ site.name }}」을(를) 삭제할까요?\n하위 건물도 함께 비활성화되며, 목록에서 사라집니다.');"
+            style="margin-left:auto">
+        <button type="submit" class="btn btn-danger">사업장 삭제</button>
+      </form>
+      {% endif %}
     </div>
   </form>
 </section>

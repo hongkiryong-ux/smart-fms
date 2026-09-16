@@ -64,6 +64,8 @@
         <div class="sites-split-panel-actions">
           <a class="btn btn-sm btn-secondary"
              href="/admin/sites?site_id={{ panel.site_id }}&view=list">건물목록</a>
+          <a class="btn btn-sm btn-secondary"
+             href="/admin/sites/{{ panel.site_id }}/edit">수정</a>
           {% if user_can_edit(user) %}
           <label class="btn btn-sm btn-secondary sites-split-upload-btn" hidden>
             사진 변경

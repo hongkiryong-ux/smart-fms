@@ -480,12 +480,27 @@ async def ensure_building_default_categories(
 
 
 async def ensure_site_and_building(
-    session: AsyncSession, building_name: str
+    session: AsyncSession,
+    building_name: str,
+    *,
+    allow_create_site: bool = True,
+    reactivate_site: bool = False,
 ) -> tuple[Site, Building, Zone]:
     site = (
-        await session.execute(select(Site).where(Site.code == SITE_CODE))
+        await session.execute(
+            select(Site).where(Site.code == SITE_CODE, Site.is_active == True)  # noqa: E712
+        )
     ).scalar_one_or_none()
+    if not site and reactivate_site:
+        # 비활성 GY-OP를 엑셀 import 등으로 명시 복구할 때만
+        site = (
+            await session.execute(select(Site).where(Site.code == SITE_CODE))
+        ).scalar_one_or_none()
+        if site and not site.is_active:
+            site.is_active = True
     if not site:
+        if not allow_create_site:
+            raise ValueError("활성 광양운영그룹 사업장이 없어 건물을 등록하지 않습니다.")
         site = Site(name=SITE_NAME, code=SITE_CODE, address="전라남도 광양시")
         session.add(site)
         await session.flush()
@@ -623,10 +638,20 @@ async def import_excel_to_building(
 
 
 async def ensure_all_buildings(session: AsyncSession) -> int:
-    """건물 목록만 등록 (엑셀 없이) + 기본 대분류/코드 보장."""
+    """건물 목록만 등록 (엑셀 없이) + 기본 대분류/코드 보장.
+    광양운영그룹이 삭제(비활성)된 경우 복구하지 않는다.
+    """
+    site = (
+        await session.execute(
+            select(Site).where(Site.code == SITE_CODE, Site.is_active == True)  # noqa: E712
+        )
+    ).scalar_one_or_none()
+    if not site:
+        print("[seed] ensure_all_buildings skipped: no active GY-OP site", flush=True)
+        return 0
     count = 0
     for name in BUILDING_NAMES:
-        await ensure_site_and_building(session, name)
+        await ensure_site_and_building(session, name, allow_create_site=False)
         count += 1
     await backfill_all_building_default_categories(session)
     return count
