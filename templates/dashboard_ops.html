@@ -50,13 +50,13 @@
 </section>
 {% endmacro %}
 {% set cfg = dash_config or {'order': ['maintenance_status','sites_status','energy','schedules','notices'], 'visible': {}} %}
-{% set vis = cfg.visible or {} %}
+{% set vis = cfg.visible if cfg.visible is mapping else {} %}
 {% set order = cfg.order or ['maintenance_status','sites_status','energy','schedules','notices'] %}
-{% set show_m = vis.get('maintenance_status', true) %}
-{% set show_s = vis.get('sites_status', true) %}
-{% set show_e = vis.get('energy', true) %}
-{% set show_sch = vis.get('schedules', true) %}
-{% set show_n = vis.get('notices', true) %}
+{% set show_m = vis['maintenance_status'] if 'maintenance_status' in vis else true %}
+{% set show_s = vis['sites_status'] if 'sites_status' in vis else true %}
+{% set show_e = vis['energy'] if 'energy' in vis else true %}
+{% set show_sch = vis['schedules'] if 'schedules' in vis else true %}
+{% set show_n = vis['notices'] if 'notices' in vis else true %}
 {% set ns = namespace(maint_i=99, first_body=99) %}
 {% for key in order %}
   {% if key == 'maintenance_status' %}{% set ns.maint_i = loop.index0 %}{% endif %}

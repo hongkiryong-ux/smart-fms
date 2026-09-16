@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from calendar import Calendar, monthrange
 from datetime import date, datetime, timedelta
+from typing import Any
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
@@ -59,26 +60,43 @@ GWANGYANG_FACILITIES_SETTING_KEY = "dashboard.gwangyang_public_facilities"
 GWANGYANG_EXCEL_MAX_BYTES = 5 * 1024 * 1024
 
 
+def _as_bool(value: Any, default: bool = True) -> bool:
+    """대시보드 visible 값 파싱 (문자/숫자 False가 True로 바뀌지 않게)."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    s = str(value).strip().lower()
+    if s in ("1", "true", "on", "yes", "y"):
+        return True
+    if s in ("0", "false", "off", "no", "n", ""):
+        return False
+    return default
+
+
 def _today_kst() -> date:
     return datetime.now(KST).date()
 
 
 def _normalize_dash_config(raw: dict | None) -> dict:
-    base = {
-        "order": list(DEFAULT_DASH_CONFIG["order"]),
-        "visible": dict(DEFAULT_DASH_CONFIG["visible"]),
-    }
     if not isinstance(raw, dict):
-        return base
+        return {
+            "order": list(DEFAULT_DASH_CONFIG["order"]),
+            "visible": dict(DEFAULT_DASH_CONFIG["visible"]),
+        }
     order = [k for k in (raw.get("order") or []) if k in DASH_WIDGET_KEYS]
     for k in DASH_WIDGET_KEYS:
         if k not in order:
             order.append(k)
-    visible_raw = raw.get("visible") or {}
-    visible = {
-        k: bool(visible_raw.get(k, True)) if isinstance(visible_raw, dict) else True
-        for k in DASH_WIDGET_KEYS
-    }
+    visible_raw = raw.get("visible") if isinstance(raw.get("visible"), dict) else {}
+    visible = {}
+    for k in DASH_WIDGET_KEYS:
+        if k in visible_raw:
+            visible[k] = _as_bool(visible_raw.get(k), False)
+        else:
+            visible[k] = True
     return {"order": order, "visible": visible}
 
 
@@ -700,7 +718,12 @@ async def dashboard_settings_save(
             order.append(k)
     visible = {}
     for k in DASH_WIDGET_KEYS:
-        visible[k] = form.get(f"visible_{k}") in ("1", "on", "true", "True")
+        # Starlette Form: getlist 마지막 값 사용 (hidden+checkbox 패턴 대비)
+        vals = form.getlist(f"visible_{k}") if hasattr(form, "getlist") else []
+        if vals:
+            visible[k] = _as_bool(vals[-1], False)
+        else:
+            visible[k] = form.get(f"visible_{k}") in ("1", "on", "true", "True")
     await set_dashboard_widget_config(db, {"order": order, "visible": visible})
     await db.commit()
     return RedirectResponse("/admin/dashboard/settings?flash=saved", status_code=303)

@@ -359,30 +359,45 @@ async def ensure_category_demo(session: AsyncSession) -> None:
             await session.commit()
             print("[seed] demo site GY deactivated", flush=True)
 
-        # 사이드바 사업장 메뉴용 기본 사업장 보장
-        for name, code in (
+        # 사이드바용 기본 사업장: 최초 1회만 생성. 이후 사용자 삭제/비활성은 유지.
+        from models import AppSetting
+
+        seed_sites_key = "seed.default_sites_v2"
+        seed_sites_done = await session.get(AppSetting, seed_sites_key)
+        default_sites = (
             ("광양운영그룹", "GY-OP"),
             ("금호시설섹션", "GH-FAC"),
             ("해수담수섹션", "SW-DESAL"),
             ("RIST", "RIST"),
-        ):
-            existing = (
-                await session.execute(select(Site).where(Site.code == code))
-            ).scalar_one_or_none()
-            if existing:
-                if not existing.is_active:
-                    existing.is_active = True
-                if existing.name != name:
-                    existing.name = name
-            else:
-                session.add(
-                    Site(
-                        name=name,
-                        code=code,
-                        address="전라남도 광양시",
+        )
+        if not seed_sites_done or not (seed_sites_done.value or "").strip():
+            for name, code in default_sites:
+                existing = (
+                    await session.execute(select(Site).where(Site.code == code))
+                ).scalar_one_or_none()
+                if existing is None:
+                    session.add(
+                        Site(
+                            name=name,
+                            code=code,
+                            address="전라남도 광양시",
+                        )
                     )
-                )
-        await session.commit()
+            if seed_sites_done is None:
+                session.add(AppSetting(key=seed_sites_key, value="1"))
+            else:
+                seed_sites_done.value = "1"
+            await session.commit()
+            print("[seed] default sites ensured (once)", flush=True)
+        else:
+            # 이미 시드된 경우: 활성 사업장 이름만 보정 (비활성·삭제는 복구하지 않음)
+            for name, code in default_sites:
+                existing = (
+                    await session.execute(select(Site).where(Site.code == code))
+                ).scalar_one_or_none()
+                if existing and existing.is_active and existing.name != name:
+                    existing.name = name
+            await session.commit()
 
         # 광양운영그룹 안내도 바로가기 → 금호시설섹션으로 이전(최초 1회)
         try:
@@ -397,7 +412,6 @@ async def ensure_category_demo(session: AsyncSession) -> None:
                 site_map_image_setting_key,
                 site_map_setting_key,
             )
-            from models import AppSetting
             import json as _json
 
             gy = (
@@ -423,7 +437,7 @@ async def ensure_category_demo(session: AsyncSession) -> None:
                     )
                 ).scalars().first()
 
-            if gy and gh and gy.id != gh.id:
+            if gy and gh and gy.id != gh.id and gh.is_active:
                 gh_hs = await session.get(AppSetting, site_map_setting_key(gh.id))
                 gy_hs = await session.get(AppSetting, site_map_setting_key(gy.id))
                 if (not gh_hs or not (gh_hs.value or "").strip()) and gy_hs and (gy_hs.value or "").strip():

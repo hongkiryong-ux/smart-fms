@@ -29,6 +29,7 @@
         <span class="dash-settings-handle" title="드래그하여 순서 변경" aria-hidden="true">⋮⋮</span>
         <span class="dash-settings-num">{{ loop.index }}</span>
         <label class="dash-settings-check">
+          <input type="hidden" name="visible_{{ w.key }}" value="0" />
           <input type="checkbox" name="visible_{{ w.key }}" value="1"{% if w.visible %} checked{% endif %} />
           <span>
             <strong>{{ w.label }}</strong>
