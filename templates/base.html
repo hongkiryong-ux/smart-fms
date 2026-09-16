@@ -132,26 +132,47 @@
                   class="nav-toggle"
                   aria-expanded="{% if eq_path %}true{% else %}false{% endif %}"
                   aria-controls="nav-equipment-sub"
-                  title="건물 목록 펼치기">
+                  title="사업장 목록 펼치기">
             <span class="nav-toggle-icon" aria-hidden="true">▾</span>
           </button>
         </div>
         <ul class="nav-sub" id="nav-equipment-sub">
           {% for g in request.state.nav_building_groups or [] %}
-          <li class="nav-site-group">
-            <div class="nav-site-label" title="{{ g.site_name }}">{{ g.site_name }}</div>
-            <ul class="nav-site-buildings">
+          {% set eq_ns = namespace(open=false) %}
+          {% if nav_bid %}
+            {% for b in g.buildings %}
+              {% if b.id|string == nav_bid %}{% set eq_ns.open = true %}{% endif %}
+            {% endfor %}
+          {% endif %}
+          <li class="nav-expandable nav-nested{% if eq_ns.open %} is-open{% endif %}"
+              id="nav-eq-site-{{ g.site_id or loop.index }}">
+            <div class="nav-parent-row">
+              <a href="#"
+                 class="nav-parent-link"
+                 title="{{ g.site_name }} 건물 목록"
+                 data-nav-toggle-only="1">{{ g.site_name }}</a>
+              <button type="button"
+                      class="nav-toggle"
+                      aria-expanded="{% if eq_ns.open %}true{% else %}false{% endif %}"
+                      aria-controls="nav-eq-site-{{ g.site_id or loop.index }}-sub"
+                      title="건물 목록 펼치기">
+                <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+              </button>
+            </div>
+            <ul class="nav-sub" id="nav-eq-site-{{ g.site_id or loop.index }}-sub">
               {% for b in g.buildings %}
               <li>
                 <a href="/admin/equipment?building_id={{ b.id }}"
                    class="{% if nav_bid == b.id|string %}active{% endif %}"
                    title="{{ b.name }}">{{ b.name }}</a>
               </li>
+              {% else %}
+              <li class="nav-sub-empty">등록된 건물 없음</li>
               {% endfor %}
             </ul>
           </li>
           {% else %}
-          <li class="nav-sub-empty">등록된 건물 없음</li>
+          <li class="nav-sub-empty">등록된 사업장 없음</li>
           {% endfor %}
         </ul>
       </li>
@@ -322,6 +343,10 @@
       document.querySelectorAll('#nav-sites-sub > .nav-expandable.nav-nested[id]'),
       function (el) { return el.id; }
     );
+    var eqSiteNavIds = Array.prototype.map.call(
+      document.querySelectorAll('#nav-equipment-sub > .nav-expandable.nav-nested[id]'),
+      function (el) { return el.id; }
+    );
 
     function closeNavGroupExcept(exceptId, groupIds) {
       (groupIds || []).forEach(function (id) {
@@ -366,8 +391,14 @@
 
       var stored = null;
       try { stored = sessionStorage.getItem(storageKey); } catch (e) {}
-      if (stored === '0') setOpen(false);
-      else if (stored === '1') setOpen(true);
+      var hasActive = !!item.querySelector('a.active');
+      if (hasActive) {
+        setOpen(true);
+      } else if (stored === '0') {
+        setOpen(false);
+      } else if (stored === '1') {
+        setOpen(true);
+      }
 
       if (btn) {
         btn.addEventListener('click', function (e) {
@@ -378,6 +409,16 @@
       }
       if (link) {
         link.addEventListener('click', function (e) {
+          /* 이름/▾ 로만 펼침 (페이지 이동 없음) — 설비관리 하위 사업장 등 */
+          if (opts.toggleOnly || link.getAttribute('data-nav-toggle-only') === '1') {
+            e.preventDefault();
+            setOpen(!item.classList.contains('is-open'));
+            return;
+          }
+          /* 펼침은 ▾ 버튼만 — 부모 링크는 항상 이동 */
+          if (opts.expandByChevronOnly) {
+            return;
+          }
           /* 모바일 정비관리: 누르면 하위 펼침만 (페이지 이동 없음) */
           if (opts.mobileToggleOnly && window.matchMedia('(max-width: 900px)').matches) {
             e.preventDefault();
@@ -397,7 +438,10 @@
       item._navSetOpen = setOpen;
     }
     bindNavExpandable('nav-sites', 'nav-sites-open', { accordionGroup: topLevelNavIds });
-    bindNavExpandable('nav-equipment', 'nav-eq-open', { accordionGroup: topLevelNavIds });
+    bindNavExpandable('nav-equipment', 'nav-eq-open', {
+      expandByChevronOnly: true,
+      accordionGroup: topLevelNavIds,
+    });
     bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-maintenance', 'nav-maint-open', {
       mobileToggleOnly: true,
@@ -408,13 +452,17 @@
     siteNavIds.forEach(function (id) {
       bindNavExpandable(id, id + '-open', { accordionGroup: siteNavIds });
     });
+    eqSiteNavIds.forEach(function (id) {
+      bindNavExpandable(id, id + '-open', { toggleOnly: true, accordionGroup: eqSiteNavIds });
+    });
     enforceSingleOpen(topLevelNavIds);
     enforceSingleOpen(nestedNavIds);
     enforceSingleOpen(siteNavIds);
+    enforceSingleOpen(eqSiteNavIds);
 
     /* 공지사항 등 일반 메뉴·다른 하위 링크 선택 시, 관련 없는 펼침은 닫기 */
     function closeExpandablesOutside(anchor) {
-      topLevelNavIds.concat(nestedNavIds, siteNavIds).forEach(function (id) {
+      topLevelNavIds.concat(nestedNavIds, siteNavIds, eqSiteNavIds).forEach(function (id) {
         var el = document.getElementById(id);
         if (!el || typeof el._navSetOpen !== 'function') return;
         if (anchor && el.contains(anchor)) return;
