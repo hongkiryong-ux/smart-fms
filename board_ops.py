@@ -154,8 +154,8 @@ async def load_recent_notices(db: AsyncSession, limit: int = 6) -> list[dict]:
     return out
 
 
-async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
-    """문제(미해결 정비)·정비의뢰 많은 사업장 순."""
+async def load_site_status(db: AsyncSession, limit: int | None = None) -> list[dict]:
+    """등록된 활성 사업장 전체 현황 (문제·정비의뢰 많은 순)."""
     # 사업장명 매칭 → 대시보드 썸네일 (부분 일치)
     site_photos = (
         ("광양운영", "/static/img/sites/gwangyang-ops.png"),
@@ -267,9 +267,11 @@ async def load_site_status(db: AsyncSession, limit: int = 5) -> list[dict]:
             }
         )
     result.sort(key=lambda x: (-x["score"], -x["requests"], x["name"]))
-    for i, item in enumerate(result[:limit], start=1):
+    if limit is not None and limit > 0:
+        result = result[: int(limit)]
+    for i, item in enumerate(result, start=1):
         item["rank"] = i
-    return result[:limit]
+    return result
 
 
 def _require_menu(user: User, key: str) -> None:
