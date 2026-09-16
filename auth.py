@@ -96,20 +96,30 @@ def clear_remember_cookie(response: RedirectResponse) -> None:
 
 
 def nav_building_sort_key(name: str | None) -> tuple:
-    """건물명 가나다 → ABC → 숫자 → 기타."""
+    """건물명 정렬: 가나다 → 1234 → ABCD → 기타 (숫자 선두는 자연수 순)."""
+    import re
+
     n = (name or "").strip()
     if not n:
-        return (3, "")
+        return (3, 0, "")
     ch = n[0]
     if "\uac00" <= ch <= "\ud7a3" or "\u3131" <= ch <= "\u318e":
-        group = 0
-    elif ch.isascii() and ch.isalpha():
-        group = 1
+        group = 0  # 가나다
     elif ch.isdigit():
-        group = 2
+        group = 1  # 1234
+    elif ch.isascii() and ch.isalpha():
+        group = 2  # ABCD
     else:
         group = 3
-    return (group, n.casefold())
+
+    m = re.match(r"^(\d+)(.*)$", n)
+    if m:
+        try:
+            num = int(m.group(1))
+        except ValueError:
+            num = 0
+        return (group, num, (m.group(2) or "").casefold())
+    return (group, 0, n.casefold())
 
 
 def group_buildings_by_site(buildings: list) -> list[dict]:

@@ -186,7 +186,7 @@ def _today_kst() -> date:
 
 
 def _building_sort_key(name: str | None) -> tuple:
-    """건물명 가나다 → ABC → 기타 순."""
+    """건물명 가나다 → 1234 → ABCD 기준."""
     from auth import nav_building_sort_key
 
     return nav_building_sort_key(name)
@@ -194,6 +194,32 @@ def _building_sort_key(name: str | None) -> tuple:
 
 def _sort_buildings(buildings: list) -> list:
     return sorted(buildings, key=lambda b: _building_sort_key(getattr(b, "name", None)))
+
+
+def _sort_sites(sites: list) -> list:
+    """사업장 목록을 건물과 같은 규칙으로 정렬하고, 하위 건물도 정렬."""
+    ordered = sorted(sites, key=lambda s: _building_sort_key(getattr(s, "name", None)))
+    for site in ordered:
+        buildings = list(getattr(site, "buildings", None) or [])
+        buildings.sort(
+            key=lambda b: (
+                0 if getattr(b, "is_active", True) else 1,
+                _building_sort_key(getattr(b, "name", None)),
+            )
+        )
+        try:
+            site.buildings = buildings
+        except Exception:
+            try:
+                site.buildings.sort(
+                    key=lambda b: (
+                        0 if getattr(b, "is_active", True) else 1,
+                        _building_sort_key(getattr(b, "name", None)),
+                    )
+                )
+            except Exception:
+                pass
+    return ordered
 
 
 def _fmt_kst(dt: datetime | None) -> str:
@@ -3400,7 +3426,7 @@ async def sites_list(
         .options(selectinload(Site.buildings))
         .order_by(Site.name)
     )
-    sites = result.scalars().all()
+    sites = _sort_sites(list(result.scalars().unique().all()))
     return templates.TemplateResponse(
         request, "sites.html", {"user": user, "sites": sites, "error": error or ""}
     )
