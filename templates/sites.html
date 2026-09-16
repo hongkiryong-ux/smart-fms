@@ -11,7 +11,7 @@
     {% if view_mode == 'map' %}· 안내도{% else %}· 건물 목록{% endif %}
   </p>
   {% elif view_mode == 'grid' %}
-  <p>사업장별 안내도에서 건물 바로가기를 선택할 수 있습니다.</p>
+  <p>사업장 사진을 클릭하면 해당 사업장 안내도로 이동합니다.</p>
   {% else %}
   <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
   {% endif %}
@@ -33,19 +33,16 @@
         <a class="btn btn-sm btn-secondary" href="/admin/sites?view=list">사업장 목록</a>
         {% if user_can_edit(user) %}
         <button type="button" class="btn btn-sm btn-secondary" id="sites-split-edit-btn">분할화면 수정</button>
-        <button type="button" class="btn btn-sm btn-secondary" id="sites-split-add-btn" hidden>바로가기 추가</button>
-        <button type="button" class="btn btn-sm btn-primary" id="sites-split-save-btn" hidden>저장</button>
-        <button type="button" class="btn btn-sm btn-secondary" id="sites-split-cancel-btn" hidden>취소</button>
+        <button type="button" class="btn btn-sm btn-primary" id="sites-split-done-btn" hidden>완료</button>
         {% endif %}
       </span>
     </h2>
     <p class="text-muted sites-split-hint" id="sites-split-hint">
-      각 사업장 안내도의 바로가기를 누르면 건물 현황으로 이동합니다.
+      사진을 클릭하면 해당 사업장 안내도로 이동합니다.
       ({{ sites_grid.site_count }}개 사업장 · {{ sites_grid.columns }}열)
     </p>
     <p class="site-map-edit-hint" id="sites-split-edit-hint" hidden>
-      <strong>수정 모드:</strong> 패널을 클릭해 선택한 뒤, <strong>사진 변경</strong>으로 이미지를 바꾸거나
-      <strong>바로가기 추가</strong> 후 지도를 클릭해 위치·건물을 연동하세요. 핀은 드래그로 이동, ×로 삭제합니다.
+      <strong>수정 모드:</strong> 패널을 클릭해 선택한 뒤 <strong>사진 변경</strong>으로 이미지를 바꿀 수 있습니다.
     </p>
   </div>
 
@@ -55,7 +52,8 @@
     {% for panel in sites_grid.panels %}
     <article class="sites-split-panel{% if not panel.has_image %} is-no-image{% endif %}"
              data-site-id="{{ panel.site_id }}"
-             data-save-url="/admin/sites/{{ panel.site_id }}/map-hotspots"
+             data-site-name="{{ panel.site_name }}"
+             data-site-url="{{ panel.site_url }}"
              data-image-url="/admin/sites/{{ panel.site_id }}/map-image">
       <header class="sites-split-panel-head">
         <div>
@@ -75,20 +73,22 @@
       </header>
       <div class="site-map-frame sites-split-frame">
         {% if panel.has_image %}
-        <img class="site-map-img"
-             src="{{ panel.image }}"
-             alt="{{ panel.title }}"
-             decoding="async"
-             draggable="false" />
+        <a class="sites-split-link"
+           href="{{ panel.site_url }}"
+           title="{{ panel.site_name }} 안내도">
+          <img class="site-map-img"
+               src="{{ panel.image }}"
+               alt="{{ panel.title }}"
+               decoding="async"
+               draggable="false" />
+        </a>
         {% else %}
         <div class="sites-split-placeholder">
           <span>{{ panel.site_name }}</span>
           <small>분할화면 수정 → 사진 변경</small>
         </div>
         {% endif %}
-        <div class="site-map-hotspots" aria-label="{{ panel.site_name }} 건물 선택"></div>
       </div>
-      <script type="application/json" class="sites-panel-data">{{ panel | tojson }}</script>
     </article>
     {% else %}
     <p class="empty">등록된 사업장이 없습니다.</p>
@@ -96,22 +96,7 @@
   </div>
 </section>
 
-<dialog class="site-map-dialog" id="site-map-link-dialog">
-  <form method="dialog" class="site-map-dialog-body" id="site-map-link-form">
-    <h3>건물 연동</h3>
-    <p class="text-muted">이 바로가기에 연결할 건물을 선택하세요.</p>
-    <label for="site-map-building-select">건물</label>
-    <select id="site-map-building-select" required>
-      <option value="">선택</option>
-    </select>
-    <div class="site-map-dialog-actions">
-      <button type="submit" class="btn btn-primary" value="ok">연결</button>
-      <button type="submit" class="btn btn-secondary" value="cancel">취소</button>
-    </div>
-  </form>
-</dialog>
-
-<script src="/static/js/site_grid_editor.js?v=20260916b" defer></script>
+<script src="/static/js/site_grid_editor.js?v=20260916c" defer></script>
 
 {# ── 단일 사업장 안내도 ── #}
 {% elif site_map and view_mode == 'map' %}

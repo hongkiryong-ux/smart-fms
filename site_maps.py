@@ -276,10 +276,28 @@ async def build_site_map_payload(db: AsyncSession, site: Any) -> dict | None:
     }
 
 
+async def build_site_grid_panel(db: AsyncSession, site: Any) -> dict | None:
+    """분할 화면용 — 사진·사업장 정보만 (건물 핫스팟 제외)."""
+    if not site_has_map(site):
+        return None
+    image = await get_site_map_image_url(db, site)
+    sid = int(site.id)
+    name = getattr(site, "name", "") or "사업장"
+    return {
+        "image": image,
+        "title": name,
+        "site_id": sid,
+        "site_name": name,
+        "site_code": getattr(site, "code", "") or "",
+        "has_image": bool(image),
+        "site_url": f"/admin/sites?site_id={sid}&view=map",
+    }
+
+
 async def build_sites_grid_payload(db: AsyncSession, sites: list) -> dict:
     panels = []
     for site in sites:
-        panel = await build_site_map_payload(db, site)
+        panel = await build_site_grid_panel(db, site)
         if panel:
             panels.append(panel)
     cols = grid_columns(len(panels))
