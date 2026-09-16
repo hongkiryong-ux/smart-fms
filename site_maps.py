@@ -15,9 +15,13 @@ from models import AppSetting
 
 GY_OP_SITE_CODES = frozenset({"GY-OP"})
 GY_OP_SITE_NAMES = frozenset({"광양운영그룹"})
+GEUMHO_FAC_SITE_CODES = frozenset({"GH-FAC"})
+GEUMHO_FAC_SITE_NAMES = frozenset({"금호시설섹션"})
 
-GY_OP_MAP_IMAGE = "/static/maps/gwangyang_op_group.jpg?v=20260916housing"
-GY_OP_MAP_TITLE = "광양운영그룹 안내도"
+# 주택단지(금호시설) 안내도 — 기본 이미지·바로가기
+HOUSING_MAP_IMAGE = "/static/maps/gwangyang_op_group.jpg?v=20260916housing"
+GY_OP_MAP_IMAGE = HOUSING_MAP_IMAGE  # 하위 호환
+GY_OP_MAP_TITLE = "금호시설섹션 안내도"
 
 DEFAULT_GY_OP_HOTSPOTS = [
     {"label": "러닝센타", "names": ["러닝센타", "러닝센터"], "x": 22.0, "y": 78.5, "w": 7.5, "h": 3.2},
@@ -113,6 +117,17 @@ def _is_gy_op(site: Any) -> bool:
     return code in GY_OP_SITE_CODES or name in GY_OP_SITE_NAMES
 
 
+def _is_geumho_facility(site: Any) -> bool:
+    code = (getattr(site, "code", None) or "").strip()
+    name = (getattr(site, "name", None) or "").strip()
+    return code in GEUMHO_FAC_SITE_CODES or name in GEUMHO_FAC_SITE_NAMES
+
+
+def _is_housing_map_site(site: Any) -> bool:
+    """주택단지 안내도(기본 이미지·바로가기) 적용 대상 — 금호시설섹션."""
+    return _is_geumho_facility(site)
+
+
 def _norm(s: str) -> str:
     return "".join((s or "").split()).casefold()
 
@@ -149,7 +164,7 @@ def _active_buildings(site: Any, buildings: list | None = None) -> list:
 
 
 def default_hotspots_for_buildings(site: Any, buildings: list) -> list[dict]:
-    if _is_gy_op(site):
+    if _is_housing_map_site(site):
         templates = DEFAULT_GY_OP_HOTSPOTS
     else:
         templates = []
@@ -185,7 +200,12 @@ def normalize_hotspots(raw: list | None, buildings: list) -> list[dict]:
         label = (item.get("label") or "").strip()
         if b and not label:
             label = b.name or ""
-        if not label and not b:
+        if label and not b:
+            b = _match_building(buildings, [label])
+            if b:
+                bid_i = int(b.id)
+                label = b.name or label
+        if not label and bid_i is None:
             continue
         out.append(
             {
@@ -203,6 +223,49 @@ def normalize_hotspots(raw: list | None, buildings: list) -> list[dict]:
     return out
 
 
+async def _buildings_for_site_map(db: AsyncSession, site: Any) -> list:
+    """안내도 바로가기 연동용 건물 목록.
+    금호시설섹션은 광양운영그룹 건물도 포함(기존 바로가기 건물 연동 유지).
+    """
+    from sqlalchemy import or_, select
+    from sqlalchemy.orm import selectinload
+
+    from models import Building, Site
+
+    own = list(_active_buildings(site))
+    if not _is_housing_map_site(site) and not _is_gy_op(site):
+        return own
+
+    codes = list(GY_OP_SITE_CODES | GEUMHO_FAC_SITE_CODES)
+    names = list(GY_OP_SITE_NAMES | GEUMHO_FAC_SITE_NAMES)
+    site_rows = (
+        await db.execute(
+            select(Site).where(
+                Site.is_active == True,  # noqa: E712
+                or_(Site.code.in_(codes), Site.name.in_(names)),
+            )
+        )
+    ).scalars().all()
+    site_ids = {int(s.id) for s in site_rows if getattr(s, "id", None) is not None}
+    if getattr(site, "id", None) is not None:
+        site_ids.add(int(site.id))
+    if not site_ids:
+        return own
+
+    rows = (
+        await db.execute(
+            select(Building)
+            .where(
+                Building.is_active == True,  # noqa: E712
+                Building.site_id.in_(site_ids),
+            )
+            .options(selectinload(Building.site))
+            .order_by(Building.name)
+        )
+    ).scalars().unique().all()
+    return list(rows)
+
+
 async def get_site_image_url(db: AsyncSession, site: Any, kind: str = "map") -> str | None:
     """kind: 'map'(안내도) | 'grid'(4분할). 서로 독립 저장."""
     if site is None or getattr(site, "id", None) is None:
@@ -210,8 +273,8 @@ async def get_site_image_url(db: AsyncSession, site: Any, kind: str = "map") -> 
     row = await db.get(AppSetting, _image_setting_key(site.id, kind))
     if row and (row.value or "").strip():
         return row.value.strip()
-    if _is_gy_op(site):
-        return GY_OP_MAP_IMAGE
+    if kind == "map" and _is_housing_map_site(site):
+        return HOUSING_MAP_IMAGE
     return None
 
 
@@ -298,7 +361,7 @@ async def save_site_grid_image_upload(
 
 
 async def load_site_map_hotspots(db: AsyncSession, site: Any) -> list[dict]:
-    buildings = _active_buildings(site)
+    buildings = await _buildings_for_site_map(db, site)
     if site is None or getattr(site, "id", None) is None:
         return normalize_hotspots(default_hotspots_for_buildings(site, buildings), buildings)
 
@@ -311,7 +374,67 @@ async def load_site_map_hotspots(db: AsyncSession, site: Any) -> list[dict]:
                 return normalize_hotspots(raw, buildings)
         except Exception:
             pass
+
+    # 금호시설섹션에 저장값이 없으면 광양운영그룹에 저장된 바로가기를 복사·적용
+    if _is_housing_map_site(site):
+        copied = await _copy_hotspots_from_gy_op_if_needed(db, site, buildings)
+        if copied is not None:
+            return copied
+
     return normalize_hotspots(default_hotspots_for_buildings(site, buildings), buildings)
+
+
+async def _find_site_by_codes_names(
+    db: AsyncSession, codes: frozenset[str], names: frozenset[str]
+):
+    from sqlalchemy import or_, select
+
+    from models import Site
+
+    return (
+        await db.execute(
+            select(Site).where(
+                Site.is_active == True,  # noqa: E712
+                or_(Site.code.in_(list(codes)), Site.name.in_(list(names))),
+            )
+        )
+    ).scalars().first()
+
+
+async def _copy_hotspots_from_gy_op_if_needed(
+    db: AsyncSession, target_site: Any, buildings: list
+) -> list[dict] | None:
+    """광양운영그룹에 저장된 안내도 바로가기를 금호시설섹션으로 이전(없을 때만)."""
+    gy = await _find_site_by_codes_names(db, GY_OP_SITE_CODES, GY_OP_SITE_NAMES)
+    if gy is None or getattr(gy, "id", None) is None:
+        return None
+    if int(gy.id) == int(target_site.id):
+        return None
+
+    src = await db.get(AppSetting, site_map_setting_key(gy.id))
+    if not src or not (src.value or "").strip():
+        return None
+
+    try:
+        data = json.loads(src.value)
+        raw = data.get("hotspots") if isinstance(data, dict) else data
+        if not isinstance(raw, list) or not raw:
+            return None
+    except Exception:
+        return None
+
+    await save_site_map_hotspots(db, int(target_site.id), raw)
+
+    # 안내도 이미지도 없으면 함께 복사
+    tgt_img = await db.get(AppSetting, site_map_image_setting_key(target_site.id))
+    if not tgt_img or not (tgt_img.value or "").strip():
+        src_img = await db.get(AppSetting, site_map_image_setting_key(gy.id))
+        if src_img and (src_img.value or "").strip():
+            await save_site_map_image_url(db, int(target_site.id), src_img.value.strip())
+        else:
+            await save_site_map_image_url(db, int(target_site.id), HOUSING_MAP_IMAGE)
+
+    return normalize_hotspots(raw, buildings)
 
 
 async def save_site_map_hotspots(
@@ -346,7 +469,7 @@ async def save_site_map_hotspots(
 async def build_site_map_payload(db: AsyncSession, site: Any) -> dict | None:
     if not site_has_map(site):
         return None
-    buildings = _active_buildings(site)
+    buildings = await _buildings_for_site_map(db, site)
     hotspots = await load_site_map_hotspots(db, site)
     image = await get_site_map_image_url(db, site)
     building_options = [

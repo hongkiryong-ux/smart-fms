@@ -362,6 +362,7 @@ async def ensure_category_demo(session: AsyncSession) -> None:
         # 사이드바 사업장 메뉴용 기본 사업장 보장
         for name, code in (
             ("광양운영그룹", "GY-OP"),
+            ("금호시설섹션", "GH-FAC"),
             ("해수담수섹션", "SW-DESAL"),
             ("RIST", "RIST"),
         ):
@@ -382,6 +383,68 @@ async def ensure_category_demo(session: AsyncSession) -> None:
                     )
                 )
         await session.commit()
+
+        # 광양운영그룹 안내도 바로가기 → 금호시설섹션으로 이전(최초 1회)
+        try:
+            from site_maps import (
+                GEUMHO_FAC_SITE_CODES,
+                GEUMHO_FAC_SITE_NAMES,
+                GY_OP_SITE_CODES,
+                GY_OP_SITE_NAMES,
+                HOUSING_MAP_IMAGE,
+                save_site_map_hotspots,
+                save_site_map_image_url,
+                site_map_image_setting_key,
+                site_map_setting_key,
+            )
+            from models import AppSetting
+            import json as _json
+
+            gy = (
+                await session.execute(
+                    select(Site).where(Site.code.in_(list(GY_OP_SITE_CODES)))
+                )
+            ).scalars().first()
+            if gy is None:
+                gy = (
+                    await session.execute(
+                        select(Site).where(Site.name.in_(list(GY_OP_SITE_NAMES)))
+                    )
+                ).scalars().first()
+            gh = (
+                await session.execute(
+                    select(Site).where(Site.code.in_(list(GEUMHO_FAC_SITE_CODES)))
+                )
+            ).scalars().first()
+            if gh is None:
+                gh = (
+                    await session.execute(
+                        select(Site).where(Site.name.in_(list(GEUMHO_FAC_SITE_NAMES)))
+                    )
+                ).scalars().first()
+
+            if gy and gh and gy.id != gh.id:
+                gh_hs = await session.get(AppSetting, site_map_setting_key(gh.id))
+                gy_hs = await session.get(AppSetting, site_map_setting_key(gy.id))
+                if (not gh_hs or not (gh_hs.value or "").strip()) and gy_hs and (gy_hs.value or "").strip():
+                    try:
+                        data = _json.loads(gy_hs.value)
+                        raw = data.get("hotspots") if isinstance(data, dict) else data
+                        if isinstance(raw, list) and raw:
+                            await save_site_map_hotspots(session, int(gh.id), raw)
+                            print("[seed] copied map hotspots GY-OP -> GH-FAC", flush=True)
+                    except Exception as e:
+                        print(f"[seed] hotspot copy skip: {e}", flush=True)
+                gh_img = await session.get(AppSetting, site_map_image_setting_key(gh.id))
+                if not gh_img or not (gh_img.value or "").strip():
+                    gy_img = await session.get(AppSetting, site_map_image_setting_key(gy.id))
+                    url = (gy_img.value or "").strip() if gy_img else ""
+                    await save_site_map_image_url(
+                        session, int(gh.id), url or HOUSING_MAP_IMAGE
+                    )
+                    print("[seed] set GH-FAC map image", flush=True)
+        except Exception as e:
+            print(f"[seed] GH-FAC map migrate skipped: {e}", flush=True)
 
         from excel_import import ensure_all_buildings, backfill_all_building_default_categories
 
