@@ -3,25 +3,42 @@
 {% block content %}
 <header class="page-header">
   <h1>설비 관리</h1>
-  <p>좌측 메뉴에서 건물을 선택하면 설비가 표시됩니다 · <a href="/admin/equipment/import">엑셀 Import/Export</a></p>
+  <p>좌측 메뉴에서 사업장·건물을 선택하면 해당 내용만 표시됩니다 · <a href="/admin/equipment/import">엑셀 Import/Export</a></p>
 </header>
 
 {# ── 건물 미선택: 안내 + 건물 카드 ── #}
 {% if not selected_building %}
 <section class="card">
+  {% if selected_site %}
+  <div class="breadcrumb-nav" style="margin-bottom:0.75rem">
+    <a href="/admin/equipment">전체 사업장</a>
+    <span>›</span>
+    <strong>{{ selected_site.name }}</strong>
+  </div>
+  <h2>{{ selected_site.name }} 건물</h2>
+  {% else %}
   <h2>건물 선택</h2>
+  {% endif %}
   {% if error %}
   <div class="alert alert-error">{{ error }}</div>
   {% endif %}
   <p class="text-muted" style="margin-bottom:1rem">
-    사이드바 <strong>설비관리</strong>를 펼쳐 건물을 선택하거나, 아래에서 선택하세요.
+    {% if selected_site %}
+    사이드바에서 <strong>{{ selected_site.name }}</strong> 하위 건물을 선택하거나, 아래에서 선택하세요.
+    {% else %}
+    사이드바 <strong>설비관리</strong>에서 사업장·건물을 선택하거나, 아래에서 선택하세요.
+    {% endif %}
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/import">엑셀 Import / Export</a>
   </p>
   {% if buildings %}
   <div class="eq-site-building-list">
     {% for g in building_groups %}
     <section class="eq-site-group">
-      <h3 class="eq-site-group-title">{{ g.site_name }}</h3>
+      {% if not selected_site %}
+      <h3 class="eq-site-group-title">
+        <a href="/admin/equipment?site_id={{ g.site_id }}">{{ g.site_name }}</a>
+      </h3>
+      {% endif %}
       <div class="eq-building-grid">
         {% for b in g.buildings %}
         <a class="eq-building-card eq-building-palette-{{ (loop.index0 % 12) + 1 }}"
@@ -35,7 +52,9 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="empty">등록된 건물이 없습니다.
+  <p class="empty">
+    {% if selected_site %}이 사업장에 등록된 건물이 없습니다.
+    {% else %}등록된 건물이 없습니다.{% endif %}
     <a href="/admin/equipment/import">엑셀 Import</a>로 건물·설비를 등록하거나
     <a href="/admin/sites">사업장/건물</a>을 등록하세요.</p>
   {% endif %}
@@ -44,7 +63,11 @@
 {# ── 건물 선택됨: 설비 목록 ── #}
 {% else %}
 <div class="breadcrumb-nav">
-  <a href="/admin/equipment">건물 목록</a>
+  <a href="/admin/equipment">전체 사업장</a>
+  {% if selected_site %}
+  <span>›</span>
+  <a href="/admin/equipment?site_id={{ selected_site.id }}">{{ selected_site.name }}</a>
+  {% endif %}
   <span>›</span>
   <strong>{{ selected_building.name }}</strong>
   {% if category %}<span>›</span><strong>{{ category }}</strong>{% endif %}

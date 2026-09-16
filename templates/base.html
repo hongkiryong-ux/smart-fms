@@ -127,7 +127,7 @@
       <li class="nav-expandable{% if eq_path %} is-open{% endif %}" id="nav-equipment">
         <div class="nav-parent-row">
           <a href="/admin/equipment"
-             class="nav-parent-link{% if eq_path and not nav_bid %} active{% endif %}">설비관리</a>
+             class="nav-parent-link{% if eq_path and not nav_bid and not nav_site_id %} active{% endif %}">설비관리</a>
           <button type="button"
                   class="nav-toggle"
                   aria-expanded="{% if eq_path %}true{% else %}false{% endif %}"
@@ -143,14 +143,15 @@
             {% for b in g.buildings %}
               {% if b.id|string == nav_bid %}{% set eq_ns.open = true %}{% endif %}
             {% endfor %}
+          {% elif eq_path and nav_site_id and g.site_id is not none and nav_site_id == g.site_id|string %}
+            {% set eq_ns.open = true %}
           {% endif %}
           <li class="nav-expandable nav-nested{% if eq_ns.open %} is-open{% endif %}"
               id="nav-eq-site-{{ g.site_id or loop.index }}">
             <div class="nav-parent-row">
-              <a href="#"
-                 class="nav-parent-link"
-                 title="{{ g.site_name }} 건물 목록"
-                 data-nav-toggle-only="1">{{ g.site_name }}</a>
+              <a href="/admin/equipment?site_id={{ g.site_id }}"
+                 class="nav-parent-link{% if eq_path and not nav_bid and nav_site_id and g.site_id is not none and nav_site_id == g.site_id|string %} active{% endif %}"
+                 title="{{ g.site_name }} 건물 목록">{{ g.site_name }}</a>
               <button type="button"
                       class="nav-toggle"
                       aria-expanded="{% if eq_ns.open %}true{% else %}false{% endif %}"
@@ -453,7 +454,7 @@
       bindNavExpandable(id, id + '-open', { accordionGroup: siteNavIds });
     });
     eqSiteNavIds.forEach(function (id) {
-      bindNavExpandable(id, id + '-open', { toggleOnly: true, accordionGroup: eqSiteNavIds });
+      bindNavExpandable(id, id + '-open', { expandByChevronOnly: true, accordionGroup: eqSiteNavIds });
     });
     enforceSingleOpen(topLevelNavIds);
     enforceSingleOpen(nestedNavIds);

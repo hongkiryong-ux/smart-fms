@@ -4735,6 +4735,7 @@ async def _building_category_counts(
 async def equipment_list(
     request: Request,
     building_id: int | None = None,
+    site_id: int | None = None,
     category: str | None = None,
     error: str | None = None,
     message: str | None = None,
@@ -4756,6 +4757,7 @@ async def equipment_list(
     building_groups = group_buildings_by_site(buildings)
 
     selected_building = None
+    selected_site = None
     categories: list[str] = []
     category_counts: dict[str, int] = {}
     equipment: list = []
@@ -4779,6 +4781,10 @@ async def equipment_list(
             except Exception as e:
                 print(f"[equipment_list] default categories skip: {e}", flush=True)
                 await db.rollback()
+
+            if getattr(selected_building, "site_id", None):
+                selected_site = await db.get(Site, selected_building.site_id)
+            site_id = getattr(selected_building, "site_id", None) or site_id
 
             category_counts = await _building_category_counts(db, building_id)
             categories = sorted(category_counts.keys(), key=_building_sort_key)
@@ -4858,6 +4864,16 @@ async def equipment_list(
 
             category = active_category
 
+    elif site_id is not None:
+        selected_site = await db.get(Site, site_id)
+        if selected_site and not getattr(selected_site, "is_active", True):
+            selected_site = None
+        if selected_site:
+            buildings = [b for b in buildings if getattr(b, "site_id", None) == site_id]
+            building_groups = group_buildings_by_site(buildings)
+        else:
+            site_id = None
+
     pm_inspections_by_eq = _equipment_pm_inspections_map(equipment) if equipment else {}
     change_logs_by_eq = await _load_change_logs_by_eq(
         db, [e.id for e in equipment]
@@ -4877,7 +4893,9 @@ async def equipment_list(
             "buildings": buildings,
             "building_groups": building_groups,
             "selected_building": selected_building,
+            "selected_site": selected_site,
             "building_id": building_id,
+            "site_id": site_id,
             "category": category,
             "show_all_categories": show_all_categories,
             "categories": categories,
