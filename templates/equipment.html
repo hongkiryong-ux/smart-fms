@@ -66,6 +66,13 @@
   <div class="eq-building-actions">
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/export/{{ selected_building.id }}">엑셀 출력</a>
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/import?building_id={{ selected_building.id }}">엑셀 업데이트</a>
+    <span class="eq-excel-import-date" title="이 건물의 최근 엑셀 import 시각">
+      {% if selected_building.excel_imported_at %}
+      최근 import {{ fmt_kst(selected_building.excel_imported_at) }}
+      {% else %}
+      최근 import 없음
+      {% endif %}
+    </span>
   </div>
 </div>
 

@@ -164,6 +164,8 @@ class Building(Base):
     photo_url = Column(String(500), nullable=True)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
+    # 건물 단위 엑셀 import 최근 시각
+    excel_imported_at = Column(DateTime, nullable=True)
 
     site = relationship("Site", back_populates="buildings")
     floors = relationship("Floor", back_populates="building", cascade="all, delete-orphan")

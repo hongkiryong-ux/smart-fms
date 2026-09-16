@@ -1920,6 +1920,13 @@ a.dm:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  align-items: center;
+}
+.eq-excel-import-date {
+  font-size: 0.82rem;
+  color: var(--muted, #666);
+  white-space: nowrap;
+  margin-left: 0.15rem;
 }
 .eq-building-grid {
   display: grid;

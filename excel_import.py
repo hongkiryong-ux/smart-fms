@@ -489,6 +489,7 @@ async def import_excel_to_building(
     stats["history_added"] = hist_stats.get("history_added", 0)
     stats["pm_added"] = hist_stats.get("pm_added", 0)
 
+    building.excel_imported_at = datetime.utcnow()
     await session.commit()
     return stats
 
