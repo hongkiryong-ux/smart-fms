@@ -20,6 +20,8 @@
 
   var canEdit = root.getAttribute("data-can-edit") === "1";
   var saveUrl = root.getAttribute("data-save-url") || "";
+  var imageUploadUrl = root.getAttribute("data-image-url") || "";
+  var uploadInput = document.getElementById("site-map-upload-input");
   var mapData = {};
   try {
     mapData = JSON.parse(dataEl ? dataEl.textContent || "{}" : "{}");
@@ -374,6 +376,45 @@
   if (img) {
     img.addEventListener("dragstart", function (ev) {
       ev.preventDefault();
+    });
+  }
+
+  function applyUploadedImage(url) {
+    var placeholder = document.getElementById("site-map-placeholder");
+    if (placeholder) placeholder.remove();
+    if (!img) {
+      img = document.createElement("img");
+      img.id = "site-map-img";
+      img.className = "site-map-img";
+      img.draggable = false;
+      img.decoding = "async";
+      if (frame) frame.insertBefore(img, layer);
+    }
+    img.src = url;
+    img.alt = mapData.title || "안내도";
+    img.addEventListener("dragstart", function (ev) {
+      ev.preventDefault();
+    });
+  }
+
+  if (uploadInput && canEdit && imageUploadUrl) {
+    uploadInput.addEventListener("change", function () {
+      if (!uploadInput.files || !uploadInput.files.length) return;
+      var file = uploadInput.files[0];
+      uploadInput.value = "";
+      var fd = new FormData();
+      fd.append("file", file);
+      fetch(imageUploadUrl, { method: "POST", body: fd, credentials: "same-origin" })
+        .then(function (res) {
+          if (!res.ok) throw new Error("upload failed");
+          return res.json();
+        })
+        .then(function (data) {
+          applyUploadedImage(data.image);
+        })
+        .catch(function () {
+          window.alert("사진 업로드에 실패했습니다.");
+        });
     });
   }
 

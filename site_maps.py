@@ -15,7 +15,7 @@ from models import AppSetting
 GY_OP_SITE_CODES = frozenset({"GY-OP"})
 GY_OP_SITE_NAMES = frozenset({"광양운영그룹"})
 
-GY_OP_MAP_IMAGE = "/static/maps/gwangyang_op_group.jpg"
+GY_OP_MAP_IMAGE = "/static/maps/gwangyang_op_group.jpg?v=20260916housing"
 GY_OP_MAP_TITLE = "광양운영그룹 안내도"
 
 DEFAULT_GY_OP_HOTSPOTS = [

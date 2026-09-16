@@ -102,6 +102,7 @@
          id="site-map-root"
          data-site-id="{{ selected_site.id }}"
          data-save-url="/admin/sites/{{ selected_site.id }}/map-hotspots"
+         data-image-url="/admin/sites/{{ selected_site.id }}/map-image"
          data-can-edit="{{ '1' if user_can_edit(user) else '0' }}">
   <div class="site-map-head">
     <h2>
@@ -111,6 +112,11 @@
         <a class="btn btn-sm btn-secondary"
            href="/admin/sites?site_id={{ selected_site.id }}&view=list">건물 목록</a>
         {% if user_can_edit(user) %}
+        <label class="btn btn-sm btn-secondary site-map-upload-btn">
+          사진 변경
+          <input type="file" id="site-map-upload-input"
+                 accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+        </label>
         <button type="button" class="btn btn-sm btn-secondary" id="site-map-edit-btn">위치 수정</button>
         <button type="button" class="btn btn-sm btn-secondary" id="site-map-add-btn" hidden>추가</button>
         <button type="button" class="btn btn-sm btn-primary" id="site-map-save-btn" hidden>저장</button>
@@ -121,6 +127,7 @@
     <p class="text-muted site-map-hint" id="site-map-hint">
       지도의 바로가기를 누르면 해당 건물 현황으로 이동합니다.
       연결 {{ site_map.matched_count }}곳
+      · 사진 변경으로 안내도 이미지를 바꿀 수 있습니다.
     </p>
     <p class="site-map-edit-hint" id="site-map-edit-hint" hidden>
       <strong>수정 모드:</strong> 핀을 드래그해 위치를 옮기세요.
@@ -131,9 +138,12 @@
     {% if site_map.has_image %}
     <img class="site-map-img" id="site-map-img"
          src="{{ site_map.image }}" alt="{{ site_map.title }}"
-         width="1024" height="893" decoding="async" draggable="false" />
+         decoding="async" draggable="false" />
     {% else %}
-    <div class="sites-split-placeholder"><span>{{ selected_site.name }}</span></div>
+    <div class="sites-split-placeholder" id="site-map-placeholder">
+      <span>{{ selected_site.name }}</span>
+      <small>사진 변경으로 안내도를 등록하세요</small>
+    </div>
     {% endif %}
     <div class="site-map-hotspots" id="site-map-hotspots" aria-label="건물 선택"></div>
   </div>
@@ -155,7 +165,7 @@
 </dialog>
 
 <script type="application/json" id="site-map-data">{{ site_map | tojson }}</script>
-<script src="/static/js/site_map_editor.js?v=20260916b" defer></script>
+<script src="/static/js/site_map_editor.js?v=20260916c" defer></script>
 
 {# ── 사업장·건물 목록 ── #}
 {% else %}
