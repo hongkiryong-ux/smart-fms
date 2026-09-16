@@ -139,7 +139,7 @@ def _row_values(sheet, wb_kind: str, r: int, max_col: int) -> list[str]:
 
 
 def _find_header_row(sheet, wb_kind: str, nrows: int, ncols: int) -> int | None:
-    keywords = ("구분", "구 분", "명칭", "TYPE", "형식", "PUMP", "FAN")
+    keywords = ("구분", "구 분", "명칭", "코드", "설비코드", "TYPE", "형식", "PUMP", "FAN")
     for r in range(min(10, nrows)):
         row = _row_values(sheet, wb_kind, r, ncols)
         joined = " ".join(row)
@@ -157,6 +157,54 @@ def _is_data_row(cells: list[str]) -> bool:
     if "합계" in text or "소계" in text:
         return False
     return True
+
+
+# 엑셀에서 설비 코드로 인정하는 헤더 (맨앞 열에 오는 경우가 많음)
+_CODE_HEADER_KEYS = (
+    "코드",
+    "설비코드",
+    "설비 코드",
+    "CODE",
+    "Code",
+    "code",
+    "EQ CODE",
+    "Eq Code",
+)
+
+
+def _norm_header(h: str) -> str:
+    return re.sub(r"\s+", "", (h or "").strip()).lower()
+
+
+def _is_code_header(header: str) -> bool:
+    n = _norm_header(header)
+    if not n:
+        return False
+    for key in _CODE_HEADER_KEYS:
+        if _norm_header(key) == n:
+            return True
+    return n in ("코드", "설비코드", "code", "eqcode", "eq코드")
+
+
+def _extract_row_code(row_dict: dict[str, Any], headers: list[str], cells: list[str]) -> str:
+    """시트에 코드 열이 있으면 그 값을 사용. 없으면 빈 문자열."""
+    for key in _CODE_HEADER_KEYS:
+        val = _safe_str(row_dict.get(key))
+        if val:
+            return val[:64]
+    # 헤더 정규화 매칭 (공백/대소문자 차이)
+    for h in headers:
+        if not _is_code_header(h):
+            continue
+        val = _safe_str(row_dict.get(h))
+        if val:
+            return val[:64]
+    # 맨앞 열이 코드 헤더이면 첫 칸 사용
+    if headers and _is_code_header(headers[0]) and cells:
+        val = _safe_str(cells[0])
+        if val:
+            return val[:64]
+    return ""
 
 
 def parse_excel_file(path: str | Path) -> dict[str, list[dict[str, Any]]]:
@@ -192,17 +240,30 @@ def parse_excel_file(path: str | Path) -> dict[str, list[dict[str, Any]]]:
                 row_dict = {headers[i]: cells[i] for i in range(len(headers)) if headers[i] and cells[i]}
                 if not row_dict:
                     continue
-                # 설비명 추출
+                excel_code = _extract_row_code(row_dict, headers, cells)
+                # 설비명 추출 (코드 열과 구분)
                 name = (
                     row_dict.get("구분")
                     or row_dict.get("구 분")
                     or row_dict.get("명칭")
-                    or cells[0]
-                    or cells[2] if len(cells) > 2 else ""
+                    or ""
                 )
+                if not name:
+                    # 맨앞이 코드면 다음 칸을 명칭으로
+                    if headers and _is_code_header(headers[0]):
+                        name = cells[1] if len(cells) > 1 else ""
+                    else:
+                        name = cells[0] or (cells[2] if len(cells) > 2 else "")
                 if not name or name in ("PUMP", "FAN", "MOTOR"):
                     continue
+                # 명칭이 코드와 같으면(코드만 있는 행) 스킵하지 않되, 코드만으로도 등록 가능
+                if excel_code and name == excel_code and len(cells) > 1:
+                    alt = cells[1] if not _is_code_header(headers[1] if len(headers) > 1 else "") else ""
+                    if alt:
+                        name = alt
                 row_dict["_name"] = name
+                if excel_code:
+                    row_dict["_code"] = excel_code
                 rows.append(row_dict)
 
             if rows:
@@ -218,6 +279,16 @@ def _equipment_code(building_code: str, sheet: str, idx: int, name: str) -> str:
     base = re.sub(r"[^\w]", "", sheet)[:6].upper()
     nm = re.sub(r"[^\w가-힣]", "", name)[:10]
     return f"{building_code}-{base}-{idx:03d}"[:64]
+
+
+def _sanitize_equipment_code(raw: str) -> str:
+    """엑셀 코드 정리. 비어 있으면 빈 문자열."""
+    code = re.sub(r"\s+", "", (raw or "").strip())
+    if not code:
+        return ""
+    # 경로/파일명에 쓰일 수 없는 문자만 제거 (한글·하이픈 등은 유지)
+    code = re.sub(r"[\\/:*?\"<>|]", "-", code)
+    return code[:64]
 
 
 # 건물 등록 시 기본으로 만드는 대분류(설비 탭) — 각 1코드
@@ -440,12 +511,36 @@ async def import_excel_to_building(
 
     stats = {"sheets": 0, "created": 0, "updated": 0, "history_added": 0, "pm_added": 0}
     bcode = building.code
+    used_codes: set[str] = set()
 
     for sheet_name, rows in parsed.items():
         stats["sheets"] += 1
         for idx, row in enumerate(rows, start=1):
             name = row.pop("_name", f"항목{idx}")
-            code = _equipment_code(bcode, sheet_name, idx, name)
+            excel_code = _sanitize_equipment_code(row.pop("_code", "") or "")
+            if not excel_code:
+                # 파서가 _code를 못 채웠어도 코드/설비코드 열이 남아 있으면 사용
+                for key in _CODE_HEADER_KEYS:
+                    excel_code = _sanitize_equipment_code(row.get(key) or "")
+                    if excel_code:
+                        break
+
+            if excel_code:
+                code = excel_code
+                # 같은 파일 내 중복 코드는 접미사로 구분
+                if code in used_codes:
+                    suffix = 2
+                    while f"{excel_code}-{suffix}"[:64] in used_codes:
+                        suffix += 1
+                    code = f"{excel_code}-{suffix}"[:64]
+            else:
+                seq = idx
+                code = _equipment_code(bcode, sheet_name, seq, name)
+                while code in used_codes:
+                    seq += 1
+                    code = _equipment_code(bcode, sheet_name, seq, name)
+
+            used_codes.add(code)
 
             existing = await _lookup_equipment_by_code(session, code)
 
