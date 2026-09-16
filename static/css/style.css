@@ -1900,13 +1900,18 @@ a.dm:hover {
   left: 50%;
   bottom: calc(100% + 6px);
   transform: translateX(-50%);
+  display: inline-block;
+  width: max-content;
+  max-width: 16rem;
+  box-sizing: border-box;
   white-space: nowrap;
-  padding: 0.2rem 0.45rem;
+  padding: 0.22rem 0.42rem;
   border-radius: 4px;
   background: #003876;
   color: #fff;
   font-size: 0.72rem;
   font-weight: 600;
+  line-height: 1.2;
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
