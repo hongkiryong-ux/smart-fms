@@ -198,9 +198,13 @@ def _sort_buildings(buildings: list) -> list:
     return sorted(buildings, key=lambda b: _building_sort_key(getattr(b, "name", None)))
 
 
-def _sort_sites(sites: list) -> list:
-    """사업장 목록을 건물과 같은 규칙으로 정렬하고, 하위 건물도 정렬."""
+def _sort_sites(sites: list, *, sort_buildings: bool = True) -> list:
+    """사업장 목록을 건물과 같은 규칙으로 정렬하고, 하위 건물도 정렬.
+    sort_buildings=False 이면 buildings 관계에 접근하지 않음(미로드 시 MissingGreenlet 방지).
+    """
     ordered = sorted(sites, key=lambda s: _building_sort_key(getattr(s, "name", None)))
+    if not sort_buildings:
+        return ordered
     for site in ordered:
         buildings = list(getattr(site, "buildings", None) or [])
         buildings.sort(
@@ -3435,7 +3439,10 @@ async def sites_list(
     if need_buildings:
         site_q = site_q.options(selectinload(Site.buildings))
     result = await db.execute(site_q)
-    all_sites = _sort_sites(list(result.scalars().unique().all()))
+    all_sites = _sort_sites(
+        list(result.scalars().unique().all()),
+        sort_buildings=need_buildings,
+    )
     selected_site = None
     sites = all_sites
     if site_id is not None:
@@ -3476,7 +3483,10 @@ async def sites_list(
                 .options(selectinload(Site.buildings))
                 .order_by(Site.name)
             )
-            all_sites = _sort_sites(list(result2.scalars().unique().all()))
+            all_sites = _sort_sites(
+                list(result2.scalars().unique().all()),
+                sort_buildings=True,
+            )
             selected_site = next((s for s in all_sites if s.id == site_id), selected_site)
             sites = [selected_site] if selected_site else all_sites
 
