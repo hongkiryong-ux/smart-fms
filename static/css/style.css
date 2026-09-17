@@ -6569,10 +6569,13 @@ tr.wo-row-selected {
   background: #fbfdff;
 }
 .ops-site-list li:last-child { border-bottom: 1px solid #eef2f7; }
-.ops-rank { width: 28px; height: 28px; border-radius: 6px; background: #0f172a; color: #fff; display: grid; place-items: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+.ops-rank { width: 28px; height: 28px; border-radius: 6px; background: #64748b; color: #fff; display: grid; place-items: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
 .ops-rank.rank-1 { background: #ef4444; }
 .ops-rank.rank-2 { background: #f97316; }
 .ops-rank.rank-3 { background: #eab308; color: #422006; }
+.ops-rank.rank-4 { background: #22c55e; }
+.ops-rank.rank-5 { background: #3b82f6; }
+.ops-rank.rank-6 { background: #8b5cf6; }
 .ops-site-thumb { width: 56px; height: 42px; border-radius: 8px; background: linear-gradient(135deg,#94a3b8,#cbd5e1); }
 .ops-site-thumb.tone-0 { background: linear-gradient(135deg,#64748b,#94a3b8); }
 .ops-site-thumb.tone-1 { background: linear-gradient(135deg,#0ea5e9,#38bdf8); }
@@ -6613,7 +6616,10 @@ tr.wo-row-selected {
 .ops-site-metrics .ops-site-bar i { display: block; height: 100%; border-radius: 999px; background: #ef4444; }
 .ops-site-metrics.rank-1 .ops-site-bar i { background: #ef4444; }
 .ops-site-metrics.rank-2 .ops-site-bar i { background: #f97316; }
-.ops-site-metrics.rank-3 .ops-site-bar i { background: #22c55e; }
+.ops-site-metrics.rank-3 .ops-site-bar i { background: #eab308; }
+.ops-site-metrics.rank-4 .ops-site-bar i { background: #22c55e; }
+.ops-site-metrics.rank-5 .ops-site-bar i { background: #3b82f6; }
+.ops-site-metrics.rank-6 .ops-site-bar i { background: #8b5cf6; }
 .ops-site-link {
   white-space: nowrap;
   font-size: 0.82rem;
