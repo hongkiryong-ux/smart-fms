@@ -3427,12 +3427,14 @@ async def sites_list(
 ):
     from site_maps import build_site_map_payload, build_sites_tabs_payload, site_has_map
 
-    result = await db.execute(
-        select(Site)
-        .where(Site.is_active == True)
-        .options(selectinload(Site.buildings))
-        .order_by(Site.name)
-    )
+    view_hint = (view or "").strip().lower()
+    # grid(기본)는 건물 목록이 필요 없음 — selectinload 생략으로 첫 화면 가속
+    need_buildings = view_hint == "list"
+
+    site_q = select(Site).where(Site.is_active == True).order_by(Site.name)
+    if need_buildings:
+        site_q = site_q.options(selectinload(Site.buildings))
+    result = await db.execute(site_q)
     all_sites = _sort_sites(list(result.scalars().unique().all()))
     selected_site = None
     sites = all_sites
@@ -3443,7 +3445,7 @@ async def sites_list(
 
     site_map = None
     sites_tabs = None
-    view_mode = (view or "").strip().lower()
+    view_mode = view_hint
 
     if selected_site is None:
         if view_mode == "list":
@@ -3456,8 +3458,27 @@ async def sites_list(
             view_mode = "map"
         if view_mode == "map":
             site_map = await build_site_map_payload(db, selected_site)
+        elif view_mode == "list" and not need_buildings:
+            # 방어: list인데 buildings 미로드 시 재조회
+            result2 = await db.execute(
+                select(Site)
+                .where(Site.id == selected_site.id)
+                .options(selectinload(Site.buildings))
+            )
+            selected_site = result2.scalar_one_or_none() or selected_site
+            sites = [selected_site]
     else:
         view_mode = "list"
+        if not need_buildings:
+            result2 = await db.execute(
+                select(Site)
+                .where(Site.is_active == True)
+                .options(selectinload(Site.buildings))
+                .order_by(Site.name)
+            )
+            all_sites = _sort_sites(list(result2.scalars().unique().all()))
+            selected_site = next((s for s in all_sites if s.id == site_id), selected_site)
+            sites = [selected_site] if selected_site else all_sites
 
     return templates.TemplateResponse(
         request,
@@ -3474,6 +3495,24 @@ async def sites_list(
             "error": error or "",
         },
     )
+
+
+@app.get("/admin/sites/{site_id}/inline-map-data")
+async def site_inline_map_data(
+    site_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """탭 화면에서 안내도 전환 시 핫스팟·맵 메타를 지연 로딩."""
+    from site_maps import build_site_inline_map_data
+
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active:
+        raise HTTPException(404, detail="사업장을 찾을 수 없습니다.")
+    data = await build_site_inline_map_data(db, site)
+    if data is None:
+        raise HTTPException(404, detail="안내도 데이터를 찾을 수 없습니다.")
+    return JSONResponse(data)
 
 
 @app.get("/admin/sites/{site_id}/map-file")
@@ -3554,6 +3593,9 @@ async def site_map_image_upload(
     except Exception as exc:
         detail = "PDF 변환에 실패했습니다." if suffix == ".pdf" else "이미지 저장에 실패했습니다."
         raise HTTPException(400, detail=detail) from exc
+    from site_maps import invalidate_sites_tabs_cache
+
+    invalidate_sites_tabs_cache()
     return JSONResponse({"ok": True, "image": url})
 
 
@@ -3586,6 +3628,9 @@ async def site_grid_image_upload(
     except Exception as exc:
         detail = "PDF 변환에 실패했습니다." if suffix == ".pdf" else "이미지 저장에 실패했습니다."
         raise HTTPException(400, detail=detail) from exc
+    from site_maps import invalidate_sites_tabs_cache
+
+    invalidate_sites_tabs_cache()
     return JSONResponse({"ok": True, "image": url})
 
 

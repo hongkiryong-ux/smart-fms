@@ -30,30 +30,46 @@
     }
   }
 
-  function setPanelMode(panel, mode) {
-    if (!panel) return;
-    mode = mode === "map" ? "map" : "photo";
-    panel.setAttribute("data-mode", mode);
-    var photoView = panel.querySelector(".sites-photo-view");
-    var mapView = panel.querySelector(".sites-inline-map-view");
-    var backBtn = panel.querySelector(".sites-back-photo-btn");
-    if (photoView) {
-      photoView.hidden = mode === "map";
-      photoView.style.display = mode === "map" ? "none" : "";
+  function applyInlineMapData(panel, data) {
+    var dataEl = panel.querySelector(".sites-inline-map-data");
+    if (dataEl) {
+      try {
+        dataEl.textContent = JSON.stringify(data || {});
+      } catch (e) {
+        /* ignore */
+      }
     }
-    if (mapView) {
-      mapView.hidden = mode !== "map";
-      mapView.style.display = mode === "map" ? "block" : "none";
+    var stage = panel.querySelector(".sites-inline-map-stage");
+    if (!stage) return;
+    var img = stage.querySelector(".sites-inline-map-img");
+    var empty = stage.querySelector(".sites-inline-map-empty");
+    var imageUrl = data && data.image ? data.image : "";
+    if (imageUrl) {
+      if (!img) {
+        img = document.createElement("img");
+        img.className = "site-map-img sites-inline-map-img";
+        img.decoding = "async";
+        img.draggable = false;
+        stage.insertBefore(img, stage.firstChild);
+      }
+      img.alt = (data && data.title) || "";
+      if (img.getAttribute("src") !== imageUrl) {
+        img.src = imageUrl;
+      }
+      img.removeAttribute("data-src");
+      if (empty) empty.remove();
     }
-    if (backBtn) {
-      backBtn.hidden = mode !== "map";
-      backBtn.style.display = mode === "map" ? "" : "none";
+  }
+
+  function loadMapImage(panel) {
+    var img = panel.querySelector(".sites-inline-map-img");
+    if (!img) return;
+    var src = img.getAttribute("src");
+    var dataSrc = img.getAttribute("data-src");
+    if (!src && dataSrc) {
+      img.src = dataSrc;
+      img.removeAttribute("data-src");
     }
-    if (mode === "map") {
-      renderInlineHotspots(panel);
-      if (editing) setEditMode(false);
-    }
-    syncUploadButtons();
   }
 
   function renderInlineHotspots(panel) {
@@ -84,6 +100,65 @@
     });
   }
 
+  function ensureMapAssets(panel) {
+    loadMapImage(panel);
+    if (panel.getAttribute("data-map-loaded") === "1") {
+      renderInlineHotspots(panel);
+      return;
+    }
+    if (panel.getAttribute("data-map-loading") === "1") return;
+    var url = panel.getAttribute("data-map-data-url") || "";
+    if (!url) {
+      panel.setAttribute("data-map-loaded", "1");
+      renderInlineHotspots(panel);
+      return;
+    }
+    panel.setAttribute("data-map-loading", "1");
+    fetch(url, { credentials: "same-origin" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("map data failed");
+        return res.json();
+      })
+      .then(function (data) {
+        applyInlineMapData(panel, data);
+        panel.setAttribute("data-map-loaded", "1");
+        panel.removeAttribute("data-map-loading");
+        if (panel.getAttribute("data-mode") === "map") {
+          renderInlineHotspots(panel);
+        }
+      })
+      .catch(function () {
+        panel.removeAttribute("data-map-loading");
+        renderInlineHotspots(panel);
+      });
+  }
+
+  function setPanelMode(panel, mode) {
+    if (!panel) return;
+    mode = mode === "map" ? "map" : "photo";
+    panel.setAttribute("data-mode", mode);
+    var photoView = panel.querySelector(".sites-photo-view");
+    var mapView = panel.querySelector(".sites-inline-map-view");
+    var backBtn = panel.querySelector(".sites-back-photo-btn");
+    if (photoView) {
+      photoView.hidden = mode === "map";
+      photoView.style.display = mode === "map" ? "none" : "";
+    }
+    if (mapView) {
+      mapView.hidden = mode !== "map";
+      mapView.style.display = mode === "map" ? "block" : "none";
+    }
+    if (backBtn) {
+      backBtn.hidden = mode !== "map";
+      backBtn.style.display = mode === "map" ? "" : "none";
+    }
+    if (mode === "map") {
+      ensureMapAssets(panel);
+      if (editing) setEditMode(false);
+    }
+    syncUploadButtons();
+  }
+
   function activate(siteId) {
     tabs.forEach(function (tab) {
       var on = tab.getAttribute("data-site-id") === siteId;
@@ -96,6 +171,10 @@
       if (on) {
         panel.removeAttribute("hidden");
         setPanelMode(panel, "photo");
+        var img = panel.querySelector(".sites-tab-img");
+        if (img && img.loading === "lazy") {
+          img.loading = "eager";
+        }
       } else {
         panel.setAttribute("hidden", "");
       }
@@ -180,7 +259,6 @@
         setPanelMode(panel, "photo");
       });
     }
-    renderInlineHotspots(panel);
   });
 
   if (btnEdit && canEdit) {

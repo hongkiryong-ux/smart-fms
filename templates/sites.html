@@ -64,9 +64,10 @@
          data-site-name="{{ tab.site_name }}"
          data-site-url="{{ tab.map_url }}"
          data-image-url="{{ tab.upload_url }}"
+         data-map-data-url="{{ tab.map_data_url }}"
          data-mode="photo"
          {% if not loop.first %}hidden{% endif %}>
-      <script type="application/json" class="sites-inline-map-data">{{ {'image': tab.map_image, 'has_image': tab.map_has_image, 'title': tab.map_title, 'hotspots': tab.hotspots} | tojson }}</script>
+      <script type="application/json" class="sites-inline-map-data">{{ {'image': tab.map_image, 'has_image': tab.map_has_image, 'title': tab.map_title, 'hotspots': []} | tojson }}</script>
       <div class="sites-photo-single">
         <div class="sites-photo-card-wrap">
           {% if user_can_edit(user) %}
@@ -86,7 +87,9 @@
                     title="{{ tab.site_name }} 안내도 보기">
               <div class="sites-photo-frame{% if not tab.has_image %} is-placeholder{% endif %}">
                 {% if tab.has_image %}
-                <img class="sites-tab-img" src="{{ tab.image }}" alt="{{ tab.site_name }}" loading="lazy" decoding="async" />
+                <img class="sites-tab-img" src="{{ tab.image }}" alt="{{ tab.site_name }}"
+                     loading="{{ 'eager' if loop.first else 'lazy' }}" decoding="async"
+                     {% if loop.first %}fetchpriority="high"{% endif %} />
                 {% else %}
                 <div class="sites-split-placeholder">
                   <span>{{ tab.site_name }}</span>
@@ -101,12 +104,12 @@
                 <div class="site-map-stage sites-inline-map-stage">
                   {% if tab.map_has_image %}
                   <img class="site-map-img sites-inline-map-img"
-                       src="{{ tab.map_image }}"
+                       data-src="{{ tab.map_image }}"
                        alt="{{ tab.map_title }}"
                        decoding="async"
                        draggable="false" />
                   {% else %}
-                  <div class="sites-split-placeholder">
+                  <div class="sites-split-placeholder sites-inline-map-empty">
                     <span>{{ tab.site_name }}</span>
                     <small>등록된 안내도 사진이 없습니다</small>
                   </div>
@@ -127,7 +130,7 @@
   {% endif %}
 </section>
 
-<script src="/static/js/site_tabs_editor.js?v=20260917f" defer></script>
+<script src="/static/js/site_tabs_editor.js?v=20260917g" defer></script>
 
 {# ── 단일 사업장 안내도 ── #}
 {% elif site_map and view_mode == 'map' %}

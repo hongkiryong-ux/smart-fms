@@ -291,21 +291,24 @@ async def _buildings_for_site_map(db: AsyncSession, site: Any) -> list:
     return list(rows)
 
 
+async def site_image_blob_exists(db: AsyncSession, site_id: int, kind: str = "map") -> bool:
+    """blob 본문(거대 base64)을 읽지 않고 키 존재만 확인."""
+    from sqlalchemy import select
+
+    key = site_map_blob_key(site_id, kind)
+    found = (
+        await db.execute(select(AppSetting.key).where(AppSetting.key == key).limit(1))
+    ).scalar_one_or_none()
+    return found is not None
+
+
 async def get_site_image_url(db: AsyncSession, site: Any, kind: str = "map") -> str | None:
     """kind: 'map'(안내도) | 'grid'(4분할). 서로 독립 저장.
-    DB blob이 있으면 재배포에도 유지되는 map-file URL을 반환한다.
+    URL/존재 여부만 조회한다 — blob 본문은 map-file 서빙 시에만 로드.
     """
     if site is None or getattr(site, "id", None) is None:
         return None
     sid = int(site.id)
-    blob = await load_site_image_blob(db, sid, kind)
-    if blob is not None:
-        row = await db.get(AppSetting, _image_setting_key(sid, kind))
-        version = None
-        if row and row.value and "v=" in row.value:
-            version = row.value.rsplit("v=", 1)[-1].split("&")[0]
-        return site_map_file_url(sid, kind, version)
-
     row = await db.get(AppSetting, _image_setting_key(sid, kind))
     if row and (row.value or "").strip():
         url = row.value.strip()
@@ -314,7 +317,15 @@ async def get_site_image_url(db: AsyncSession, site: Any, kind: str = "map") -> 
             migrated = await _migrate_disk_image_to_blob(db, sid, kind, url)
             if migrated:
                 return migrated
+        version = None
+        if "v=" in url:
+            version = url.rsplit("v=", 1)[-1].split("&")[0]
+        if await site_image_blob_exists(db, sid, kind):
+            return site_map_file_url(sid, kind, version)
         return url
+
+    if await site_image_blob_exists(db, sid, kind):
+        return site_map_file_url(sid, kind)
     if kind == "map" and _is_housing_map_site(site):
         return HOUSING_MAP_IMAGE
     return None
@@ -326,6 +337,84 @@ async def get_site_map_image_url(db: AsyncSession, site: Any) -> str | None:
 
 async def get_site_grid_image_url(db: AsyncSession, site: Any) -> str | None:
     return await get_site_image_url(db, site, "grid")
+
+
+async def _load_image_meta_batch(
+    db: AsyncSession, site_ids: list[int]
+) -> dict[tuple[int, str], dict]:
+    """여러 사업장의 grid/map URL·blob 존재를 한두 번의 쿼리로 가져온다.
+    반환: {(site_id, kind): {"url": str|None, "has_blob": bool}}
+    """
+    from sqlalchemy import select
+
+    if not site_ids:
+        return {}
+
+    url_keys: list[str] = []
+    blob_keys: list[str] = []
+    key_to_ref: dict[str, tuple[int, str, str]] = {}
+    for sid in site_ids:
+        for kind in ("grid", "map"):
+            uk = _image_setting_key(sid, kind)
+            bk = site_map_blob_key(sid, kind)
+            url_keys.append(uk)
+            blob_keys.append(bk)
+            key_to_ref[uk] = (sid, kind, "url")
+            key_to_ref[bk] = (sid, kind, "blob")
+
+    meta: dict[tuple[int, str], dict] = {
+        (sid, kind): {"url": None, "has_blob": False}
+        for sid in site_ids
+        for kind in ("grid", "map")
+    }
+
+    if url_keys:
+        url_rows = (
+            await db.execute(
+                select(AppSetting.key, AppSetting.value).where(AppSetting.key.in_(url_keys))
+            )
+        ).all()
+        for key, value in url_rows:
+            ref = key_to_ref.get(key)
+            if not ref:
+                continue
+            sid, kind, _ = ref
+            meta[(sid, kind)]["url"] = (value or "").strip() or None
+
+    if blob_keys:
+        # value 컬럼을 빼서 거대 base64를 메모리에 올리지 않음
+        blob_rows = (
+            await db.execute(select(AppSetting.key).where(AppSetting.key.in_(blob_keys)))
+        ).all()
+        for (key,) in blob_rows:
+            ref = key_to_ref.get(key)
+            if not ref:
+                continue
+            sid, kind, _ = ref
+            meta[(sid, kind)]["has_blob"] = True
+
+    return meta
+
+
+def _resolve_image_url_from_meta(
+    site: Any, kind: str, info: dict | None
+) -> str | None:
+    sid = int(site.id)
+    info = info or {}
+    url = (info.get("url") or "").strip() or None
+    has_blob = bool(info.get("has_blob"))
+    if url:
+        version = None
+        if "v=" in url:
+            version = url.rsplit("v=", 1)[-1].split("&")[0]
+        if has_blob or "/map-file" in url or "kind=" in url:
+            return site_map_file_url(sid, kind, version) if has_blob else url
+        return url
+    if has_blob:
+        return site_map_file_url(sid, kind)
+    if kind == "map" and _is_housing_map_site(site):
+        return HOUSING_MAP_IMAGE
+    return None
 
 
 async def save_site_image_url(db: AsyncSession, site_id: int, url: str, kind: str = "map") -> str:
@@ -462,8 +551,11 @@ async def save_site_grid_image_upload(
     return await save_site_image_upload(db, site_id, content, suffix, "grid")
 
 
-async def load_site_map_hotspots(db: AsyncSession, site: Any) -> list[dict]:
-    buildings = await _buildings_for_site_map(db, site)
+async def load_site_map_hotspots(
+    db: AsyncSession, site: Any, buildings: list | None = None
+) -> list[dict]:
+    if buildings is None:
+        buildings = await _buildings_for_site_map(db, site)
     if site is None or getattr(site, "id", None) is None:
         return normalize_hotspots(default_hotspots_for_buildings(site, buildings), buildings)
 
@@ -572,7 +664,7 @@ async def build_site_map_payload(db: AsyncSession, site: Any) -> dict | None:
     if not site_has_map(site):
         return None
     buildings = await _buildings_for_site_map(db, site)
-    hotspots = await load_site_map_hotspots(db, site)
+    hotspots = await load_site_map_hotspots(db, site, buildings=buildings)
     image = await get_site_map_image_url(db, site)
     building_options = [
         {"id": b.id, "name": b.name or f"건물#{b.id}"}
@@ -591,11 +683,43 @@ async def build_site_map_payload(db: AsyncSession, site: Any) -> dict | None:
     }
 
 
-async def build_site_grid_panel(db: AsyncSession, site: Any) -> dict | None:
+async def build_site_inline_map_data(db: AsyncSession, site: Any) -> dict | None:
+    """탭 인라인 안내도용 경량 JSON (사진 클릭 시 지연 로딩)."""
+    payload = await build_site_map_payload(db, site)
+    if not payload:
+        return None
+    hotspots = [
+        {
+            "id": h.get("id"),
+            "label": h.get("label") or h.get("building_name") or "",
+            "building_id": h.get("building_id"),
+            "building_name": h.get("building_name") or h.get("label") or "",
+            "x": h.get("x"),
+            "y": h.get("y"),
+        }
+        for h in (payload.get("hotspots") or [])
+        if h.get("building_id")
+    ]
+    return {
+        "image": payload.get("image"),
+        "has_image": bool(payload.get("has_image")),
+        "title": payload.get("title") or "",
+        "hotspots": hotspots,
+    }
+
+
+async def build_site_grid_panel(
+    db: AsyncSession,
+    site: Any,
+    *,
+    image: str | None = None,
+    image_resolved: bool = False,
+) -> dict | None:
     """분할 화면용 — 4분할 전용 사진 (안내도와 별개)."""
     if not site_has_map(site):
         return None
-    image = await get_site_grid_image_url(db, site)
+    if not image_resolved:
+        image = await get_site_grid_image_url(db, site)
     sid = int(site.id)
     name = getattr(site, "name", "") or "사업장"
     return {
@@ -619,41 +743,72 @@ async def build_sites_grid_payload(db: AsyncSession, sites: list) -> dict:
     return {"columns": cols, "panels": panels, "site_count": len(panels)}
 
 
+_SITES_TABS_CACHE: dict[str, Any] = {"at": 0.0, "sig": "", "payload": None}
+_SITES_TABS_TTL_SEC = 45.0
+
+
+def invalidate_sites_tabs_cache() -> None:
+    _SITES_TABS_CACHE["payload"] = None
+    _SITES_TABS_CACHE["sig"] = ""
+    _SITES_TABS_CACHE["at"] = 0.0
+
+
 async def build_sites_tabs_payload(db: AsyncSession, sites: list) -> dict:
-    """사업장 탭 + 탭당 사업장 사진 1장 (사진 클릭 시 같은 탭에서 안내도 미리보기)."""
+    """사업장 탭 + 사진 URL만 조립. 안내도 핫스팟은 클릭 시 지연 로딩."""
+    map_sites = [s for s in sites if site_has_map(s) and getattr(s, "id", None) is not None]
+    sig = ",".join(str(int(s.id)) for s in map_sites)
+    now = time.time()
+    cached = _SITES_TABS_CACHE.get("payload")
+    if (
+        cached is not None
+        and _SITES_TABS_CACHE.get("sig") == sig
+        and (now - float(_SITES_TABS_CACHE.get("at") or 0.0)) < _SITES_TABS_TTL_SEC
+    ):
+        return cached
+
+    site_ids = [int(s.id) for s in map_sites]
+    meta = await _load_image_meta_batch(db, site_ids)
+
     tabs: list[dict] = []
-    for site in sites:
-        if not site_has_map(site):
-            continue
-        panel = await build_site_grid_panel(db, site)
+    for site in map_sites:
+        sid = int(site.id)
+        grid_url = _resolve_image_url_from_meta(site, "grid", meta.get((sid, "grid")))
+        # 예전 static 경로는 필요할 때만 마이그레이션 (배치 메타에 없을 때)
+        if grid_url and "/static/uploads/" in grid_url:
+            migrated = await _migrate_disk_image_to_blob(db, sid, "grid", grid_url)
+            if migrated:
+                grid_url = migrated
+        map_url = _resolve_image_url_from_meta(site, "map", meta.get((sid, "map")))
+        if map_url and "/static/uploads/" in map_url:
+            migrated = await _migrate_disk_image_to_blob(db, sid, "map", map_url)
+            if migrated:
+                map_url = migrated
+
+        panel = await build_site_grid_panel(
+            db, site, image=grid_url, image_resolved=True
+        )
         if not panel:
             continue
-        map_payload = await build_site_map_payload(db, site) or {}
-        hotspots = [
-            {
-                "id": h.get("id"),
-                "label": h.get("label") or h.get("building_name") or "",
-                "building_id": h.get("building_id"),
-                "building_name": h.get("building_name") or h.get("label") or "",
-                "x": h.get("x"),
-                "y": h.get("y"),
-            }
-            for h in (map_payload.get("hotspots") or [])
-            if h.get("building_id")
-        ]
+        name = panel["site_name"]
         tabs.append(
             {
                 "site_id": panel["site_id"],
-                "site_name": panel["site_name"],
+                "site_name": name,
                 "site_code": panel["site_code"],
                 "map_url": panel["site_url"],
                 "image": panel["image"],
                 "has_image": panel["has_image"],
                 "upload_url": f"/admin/sites/{panel['site_id']}/grid-image",
-                "map_image": map_payload.get("image"),
-                "map_has_image": bool(map_payload.get("has_image")),
-                "map_title": map_payload.get("title") or f"{panel['site_name']} 안내도",
-                "hotspots": hotspots,
+                "map_image": map_url,
+                "map_has_image": bool(map_url),
+                "map_title": f"{name} 안내도",
+                "map_data_url": f"/admin/sites/{panel['site_id']}/inline-map-data",
+                "hotspots": [],
             }
         )
-    return {"tabs": tabs, "site_count": len(tabs)}
+
+    payload = {"tabs": tabs, "site_count": len(tabs)}
+    _SITES_TABS_CACHE["payload"] = payload
+    _SITES_TABS_CACHE["sig"] = sig
+    _SITES_TABS_CACHE["at"] = now
+    return payload
