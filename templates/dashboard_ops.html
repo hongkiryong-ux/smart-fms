@@ -3,7 +3,9 @@
 <section class="ops-card ops-maint" data-widget="maintenance_status">
   <div class="ops-card-head">
     <h2>정비 의뢰 현황</h2>
+    {% if user and user.role.value == 'system_admin' %}
     <a class="ops-settings-btn" href="/admin/dashboard/settings">⚙ 대시보드 설정</a>
+    {% endif %}
   </div>
   <div class="ops-maint-grid">
     <a class="ops-stat ops-stat-purple" href="/admin/d1?board=today">
@@ -89,7 +91,7 @@
         <span class="ops-live-avatar" aria-hidden="true">👤</span>
         <span>{{ role_label or (user.role.value if user and user.role else '') }}</span>
       </div>
-      {% if user_can_edit(user) and not show_m %}
+      {% if user and user.role.value == 'system_admin' and not show_m %}
       <a class="ops-settings-btn" href="/admin/dashboard/settings">⚙ 대시보드 설정</a>
       {% endif %}
     </div>

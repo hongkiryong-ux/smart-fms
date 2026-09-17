@@ -8,7 +8,9 @@
   </div>
   <div class="board-page-actions">
     <a class="btn btn-secondary" href="/admin/dashboard">대시보드</a>
+    {% if user and user.role.value == 'system_admin' %}
     <a class="btn btn-secondary" href="/admin/dashboard/settings">대시보드 설정</a>
+    {% endif %}
   </div>
 </header>
 

@@ -730,12 +730,18 @@ async def gwangyang_facilities_import(
     )
 
 
+def _require_dashboard_admin(user: User) -> None:
+    if user.role != UserRole.system_admin:
+        raise HTTPException(403, "시스템관리자만 대시보드 설정에 접근할 수 있습니다.")
+
+
 @router.get("/admin/dashboard/settings")
 async def dashboard_settings_page(
     request: Request,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    _require_dashboard_admin(user)
     cfg = await get_dashboard_widget_config(db)
     widgets = [
         {
@@ -748,18 +754,15 @@ async def dashboard_settings_page(
         for key, label in DASH_WIDGETS
     ]
     widgets.sort(key=lambda x: x["order"])
-    is_admin = user.role == UserRole.system_admin
-    site_order_items: list[dict] = []
-    if is_admin:
-        site_order_items = await load_site_status(db)
+    site_order_items = await load_site_status(db)
     return templates.TemplateResponse(
         request,
         "dashboard_settings.html",
         {
             "user": user,
             "widgets": widgets,
-            "can_edit": can_edit(user),
-            "is_admin": is_admin,
+            "can_edit": True,
+            "is_admin": True,
             "site_order_items": site_order_items,
             "flash": request.query_params.get("flash"),
         },
@@ -772,8 +775,7 @@ async def dashboard_settings_save(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    if not can_edit(user):
-        raise HTTPException(403, "수정 권한이 없습니다.")
+    _require_dashboard_admin(user)
     form = await request.form()
     order_raw = str(form.get("order") or "")
     order = [k.strip() for k in order_raw.split(",") if k.strip() in DASH_WIDGET_KEYS]
@@ -798,8 +800,7 @@ async def dashboard_settings_reset(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    if not can_edit(user):
-        raise HTTPException(403, "수정 권한이 없습니다.")
+    _require_dashboard_admin(user)
     await set_dashboard_widget_config(db, DEFAULT_DASH_CONFIG)
     await db.commit()
     return RedirectResponse("/admin/dashboard/settings?flash=reset", status_code=303)
@@ -811,8 +812,7 @@ async def dashboard_site_order_save(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    if user.role != UserRole.system_admin:
-        raise HTTPException(403, "시스템관리자만 순서를 변경할 수 있습니다.")
+    _require_dashboard_admin(user)
     form = await request.form()
     order_raw = str(form.get("site_order") or "")
     ids: list[int] = []
@@ -834,8 +834,7 @@ async def dashboard_site_order_reset(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    if user.role != UserRole.system_admin:
-        raise HTTPException(403, "시스템관리자만 순서를 변경할 수 있습니다.")
+    _require_dashboard_admin(user)
     await set_site_status_order(db, [])
     await db.commit()
     return RedirectResponse("/admin/dashboard/settings?flash=site_order_reset", status_code=303)
