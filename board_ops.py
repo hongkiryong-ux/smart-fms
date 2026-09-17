@@ -1,15 +1,18 @@
 """주요설비 일정 · 공지사항 · 대시보드 위젯 설정."""
 from __future__ import annotations
 
+import base64
 import json
+import time
 from calendar import Calendar, monthrange
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -121,6 +124,27 @@ async def set_dashboard_widget_config(db: AsyncSession, cfg: dict) -> None:
 
 
 SITE_STATUS_ORDER_KEY = "dashboard.site_status_order"
+SITE_THUMB_MIME = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
+SITE_THUMB_EXTS = frozenset(SITE_THUMB_MIME.keys()) | {".pdf"}
+
+
+def _site_thumb_url_key(site_id: int) -> str:
+    return f"dashboard.site_thumb.{int(site_id)}"
+
+
+def _site_thumb_blob_key(site_id: int) -> str:
+    return f"dashboard.site_thumb.blob.{int(site_id)}"
+
+
+def _site_thumb_file_url(site_id: int, version: str | None = None) -> str:
+    v = version or str(int(time.time()))
+    return f"/admin/dashboard/site-thumb/{int(site_id)}?v={v}"
 
 
 def _normalize_site_status_order(raw) -> list[int]:
@@ -157,6 +181,104 @@ async def set_site_status_order(db: AsyncSession, site_ids: list[int]) -> None:
         row.value = payload
     else:
         db.add(AppSetting(key=SITE_STATUS_ORDER_KEY, value=payload))
+
+
+async def load_site_thumb_blob(db: AsyncSession, site_id: int) -> tuple[bytes, str] | None:
+    row = await db.get(AppSetting, _site_thumb_blob_key(site_id))
+    if not row or not (row.value or "").strip():
+        return None
+    try:
+        data = json.loads(row.value)
+        raw = base64.b64decode(data.get("b64") or "")
+        mime = str(data.get("mime") or "image/jpeg")
+        if not raw:
+            return None
+        return raw, mime
+    except Exception:
+        return None
+
+
+async def get_site_status_custom_photo(db: AsyncSession, site_id: int) -> str | None:
+    """대시보드 설정에서 올린 개별 썸네일 URL."""
+    blob = await load_site_thumb_blob(db, site_id)
+    if blob is not None:
+        row = await db.get(AppSetting, _site_thumb_url_key(site_id))
+        version = None
+        if row and row.value and "v=" in (row.value or ""):
+            version = row.value.rsplit("v=", 1)[-1].split("&")[0]
+        return _site_thumb_file_url(site_id, version)
+    row = await db.get(AppSetting, _site_thumb_url_key(site_id))
+    if row and (row.value or "").strip():
+        return row.value.strip()
+    return None
+
+
+async def save_site_status_photo_upload(
+    db: AsyncSession, site_id: int, content: bytes, suffix: str
+) -> str:
+    suffix = (suffix or "").lower()
+    if suffix not in SITE_THUMB_EXTS:
+        raise ValueError("지원하지 않는 파일 형식입니다.")
+    raw = content
+    mime = SITE_THUMB_MIME.get(suffix, "image/jpeg")
+    if suffix == ".pdf":
+        import tempfile
+
+        import pymupdf
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf_path = Path(tmp) / "in.pdf"
+            jpg_path = Path(tmp) / "out.jpg"
+            pdf_path.write_bytes(content)
+            doc = pymupdf.open(str(pdf_path))
+            try:
+                if doc.page_count < 1:
+                    raise ValueError("PDF에 페이지가 없습니다.")
+                pix = doc[0].get_pixmap(matrix=pymupdf.Matrix(2.0, 2.0), alpha=False)
+                pix.save(str(jpg_path))
+            finally:
+                doc.close()
+            raw = jpg_path.read_bytes()
+            mime = "image/jpeg"
+
+    payload = json.dumps(
+        {"mime": mime, "b64": base64.b64encode(raw).decode("ascii")},
+        ensure_ascii=False,
+    )
+    blob_key = _site_thumb_blob_key(site_id)
+    blob_row = await db.get(AppSetting, blob_key)
+    if blob_row is None:
+        db.add(AppSetting(key=blob_key, value=payload))
+    else:
+        blob_row.value = payload
+
+    url = _site_thumb_file_url(site_id)
+    url_key = _site_thumb_url_key(site_id)
+    url_row = await db.get(AppSetting, url_key)
+    if url_row is None:
+        db.add(AppSetting(key=url_key, value=url))
+    else:
+        url_row.value = url
+    await db.commit()
+    return url
+
+
+def _default_site_photo(name: str) -> str | None:
+    site_photos = (
+        ("광양운영", "/static/img/sites/gwangyang-ops.png"),
+        ("해수담수", "/static/img/sites/desalination.png"),
+        ("담수", "/static/img/sites/desalination.png"),
+        ("RIST", "/static/img/sites/rist.png"),
+        ("rist", "/static/img/sites/rist.png"),
+        ("미세먼지", "/static/img/sites/rist.png"),
+        ("광양", "/static/img/sites/gwangyang-ops.png"),
+    )
+    n = (name or "").strip()
+    n_lower = n.lower()
+    for key, url in site_photos:
+        if key.lower() in n_lower:
+            return url
+    return None
 
 
 def _sort_site_status_items(items: list[dict], order_ids: list[int] | None = None) -> list[dict]:
@@ -231,25 +353,6 @@ async def load_recent_notices(db: AsyncSession, limit: int = 6) -> list[dict]:
 
 async def load_site_status(db: AsyncSession, limit: int | None = None) -> list[dict]:
     """등록된 활성 사업장 전체 현황 (문제·정비의뢰 많은 순)."""
-    # 사업장명 매칭 → 대시보드 썸네일 (부분 일치)
-    site_photos = (
-        ("광양운영", "/static/img/sites/gwangyang-ops.png"),
-        ("해수담수", "/static/img/sites/desalination.png"),
-        ("담수", "/static/img/sites/desalination.png"),
-        ("RIST", "/static/img/sites/rist.png"),
-        ("rist", "/static/img/sites/rist.png"),
-        ("미세먼지", "/static/img/sites/rist.png"),
-        ("광양", "/static/img/sites/gwangyang-ops.png"),
-    )
-
-    def _photo_for(name: str) -> str | None:
-        n = (name or "").strip()
-        n_lower = n.lower()
-        for key, url in site_photos:
-            if key.lower() in n_lower:
-                return url
-        return None
-
     open_st = (
         WorkOrderStatus.received,
         WorkOrderStatus.assigned,
@@ -326,11 +429,12 @@ async def load_site_status(db: AsyncSession, limit: int | None = None) -> list[d
         from gwangyang_facilities import GWANGYANG_FACILITIES_PATH, is_gwangyang_ops_site
 
         gy = is_gwangyang_ops_site(s.name)
+        custom_photo = await get_site_status_custom_photo(db, int(s.id))
         result.append(
             {
                 "id": s.id,
                 "name": s.name,
-                "photo_url": _photo_for(s.name),
+                "photo_url": custom_photo or _default_site_photo(s.name),
                 "buildings": int(buildings),
                 "equipment": int(equipment),
                 "requests": int(wo_total),
@@ -838,3 +942,48 @@ async def dashboard_site_order_reset(
     await set_site_status_order(db, [])
     await db.commit()
     return RedirectResponse("/admin/dashboard/settings?flash=site_order_reset", status_code=303)
+
+
+@router.get("/admin/dashboard/site-thumb/{site_id}")
+async def dashboard_site_thumb_file(
+    site_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active:
+        raise HTTPException(404, detail="사업장을 찾을 수 없습니다.")
+    blob = await load_site_thumb_blob(db, site_id)
+    if blob is None:
+        raise HTTPException(404, detail="등록된 사진이 없습니다.")
+    content, mime = blob
+    return Response(
+        content=content,
+        media_type=mime or "image/jpeg",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@router.post("/admin/dashboard/settings/site-thumb/{site_id}")
+async def dashboard_site_thumb_upload(
+    site_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_dashboard_admin(user)
+    site = await db.get(Site, site_id)
+    if not site or not site.is_active:
+        raise HTTPException(404, detail="사업장을 찾을 수 없습니다.")
+    filename = (file.filename or "").strip()
+    suffix = Path(filename).suffix.lower() if filename else ""
+    if suffix not in SITE_THUMB_EXTS:
+        raise HTTPException(400, detail="jpg·png·webp·gif·pdf만 업로드할 수 있습니다.")
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, detail="빈 파일입니다.")
+    try:
+        url = await save_site_status_photo_upload(db, site_id, content, suffix)
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e)) from e
+    return JSONResponse({"ok": True, "image": url, "site_id": site_id})

@@ -63,22 +63,34 @@
 
 {% if is_admin %}
 <section class="card" style="margin-top:1.25rem;">
-  <h2 class="dash-settings-section-title">사업장 현황 순서</h2>
-  <p class="board-help" style="margin-top:0;">드래그 또는 ▲▼로 순서를 바꾼 뒤 저장하세요. 새 사업장은 목록 끝에 자동 추가됩니다.</p>
+  <h2 class="dash-settings-section-title">사업장 현황 순서 · 사진</h2>
+  <p class="board-help" style="margin-top:0;">드래그 또는 ▲▼로 순서를 바꾼 뒤 저장하세요. 각 사업장 옆 <strong>사진 변경</strong>으로 아이콘 이미지를 개별 등록할 수 있습니다.</p>
   {% if site_order_items %}
   <form method="post" action="/admin/dashboard/settings/site-order" id="site-order-form">
     <input type="hidden" name="site_order" id="site-order" value="{{ site_order_items | map(attribute='id') | join(',') }}" />
     <ul class="dash-settings-list" id="site-order-list">
       {% for s in site_order_items %}
-      <li class="dash-settings-item" data-key="{{ s.id }}" draggable="true">
+      <li class="dash-settings-item dash-site-item" data-key="{{ s.id }}" draggable="true">
         <span class="dash-settings-handle" title="드래그하여 순서 변경" aria-hidden="true">⋮⋮</span>
         <span class="dash-settings-num">{{ loop.index }}</span>
+        <div class="dash-site-thumb{% if s.photo_url %} has-photo{% endif %}" data-thumb-for="{{ s.id }}">
+          {% if s.photo_url %}
+          <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
+          {% endif %}
+        </div>
         <div class="dash-settings-check">
           <span>
             <strong>{{ s.name }}</strong>
             <em>{{ s.buildings }}개 시설 · {{ "{:,}".format(s.equipment) }}개 설비 · 정비의뢰 {{ s.requests }}건</em>
           </span>
         </div>
+        <label class="btn btn-secondary btn-sm dash-site-thumb-btn">
+          사진 변경
+          <input type="file"
+                 accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf"
+                 data-site-id="{{ s.id }}"
+                 hidden />
+        </label>
         <div class="dash-settings-move">
           <button type="button" class="btn btn-secondary btn-sm" data-move="-1" title="위로">▲</button>
           <button type="button" class="btn btn-secondary btn-sm" data-move="1" title="아래로">▼</button>
@@ -131,7 +143,7 @@
 
     list.querySelectorAll('li[data-key]').forEach(function (li) {
       li.addEventListener('dragstart', function (e) {
-        if (e.target.closest('input, button, a')) {
+        if (e.target.closest('input, button, a, label, .dash-site-thumb-btn')) {
           e.preventDefault();
           return;
         }
@@ -192,6 +204,40 @@
     document.getElementById('site-order'),
     document.getElementById('site-order-form')
   );
+
+  document.querySelectorAll('#site-order-list input[type=file][data-site-id]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      if (!input.files || !input.files.length) return;
+      var siteId = input.getAttribute('data-site-id');
+      var fd = new FormData();
+      fd.append('file', input.files[0]);
+      input.value = '';
+      fetch('/admin/dashboard/settings/site-thumb/' + siteId, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin'
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('upload failed');
+          return res.json();
+        })
+        .then(function (data) {
+          var box = document.querySelector('.dash-site-thumb[data-thumb-for="' + siteId + '"]');
+          if (!box || !data.image) return;
+          box.classList.add('has-photo');
+          var img = box.querySelector('img');
+          if (!img) {
+            img = document.createElement('img');
+            box.appendChild(img);
+          }
+          img.src = data.image;
+          img.alt = '';
+        })
+        .catch(function () {
+          window.alert('사진 업로드에 실패했습니다.');
+        });
+    });
+  });
 })();
 </script>
 {% endblock %}

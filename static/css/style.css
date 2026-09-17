@@ -6590,6 +6590,31 @@ tr.wo-row-selected {
   font-size: 1.05rem;
   color: #0f172a;
 }
+.dash-site-item {
+  flex-wrap: wrap;
+}
+.dash-site-thumb {
+  width: 56px;
+  height: 42px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.dash-site-thumb.has-photo {
+  background: #e2e8f0;
+}
+.dash-site-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dash-site-thumb-btn {
+  flex-shrink: 0;
+  cursor: pointer;
+  margin: 0;
+}
 .dash-settings-list { list-style: none; margin: 0; padding: 0; }
 .dash-settings-list li,
 .dash-settings-item {
