@@ -11,7 +11,7 @@
     {% if view_mode == 'map' %}· 안내도{% else %}· 건물 목록{% endif %}
   </p>
   {% elif view_mode == 'grid' %}
-  <p>상단 사업장 탭을 선택하면 해당 사업장 사진 1장이 표시됩니다.</p>
+  <p>상단 사업장 탭을 선택한 뒤, 사진을 누르면 같은 화면에서 안내도로 전환됩니다.</p>
   {% else %}
   <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
   {% endif %}
@@ -34,7 +34,8 @@
     {% endif %}
   </div>
   <p class="text-muted sites-tabs-hint" id="sites-tabs-hint">
-    상단 사업장을 선택하면 사진이 바뀝니다. 사진을 클릭하면 해당 사업장 안내도로 이동합니다.
+    상단 사업장을 선택하면 사진이 바뀝니다. 사진을 누르면 같은 화면에서 안내도로 전환됩니다.
+    안내도 위치·사진 설정은 왼쪽 메뉴에서 사업장을 직접 선택하세요.
   </p>
   <p class="site-map-edit-hint" id="sites-tabs-edit-hint" hidden>
     <strong>수정 모드:</strong> 현재 탭의 <strong>사진 업로드</strong>로 이미지를 바꿉니다. (안내도 사진과는 별개입니다)
@@ -63,8 +64,10 @@
          data-site-name="{{ tab.site_name }}"
          data-site-url="{{ tab.map_url }}"
          data-image-url="{{ tab.upload_url }}"
+         data-mode="photo"
          {% if not loop.first %}hidden{% endif %}>
-      <div class="sites-photo-single">
+      <script type="application/json" class="sites-inline-map-data">{{ {'image': tab.map_image, 'has_image': tab.map_has_image, 'title': tab.map_title, 'hotspots': tab.hotspots} | tojson }}</script>
+      <div class="sites-photo-single sites-photo-view">
         <div class="sites-photo-card-wrap">
           {% if user_can_edit(user) %}
           <label class="btn btn-sm btn-secondary sites-tab-upload-btn" hidden>
@@ -72,21 +75,48 @@
             <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf" hidden />
           </label>
           {% endif %}
-          <a class="sites-photo-card sites-photo-card-single"
-             href="{{ tab.map_url }}"
-             title="{{ tab.site_name }} 안내도">
+          <button type="button"
+                  class="sites-photo-card sites-photo-card-single sites-open-map-btn"
+                  title="{{ tab.site_name }} 안내도 보기">
             <div class="sites-photo-frame{% if not tab.has_image %} is-placeholder{% endif %}">
               {% if tab.has_image %}
               <img class="sites-tab-img" src="{{ tab.image }}" alt="{{ tab.site_name }}" loading="lazy" decoding="async" />
               {% else %}
               <div class="sites-split-placeholder">
                 <span>{{ tab.site_name }}</span>
-                <small>클릭하면 안내도로 이동합니다</small>
+                <small>눌러서 안내도 보기</small>
               </div>
               {% endif %}
             </div>
             <span class="sites-photo-label">{{ tab.site_name }}</span>
-          </a>
+          </button>
+        </div>
+      </div>
+      <div class="sites-inline-map-view" hidden>
+        <div class="sites-inline-map-toolbar">
+          <button type="button" class="btn btn-sm btn-secondary sites-back-photo-btn">사업장 사진</button>
+          <span class="sites-inline-map-title">{{ tab.map_title }}</span>
+        </div>
+        <div class="sites-photo-single">
+          <div class="sites-photo-card-wrap sites-inline-map-wrap">
+            <div class="site-map-frame sites-inline-map-frame">
+              <div class="site-map-stage sites-inline-map-stage">
+                {% if tab.map_has_image %}
+                <img class="site-map-img sites-inline-map-img"
+                     src="{{ tab.map_image }}"
+                     alt="{{ tab.map_title }}"
+                     decoding="async"
+                     draggable="false" />
+                {% else %}
+                <div class="sites-split-placeholder">
+                  <span>{{ tab.site_name }}</span>
+                  <small>등록된 안내도 사진이 없습니다</small>
+                </div>
+                {% endif %}
+                <div class="site-map-hotspots sites-inline-map-hotspots" aria-label="건물 선택"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -97,7 +127,7 @@
   {% endif %}
 </section>
 
-<script src="/static/js/site_tabs_editor.js?v=20260917a" defer></script>
+<script src="/static/js/site_tabs_editor.js?v=20260917d" defer></script>
 
 {# ── 단일 사업장 안내도 ── #}
 {% elif site_map and view_mode == 'map' %}
@@ -130,7 +160,7 @@
     <p class="text-muted site-map-hint" id="site-map-hint">
       지도의 바로가기를 누르면 해당 건물 현황으로 이동합니다.
       연결 {{ site_map.matched_count }}곳
-      · 사진 변경은 안내도용입니다. (jpg·png·pdf 등)
+      · 이 화면에서 안내도 사진·위치(바로가기)를 설정할 수 있습니다. (jpg·png·pdf 등)
     </p>
     <p class="site-map-edit-hint" id="site-map-edit-hint" hidden>
       <strong>수정 모드:</strong> 핀을 드래그해 위치를 옮기세요.

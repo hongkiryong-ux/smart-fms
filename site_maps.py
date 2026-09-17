@@ -620,7 +620,7 @@ async def build_sites_grid_payload(db: AsyncSession, sites: list) -> dict:
 
 
 async def build_sites_tabs_payload(db: AsyncSession, sites: list) -> dict:
-    """사업장 탭 + 탭당 사업장 사진 1장 (클릭 시 안내도, 사진 변경 가능)."""
+    """사업장 탭 + 탭당 사업장 사진 1장 (사진 클릭 시 같은 탭에서 안내도 미리보기)."""
     tabs: list[dict] = []
     for site in sites:
         if not site_has_map(site):
@@ -628,6 +628,19 @@ async def build_sites_tabs_payload(db: AsyncSession, sites: list) -> dict:
         panel = await build_site_grid_panel(db, site)
         if not panel:
             continue
+        map_payload = await build_site_map_payload(db, site) or {}
+        hotspots = [
+            {
+                "id": h.get("id"),
+                "label": h.get("label") or h.get("building_name") or "",
+                "building_id": h.get("building_id"),
+                "building_name": h.get("building_name") or h.get("label") or "",
+                "x": h.get("x"),
+                "y": h.get("y"),
+            }
+            for h in (map_payload.get("hotspots") or [])
+            if h.get("building_id")
+        ]
         tabs.append(
             {
                 "site_id": panel["site_id"],
@@ -637,6 +650,10 @@ async def build_sites_tabs_payload(db: AsyncSession, sites: list) -> dict:
                 "image": panel["image"],
                 "has_image": panel["has_image"],
                 "upload_url": f"/admin/sites/{panel['site_id']}/grid-image",
+                "map_image": map_payload.get("image"),
+                "map_has_image": bool(map_payload.get("has_image")),
+                "map_title": map_payload.get("title") or f"{panel['site_name']} 안내도",
+                "hotspots": hotspots,
             }
         )
     return {"tabs": tabs, "site_count": len(tabs)}

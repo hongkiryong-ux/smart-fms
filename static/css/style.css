@@ -2182,10 +2182,44 @@ a.dm:hover {
 }
 .sites-photo-card-single {
   width: 100%;
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
 }
-.sites-photo-card.is-edit-blocked {
+.sites-photo-card.is-edit-blocked,
+.sites-open-map-btn.is-edit-blocked {
   cursor: default;
   pointer-events: none;
+  opacity: 0.85;
+}
+.sites-inline-map-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+  flex-wrap: wrap;
+}
+.sites-inline-map-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+.sites-inline-map-wrap {
+  width: min(100%, 1404px);
+}
+.sites-inline-map-frame {
+  width: 100%;
+  height: clamp(416px, 80.6vh, 832px);
+}
+.sites-inline-map-img {
+  max-width: 100%;
+  max-height: clamp(416px, 80.6vh, 832px);
+}
+.sites-tab-panel[data-mode="map"] .sites-tab-upload-btn {
+  display: none !important;
 }
 .sites-tabs-card.is-editing .sites-photo-card-wrap {
   outline: 2px dashed #003876;
