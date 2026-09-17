@@ -25,6 +25,7 @@ from models import (
     ScheduleEvent,
     Site,
     User,
+    UserRole,
     WorkOrder,
     WorkOrderStatus,
     Zone,
@@ -117,6 +118,62 @@ async def set_dashboard_widget_config(db: AsyncSession, cfg: dict) -> None:
         row.value = payload
     else:
         db.add(AppSetting(key="dashboard.widgets", value=payload))
+
+
+SITE_STATUS_ORDER_KEY = "dashboard.site_status_order"
+
+
+def _normalize_site_status_order(raw) -> list[int]:
+    if not isinstance(raw, list):
+        return []
+    out: list[int] = []
+    seen: set[int] = set()
+    for item in raw:
+        try:
+            sid = int(item)
+        except (TypeError, ValueError):
+            continue
+        if sid <= 0 or sid in seen:
+            continue
+        seen.add(sid)
+        out.append(sid)
+    return out
+
+
+async def get_site_status_order(db: AsyncSession) -> list[int]:
+    try:
+        row = await db.get(AppSetting, SITE_STATUS_ORDER_KEY)
+        if row and row.value:
+            return _normalize_site_status_order(json.loads(row.value))
+    except Exception:
+        pass
+    return []
+
+
+async def set_site_status_order(db: AsyncSession, site_ids: list[int]) -> None:
+    payload = json.dumps(_normalize_site_status_order(site_ids), ensure_ascii=False)
+    row = await db.get(AppSetting, SITE_STATUS_ORDER_KEY)
+    if row:
+        row.value = payload
+    else:
+        db.add(AppSetting(key=SITE_STATUS_ORDER_KEY, value=payload))
+
+
+def _sort_site_status_items(items: list[dict], order_ids: list[int] | None = None) -> list[dict]:
+    """수동 순서 우선, 나머지는 점수·의뢰·이름 순."""
+    if not items:
+        return []
+    score_key = lambda x: (-x["score"], -x["requests"], x["name"])
+    if not order_ids:
+        return sorted(items, key=score_key)
+    by_id = {int(x["id"]): x for x in items}
+    ordered: list[dict] = []
+    for sid in order_ids:
+        item = by_id.pop(int(sid), None)
+        if item is not None:
+            ordered.append(item)
+    rest = sorted(by_id.values(), key=score_key)
+    return ordered + rest
 
 
 async def load_today_schedules(db: AsyncSession, day: date | None = None, limit: int = 8) -> list[dict]:
@@ -284,7 +341,8 @@ async def load_site_status(db: AsyncSession, limit: int | None = None) -> list[d
                 "facilities_url": GWANGYANG_FACILITIES_PATH if gy else None,
             }
         )
-    result.sort(key=lambda x: (-x["score"], -x["requests"], x["name"]))
+    order_ids = await get_site_status_order(db)
+    result = _sort_site_status_items(result, order_ids)
     if limit is not None and limit > 0:
         result = result[: int(limit)]
     for i, item in enumerate(result, start=1):
@@ -690,6 +748,10 @@ async def dashboard_settings_page(
         for key, label in DASH_WIDGETS
     ]
     widgets.sort(key=lambda x: x["order"])
+    is_admin = user.role == UserRole.system_admin
+    site_order_items: list[dict] = []
+    if is_admin:
+        site_order_items = await load_site_status(db)
     return templates.TemplateResponse(
         request,
         "dashboard_settings.html",
@@ -697,6 +759,8 @@ async def dashboard_settings_page(
             "user": user,
             "widgets": widgets,
             "can_edit": can_edit(user),
+            "is_admin": is_admin,
+            "site_order_items": site_order_items,
             "flash": request.query_params.get("flash"),
         },
     )
@@ -739,3 +803,39 @@ async def dashboard_settings_reset(
     await set_dashboard_widget_config(db, DEFAULT_DASH_CONFIG)
     await db.commit()
     return RedirectResponse("/admin/dashboard/settings?flash=reset", status_code=303)
+
+
+@router.post("/admin/dashboard/settings/site-order")
+async def dashboard_site_order_save(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.role != UserRole.system_admin:
+        raise HTTPException(403, "시스템관리자만 순서를 변경할 수 있습니다.")
+    form = await request.form()
+    order_raw = str(form.get("site_order") or "")
+    ids: list[int] = []
+    for part in order_raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(int(part))
+        except ValueError:
+            continue
+    await set_site_status_order(db, ids)
+    await db.commit()
+    return RedirectResponse("/admin/dashboard/settings?flash=site_order_saved", status_code=303)
+
+
+@router.post("/admin/dashboard/settings/site-order/reset")
+async def dashboard_site_order_reset(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.role != UserRole.system_admin:
+        raise HTTPException(403, "시스템관리자만 순서를 변경할 수 있습니다.")
+    await set_site_status_order(db, [])
+    await db.commit()
+    return RedirectResponse("/admin/dashboard/settings?flash=site_order_reset", status_code=303)
