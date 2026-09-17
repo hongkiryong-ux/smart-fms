@@ -1851,8 +1851,8 @@ a.dm:hover {
 }
 .site-map-frame {
   position: relative;
-  width: min(100%, 1080px);
-  height: clamp(320px, 62vh, 640px);
+  width: min(100%, 1404px);
+  height: clamp(416px, 80.6vh, 832px);
   margin: 0 auto;
   border-radius: 8px;
   overflow: hidden;
@@ -1872,8 +1872,8 @@ a.dm:hover {
 }
 .site-map-img {
   display: block;
-  max-width: min(1080px, 100%);
-  max-height: clamp(320px, 62vh, 640px);
+  max-width: min(1404px, 100%);
+  max-height: clamp(416px, 80.6vh, 832px);
   width: auto;
   height: auto;
   object-fit: contain;
@@ -1883,8 +1883,8 @@ a.dm:hover {
 }
 .site-map-frame > .sites-split-placeholder,
 .site-map-stage > .sites-split-placeholder {
-  min-height: clamp(220px, 40vh, 360px);
-  width: min(100%, 480px);
+  min-height: clamp(286px, 52vh, 468px);
+  width: min(100%, 624px);
 }
 .site-map-hotspots {
   position: absolute;
@@ -1893,18 +1893,18 @@ a.dm:hover {
 }
 @media (max-width: 960px) {
   .site-map-frame {
-    height: clamp(260px, 52vh, 480px);
+    height: clamp(338px, 67.6vh, 624px);
   }
   .site-map-img {
-    max-height: clamp(260px, 52vh, 480px);
+    max-height: clamp(338px, 67.6vh, 624px);
   }
 }
 @media (max-width: 560px) {
   .site-map-frame {
-    height: clamp(220px, 48vh, 380px);
+    height: clamp(286px, 62.4vh, 494px);
   }
   .site-map-img {
-    max-height: clamp(220px, 48vh, 380px);
+    max-height: clamp(286px, 62.4vh, 494px);
   }
 }
 .site-map-hotspot {
