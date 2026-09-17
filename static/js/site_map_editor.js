@@ -152,11 +152,17 @@
         el.href = "/admin/buildings/" + h.building_id;
         el.style.left = h.x + "%";
         el.style.top = h.y + "%";
-        el.title = (h.building_name || h.label || "") + " 현황";
-        var label = document.createElement("span");
-        label.className = "site-map-pin-label site-map-view-label";
-        label.textContent = h.building_name || h.label || "바로가기";
-        el.appendChild(label);
+        var name = h.building_name || h.label || "";
+        el.title = name ? name + " 현황" : "건물 현황";
+        var viewLabel = document.createElement("span");
+        viewLabel.className = "site-map-pin-label site-map-view-label";
+        viewLabel.textContent = name || "바로가기";
+        el.appendChild(viewLabel);
+        if (h.photo_url && window.SiteMapHoverPreview) {
+          el.removeAttribute("title");
+          el.setAttribute("aria-label", (name || "건물") + " 사진 미리보기, 클릭 시 상세");
+          window.SiteMapHoverPreview.bind(el, h.photo_url, name);
+        }
       }
       layer.appendChild(el);
     });

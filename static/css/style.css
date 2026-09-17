@@ -2065,6 +2065,43 @@ a.dm:hover {
   text-align: center;
   pointer-events: none;
 }
+
+/* 안내도 바로가기 호버 — 건물 사진 미리보기 */
+.site-map-photo-preview {
+  position: fixed;
+  z-index: 4000;
+  width: min(220px, calc(100vw - 24px));
+  pointer-events: auto;
+  filter: drop-shadow(0 8px 20px rgba(15, 23, 42, 0.28));
+}
+.site-map-photo-preview[hidden] {
+  display: none !important;
+}
+.site-map-photo-preview-inner {
+  background: #fff;
+  border: 1px solid #003876;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.site-map-photo-preview-img {
+  display: block;
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  object-position: center;
+  background: #eef2f7;
+}
+.site-map-photo-preview-name {
+  padding: 0.4rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #003876;
+  line-height: 1.3;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .site-map-hotspot.is-linked:not(.is-view):hover::after,
 .site-map-hotspot.is-linked:not(.is-view):focus-visible::after {
   content: attr(title);

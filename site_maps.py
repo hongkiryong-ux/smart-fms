@@ -238,6 +238,7 @@ def normalize_hotspots(raw: list | None, buildings: list) -> list[dict]:
                 "label": label or (b.name if b else "바로가기"),
                 "building_id": bid_i,
                 "building_name": b.name if b else None,
+                "photo_url": ((getattr(b, "photo_url", None) or "").strip() or None) if b else None,
                 "matched": b is not None,
                 "x": _clamp_pct(item.get("x"), 50.0),
                 "y": _clamp_pct(item.get("y"), 50.0),
@@ -706,6 +707,7 @@ async def build_site_inline_map_data(db: AsyncSession, site: Any) -> dict | None
             "label": h.get("label") or h.get("building_name") or "",
             "building_id": h.get("building_id"),
             "building_name": h.get("building_name") or h.get("label") or "",
+            "photo_url": h.get("photo_url") or None,
             "x": h.get("x"),
             "y": h.get("y"),
         }

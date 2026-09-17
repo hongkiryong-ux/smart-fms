@@ -130,7 +130,8 @@
   {% endif %}
 </section>
 
-<script src="/static/js/site_tabs_editor.js?v=20260917h" defer></script>
+<script src="/static/js/site_map_hover_preview.js?v=20260918a" defer></script>
+<script src="/static/js/site_tabs_editor.js?v=20260918a" defer></script>
 
 {# ── 단일 사업장 안내도 ── #}
 {% elif site_map and view_mode == 'map' %}
@@ -203,7 +204,8 @@
 </dialog>
 
 <script type="application/json" id="site-map-data">{{ site_map | tojson }}</script>
-<script src="/static/js/site_map_editor.js?v=20260917c" defer></script>
+<script src="/static/js/site_map_hover_preview.js?v=20260918a" defer></script>
+<script src="/static/js/site_map_editor.js?v=20260918a" defer></script>
 
 {# ── 사업장·건물 목록 ── #}
 {% else %}
