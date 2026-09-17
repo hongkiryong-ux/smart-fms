@@ -438,7 +438,10 @@
       }
       item._navSetOpen = setOpen;
     }
-    bindNavExpandable('nav-sites', 'nav-sites-open', { accordionGroup: topLevelNavIds });
+    bindNavExpandable('nav-sites', 'nav-sites-open', {
+      expandByChevronOnly: true,
+      accordionGroup: topLevelNavIds,
+    });
     bindNavExpandable('nav-equipment', 'nav-eq-open', {
       expandByChevronOnly: true,
       accordionGroup: topLevelNavIds,
