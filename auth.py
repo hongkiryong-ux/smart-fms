@@ -292,7 +292,9 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
 
 
 # 시스템관리자(admin) 전용 메뉴 — 다른 역할·저장된 menu_access로도 열리지 않음
-ADMIN_ONLY_MENU_KEYS: frozenset[str] = frozenset({"users", "server", "schedules", "notices"})
+ADMIN_ONLY_MENU_KEYS: frozenset[str] = frozenset({"users", "server"})
+# 사이드바에서만 admin에게 표시 (접근 권한은 menu_access로 별도 부여)
+SIDEBAR_ADMIN_ONLY_MENU_KEYS: frozenset[str] = frozenset({"schedules", "notices"})
 
 
 def default_menu_access(role: UserRole) -> list[str]:
@@ -460,6 +462,15 @@ def can_access_menu(user: User | None, menu_key: str) -> bool:
     if user.role == UserRole.system_admin:
         return True
     return menu_key in effective_menu_access(user)
+
+
+def can_show_menu_in_sidebar(user: User | None, menu_key: str) -> bool:
+    """사이드바 표시 여부. 일부 메뉴는 admin만 노출하고 접근 권한은 별도."""
+    if not can_access_menu(user, menu_key):
+        return False
+    if menu_key in SIDEBAR_ADMIN_ONLY_MENU_KEYS:
+        return user is not None and user.role == UserRole.system_admin
+    return True
 
 
 # D-1 화면에서 호출하는 work-orders 하위 경로 (협력사는 d1만 허용된 경우가 많음)

@@ -64,10 +64,10 @@
       {% if user_can_access_menu(user, 'dashboard') %}
       <li><a href="/admin/dashboard" class="{% if request.url.path == '/admin/dashboard' or request.url.path.startswith('/admin/dashboard/') %}active{% endif %}">Dashboard</a></li>
       {% endif %}
-      {% if user_can_access_menu(user, 'schedules') %}
+      {% if user_can_show_menu(user, 'schedules') %}
       <li><a href="/admin/schedules" class="{% if '/schedules' in request.url.path %}active{% endif %}">주요설비 일정</a></li>
       {% endif %}
-      {% if user_can_access_menu(user, 'notices') %}
+      {% if user_can_show_menu(user, 'notices') %}
       <li><a href="/admin/notices" class="{% if '/notices' in request.url.path %}active{% endif %}">공지사항</a></li>
       {% endif %}
       {% if user_can_access_menu(user, 'sites') %}
