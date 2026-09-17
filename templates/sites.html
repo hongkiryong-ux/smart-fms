@@ -11,7 +11,7 @@
     {% if view_mode == 'map' %}· 안내도{% else %}· 건물 목록{% endif %}
   </p>
   {% elif view_mode == 'grid' %}
-  <p>상단 사업장을 선택하면 사진이 바뀝니다. 사진을 클릭하면 해당 사업장 안내도로 이동합니다.</p>
+  <p>상단 사업장 탭을 선택하면 해당 사업장 사진 1장이 표시됩니다.</p>
   {% else %}
   <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
   {% endif %}
@@ -21,12 +21,24 @@
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
-{# ── 사업장 탭 + 사진 그리드 (메인) ── #}
+{# ── 사업장 탭 + 사진 1장 (메인) ── #}
 {% if sites_tabs and view_mode == 'grid' %}
-<section class="card sites-tabs-card" id="sites-tabs-root">
+<section class="card sites-tabs-card"
+         id="sites-tabs-root"
+         data-can-edit="{{ '1' if user_can_edit(user) else '0' }}">
   <div class="sites-tabs-toolbar">
     <a class="btn btn-sm btn-secondary" href="/admin/sites?view=list">사업장 목록</a>
+    {% if user_can_edit(user) %}
+    <button type="button" class="btn btn-sm btn-secondary" id="sites-tab-edit-btn">사진 변경</button>
+    <button type="button" class="btn btn-sm btn-primary" id="sites-tab-done-btn" hidden>완료</button>
+    {% endif %}
   </div>
+  <p class="text-muted sites-tabs-hint" id="sites-tabs-hint">
+    상단 사업장을 선택하면 사진이 바뀝니다. 사진을 클릭하면 해당 사업장 안내도로 이동합니다.
+  </p>
+  <p class="site-map-edit-hint" id="sites-tabs-edit-hint" hidden>
+    <strong>수정 모드:</strong> 현재 탭의 <strong>사진 업로드</strong>로 이미지를 바꿉니다. (안내도 사진과는 별개입니다)
+  </p>
 
   {% if sites_tabs.tabs %}
   <nav class="sites-region-tabs" role="tablist" aria-label="사업장 선택">
@@ -43,27 +55,39 @@
 
   <div class="sites-tab-panels">
     {% for tab in sites_tabs.tabs %}
-    <div class="sites-tab-panel{% if loop.first %} is-active{% endif %}"
+    <div class="sites-tab-panel{% if loop.first %} is-active{% endif %}{% if not tab.has_image %} is-no-image{% endif %}"
          role="tabpanel"
          id="sites-panel-{{ tab.site_id }}"
          aria-labelledby="sites-tab-{{ tab.site_id }}"
          data-site-id="{{ tab.site_id }}"
+         data-site-name="{{ tab.site_name }}"
+         data-site-url="{{ tab.map_url }}"
+         data-image-url="{{ tab.upload_url }}"
          {% if not loop.first %}hidden{% endif %}>
-      <div class="sites-photo-grid">
-        {% for card in tab.cards %}
-        <a class="sites-photo-card"
-           href="{{ card.href }}"
-           title="{{ card.name }} — 안내도 보기">
-          <div class="sites-photo-frame{% if not card.photo_url %} is-placeholder tone-{{ loop.index0 % 5 }}{% endif %}">
-            {% if card.photo_url %}
-            <img src="{{ card.photo_url }}" alt="{{ card.name }}" loading="lazy" decoding="async" />
-            {% endif %}
-          </div>
-          <span class="sites-photo-label">{{ card.name }}</span>
-        </a>
-        {% else %}
-        <p class="empty">표시할 사진이 없습니다.</p>
-        {% endfor %}
+      <div class="sites-photo-single">
+        <div class="sites-photo-card-wrap">
+          {% if user_can_edit(user) %}
+          <label class="btn btn-sm btn-secondary sites-tab-upload-btn" hidden>
+            사진 업로드
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf" hidden />
+          </label>
+          {% endif %}
+          <a class="sites-photo-card sites-photo-card-single"
+             href="{{ tab.map_url }}"
+             title="{{ tab.site_name }} 안내도">
+            <div class="sites-photo-frame{% if not tab.has_image %} is-placeholder{% endif %}">
+              {% if tab.has_image %}
+              <img class="sites-tab-img" src="{{ tab.image }}" alt="{{ tab.site_name }}" loading="lazy" decoding="async" />
+              {% else %}
+              <div class="sites-split-placeholder">
+                <span>{{ tab.site_name }}</span>
+                <small>클릭하면 안내도로 이동합니다</small>
+              </div>
+              {% endif %}
+            </div>
+            <span class="sites-photo-label">{{ tab.site_name }}</span>
+          </a>
+        </div>
       </div>
     </div>
     {% endfor %}
@@ -73,32 +97,7 @@
   {% endif %}
 </section>
 
-<script>
-(function () {
-  var root = document.getElementById('sites-tabs-root');
-  if (!root) return;
-  var tabs = root.querySelectorAll('.sites-region-tab');
-  var panels = root.querySelectorAll('.sites-tab-panel');
-  function activate(siteId) {
-    tabs.forEach(function (tab) {
-      var on = tab.getAttribute('data-site-id') === siteId;
-      tab.classList.toggle('is-active', on);
-      tab.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    panels.forEach(function (panel) {
-      var on = panel.getAttribute('data-site-id') === siteId;
-      panel.classList.toggle('is-active', on);
-      if (on) panel.removeAttribute('hidden');
-      else panel.setAttribute('hidden', '');
-    });
-  }
-  tabs.forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      activate(tab.getAttribute('data-site-id'));
-    });
-  });
-})();
-</script>
+<script src="/static/js/site_tabs_editor.js?v=20260917a" defer></script>
 
 {# ── 단일 사업장 안내도 ── #}
 {% elif site_map and view_mode == 'map' %}

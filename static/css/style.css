@@ -2039,14 +2039,20 @@ a.dm:hover {
   margin-top: 0.5rem;
 }
 
-/* 사업장 탭 + 사진 그리드 */
+/* 사업장 탭 + 사진 1장 */
 .sites-tabs-card {
   padding: 1rem 1.25rem 1.5rem;
 }
 .sites-tabs-toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 0.45rem;
   margin-bottom: 0.35rem;
+}
+.sites-tabs-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
 }
 .sites-region-tabs {
   display: flex;
@@ -2080,6 +2086,21 @@ a.dm:hover {
 .sites-tab-panel[hidden] {
   display: none !important;
 }
+.sites-photo-single {
+  display: flex;
+  justify-content: center;
+  padding: 0.25rem 0 0.5rem;
+}
+.sites-photo-card-wrap {
+  width: min(100%, 560px);
+  position: relative;
+}
+.sites-tab-upload-btn {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 2;
+}
 .sites-photo-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2094,6 +2115,18 @@ a.dm:hover {
   text-decoration: none;
   color: inherit;
   min-width: 0;
+}
+.sites-photo-card-single {
+  width: 100%;
+}
+.sites-photo-card.is-edit-blocked {
+  cursor: default;
+  pointer-events: none;
+}
+.sites-tabs-card.is-editing .sites-photo-card-wrap {
+  outline: 2px dashed #003876;
+  outline-offset: 4px;
+  border-radius: 6px;
 }
 .sites-photo-card:hover .sites-photo-label {
   color: #003876;
@@ -2110,7 +2143,8 @@ a.dm:hover {
   background: #eef2f7;
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
-.sites-photo-frame img {
+.sites-photo-frame img,
+.sites-photo-frame .sites-tab-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -2119,6 +2153,11 @@ a.dm:hover {
 .sites-photo-frame.is-placeholder {
   display: grid;
   place-items: center;
+}
+.sites-photo-frame .sites-split-placeholder {
+  min-height: 0;
+  height: 100%;
+  width: 100%;
 }
 .sites-photo-frame.tone-0 { background: linear-gradient(135deg, #64748b, #94a3b8); }
 .sites-photo-frame.tone-1 { background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
@@ -2136,6 +2175,9 @@ a.dm:hover {
   .sites-photo-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.25rem 1rem;
+  }
+  .sites-photo-card-wrap {
+    width: min(100%, 480px);
   }
 }
 @media (max-width: 560px) {
