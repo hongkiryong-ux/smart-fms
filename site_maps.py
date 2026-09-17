@@ -680,7 +680,11 @@ async def build_site_map_payload(db: AsyncSession, site: Any) -> dict | None:
     hotspots = await load_site_map_hotspots(db, site, buildings=buildings)
     image = await get_site_map_image_url(db, site)
     building_options = [
-        {"id": b.id, "name": b.name or f"건물#{b.id}"}
+        {
+            "id": b.id,
+            "name": b.name or f"건물#{b.id}",
+            "photo_url": ((getattr(b, "photo_url", None) or "").strip() or None),
+        }
         for b in sorted(buildings, key=lambda x: (x.name or "").casefold())
     ]
     return {

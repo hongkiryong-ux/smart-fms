@@ -44,6 +44,7 @@
       label: h.label || h.building_name || "바로가기",
       building_id: h.building_id != null ? h.building_id : null,
       building_name: h.building_name || null,
+      photo_url: (h.photo_url || "").trim() || null,
       matched: !!h.matched || h.building_id != null,
       x: num(h.x, 50),
       y: num(h.y, 50),
@@ -250,6 +251,7 @@
     spot.building_id = b.id;
     spot.building_name = b.name;
     spot.label = b.name;
+    spot.photo_url = (b.photo_url || "").trim() || null;
     spot.matched = true;
     return true;
   }
@@ -296,6 +298,7 @@
         label: "바로가기",
         building_id: null,
         building_name: null,
+        photo_url: null,
         matched: false,
         x: p.x,
         y: p.y,
