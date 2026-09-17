@@ -291,11 +291,15 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
 )
 
 
+# 시스템관리자(admin) 전용 메뉴 — 다른 역할·저장된 menu_access로도 열리지 않음
+ADMIN_ONLY_MENU_KEYS: frozenset[str] = frozenset({"users", "server", "schedules", "notices"})
+
+
 def default_menu_access(role: UserRole) -> list[str]:
     """역할별 기본 메뉴 접근 목록."""
     if role == UserRole.system_admin:
         return list(MENU_KEYS)
-    denied = {"users", "server"}
+    denied = set(ADMIN_ONLY_MENU_KEYS)
     if role in (UserRole.partner, UserRole.external):
         denied |= {"equipment", "pm", "inspection_logs2", "facility_section", "streetlamp"}
     return [k for k in MENU_KEYS if k not in denied]
@@ -437,9 +441,12 @@ def effective_menu_access(user: User | None) -> list[str]:
     if user.role == UserRole.system_admin:
         return list(MENU_KEYS)
     raw = getattr(user, "menu_access", None)
-    if raw is None:
-        return default_menu_access(user.role)
-    return normalize_menu_access(raw)
+    keys = (
+        default_menu_access(user.role)
+        if raw is None
+        else normalize_menu_access(raw)
+    )
+    return [k for k in keys if k not in ADMIN_ONLY_MENU_KEYS]
 
 
 def can_access_menu(user: User | None, menu_key: str) -> bool:
@@ -448,7 +455,7 @@ def can_access_menu(user: User | None, menu_key: str) -> bool:
         return False
     if menu_key == "account":
         return True
-    if menu_key == "server":
+    if menu_key in ADMIN_ONLY_MENU_KEYS:
         return user.role == UserRole.system_admin
     if user.role == UserRole.system_admin:
         return True

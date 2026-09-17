@@ -25,6 +25,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import (
+    ADMIN_ONLY_MENU_KEYS,
     MENU_ITEMS,
     MENU_ACCESS_FLAG_KEYS,
     ROLE_LABELS,
@@ -1914,9 +1915,9 @@ def _menu_keys_from_form(form, role: UserRole | None = None) -> list[str]:
         raw = [v] if v else []
     keys = normalize_menu_access(list(raw))
     flags = [str(k).strip() for k in raw if str(k).strip() in MENU_ACCESS_FLAG_KEYS]
-    # 계정관리 메뉴는 시스템관리자만 (라우트도 system_admin 전용)
+    # admin 전용 메뉴는 시스템관리자만
     if role != UserRole.system_admin:
-        keys = [k for k in keys if k != "users"]
+        keys = [k for k in keys if k not in ADMIN_ONLY_MENU_KEYS]
     return keys + flags
 
 
@@ -1925,9 +1926,9 @@ def _force_admin_menus(user_obj: User) -> None:
         user_obj.can_create = user_obj.can_edit = user_obj.can_delete = True
         user_obj.menu_access = list(default_menu_access(UserRole.system_admin))
     else:
-        # 비관리자 계정에 users 키가 남지 않도록 정리
+        # 비관리자 계정에 admin 전용 메뉴 키가 남지 않도록 정리
         keys = normalize_menu_access(getattr(user_obj, "menu_access", None) or [])
-        user_obj.menu_access = [k for k in keys if k != "users"]
+        user_obj.menu_access = [k for k in keys if k not in ADMIN_ONLY_MENU_KEYS]
 
 
 def _users_return_location(raw: str, *, anchor: str = "") -> str:
