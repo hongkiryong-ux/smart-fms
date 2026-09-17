@@ -1674,6 +1674,114 @@ a.dm:hover {
   padding: 0 0.15rem;
 }
 
+.bld-hier-card {
+  min-width: 0;
+}
+
+.bld-hier-layout {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+  min-height: min(52vh, 520px);
+}
+
+.bld-hier-tree {
+  min-width: 0;
+  max-height: min(52vh, 520px);
+  overflow: auto;
+  padding-right: 0.35rem;
+}
+
+.bld-photo-pane {
+  position: relative;
+  min-height: min(52vh, 520px);
+  height: min(52vh, 520px);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.bld-photo-pane.has-photo {
+  border-style: solid;
+  background: #fff;
+}
+
+.bld-photo-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.bld-photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--muted);
+}
+
+.bld-photo-placeholder:hover {
+  background: #eef2f7;
+}
+
+.bld-photo-placeholder-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.bld-photo-placeholder-hint {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.bld-photo-actions {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.65rem;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem 0.4rem;
+}
+
+.bld-photo-change {
+  cursor: pointer;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .bld-hier-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .bld-hier-tree {
+    max-height: none;
+  }
+
+  .bld-photo-pane {
+    min-height: 240px;
+    height: min(42vh, 360px);
+  }
+}
+
 .building-drawings-card {
   margin-top: 0.25rem;
 }

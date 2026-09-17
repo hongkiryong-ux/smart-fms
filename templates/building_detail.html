@@ -20,22 +20,51 @@
 </header>
 
 <div class="grid-2">
-  <section class="card">
+  <section class="card bld-hier-card">
     <h2>층 / 구역 / 설비 계층</h2>
-    {% for floor in building.floors if floor.is_active %}
-    <div class="hierarchy-block">
-      <h3>{{ floor.name }} ({{ floor.level }}층)</h3>
-      {% for zone in floor.zones if zone.is_active %}
-      <div class="zone-block">
-        <strong>{{ zone.name }}</strong> {% if zone.code %}<small>({{ zone.code }})</small>{% endif %}
+    <div class="bld-hier-layout">
+      <div class="bld-hier-tree">
+        {% for floor in building.floors if floor.is_active %}
+        <div class="hierarchy-block">
+          <h3>{{ floor.name }} ({{ floor.level }}층)</h3>
+          {% for zone in floor.zones if zone.is_active %}
+          <div class="zone-block">
+            <strong>{{ zone.name }}</strong> {% if zone.code %}<small>({{ zone.code }})</small>{% endif %}
+          </div>
+          {% else %}
+          <p class="empty">구역 없음</p>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty">층 없음</p>
+        {% endfor %}
       </div>
-      {% else %}
-      <p class="empty">구역 없음</p>
-      {% endfor %}
+
+      <div class="bld-photo-pane{% if building.photo_url %} has-photo{% endif %}" id="bld-photo-pane">
+        {% if building.photo_url %}
+        <img src="{{ building.photo_url }}" alt="{{ building.name }} 사진" class="bld-photo-img" />
+        <div class="bld-photo-actions">
+          <label class="btn btn-sm btn-secondary bld-photo-change">
+            사진 변경
+            <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp,image/*" hidden form="bld-photo-form" name="file" id="bld-photo-input" />
+          </label>
+          {% if user_can_delete(user) %}
+          <form method="post" action="/admin/buildings/{{ building.id }}/photo/delete" class="inline-form"
+                onsubmit="return confirm('건물 사진을 삭제할까요?');">
+            <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+          </form>
+          {% endif %}
+        </div>
+        {% else %}
+        <label class="bld-photo-placeholder" for="bld-photo-input">
+          <span class="bld-photo-placeholder-title">사진 추가</span>
+          <span class="bld-photo-placeholder-hint">클릭하여 이미지 업로드 · 화면에 맞게 표시됩니다</span>
+        </label>
+        <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp,image/*" hidden form="bld-photo-form" name="file" id="bld-photo-input" />
+        {% endif %}
+        <form id="bld-photo-form" method="post" action="/admin/buildings/{{ building.id }}/photo" enctype="multipart/form-data" hidden></form>
+      </div>
     </div>
-    {% else %}
-    <p class="empty">층 없음</p>
-    {% endfor %}
   </section>
 
   <section class="card">
@@ -198,4 +227,14 @@
 </section>
 
 <p><a href="/admin/sites">&larr; 사업장 목록</a></p>
+<script>
+(function () {
+  var input = document.getElementById("bld-photo-input");
+  var form = document.getElementById("bld-photo-form");
+  if (!input || !form) return;
+  input.addEventListener("change", function () {
+    if (input.files && input.files.length) form.submit();
+  });
+})();
+</script>
 {% endblock %}

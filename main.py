@@ -3775,6 +3775,143 @@ async def building_detail(
     )
 
 
+@app.get("/admin/buildings/{building_id}/photo")
+async def building_photo_file(
+    building_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """건물 대표 사진 — DB blob 우선, 디스크 캐시 보조."""
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        raise HTTPException(404)
+
+    blob = await _load_building_photo_blob(db, building_id)
+    if blob is None:
+        upload_dir = _building_upload_dir(building_id)
+        if upload_dir is not None:
+            for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+                candidate = upload_dir / f"photo{ext}"
+                if candidate.is_file():
+                    raw = candidate.read_bytes()
+                    if raw:
+                        mime = BUILDING_PHOTO_MIME.get(ext, "image/jpeg")
+                        await _save_building_photo_blob(db, building_id, raw, mime)
+                        await db.commit()
+                        blob = (raw, mime)
+                    break
+
+    if blob is None and (building.photo_url or "").startswith("/static/"):
+        path_part = building.photo_url.split("?", 1)[0].lstrip("/")
+        path = Path(path_part)
+        if path.is_file():
+            raw = path.read_bytes()
+            if raw:
+                mime = BUILDING_PHOTO_MIME.get(path.suffix.lower(), "image/jpeg")
+                await _save_building_photo_blob(db, building_id, raw, mime)
+                building.photo_url = _building_photo_file_url(building_id)
+                await db.commit()
+                blob = (raw, mime)
+
+    if blob is None:
+        raise HTTPException(404, detail="등록된 사진이 없습니다.")
+
+    content, mime = blob
+    return Response(
+        content=content,
+        media_type=mime or "image/jpeg",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@app.post("/admin/buildings/{building_id}/photo")
+async def building_photo_upload(
+    building_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        raise HTTPException(404)
+
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in BUILDING_PHOTO_EXTS:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error="
+            + quote("jpg, png, webp, gif 이미지만 업로드할 수 있습니다."),
+            status_code=303,
+        )
+
+    content = await file.read()
+    if not content:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error={quote('빈 파일입니다.')}",
+            status_code=303,
+        )
+    if len(content) > UPLOAD_MAX_FILE_BYTES:
+        return RedirectResponse(
+            f"/admin/buildings/{building_id}?error="
+            + quote(f"파일은 {UPLOAD_MAX_FILE_MB}MB 이하로 올려 주세요."),
+            status_code=303,
+        )
+
+    mime = BUILDING_PHOTO_MIME.get(suffix, "image/jpeg")
+    upload_dir = _building_upload_dir(building_id)
+    if upload_dir is not None:
+        for old in upload_dir.glob("photo.*"):
+            try:
+                old.unlink()
+            except OSError:
+                pass
+        try:
+            (upload_dir / f"photo{suffix}").write_bytes(content)
+        except OSError:
+            pass
+
+    await _save_building_photo_blob(db, building_id, content, mime)
+    building.photo_url = _building_photo_file_url(building_id)
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}?message={quote('건물 사진을 등록했습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/buildings/{building_id}/photo/delete")
+async def building_photo_delete(
+    building_id: int,
+    user: User = Depends(require_can_delete),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    building = await db.get(Building, building_id)
+    if not building or not building.is_active:
+        raise HTTPException(404)
+
+    blob_row = await db.get(AppSetting, _building_photo_blob_key(building_id))
+    if blob_row is not None:
+        await db.delete(blob_row)
+
+    upload_dir = Path("static") / "uploads" / "buildings" / str(building_id)
+    if upload_dir.is_dir():
+        for old in upload_dir.glob("photo.*"):
+            try:
+                old.unlink()
+            except OSError:
+                pass
+
+    building.photo_url = None
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/buildings/{building_id}?message={quote('건물 사진을 삭제했습니다.')}",
+        status_code=303,
+    )
+
+
 DRAWING_ALLOWED_EXT = {
     ".png",
     ".jpg",
@@ -3810,6 +3947,59 @@ def _building_upload_dir(building_id: int) -> Path | None:
     except OSError as e:
         print(f"[upload] mkdir skip: {e}", flush=True)
         return None
+
+
+BUILDING_PHOTO_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+BUILDING_PHOTO_MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+
+
+def _building_photo_blob_key(building_id: int) -> str:
+    return f"building_photo_blob_{int(building_id)}"
+
+
+def _building_photo_file_url(building_id: int, version: str | None = None) -> str:
+    v = version or str(int(time.time()))
+    return f"/admin/buildings/{int(building_id)}/photo?v={v}"
+
+
+async def _load_building_photo_blob(db: AsyncSession, building_id: int) -> tuple[bytes, str] | None:
+    import base64
+
+    row = await db.get(AppSetting, _building_photo_blob_key(building_id))
+    if not row or not (row.value or "").strip():
+        return None
+    try:
+        data = json.loads(row.value)
+        raw = base64.b64decode(data.get("b64") or "")
+        mime = str(data.get("mime") or "image/jpeg")
+        if not raw:
+            return None
+        return raw, mime
+    except Exception:
+        return None
+
+
+async def _save_building_photo_blob(
+    db: AsyncSession, building_id: int, content: bytes, mime: str
+) -> None:
+    import base64
+
+    payload = json.dumps(
+        {"mime": mime or "image/jpeg", "b64": base64.b64encode(content).decode("ascii")},
+        ensure_ascii=False,
+    )
+    key = _building_photo_blob_key(building_id)
+    row = await db.get(AppSetting, key)
+    if row is None:
+        db.add(AppSetting(key=key, value=payload))
+    else:
+        row.value = payload
 
 
 async def _ensure_building_standards_table() -> None:
