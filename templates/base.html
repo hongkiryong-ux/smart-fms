@@ -358,15 +358,27 @@
     }
 
     function enforceSingleOpen(groupIds) {
-      var openIds = (groupIds || []).filter(function (id) {
+      var ids = groupIds || [];
+      var withActive = ids.filter(function (id) {
+        var el = document.getElementById(id);
+        return el && el.querySelector('a.active');
+      });
+      /* 현재 페이지에 해당하는 메뉴가 있으면 그것만 열고 나머지는 닫음 */
+      if (withActive.length) {
+        var keepActive = withActive[0];
+        ids.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el || typeof el._navSetOpen !== 'function') return;
+          el._navSetOpen(id === keepActive);
+        });
+        return;
+      }
+      var openIds = ids.filter(function (id) {
         var el = document.getElementById(id);
         return el && el.classList.contains('is-open');
       });
       if (openIds.length <= 1) return;
-      var keep = openIds.find(function (id) {
-        var el = document.getElementById(id);
-        return el && el.querySelector('a.active');
-      }) || openIds[openIds.length - 1];
+      var keep = openIds[openIds.length - 1];
       openIds.forEach(function (id) {
         if (id === keep) return;
         var el = document.getElementById(id);
@@ -416,8 +428,9 @@
             setOpen(!item.classList.contains('is-open'));
             return;
           }
-          /* 펼침은 ▾ 버튼만 — 부모 링크는 항상 이동 */
+          /* 펼침은 ▾ 버튼만 — 부모 링크는 이동하되, 이동 전 이 메뉴를 열고 다른 탑메뉴는 닫음 */
           if (opts.expandByChevronOnly) {
+            setOpen(true);
             return;
           }
           /* 모바일 정비관리: 누르면 하위 펼침만 (페이지 이동 없음) */
