@@ -85,17 +85,21 @@
         </div>
         <ul class="nav-sub" id="nav-sites-sub">
           {% for g in request.state.nav_building_groups or [] %}
-          {% set site_ns = namespace(open=(nav_site_id is not none and g.site_id is not none and nav_site_id == g.site_id|string)) %}
-          {% if sites_bid %}
-            {% for b in g.buildings %}
-              {% if b.id|string == sites_bid %}{% set site_ns.open = true %}{% endif %}
-            {% endfor %}
+          {% set site_ns = namespace(open=false) %}
+          {% if sites_path %}
+            {% if sites_bid %}
+              {% for b in g.buildings %}
+                {% if b.id|string == sites_bid %}{% set site_ns.open = true %}{% endif %}
+              {% endfor %}
+            {% elif nav_site_id is not none and g.site_id is not none and nav_site_id == g.site_id|string %}
+              {% set site_ns.open = true %}
+            {% endif %}
           {% endif %}
           <li class="nav-expandable nav-nested{% if site_ns.open %} is-open{% endif %}"
               id="nav-site-{{ g.site_id or loop.index }}">
             <div class="nav-parent-row">
               <a href="/admin/sites?site_id={{ g.site_id }}&view=map"
-                 class="nav-parent-link{% if nav_site_id and g.site_id is not none and nav_site_id == g.site_id|string %} active{% endif %}"
+                 class="nav-parent-link{% if sites_path and nav_site_id and g.site_id is not none and nav_site_id == g.site_id|string %} active{% endif %}"
                  title="{{ g.site_name }} 안내도">{{ g.site_name }}</a>
               <button type="button"
                       class="nav-toggle"
@@ -359,13 +363,30 @@
 
     function enforceSingleOpen(groupIds) {
       var ids = groupIds || [];
+      /* 상위 메뉴는 직접 자식 활성만 인정 — 다른 메뉴와 site_id 가 겹쳐도 오판하지 않음 */
       var withActive = ids.filter(function (id) {
         var el = document.getElementById(id);
-        return el && el.querySelector('a.active');
+        if (!el) return false;
+        if (el.querySelector(':scope > .nav-parent-row > a.active')) return true;
+        /* 하위 a.active 는 이 섹션 안에서만 (다른 탑메뉴와 공유 파라미터 혼선 방지) */
+        return !!el.querySelector(':scope > .nav-sub a.active');
       });
-      /* 현재 페이지에 해당하는 메뉴가 있으면 그것만 열고 나머지는 닫음 */
       if (withActive.length) {
-        var keepActive = withActive[0];
+        /* 둘 이상이면 현재 URL 경로에 더 맞는 쪽 우선 */
+        var path = (window.location.pathname || '');
+        var keepActive = withActive.find(function (id) {
+          if (id === 'nav-equipment' && path.indexOf('/equipment') !== -1) return true;
+          if (id === 'nav-sites' && (path.indexOf('/sites') !== -1 || path.indexOf('/buildings') !== -1)) return true;
+          if (id === 'nav-inspection-logs2' && path.indexOf('/inspection-logs2') !== -1) return true;
+          if (id === 'nav-maintenance' && (
+            path.indexOf('/work-orders') !== -1 ||
+            path.indexOf('/d1') !== -1 ||
+            path.indexOf('/facility-section') !== -1 ||
+            path.indexOf('/streetlamp') !== -1 ||
+            path.indexOf('/maintenance-final') !== -1
+          )) return true;
+          return false;
+        }) || withActive[withActive.length - 1];
         ids.forEach(function (id) {
           var el = document.getElementById(id);
           if (!el || typeof el._navSetOpen !== 'function') return;
