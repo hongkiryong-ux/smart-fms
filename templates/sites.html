@@ -67,7 +67,7 @@
          data-mode="photo"
          {% if not loop.first %}hidden{% endif %}>
       <script type="application/json" class="sites-inline-map-data">{{ {'image': tab.map_image, 'has_image': tab.map_has_image, 'title': tab.map_title, 'hotspots': tab.hotspots} | tojson }}</script>
-      <div class="sites-photo-single sites-photo-view">
+      <div class="sites-photo-single">
         <div class="sites-photo-card-wrap">
           {% if user_can_edit(user) %}
           <label class="btn btn-sm btn-secondary sites-tab-upload-btn" hidden>
@@ -76,47 +76,47 @@
           </label>
           {% endif %}
           <button type="button"
-                  class="sites-photo-card sites-photo-card-single sites-open-map-btn"
-                  title="{{ tab.site_name }} 안내도 보기">
-            <div class="sites-photo-frame{% if not tab.has_image %} is-placeholder{% endif %}">
-              {% if tab.has_image %}
-              <img class="sites-tab-img" src="{{ tab.image }}" alt="{{ tab.site_name }}" loading="lazy" decoding="async" />
-              {% else %}
-              <div class="sites-split-placeholder">
-                <span>{{ tab.site_name }}</span>
-                <small>눌러서 안내도 보기</small>
-              </div>
-              {% endif %}
-            </div>
-            <span class="sites-photo-label">{{ tab.site_name }}</span>
-          </button>
-        </div>
-      </div>
-      <div class="sites-inline-map-view" hidden>
-        <div class="sites-inline-map-toolbar">
-          <button type="button" class="btn btn-sm btn-secondary sites-back-photo-btn">사업장 사진</button>
-          <span class="sites-inline-map-title">{{ tab.map_title }}</span>
-        </div>
-        <div class="sites-photo-single">
-          <div class="sites-photo-card-wrap sites-inline-map-wrap">
-            <div class="site-map-frame sites-inline-map-frame">
-              <div class="site-map-stage sites-inline-map-stage">
-                {% if tab.map_has_image %}
-                <img class="site-map-img sites-inline-map-img"
-                     src="{{ tab.map_image }}"
-                     alt="{{ tab.map_title }}"
-                     decoding="async"
-                     draggable="false" />
+                  class="btn btn-sm btn-secondary sites-back-photo-btn"
+                  hidden>사업장 사진</button>
+
+          {# 같은 자리: 사업장 사진 ↔ 안내도 #}
+          <div class="sites-display-slot">
+            <button type="button"
+                    class="sites-photo-card sites-photo-card-single sites-open-map-btn sites-photo-view"
+                    title="{{ tab.site_name }} 안내도 보기">
+              <div class="sites-photo-frame{% if not tab.has_image %} is-placeholder{% endif %}">
+                {% if tab.has_image %}
+                <img class="sites-tab-img" src="{{ tab.image }}" alt="{{ tab.site_name }}" loading="lazy" decoding="async" />
                 {% else %}
                 <div class="sites-split-placeholder">
                   <span>{{ tab.site_name }}</span>
-                  <small>등록된 안내도 사진이 없습니다</small>
+                  <small>눌러서 안내도 보기</small>
                 </div>
                 {% endif %}
-                <div class="site-map-hotspots sites-inline-map-hotspots" aria-label="건물 선택"></div>
+              </div>
+            </button>
+
+            <div class="sites-inline-map-view" hidden>
+              <div class="sites-photo-frame sites-inline-map-frame">
+                <div class="site-map-stage sites-inline-map-stage">
+                  {% if tab.map_has_image %}
+                  <img class="site-map-img sites-inline-map-img"
+                       src="{{ tab.map_image }}"
+                       alt="{{ tab.map_title }}"
+                       decoding="async"
+                       draggable="false" />
+                  {% else %}
+                  <div class="sites-split-placeholder">
+                    <span>{{ tab.site_name }}</span>
+                    <small>등록된 안내도 사진이 없습니다</small>
+                  </div>
+                  {% endif %}
+                  <div class="site-map-hotspots sites-inline-map-hotspots" aria-label="건물 선택"></div>
+                </div>
               </div>
             </div>
           </div>
+          <span class="sites-photo-label">{{ tab.site_name }}</span>
         </div>
       </div>
     </div>
@@ -127,7 +127,7 @@
   {% endif %}
 </section>
 
-<script src="/static/js/site_tabs_editor.js?v=20260917d" defer></script>
+<script src="/static/js/site_tabs_editor.js?v=20260917e" defer></script>
 
 {# ── 단일 사업장 안내도 ── #}
 {% elif site_map and view_mode == 'map' %}

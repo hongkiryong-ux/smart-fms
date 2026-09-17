@@ -2158,12 +2158,26 @@ a.dm:hover {
 .sites-photo-card-wrap {
   width: min(100%, 1080px);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+}
+.sites-display-slot {
+  width: 100%;
+  position: relative;
 }
 .sites-tab-upload-btn {
   position: absolute;
   top: 0.65rem;
   right: 0.65rem;
-  z-index: 2;
+  z-index: 3;
+}
+.sites-back-photo-btn {
+  position: absolute;
+  top: 0.65rem;
+  left: 0.65rem;
+  z-index: 3;
 }
 .sites-photo-grid {
   display: grid;
@@ -2195,31 +2209,55 @@ a.dm:hover {
   pointer-events: none;
   opacity: 0.85;
 }
-.sites-inline-map-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 0.75rem;
-  flex-wrap: wrap;
-}
-.sites-inline-map-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #0f172a;
-}
-.sites-inline-map-wrap {
-  width: min(100%, 1404px);
+.sites-inline-map-view {
+  width: 100%;
 }
 .sites-inline-map-frame {
+  /* 사업장 사진과 동일한 표시 영역 */
   width: 100%;
-  height: clamp(416px, 80.6vh, 832px);
+  height: clamp(320px, 62vh, 640px);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f1f5f9;
+  border: 1px solid #e8eef5;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.sites-inline-map-stage {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  width: fit-content;
+  height: fit-content;
+  line-height: 0;
 }
 .sites-inline-map-img {
   max-width: 100%;
-  max-height: clamp(416px, 80.6vh, 832px);
+  max-height: clamp(320px, 62vh, 640px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
 }
 .sites-tab-panel[data-mode="map"] .sites-tab-upload-btn {
   display: none !important;
+}
+@media (max-width: 960px) {
+  .sites-inline-map-frame {
+    height: clamp(260px, 52vh, 480px);
+  }
+  .sites-inline-map-img {
+    max-height: clamp(260px, 52vh, 480px);
+  }
+}
+@media (max-width: 560px) {
+  .sites-inline-map-frame {
+    height: clamp(220px, 48vh, 380px);
+  }
+  .sites-inline-map-img {
+    max-height: clamp(220px, 48vh, 380px);
+  }
 }
 .sites-tabs-card.is-editing .sites-photo-card-wrap {
   outline: 2px dashed #003876;
