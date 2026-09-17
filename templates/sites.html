@@ -5,13 +5,13 @@
   <h1>사업장 / 건물 관리</h1>
   {% if selected_site %}
   <p>
-    <a href="/admin/sites">분할 화면</a>
+    <a href="/admin/sites">사업장 사진</a>
     <span>›</span>
     <strong>{{ selected_site.name }}</strong>
     {% if view_mode == 'map' %}· 안내도{% else %}· 건물 목록{% endif %}
   </p>
   {% elif view_mode == 'grid' %}
-  <p>사업장 사진·이름을 클릭하면 해당 사업장의 건물 바로가기 안내도로 이동합니다.</p>
+  <p>상단 사업장을 선택하면 사진이 바뀝니다. 사진을 클릭하면 해당 사업장 안내도로 이동합니다.</p>
   {% else %}
   <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
   {% endif %}
@@ -21,83 +21,84 @@
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
-{# ── 분할 화면 (메인) ── #}
-{% if sites_grid and view_mode == 'grid' %}
-<section class="card sites-split-card"
-         id="sites-split-root"
-         data-can-edit="{{ '1' if user_can_edit(user) else '0' }}">
-  <div class="sites-split-head">
-    <h2>
-      사업장 분할 화면
-      <span class="site-view-actions">
-        <a class="btn btn-sm btn-secondary" href="/admin/sites?view=list">사업장 목록</a>
-        {% if user_can_edit(user) %}
-        <button type="button" class="btn btn-sm btn-secondary" id="sites-split-edit-btn">분할화면 수정</button>
-        <button type="button" class="btn btn-sm btn-primary" id="sites-split-done-btn" hidden>완료</button>
-        {% endif %}
-      </span>
-    </h2>
-    <p class="text-muted sites-split-hint" id="sites-split-hint">
-      사업장 사진(또는 이름)을 클릭하면 건물 바로가기 안내도로 이동합니다.
-      ({{ sites_grid.site_count }}개 사업장 · {{ sites_grid.columns }}열)
-    </p>
-    <p class="site-map-edit-hint" id="sites-split-edit-hint" hidden>
-      <strong>수정 모드:</strong> 패널을 클릭해 선택한 뒤 <strong>사진 변경</strong>으로
-      4분할용 이미지만 바꿉니다. (안내도 사진과는 별개입니다)
-    </p>
+{# ── 사업장 탭 + 사진 그리드 (메인) ── #}
+{% if sites_tabs and view_mode == 'grid' %}
+<section class="card sites-tabs-card" id="sites-tabs-root">
+  <div class="sites-tabs-toolbar">
+    <a class="btn btn-sm btn-secondary" href="/admin/sites?view=list">사업장 목록</a>
   </div>
 
-  <div class="sites-split-grid"
-       id="sites-split-grid"
-       style="--split-cols: {{ sites_grid.columns }};">
-    {% for panel in sites_grid.panels %}
-    <article class="sites-split-panel{% if not panel.has_image %} is-no-image{% endif %}"
-             data-site-id="{{ panel.site_id }}"
-             data-site-name="{{ panel.site_name }}"
-             data-site-url="{{ panel.site_url }}"
-             data-image-url="/admin/sites/{{ panel.site_id }}/grid-image">
-      <header class="sites-split-panel-head">
-        <a class="sites-split-title-link" href="{{ panel.site_url }}" title="{{ panel.site_name }} 안내도">
-          <span class="site-badge">{{ panel.site_code }}</span>
-          <strong>{{ panel.site_name }}</strong>
+  {% if sites_tabs.tabs %}
+  <nav class="sites-region-tabs" role="tablist" aria-label="사업장 선택">
+    {% for tab in sites_tabs.tabs %}
+    <button type="button"
+            class="sites-region-tab{% if loop.first %} is-active{% endif %}"
+            role="tab"
+            id="sites-tab-{{ tab.site_id }}"
+            aria-selected="{{ 'true' if loop.first else 'false' }}"
+            aria-controls="sites-panel-{{ tab.site_id }}"
+            data-site-id="{{ tab.site_id }}">{{ tab.site_name }}</button>
+    {% endfor %}
+  </nav>
+
+  <div class="sites-tab-panels">
+    {% for tab in sites_tabs.tabs %}
+    <div class="sites-tab-panel{% if loop.first %} is-active{% endif %}"
+         role="tabpanel"
+         id="sites-panel-{{ tab.site_id }}"
+         aria-labelledby="sites-tab-{{ tab.site_id }}"
+         data-site-id="{{ tab.site_id }}"
+         {% if not loop.first %}hidden{% endif %}>
+      <div class="sites-photo-grid">
+        {% for card in tab.cards %}
+        <a class="sites-photo-card"
+           href="{{ card.href }}"
+           title="{{ card.name }} — 안내도 보기">
+          <div class="sites-photo-frame{% if not card.photo_url %} is-placeholder tone-{{ loop.index0 % 5 }}{% endif %}">
+            {% if card.photo_url %}
+            <img src="{{ card.photo_url }}" alt="{{ card.name }}" loading="lazy" decoding="async" />
+            {% endif %}
+          </div>
+          <span class="sites-photo-label">{{ card.name }}</span>
         </a>
-        <div class="sites-split-panel-actions">
-          <a class="btn btn-sm btn-secondary"
-             href="/admin/sites?site_id={{ panel.site_id }}&view=list">건물목록</a>
-          <a class="btn btn-sm btn-secondary"
-             href="/admin/sites/{{ panel.site_id }}/edit">수정</a>
-          {% if user_can_edit(user) %}
-          <label class="btn btn-sm btn-secondary sites-split-upload-btn" hidden>
-            사진 변경
-            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf" hidden />
-          </label>
-          {% endif %}
-        </div>
-      </header>
-      <a class="sites-split-link site-map-frame sites-split-frame"
-         href="{{ panel.site_url }}"
-         title="{{ panel.site_name }} 안내도">
-        {% if panel.has_image %}
-        <img class="site-map-img"
-             src="{{ panel.image }}"
-             alt="{{ panel.title }}"
-             decoding="async"
-             draggable="false" />
         {% else %}
-        <div class="sites-split-placeholder">
-          <span>{{ panel.site_name }}</span>
-          <small>클릭하면 안내도로 이동합니다</small>
-        </div>
-        {% endif %}
-      </a>
-    </article>
-    {% else %}
-    <p class="empty">등록된 사업장이 없습니다.</p>
+        <p class="empty">표시할 사진이 없습니다.</p>
+        {% endfor %}
+      </div>
+    </div>
     {% endfor %}
   </div>
+  {% else %}
+  <p class="empty">등록된 사업장이 없습니다.</p>
+  {% endif %}
 </section>
 
-<script src="/static/js/site_grid_editor.js?v=20260916d" defer></script>
+<script>
+(function () {
+  var root = document.getElementById('sites-tabs-root');
+  if (!root) return;
+  var tabs = root.querySelectorAll('.sites-region-tab');
+  var panels = root.querySelectorAll('.sites-tab-panel');
+  function activate(siteId) {
+    tabs.forEach(function (tab) {
+      var on = tab.getAttribute('data-site-id') === siteId;
+      tab.classList.toggle('is-active', on);
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    panels.forEach(function (panel) {
+      var on = panel.getAttribute('data-site-id') === siteId;
+      panel.classList.toggle('is-active', on);
+      if (on) panel.removeAttribute('hidden');
+      else panel.setAttribute('hidden', '');
+    });
+  }
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      activate(tab.getAttribute('data-site-id'));
+    });
+  });
+})();
+</script>
 
 {# ── 단일 사업장 안내도 ── #}
 {% elif site_map and view_mode == 'map' %}
@@ -111,7 +112,7 @@
     <h2>
       {{ selected_site.name }} 안내도
       <span class="site-view-actions">
-        <a class="btn btn-sm btn-secondary" href="/admin/sites">분할 화면</a>
+        <a class="btn btn-sm btn-secondary" href="/admin/sites">사업장 사진</a>
         <a class="btn btn-sm btn-secondary"
            href="/admin/sites?site_id={{ selected_site.id }}&view=list">건물 목록</a>
         {% if user_can_edit(user) %}
@@ -130,7 +131,7 @@
     <p class="text-muted site-map-hint" id="site-map-hint">
       지도의 바로가기를 누르면 해당 건물 현황으로 이동합니다.
       연결 {{ site_map.matched_count }}곳
-      · 사진 변경은 안내도용이며, 4분할 사진과는 별개입니다. (jpg·png·pdf 등)
+      · 사진 변경은 안내도용입니다. (jpg·png·pdf 등)
     </p>
     <p class="site-map-edit-hint" id="site-map-edit-hint" hidden>
       <strong>수정 모드:</strong> 핀을 드래그해 위치를 옮기세요.
@@ -177,7 +178,7 @@
     <h2>
       {% if selected_site %}{{ selected_site.name }} 건물{% else %}사업장 목록{% endif %}
       <span class="site-view-actions">
-        <a class="btn btn-sm btn-secondary" href="/admin/sites">분할 화면</a>
+        <a class="btn btn-sm btn-secondary" href="/admin/sites">사업장 사진</a>
         {% if selected_site %}
         <a class="btn btn-sm btn-secondary"
            href="/admin/sites?site_id={{ selected_site.id }}&view=map">안내도</a>
@@ -240,9 +241,9 @@
     <h2>사업장 추가</h2>
     <form method="post" action="/admin/sites" class="form-stack">
       <label>사업장명</label>
-      <input type="text" name="name" required placeholder="광양운영그룹" />
+      <input type="text" name="name" required placeholder="금호시설섹션" />
       <label>코드</label>
-      <input type="text" name="code" required placeholder="GY-OP" />
+      <input type="text" name="code" required placeholder="GH-FAC" />
       <label>주소</label>
       <input type="text" name="address" />
       <label>담당자</label>

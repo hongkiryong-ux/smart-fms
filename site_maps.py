@@ -617,3 +617,52 @@ async def build_sites_grid_payload(db: AsyncSession, sites: list) -> dict:
             panels.append(panel)
     cols = grid_columns(len(panels))
     return {"columns": cols, "panels": panels, "site_count": len(panels)}
+
+
+async def build_sites_tabs_payload(db: AsyncSession, sites: list) -> dict:
+    """사업장 탭 + 선택 사업장 건물 사진 그리드 (클릭 시 안내도)."""
+    from auth import nav_building_sort_key
+
+    tabs: list[dict] = []
+    for site in sites:
+        if not site_has_map(site):
+            continue
+        sid = int(site.id)
+        name = getattr(site, "name", "") or "사업장"
+        map_url = f"/admin/sites?site_id={sid}&view=map"
+        buildings = await _buildings_for_site_map(db, site)
+        buildings = sorted(
+            buildings,
+            key=lambda b: nav_building_sort_key(getattr(b, "name", None)),
+        )
+        cards: list[dict] = []
+        for b in buildings:
+            photo = (getattr(b, "photo_url", None) or "").strip() or None
+            cards.append(
+                {
+                    "building_id": int(b.id),
+                    "name": getattr(b, "name", "") or "건물",
+                    "photo_url": photo,
+                    "href": map_url,
+                }
+            )
+        if not cards:
+            grid_img = await get_site_grid_image_url(db, site)
+            cards.append(
+                {
+                    "building_id": None,
+                    "name": name,
+                    "photo_url": grid_img,
+                    "href": map_url,
+                }
+            )
+        tabs.append(
+            {
+                "site_id": sid,
+                "site_name": name,
+                "site_code": getattr(site, "code", "") or "",
+                "map_url": map_url,
+                "cards": cards,
+            }
+        )
+    return {"tabs": tabs, "site_count": len(tabs)}

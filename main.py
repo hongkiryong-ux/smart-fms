@@ -3425,7 +3425,7 @@ async def sites_list(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    from site_maps import build_site_map_payload, build_sites_grid_payload, site_has_map
+    from site_maps import build_site_map_payload, build_sites_tabs_payload, site_has_map
 
     result = await db.execute(
         select(Site)
@@ -3442,7 +3442,7 @@ async def sites_list(
             sites = [selected_site]
 
     site_map = None
-    sites_grid = None
+    sites_tabs = None
     view_mode = (view or "").strip().lower()
 
     if selected_site is None:
@@ -3450,7 +3450,7 @@ async def sites_list(
             view_mode = "list"
         else:
             view_mode = "grid"
-            sites_grid = await build_sites_grid_payload(db, all_sites)
+            sites_tabs = await build_sites_tabs_payload(db, all_sites)
     elif site_has_map(selected_site):
         if view_mode not in ("map", "list"):
             view_mode = "map"
@@ -3469,7 +3469,7 @@ async def sites_list(
             "selected_site": selected_site,
             "site_id": site_id,
             "site_map": site_map,
-            "sites_grid": sites_grid,
+            "sites_tabs": sites_tabs,
             "view_mode": view_mode,
             "error": error or "",
         },
