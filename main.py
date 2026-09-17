@@ -4419,18 +4419,20 @@ async def building_create(
 
     name = name.strip()
     code = code.strip()
+    # 건물 추가 화면(사업장 목록) 유지
+    back = f"/admin/sites?site_id={int(site_id)}&view=list"
 
     # 같은 사업장 내 동일 건물명 중복 방지
     if await _building_name_taken(db, site_id=site_id, name=name):
         return RedirectResponse(
-            f"/admin/sites?error={quote(f'이미 같은 이름의 건물이 있습니다: {name}')}",
+            f"{back}&error={quote(f'이미 같은 이름의 건물이 있습니다: {name}')}",
             status_code=303,
         )
 
     # 코드 중복 방지 (같은 사업장)
     if await _building_code_taken(db, site_id=site_id, code=code):
         return RedirectResponse(
-            f"/admin/sites?error={quote(f'이미 같은 코드의 건물이 있습니다: {code}')}",
+            f"{back}&error={quote(f'이미 같은 코드의 건물이 있습니다: {code}')}",
             status_code=303,
         )
 
@@ -4439,7 +4441,7 @@ async def building_create(
     await db.flush()
     await ensure_building_default_categories(db, building)
     await db.commit()
-    return RedirectResponse("/admin/sites", status_code=303)
+    return RedirectResponse(back, status_code=303)
 
 
 @app.get("/admin/buildings/{building_id}/edit")
