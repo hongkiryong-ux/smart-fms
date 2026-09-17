@@ -1683,20 +1683,20 @@ a.dm:hover {
   grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
   gap: 1rem;
   align-items: stretch;
-  min-height: min(52vh, 520px);
+  min-height: min(62.4vh, 624px);
 }
 
 .bld-hier-tree {
   min-width: 0;
-  max-height: min(52vh, 520px);
+  max-height: min(62.4vh, 624px);
   overflow: auto;
   padding-right: 0.35rem;
 }
 
 .bld-photo-pane {
   position: relative;
-  min-height: min(52vh, 520px);
-  height: min(52vh, 520px);
+  min-height: min(62.4vh, 624px);
+  height: min(62.4vh, 624px);
   border: 1px dashed var(--border);
   border-radius: 10px;
   background: #f8fafc;
@@ -1777,8 +1777,8 @@ a.dm:hover {
   }
 
   .bld-photo-pane {
-    min-height: 240px;
-    height: min(42vh, 360px);
+    min-height: 288px;
+    height: min(50.4vh, 432px);
   }
 }
 
