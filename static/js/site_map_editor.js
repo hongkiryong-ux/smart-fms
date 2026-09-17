@@ -148,17 +148,15 @@
         el.addEventListener("pointerdown", onPinPointerDown);
       } else {
         el = document.createElement("a");
-        el.className = "site-map-hotspot is-linked";
+        el.className = "site-map-hotspot is-linked is-view";
         el.href = "/admin/buildings/" + h.building_id;
         el.style.left = h.x + "%";
         el.style.top = h.y + "%";
-        el.style.width = h.w + "%";
-        el.style.height = h.h + "%";
         el.title = (h.building_name || h.label || "") + " 현황";
-        var sr = document.createElement("span");
-        sr.className = "sr-only";
-        sr.textContent = h.building_name || h.label || "";
-        el.appendChild(sr);
+        var label = document.createElement("span");
+        label.className = "site-map-pin-label site-map-view-label";
+        label.textContent = h.building_name || h.label || "바로가기";
+        el.appendChild(label);
       }
       layer.appendChild(el);
     });

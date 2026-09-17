@@ -1928,8 +1928,37 @@ a.dm:hover {
   z-index: 2;
   outline: none;
 }
-.site-map-hotspot.is-linked:hover::after,
-.site-map-hotspot.is-linked:focus-visible::after {
+.site-map-hotspot.is-view {
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  max-width: 12rem;
+  padding: 0.2rem 0.45rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #003876;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.18);
+  z-index: 2;
+}
+.site-map-hotspot.is-view:hover,
+.site-map-hotspot.is-view:focus-visible {
+  background: rgba(255, 236, 120, 0.95);
+  border-color: #003876;
+  box-shadow: 0 2px 10px rgba(0, 56, 118, 0.25);
+}
+.site-map-hotspot.is-view .site-map-view-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #003876;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  pointer-events: none;
+}
+.site-map-hotspot.is-linked:not(.is-view):hover::after,
+.site-map-hotspot.is-linked:not(.is-view):focus-visible::after {
   content: attr(title);
   position: absolute;
   left: 50%;
