@@ -129,7 +129,7 @@
       })
       .catch(function () {
         panel.removeAttribute("data-map-loading");
-        renderInlineHotspots(panel);
+        /* 실패 시 재시도 가능하도록 loaded 표시하지 않음 */
       });
   }
 

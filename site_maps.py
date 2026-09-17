@@ -251,15 +251,28 @@ def normalize_hotspots(raw: list | None, buildings: list) -> list[dict]:
 async def _buildings_for_site_map(db: AsyncSession, site: Any) -> list:
     """안내도 바로가기 연동용 건물 목록.
     금호시설섹션은 광양운영그룹 건물도 포함(기존 바로가기 건물 연동 유지).
+    site.buildings 관계는 쓰지 않음 — async에서 미로드 시 MissingGreenlet 발생.
     """
     from sqlalchemy import or_, select
     from sqlalchemy.orm import selectinload
 
     from models import Building, Site
 
-    own = list(_active_buildings(site))
+    if getattr(site, "id", None) is None:
+        return []
+
     if not _is_housing_map_site(site) and not _is_gy_op(site):
-        return own
+        rows = (
+            await db.execute(
+                select(Building)
+                .where(
+                    Building.is_active == True,  # noqa: E712
+                    Building.site_id == int(site.id),
+                )
+                .order_by(Building.name)
+            )
+        ).scalars().all()
+        return list(rows)
 
     codes = list(GY_OP_SITE_CODES | GEUMHO_FAC_SITE_CODES)
     names = list(GY_OP_SITE_NAMES | GEUMHO_FAC_SITE_NAMES)
@@ -272,10 +285,9 @@ async def _buildings_for_site_map(db: AsyncSession, site: Any) -> list:
         )
     ).scalars().all()
     site_ids = {int(s.id) for s in site_rows if getattr(s, "id", None) is not None}
-    if getattr(site, "id", None) is not None:
-        site_ids.add(int(site.id))
+    site_ids.add(int(site.id))
     if not site_ids:
-        return own
+        return []
 
     rows = (
         await db.execute(
