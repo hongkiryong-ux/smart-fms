@@ -2167,6 +2167,22 @@ a.dm:hover {
   width: 100%;
   position: relative;
 }
+.sites-tab-panel[data-mode="map"] .sites-photo-view,
+.sites-tab-panel[data-mode="photo"] .sites-inline-map-view,
+.sites-tab-panel[data-mode="photo"] .sites-back-photo-btn {
+  display: none !important;
+}
+.sites-tab-panel[data-mode="map"] .sites-inline-map-view {
+  display: block !important;
+}
+.sites-tab-panel[data-mode="map"] .sites-back-photo-btn {
+  display: inline-flex !important;
+}
+.sites-photo-view[hidden],
+.sites-inline-map-view[hidden],
+.sites-back-photo-btn[hidden] {
+  display: none !important;
+}
 .sites-tab-upload-btn {
   position: absolute;
   top: 0.65rem;

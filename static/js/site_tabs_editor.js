@@ -37,9 +37,18 @@
     var photoView = panel.querySelector(".sites-photo-view");
     var mapView = panel.querySelector(".sites-inline-map-view");
     var backBtn = panel.querySelector(".sites-back-photo-btn");
-    if (photoView) photoView.hidden = mode === "map";
-    if (mapView) mapView.hidden = mode !== "map";
-    if (backBtn) backBtn.hidden = mode !== "map";
+    if (photoView) {
+      photoView.hidden = mode === "map";
+      photoView.style.display = mode === "map" ? "none" : "";
+    }
+    if (mapView) {
+      mapView.hidden = mode !== "map";
+      mapView.style.display = mode === "map" ? "block" : "none";
+    }
+    if (backBtn) {
+      backBtn.hidden = mode !== "map";
+      backBtn.style.display = mode === "map" ? "" : "none";
+    }
     if (mode === "map") {
       renderInlineHotspots(panel);
       if (editing) setEditMode(false);
