@@ -5,6 +5,7 @@
 
   var dataEl = document.getElementById("site-map-data");
   var frame = document.getElementById("site-map-frame");
+  var stage = document.getElementById("site-map-stage") || frame;
   var layer = document.getElementById("site-map-hotspots");
   var img = document.getElementById("site-map-img");
   var dialog = document.getElementById("site-map-link-dialog");
@@ -164,7 +165,7 @@
   }
 
   function pctFromEvent(ev) {
-    var rect = frame.getBoundingClientRect();
+    var rect = (stage || frame).getBoundingClientRect();
     var x = ((ev.clientX - rect.left) / rect.width) * 100;
     var y = ((ev.clientY - rect.top) / rect.height) * 100;
     return { x: clamp(x, 0, 100), y: clamp(y, 0, 100) };
@@ -202,7 +203,7 @@
       return h.id === drag.id;
     });
     if (!pin || !spot) return;
-    var rect = frame.getBoundingClientRect();
+    var rect = (stage || frame).getBoundingClientRect();
     var dx = ((ev.clientX - drag.startX) / rect.width) * 100;
     var dy = ((ev.clientY - drag.startY) / rect.height) * 100;
     if (Math.abs(dx) + Math.abs(dy) > 0.3) drag.moved = true;
@@ -281,8 +282,8 @@
     });
   }
 
-  if (frame) {
-    frame.addEventListener("click", function (ev) {
+  if (stage || frame) {
+    (stage || frame).addEventListener("click", function (ev) {
       if (!editing || !placing) return;
       if (ev.target && ev.target.closest && ev.target.closest(".site-map-hotspot")) return;
       var p = pctFromEvent(ev);
@@ -382,13 +383,14 @@
   function applyUploadedImage(url) {
     var placeholder = document.getElementById("site-map-placeholder");
     if (placeholder) placeholder.remove();
+    var host = stage || frame;
     if (!img) {
       img = document.createElement("img");
       img.id = "site-map-img";
       img.className = "site-map-img";
       img.draggable = false;
       img.decoding = "async";
-      if (frame) frame.insertBefore(img, layer);
+      if (host) host.insertBefore(img, layer);
     }
     img.src = url;
     img.alt = mapData.title || "안내도";

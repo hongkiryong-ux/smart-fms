@@ -138,17 +138,19 @@
     </p>
   </div>
   <div class="site-map-frame" id="site-map-frame">
-    {% if site_map.has_image %}
-    <img class="site-map-img" id="site-map-img"
-         src="{{ site_map.image }}" alt="{{ site_map.title }}"
-         decoding="async" draggable="false" />
-    {% else %}
-    <div class="sites-split-placeholder" id="site-map-placeholder">
-      <span>{{ selected_site.name }}</span>
-      <small>사진 변경으로 안내도를 등록하세요</small>
+    <div class="site-map-stage" id="site-map-stage">
+      {% if site_map.has_image %}
+      <img class="site-map-img" id="site-map-img"
+           src="{{ site_map.image }}" alt="{{ site_map.title }}"
+           decoding="async" draggable="false" />
+      {% else %}
+      <div class="sites-split-placeholder" id="site-map-placeholder">
+        <span>{{ selected_site.name }}</span>
+        <small>사진 변경으로 안내도를 등록하세요</small>
+      </div>
+      {% endif %}
+      <div class="site-map-hotspots" id="site-map-hotspots" aria-label="건물 선택"></div>
     </div>
-    {% endif %}
-    <div class="site-map-hotspots" id="site-map-hotspots" aria-label="건물 선택"></div>
   </div>
 </section>
 
@@ -168,7 +170,7 @@
 </dialog>
 
 <script type="application/json" id="site-map-data">{{ site_map | tojson }}</script>
-<script src="/static/js/site_map_editor.js?v=20260916c" defer></script>
+<script src="/static/js/site_map_editor.js?v=20260917b" defer></script>
 
 {# ── 사업장·건물 목록 ── #}
 {% else %}
