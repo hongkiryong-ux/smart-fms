@@ -21,7 +21,14 @@
 
 <div class="grid-2">
   <section class="card bld-hier-card">
-    <h2>층 / 구역 / 설비 계층</h2>
+    <div class="bld-hier-head">
+      <h2>층 / 구역 / 설비 계층</h2>
+      {% if user_can_access_menu(user, 'equipment') %}
+      <a class="btn btn-sm btn-primary"
+         href="/admin/equipment?building_id={{ building.id }}"
+         title="{{ building.name }} 설비관리">설비관리 바로가기</a>
+      {% endif %}
+    </div>
     <div class="bld-hier-layout">
       <div class="bld-hier-tree">
         {% for floor in building.floors if floor.is_active %}

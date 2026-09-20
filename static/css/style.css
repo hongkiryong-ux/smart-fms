@@ -1678,6 +1678,19 @@ a.dm:hover {
   min-width: 0;
 }
 
+.bld-hier-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.bld-hier-head h2 {
+  margin: 0;
+}
+
 .bld-hier-layout {
   display: grid;
   grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
