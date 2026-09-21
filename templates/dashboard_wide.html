@@ -1,4 +1,4 @@
-{# 통합 운영 홈 (wide) — 기존 KPI·사업장·일정·공지·에너지 데이터 그대로 사용 #}
+{# 통합 운영 홈 (wide) — 첨부 시안 배치 기준. 데이터·링크는 기존과 동일 #}
 {% set cfg = dash_config or {'order': [], 'visible': {}} %}
 {% set vis = cfg.visible if cfg.visible is mapping else {} %}
 {% set show_m = vis['maintenance_status'] if 'maintenance_status' in vis else true %}
@@ -6,24 +6,22 @@
 {% set show_e = vis['energy'] if 'energy' in vis else true %}
 {% set show_sch = vis['schedules'] if 'schedules' in vis else true %}
 {% set show_n = vis['notices'] if 'notices' in vis else true %}
-{% set risk = risk_summary or {'total': 0, 'level_label': '보통', 'critical': 0, 'high': 0, 'normal': 0, 'low': 0} %}
 
 <div class="dash-wide">
   <header class="dash-wide-top">
     <div class="dash-wide-top-left">
-      <strong class="dash-wide-brand">Smart FMS</strong>
       <span class="dash-wide-context">{{ welcome_name or '광양운영그룹' }}</span>
-      <span class="ops-live-badge">● LIVE</span>
     </div>
     <div class="dash-wide-top-right">
+      <span class="dash-wide-weather" title="날씨">맑음 26°C</span>
+      <span class="dash-wide-clock" id="ops-clock">{{ now_label or kpi.as_of }}</span>
       <button type="button" class="ops-online-btn" data-online-open aria-haspopup="dialog">
         <span class="ops-online-dot" aria-hidden="true"></span>
         접속 <strong data-online-count>{{ online_count|default(1) }}</strong>
       </button>
-      <span class="dash-wide-clock" id="ops-clock">{{ now_label or kpi.as_of }}</span>
       <div class="dash-wide-user">
         <span class="ops-live-avatar" aria-hidden="true">👤</span>
-        <span>{{ user.name if user else '' }} · {{ role_label or '' }}</span>
+        <span>{{ user.name if user else '' }}{% if role_label %} {{ role_label }}{% endif %}</span>
       </div>
       {% if user and user.role.value == 'system_admin' %}
       <a class="ops-settings-btn" href="/admin/dashboard/settings">⚙ 설정</a>
@@ -31,15 +29,13 @@
     </div>
   </header>
 
-  <div class="dash-wide-hero-row">
+  {# ── 1행: 환영 배너 + KPI 5칸 가로 ── #}
+  <div class="dash-wide-row1">
     <section class="dash-wide-hero">
       <div class="dash-wide-hero-copy">
         <p class="dash-wide-hello">안녕하세요.</p>
-        <h2>{{ welcome_name or '광양운영그룹' }}입니다.</h2>
-        <p>안전한 시설과 지속 가능한 가치 실현을 위해 Smart FMS가 함께합니다.</p>
-        <p class="dash-wide-hero-meta">
-          {{ kpi.sites }}개 사업장 · {{ kpi.buildings }}개 시설 · 설비 {{ "{:,}".format(kpi.equipment) }}개
-        </p>
+        <h2>{{ welcome_name or '광양운영그룹' }} 입니다.</h2>
+        <p>안전한 시설과 지속 가능한 가치 실현을 위해<br />Smart FMS가 함께합니다.</p>
       </div>
     </section>
 
@@ -48,78 +44,90 @@
       <a class="dash-wide-kpi tone-today" href="/admin/d1?board=today">
         <span class="dash-wide-kpi-ico" aria-hidden="true">🔧</span>
         <span class="dash-wide-kpi-label">오늘 작업</span>
-        <strong><span id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span> 건</strong>
+        <strong><span id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span>건</strong>
         <em>예정 {{ kpi.d1_today_plan }} / 진행 {{ kpi.wo_progress }}</em>
       </a>
       <a class="dash-wide-kpi tone-urgent" href="/admin/work-orders?status=received&amp;status=in_progress&amp;priority=high">
         <span class="dash-wide-kpi-ico" aria-hidden="true">🔔</span>
         <span class="dash-wide-kpi-label">긴급 정비</span>
-        <strong><span id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span> 건</strong>
+        <strong><span id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span>건</strong>
         <em>미완료 긴급</em>
       </a>
       <a class="dash-wide-kpi tone-request" href="/admin/work-orders?status=received">
         <span class="dash-wide-kpi-ico" aria-hidden="true">📋</span>
-        <span class="dash-wide-kpi-label">정비 의뢰</span>
-        <strong><span id="kpi-wo-request">{{ kpi.wo_request }}</span> 건</strong>
+        <span class="dash-wide-kpi-label">정비 의뢰 건</span>
+        <strong><span id="kpi-wo-request">{{ kpi.wo_request }}</span>건</strong>
         <em>접수·배정</em>
       </a>
       <a class="dash-wide-kpi tone-done" href="/admin/work-orders?status=completed">
         <span class="dash-wide-kpi-ico" aria-hidden="true">✅</span>
         <span class="dash-wide-kpi-label">해결 건</span>
-        <strong><span id="kpi-wo-done">{{ kpi.wo_done }}</span> 건</strong>
+        <strong><span id="kpi-wo-done">{{ kpi.wo_done }}</span>건</strong>
         <em>완료·검수</em>
       </a>
       <a class="dash-wide-kpi tone-open" href="/admin/work-orders?status=in_progress">
         <span class="dash-wide-kpi-ico" aria-hidden="true">⏳</span>
         <span class="dash-wide-kpi-label">미해결 건</span>
-        <strong><span id="kpi-wo-unresolved">{{ kpi.wo_unresolved }}</span> 건</strong>
+        <strong><span id="kpi-wo-unresolved">{{ kpi.wo_unresolved }}</span>건</strong>
         <em>접수 {{ kpi.wo_request }} / 진행 {{ kpi.wo_progress }}</em>
       </a>
     </div>
     {% endif %}
   </div>
 
-  <div class="dash-wide-mid">
+  {# ── 2행: 사업장 현황(2×3) + 일정/공지 ── #}
+  <div class="dash-wide-row2">
     {% if show_s %}
-    <section class="dash-wide-card" data-widget="sites_status">
+    <section class="dash-wide-card dash-wide-sites-card" data-widget="sites_status">
       <div class="dash-wide-card-head">
         <h2>사업장 현황</h2>
-        <a class="ops-facilities-link" href="/admin/dashboard/gwangyang-facilities">광양운영그룹 공공시설물 상세현황</a>
-        <span class="ops-sites-eq-count">총 설비 {{ "{:,}".format(kpi.equipment) }}개</span>
-        <a href="/admin/sites">전체 보기 ›</a>
+        <a class="dash-wide-head-link" href="/admin/dashboard/gwangyang-facilities">광양운영그룹 공공시설물 상세현황</a>
+        <span class="ops-sites-eq-count">총 설비수 {{ "{:,}".format(kpi.equipment) }}개</span>
+        <a class="dash-wide-all" href="/admin/sites">전체보기 ›</a>
       </div>
       {% if site_status %}
       <div class="dash-wide-sites">
-        {% for s in site_status %}
+        {% for s in site_status[:6] %}
         <article class="dash-wide-site">
-          <span class="dash-wide-site-rank rank-{{ s.rank }}">{{ s.rank }}</span>
-          {% if s.photo_url %}
-          <div class="dash-wide-site-thumb has-photo">
-            <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
-          </div>
-          {% else %}
-          <div class="dash-wide-site-thumb tone-{{ loop.index0 % 5 }}"></div>
-          {% endif %}
-          <div class="dash-wide-site-body">
-            <a class="dash-wide-site-name" href="/admin/sites?site_id={{ s.id }}&amp;view=map">{{ s.name }}</a>
-            <p class="dash-wide-site-meta">{{ s.buildings }}개 시설 · {{ "{:,}".format(s.equipment) }}개 설비</p>
-            <div class="dash-wide-site-metrics">
-              <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed">
-                <span>정비의뢰</span><strong>{{ s.requests }}</strong>
-              </a>
-              <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress">
-                <span>미해결</span><strong>{{ s.unresolved }}</strong>
-              </a>
-              <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed">
-                <span>완료</span><strong>{{ s.completed }}</strong>
-              </a>
+          <div class="dash-wide-site-top">
+            <span class="dash-wide-site-rank rank-{{ s.rank }}">{{ s.rank }}</span>
+            {% if s.photo_url %}
+            <div class="dash-wide-site-thumb has-photo">
+              <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
+            </div>
+            {% else %}
+            <div class="dash-wide-site-thumb tone-{{ loop.index0 % 5 }}"></div>
+            {% endif %}
+            <div class="dash-wide-site-title">
+              <a href="/admin/sites?site_id={{ s.id }}&amp;view=map">{{ s.name }}</a>
+              <p>{{ s.buildings }}개 시설</p>
             </div>
           </div>
-          {% if s.is_gwangyang_ops and s.facilities_url %}
-          <a class="dash-wide-site-link" href="{{ s.facilities_url }}">상세 ›</a>
-          {% else %}
-          <a class="dash-wide-site-link" href="/admin/sites?site_id={{ s.id }}&amp;view=map">상세 ›</a>
-          {% endif %}
+          <div class="dash-wide-site-metrics">
+            <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed" title="정비의뢰">
+              <i class="m-req" aria-hidden="true"></i>
+              <span>정비요청</span>
+              <strong>{{ s.requests }}</strong>
+            </a>
+            <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress" title="미해결">
+              <i class="m-open" aria-hidden="true"></i>
+              <span>미처리</span>
+              <strong>{{ s.unresolved }}</strong>
+            </a>
+            <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed" title="완료">
+              <i class="m-done" aria-hidden="true"></i>
+              <span>완료</span>
+              <strong>{{ s.completed }}</strong>
+            </a>
+          </div>
+          <div class="dash-wide-site-foot">
+            <span>설비수 {{ "{:,}".format(s.equipment) }}대</span>
+            {% if s.is_gwangyang_ops and s.facilities_url %}
+            <a href="{{ s.facilities_url }}">상세 ›</a>
+            {% else %}
+            <a href="/admin/sites?site_id={{ s.id }}&amp;view=map">상세 ›</a>
+            {% endif %}
+          </div>
         </article>
         {% endfor %}
       </div>
@@ -129,23 +137,23 @@
     </section>
     {% endif %}
 
-    <aside class="dash-wide-side">
+    <aside class="dash-wide-col-side">
       {% if show_sch %}
       <section class="dash-wide-card" data-widget="schedules">
         <div class="dash-wide-card-head">
-          <h2>주요 일정 (오늘)</h2>
-          <a href="/admin/schedules">전체 ›</a>
+          <h2>주요 일정</h2>
+          <a class="dash-wide-all" href="/admin/schedules">전체보기 ›</a>
         </div>
         {% if today_schedules %}
         <ul class="dash-wide-list">
           {% for e in today_schedules[:5] %}
           <li>
             <span class="ops-time">{{ e.event_time or '--:--' }}</span>
-            <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
             <div>
               <strong>{{ e.title }}</strong>
               <em>{{ e.location or e.site_name }}</em>
             </div>
+            <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
           </li>
           {% endfor %}
         </ul>
@@ -159,7 +167,7 @@
       <section class="dash-wide-card" data-widget="notices">
         <div class="dash-wide-card-head">
           <h2>공지사항</h2>
-          <a href="/admin/notices">전체 ›</a>
+          <a class="dash-wide-all" href="/admin/notices">전체보기 ›</a>
         </div>
         {% if recent_notices %}
         <ul class="dash-wide-list dash-wide-notices">
@@ -178,36 +186,15 @@
         {% endif %}
       </section>
       {% endif %}
-
-      <section class="dash-wide-card">
-        <div class="dash-wide-card-head">
-          <h2>최근 정비현황</h2>
-          <a href="/admin/work-orders">전체 ›</a>
-        </div>
-        {% if recent_work_orders %}
-        <ul class="dash-wide-wo-list">
-          {% for w in recent_work_orders %}
-          <li>
-            <a href="{{ w.url }}">
-              <span class="dash-wide-wo-st st-{{ w.status }}">{{ w.status_label }}</span>
-              <strong>{{ w.title }}</strong>
-              <time>{{ w.time_label }}</time>
-            </a>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">최근 정비의뢰가 없습니다.</p>
-        {% endif %}
-      </section>
     </aside>
   </div>
 
-  <div class="dash-wide-bottom">
+  {# ── 3행: 전력 | 위험성평가(시안 자리) | 최근정비+바로가기 ── #}
+  <div class="dash-wide-row3">
     {% if show_e %}
-    <section class="dash-wide-card" data-widget="energy">
+    <section class="dash-wide-card dash-wide-energy" data-widget="energy">
       <div class="dash-wide-card-head">
-        <h2>주택변전소 전력사용량 <span class="ops-sub">(전일 기준)</span></h2>
+        <h2>주택변전소 전력사용량 <span class="ops-sub">(전일 기준 · Trend 7일)</span></h2>
       </div>
       <div class="ops-energy-grid ops-tr-energy-grid">
         {% for tr in kpi.energy.trs %}
@@ -250,47 +237,72 @@
     </section>
     {% endif %}
 
-    <section class="dash-wide-card dash-wide-risk">
+    {# 위험성평가 — UI만 시안 배치(기능 연동은 추후) #}
+    <section class="dash-wide-card dash-wide-risk" data-widget="risk_placeholder">
       <div class="dash-wide-card-head">
-        <h2>위험성평가</h2>
-        <a href="/admin/risk-assessment">바로가기 ›</a>
+        <h2>위험성평가 (D-1)</h2>
+        <a class="dash-wide-all" href="/admin/risk-assessment">바로가기 ›</a>
       </div>
-      <a class="dash-wide-risk-gauge" href="/admin/risk-assessment" title="위험성평가">
+      <div class="dash-wide-risk-body">
         <div class="dash-wide-gauge" aria-hidden="true">
-          <svg viewBox="0 0 120 70" width="160" height="94">
-            <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round"/>
-            <path d="M10 60 A50 50 0 0 1 40 18" fill="none" stroke="#ef4444" stroke-width="12" stroke-linecap="round"/>
-            <path d="M40 18 A50 50 0 0 1 60 10" fill="none" stroke="#f97316" stroke-width="12" stroke-linecap="round"/>
-            <path d="M60 10 A50 50 0 0 1 90 18" fill="none" stroke="#22c55e" stroke-width="12" stroke-linecap="round"/>
-            <path d="M90 18 A50 50 0 0 1 110 60" fill="none" stroke="#3b82f6" stroke-width="12" stroke-linecap="round"/>
+          <svg viewBox="0 0 120 72" width="170" height="102">
+            <path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="#e2e8f0" stroke-width="14" stroke-linecap="round"/>
+            <path d="M12 62 A48 48 0 0 1 38 22" fill="none" stroke="#ef4444" stroke-width="14" stroke-linecap="round"/>
+            <path d="M38 22 A48 48 0 0 1 58 14" fill="none" stroke="#f97316" stroke-width="14" stroke-linecap="round"/>
+            <path d="M58 14 A48 48 0 0 1 88 22" fill="none" stroke="#22c55e" stroke-width="14" stroke-linecap="round"/>
+            <path d="M88 22 A48 48 0 0 1 108 62" fill="none" stroke="#38bdf8" stroke-width="14" stroke-linecap="round"/>
           </svg>
           <div class="dash-wide-gauge-center">
-            <strong>{{ risk.total }}</strong>
-            <span>{{ risk.level_label }}</span>
+            <strong>12</strong>
+            <span>건 (중)</span>
           </div>
         </div>
         <ul class="dash-wide-risk-legend">
-          <li><i class="c-crit"></i>매우심각 {{ risk.critical }}</li>
-          <li><i class="c-high"></i>심각 {{ risk.high }}</li>
-          <li><i class="c-norm"></i>보통 {{ risk.normal }}</li>
-          <li><i class="c-low"></i>경미 {{ risk.low }}</li>
+          <li><i class="c-crit"></i><span>매우심각</span><b>2건</b></li>
+          <li><i class="c-high"></i><span>심각</span><b>5건</b></li>
+          <li><i class="c-norm"></i><span>보통</span><b>12건</b></li>
+          <li><i class="c-low"></i><span>경미</span><b>8건</b></li>
         </ul>
-      </a>
-      <p class="dash-wide-risk-note">정비 KPI 기준 요약 · 상세 평가는 위험성평가에서 진행</p>
+      </div>
+      <p class="dash-wide-risk-note">※ 표시 수치는 시안 예시이며, 연동은 추후 반영 예정입니다.</p>
     </section>
 
-    <section class="dash-wide-card dash-wide-quick">
-      <div class="dash-wide-card-head">
-        <h2>바로가기</h2>
-      </div>
-      <div class="dash-wide-quick-grid">
-        <a href="/admin/work-orders"><span>📋</span>정비의뢰</a>
-        <a href="/admin/inspection-logs2"><span>📝</span>점검일지</a>
-        <a href="/admin/materials?popup=1" onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;"><span>📦</span>자재요청</a>
-        <a href="/admin/partners"><span>🤝</span>협력사</a>
-        <a href="/admin/sites"><span>🗺️</span>사업장/건물</a>
-        <a href="/admin/dashboard/layouts"><span>ℹ️</span>화면구성</a>
-      </div>
-    </section>
+    <div class="dash-wide-col-end">
+      <section class="dash-wide-card dash-wide-recent">
+        <div class="dash-wide-card-head">
+          <h2>최근 정비현황</h2>
+          <a class="dash-wide-all" href="/admin/work-orders">전체보기 ›</a>
+        </div>
+        {% if recent_work_orders %}
+        <ul class="dash-wide-wo-list">
+          {% for w in recent_work_orders %}
+          <li>
+            <a href="{{ w.url }}">
+              <span class="dash-wide-wo-st st-{{ w.status }}">{{ w.status_label }}</span>
+              <strong>{{ w.title }}</strong>
+              <time>{{ w.time_label }}</time>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">최근 정비의뢰가 없습니다.</p>
+        {% endif %}
+      </section>
+
+      <section class="dash-wide-card dash-wide-quick">
+        <div class="dash-wide-card-head">
+          <h2>바로가기</h2>
+        </div>
+        <div class="dash-wide-quick-grid">
+          <a href="/admin/work-orders"><span aria-hidden="true">📋</span>정비의뢰</a>
+          <a href="/admin/inspection-logs2"><span aria-hidden="true">📝</span>점검일지</a>
+          <a href="/admin/materials?popup=1" onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;"><span aria-hidden="true">📦</span>자재요청</a>
+          <a href="/admin/partners"><span aria-hidden="true">🤝</span>협력사</a>
+          <a href="/admin/sites"><span aria-hidden="true">🗺️</span>FMS 안내</a>
+          <a href="/admin/dashboard/layouts"><span aria-hidden="true">ℹ️</span>사용안내</a>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
