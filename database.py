@@ -157,6 +157,18 @@ async def ensure_schema_updates() -> None:
             "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'operations_support_section'"
         )
         await _exec(
+            "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'kumho_facility_section'"
+        )
+        await _exec(
+            "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'baegun_facility_section'"
+        )
+        await _exec(
+            "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'sdc_section'"
+        )
+        await _exec(
+            "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'seawater_desalination_section'"
+        )
+        await _exec(
             "ALTER TABLE buildings ADD COLUMN IF NOT EXISTS excel_imported_at TIMESTAMP WITHOUT TIME ZONE"
         )
         await _exec(
