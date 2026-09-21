@@ -2962,8 +2962,13 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
     }
 
 
-DASHBOARD_LAYOUTS = ("gallery", "ops", "bento")
+DASHBOARD_LAYOUTS = ("wide", "ops", "gallery", "bento")
 DASHBOARD_LAYOUT_META = {
+    "wide": {
+        "label": "통합 운영 홈",
+        "ref": "Smart FMS 통합 대시보드 시안",
+        "desc": "환영 배너·정비 요약·사업장 현황·일정·공지·전력·바로가기를 한 화면에. 기존 데이터·링크는 운영 보드와 동일합니다.",
+    },
     "gallery": {
         "label": "시설 갤러리",
         "ref": "시설 안내 사이트 · 건물 사진 그리드",
@@ -3071,6 +3076,7 @@ async def dashboard(
     from board_ops import (
         get_dashboard_widget_config,
         load_recent_notices,
+        load_recent_work_orders,
         load_site_status,
         load_today_schedules,
     )
@@ -3089,10 +3095,14 @@ async def dashboard(
     today_schedules: list[dict] = []
     recent_notices: list[dict] = []
     site_status: list[dict] = []
-    if layout == "ops" or (not is_preview and layout not in ("gallery", "bento")):
+    recent_work_orders: list[dict] = []
+    ops_like = layout in ("ops", "wide")
+    if ops_like or (not is_preview and layout not in ("gallery", "bento")):
         today_schedules = await load_today_schedules(db)
         recent_notices = await load_recent_notices(db)
         site_status = await load_site_status(db)
+        if layout == "wide":
+            recent_work_orders = await load_recent_work_orders(db, limit=6)
 
     now_label = datetime.now(KST).strftime("%Y.%m.%d (%a) %H:%M")
     # 요일 영문 → 한글로 간단 치환
@@ -3103,6 +3113,28 @@ async def dashboard(
     await touch_presence(db, user.id, path=request.url.path)
     online_users = await list_active_users(db)
     await db.commit()
+
+    welcome_name = ""
+    if site_status:
+        welcome_name = (site_status[0].get("name") or "").strip()
+    if not welcome_name:
+        welcome_name = "광양운영그룹"
+
+    # 위험성평가 게이지 — 별도 DB 없이 기존 KPI로 요약(링크는 위험성평가 화면)
+    risk_summary = {
+        "total": int(kpi.get("wo_unresolved") or 0) + int(kpi.get("wo_urgent") or 0),
+        "level_label": "보통",
+        "critical": int(kpi.get("wo_urgent") or 0),
+        "high": max(0, int(kpi.get("wo_progress") or 0) // 2),
+        "normal": max(0, int(kpi.get("wo_request") or 0)),
+        "low": max(0, int(kpi.get("wo_done") or 0) // 3),
+    }
+    if risk_summary["critical"] >= 3:
+        risk_summary["level_label"] = "심각"
+    elif risk_summary["critical"] >= 1:
+        risk_summary["level_label"] = "주의"
+    elif risk_summary["total"] == 0:
+        risk_summary["level_label"] = "양호"
 
     return templates.TemplateResponse(
         request,
@@ -3118,6 +3150,9 @@ async def dashboard(
             "today_schedules": today_schedules,
             "recent_notices": recent_notices,
             "site_status": site_status,
+            "recent_work_orders": recent_work_orders,
+            "welcome_name": welcome_name,
+            "risk_summary": risk_summary,
             "now_label": now_label,
             "role_label": ROLE_LABELS.get(user.role, ""),
             "online_count": len(online_users),

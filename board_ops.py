@@ -351,6 +351,56 @@ async def load_recent_notices(db: AsyncSession, limit: int = 6) -> list[dict]:
     return out
 
 
+_STATUS_LABELS = {
+    "received": "접수",
+    "assigned": "배정",
+    "in_progress": "진행중",
+    "completed": "완료",
+    "verified": "검수",
+    "closed": "종료",
+}
+
+
+async def load_recent_work_orders(db: AsyncSession, limit: int = 6) -> list[dict]:
+    """대시보드 '최근 정비현황'용 — 기존 정비의뢰 데이터 재사용."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    rows = (
+        await db.execute(
+            select(WorkOrder)
+            .where(WorkOrder.is_active == True)  # noqa: E712
+            .order_by(WorkOrder.id.desc())
+            .limit(limit)
+        )
+    ).scalars().all()
+    kst = ZoneInfo("Asia/Seoul")
+    out = []
+    for r in rows:
+        st = r.status.value if hasattr(r.status, "value") else str(r.status or "")
+        ts = getattr(r, "completed_at", None) or getattr(r, "created_at", None)
+        if isinstance(ts, datetime):
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=ZoneInfo("UTC")).astimezone(kst)
+            else:
+                ts = ts.astimezone(kst)
+            time_label = ts.strftime("%m/%d %H:%M")
+        else:
+            time_label = ""
+        out.append(
+            {
+                "id": r.id,
+                "title": r.title or "정비의뢰",
+                "status": st,
+                "status_label": _STATUS_LABELS.get(st, st or "-"),
+                "priority": (r.priority or "normal"),
+                "time_label": time_label,
+                "url": f"/admin/work-orders/{r.id}",
+            }
+        )
+    return out
+
+
 async def load_site_status(db: AsyncSession, limit: int | None = None) -> list[dict]:
     """등록된 활성 사업장 전체 현황 (문제·정비의뢰 많은 순)."""
     open_st = (
@@ -859,6 +909,32 @@ async def dashboard_settings_page(
     ]
     widgets.sort(key=lambda x: x["order"])
     site_order_items = await load_site_status(db)
+    layout_meta = {
+        "wide": {
+            "label": "통합 운영 홈",
+            "desc": "환영 배너·정비 요약·사업장 현황·일정·공지·전력·바로가기 통합 화면",
+        },
+        "ops": {
+            "label": "운영 보드",
+            "desc": "기존 운영 대시보드 화면으로 돌아갑니다",
+        },
+        "gallery": {
+            "label": "시설 갤러리",
+            "desc": "건물 사진 그리드",
+        },
+        "bento": {
+            "label": "한눈에 보기",
+            "desc": "주요 건물·할 일 요약",
+        },
+    }
+    current_layout = "ops"
+    try:
+        row = await db.get(AppSetting, "dashboard.layout")
+        val = (row.value or "").strip() if row else ""
+        if val in layout_meta:
+            current_layout = val
+    except Exception:
+        pass
     return templates.TemplateResponse(
         request,
         "dashboard_settings.html",
@@ -868,6 +944,8 @@ async def dashboard_settings_page(
             "can_edit": True,
             "is_admin": True,
             "site_order_items": site_order_items,
+            "layout_meta": layout_meta,
+            "current_layout": current_layout,
             "flash": request.query_params.get("flash"),
         },
     )

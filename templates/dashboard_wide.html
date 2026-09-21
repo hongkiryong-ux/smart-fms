@@ -1,0 +1,296 @@
+{# 통합 운영 홈 (wide) — 기존 KPI·사업장·일정·공지·에너지 데이터 그대로 사용 #}
+{% set cfg = dash_config or {'order': [], 'visible': {}} %}
+{% set vis = cfg.visible if cfg.visible is mapping else {} %}
+{% set show_m = vis['maintenance_status'] if 'maintenance_status' in vis else true %}
+{% set show_s = vis['sites_status'] if 'sites_status' in vis else true %}
+{% set show_e = vis['energy'] if 'energy' in vis else true %}
+{% set show_sch = vis['schedules'] if 'schedules' in vis else true %}
+{% set show_n = vis['notices'] if 'notices' in vis else true %}
+{% set risk = risk_summary or {'total': 0, 'level_label': '보통', 'critical': 0, 'high': 0, 'normal': 0, 'low': 0} %}
+
+<div class="dash-wide">
+  <header class="dash-wide-top">
+    <div class="dash-wide-top-left">
+      <strong class="dash-wide-brand">Smart FMS</strong>
+      <span class="dash-wide-context">{{ welcome_name or '광양운영그룹' }}</span>
+      <span class="ops-live-badge">● LIVE</span>
+    </div>
+    <div class="dash-wide-top-right">
+      <button type="button" class="ops-online-btn" data-online-open aria-haspopup="dialog">
+        <span class="ops-online-dot" aria-hidden="true"></span>
+        접속 <strong data-online-count>{{ online_count|default(1) }}</strong>
+      </button>
+      <span class="dash-wide-clock" id="ops-clock">{{ now_label or kpi.as_of }}</span>
+      <div class="dash-wide-user">
+        <span class="ops-live-avatar" aria-hidden="true">👤</span>
+        <span>{{ user.name if user else '' }} · {{ role_label or '' }}</span>
+      </div>
+      {% if user and user.role.value == 'system_admin' %}
+      <a class="ops-settings-btn" href="/admin/dashboard/settings">⚙ 설정</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="dash-wide-hero-row">
+    <section class="dash-wide-hero">
+      <div class="dash-wide-hero-copy">
+        <p class="dash-wide-hello">안녕하세요.</p>
+        <h2>{{ welcome_name or '광양운영그룹' }}입니다.</h2>
+        <p>안전한 시설과 지속 가능한 가치 실현을 위해 Smart FMS가 함께합니다.</p>
+        <p class="dash-wide-hero-meta">
+          {{ kpi.sites }}개 사업장 · {{ kpi.buildings }}개 시설 · 설비 {{ "{:,}".format(kpi.equipment) }}개
+        </p>
+      </div>
+    </section>
+
+    {% if show_m %}
+    <div class="dash-wide-kpis" data-widget="maintenance_status">
+      <a class="dash-wide-kpi tone-today" href="/admin/d1?board=today">
+        <span class="dash-wide-kpi-ico" aria-hidden="true">🔧</span>
+        <span class="dash-wide-kpi-label">오늘 작업</span>
+        <strong><span id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span> 건</strong>
+        <em>예정 {{ kpi.d1_today_plan }} / 진행 {{ kpi.wo_progress }}</em>
+      </a>
+      <a class="dash-wide-kpi tone-urgent" href="/admin/work-orders?status=received&amp;status=in_progress&amp;priority=high">
+        <span class="dash-wide-kpi-ico" aria-hidden="true">🔔</span>
+        <span class="dash-wide-kpi-label">긴급 정비</span>
+        <strong><span id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span> 건</strong>
+        <em>미완료 긴급</em>
+      </a>
+      <a class="dash-wide-kpi tone-request" href="/admin/work-orders?status=received">
+        <span class="dash-wide-kpi-ico" aria-hidden="true">📋</span>
+        <span class="dash-wide-kpi-label">정비 의뢰</span>
+        <strong><span id="kpi-wo-request">{{ kpi.wo_request }}</span> 건</strong>
+        <em>접수·배정</em>
+      </a>
+      <a class="dash-wide-kpi tone-done" href="/admin/work-orders?status=completed">
+        <span class="dash-wide-kpi-ico" aria-hidden="true">✅</span>
+        <span class="dash-wide-kpi-label">해결 건</span>
+        <strong><span id="kpi-wo-done">{{ kpi.wo_done }}</span> 건</strong>
+        <em>완료·검수</em>
+      </a>
+      <a class="dash-wide-kpi tone-open" href="/admin/work-orders?status=in_progress">
+        <span class="dash-wide-kpi-ico" aria-hidden="true">⏳</span>
+        <span class="dash-wide-kpi-label">미해결 건</span>
+        <strong><span id="kpi-wo-unresolved">{{ kpi.wo_unresolved }}</span> 건</strong>
+        <em>접수 {{ kpi.wo_request }} / 진행 {{ kpi.wo_progress }}</em>
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="dash-wide-mid">
+    {% if show_s %}
+    <section class="dash-wide-card" data-widget="sites_status">
+      <div class="dash-wide-card-head">
+        <h2>사업장 현황</h2>
+        <a class="ops-facilities-link" href="/admin/dashboard/gwangyang-facilities">광양운영그룹 공공시설물 상세현황</a>
+        <span class="ops-sites-eq-count">총 설비 {{ "{:,}".format(kpi.equipment) }}개</span>
+        <a href="/admin/sites">전체 보기 ›</a>
+      </div>
+      {% if site_status %}
+      <div class="dash-wide-sites">
+        {% for s in site_status %}
+        <article class="dash-wide-site">
+          <span class="dash-wide-site-rank rank-{{ s.rank }}">{{ s.rank }}</span>
+          {% if s.photo_url %}
+          <div class="dash-wide-site-thumb has-photo">
+            <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
+          </div>
+          {% else %}
+          <div class="dash-wide-site-thumb tone-{{ loop.index0 % 5 }}"></div>
+          {% endif %}
+          <div class="dash-wide-site-body">
+            <a class="dash-wide-site-name" href="/admin/sites?site_id={{ s.id }}&amp;view=map">{{ s.name }}</a>
+            <p class="dash-wide-site-meta">{{ s.buildings }}개 시설 · {{ "{:,}".format(s.equipment) }}개 설비</p>
+            <div class="dash-wide-site-metrics">
+              <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed">
+                <span>정비의뢰</span><strong>{{ s.requests }}</strong>
+              </a>
+              <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress">
+                <span>미해결</span><strong>{{ s.unresolved }}</strong>
+              </a>
+              <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed">
+                <span>완료</span><strong>{{ s.completed }}</strong>
+              </a>
+            </div>
+          </div>
+          {% if s.is_gwangyang_ops and s.facilities_url %}
+          <a class="dash-wide-site-link" href="{{ s.facilities_url }}">상세 ›</a>
+          {% else %}
+          <a class="dash-wide-site-link" href="/admin/sites?site_id={{ s.id }}&amp;view=map">상세 ›</a>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty">등록된 사업장이 없습니다.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <aside class="dash-wide-side">
+      {% if show_sch %}
+      <section class="dash-wide-card" data-widget="schedules">
+        <div class="dash-wide-card-head">
+          <h2>주요 일정 (오늘)</h2>
+          <a href="/admin/schedules">전체 ›</a>
+        </div>
+        {% if today_schedules %}
+        <ul class="dash-wide-list">
+          {% for e in today_schedules[:5] %}
+          <li>
+            <span class="ops-time">{{ e.event_time or '--:--' }}</span>
+            <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
+            <div>
+              <strong>{{ e.title }}</strong>
+              <em>{{ e.location or e.site_name }}</em>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">오늘 일정이 없습니다.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {% if show_n %}
+      <section class="dash-wide-card" data-widget="notices">
+        <div class="dash-wide-card-head">
+          <h2>공지사항</h2>
+          <a href="/admin/notices">전체 ›</a>
+        </div>
+        {% if recent_notices %}
+        <ul class="dash-wide-list dash-wide-notices">
+          {% for n in recent_notices[:5] %}
+          <li>
+            <button type="button" class="ops-notice-open" data-notice-open="{{ n.id }}">
+              <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
+              <strong>{{ n.title }}</strong>
+              <span class="ops-date">{{ n.date_label }}</span>
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">등록된 공지가 없습니다.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      <section class="dash-wide-card">
+        <div class="dash-wide-card-head">
+          <h2>최근 정비현황</h2>
+          <a href="/admin/work-orders">전체 ›</a>
+        </div>
+        {% if recent_work_orders %}
+        <ul class="dash-wide-wo-list">
+          {% for w in recent_work_orders %}
+          <li>
+            <a href="{{ w.url }}">
+              <span class="dash-wide-wo-st st-{{ w.status }}">{{ w.status_label }}</span>
+              <strong>{{ w.title }}</strong>
+              <time>{{ w.time_label }}</time>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">최근 정비의뢰가 없습니다.</p>
+        {% endif %}
+      </section>
+    </aside>
+  </div>
+
+  <div class="dash-wide-bottom">
+    {% if show_e %}
+    <section class="dash-wide-card" data-widget="energy">
+      <div class="dash-wide-card-head">
+        <h2>주택변전소 전력사용량 <span class="ops-sub">(전일 기준)</span></h2>
+      </div>
+      <div class="ops-energy-grid ops-tr-energy-grid">
+        {% for tr in kpi.energy.trs %}
+        <div class="ops-energy-tile ops-tr-energy-tile tone-{{ loop.index }}">
+          <div class="ops-tr-energy-line">
+            <strong>{{ tr.name }}</strong>
+            <div class="ops-tr-energy-metrics">
+              <span><span id="nrg-{{ tr.id }}-usage">{{ "{:,.0f}".format(tr.usage) if tr.usage is not none else '-' }}</span> KWH,</span>
+              <span>부하율(<span id="nrg-{{ tr.id }}-amp">{{ "{:,.1f}".format(tr.max_a).rstrip('0').rstrip('.') if tr.max_a is not none else '-' }}</span>A,
+                <span id="nrg-{{ tr.id }}-load">{{ "{:,.1f}".format(tr.load_pct).rstrip('0').rstrip('.') if tr.load_pct is not none else '-' }}</span>%)</span>
+            </div>
+          </div>
+          <canvas class="ops-spark ops-tr-spark" id="spark-{{ tr.id }}" width="110" height="42"
+                  title="{{ tr.name }} 최근 7일 전력사용량"></canvas>
+        </div>
+        {% endfor %}
+      </div>
+      {% set central = kpi.energy.central %}
+      <div class="ops-central-energy">
+        <strong>중앙관제실 전력사용량</strong>
+        <div class="ops-central-energy-values">
+          <span>{{ central.name }}</span>
+          <span>전일 <b id="nrg-central-usage">{{ "{:,.0f}".format(central.usage) if central.usage is not none else '-' }}</b> KWH,</span>
+          <span>최대 <b id="nrg-central-amp">{{ "{:,.1f}".format(central.max_a).rstrip('0').rstrip('.') if central.max_a is not none else '-' }}</b>A</span>
+        </div>
+      </div>
+      <div class="ops-steelworks-energy">
+        <strong>제철소본부 전력사용량</strong>
+        <div class="ops-steelworks-energy-list">
+          {% for item in kpi.energy.steelworks["items"] %}
+          <div class="ops-central-energy-values">
+            <span>{{ item.name }}</span>
+            <span>전일 <b id="nrg-steelworks-{{ item.id }}-usage">{{ "{:,.0f}".format(item.usage) if item.usage is not none else '-' }}</b> KWH,</span>
+            <span>최대 <b id="nrg-steelworks-{{ item.id }}-amp">{{ "{:,.1f}".format(item.max_a).rstrip('0').rstrip('.') if item.max_a is not none else '-' }}</b>A</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
+    </section>
+    {% endif %}
+
+    <section class="dash-wide-card dash-wide-risk">
+      <div class="dash-wide-card-head">
+        <h2>위험성평가</h2>
+        <a href="/admin/risk-assessment">바로가기 ›</a>
+      </div>
+      <a class="dash-wide-risk-gauge" href="/admin/risk-assessment" title="위험성평가">
+        <div class="dash-wide-gauge" aria-hidden="true">
+          <svg viewBox="0 0 120 70" width="160" height="94">
+            <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round"/>
+            <path d="M10 60 A50 50 0 0 1 40 18" fill="none" stroke="#ef4444" stroke-width="12" stroke-linecap="round"/>
+            <path d="M40 18 A50 50 0 0 1 60 10" fill="none" stroke="#f97316" stroke-width="12" stroke-linecap="round"/>
+            <path d="M60 10 A50 50 0 0 1 90 18" fill="none" stroke="#22c55e" stroke-width="12" stroke-linecap="round"/>
+            <path d="M90 18 A50 50 0 0 1 110 60" fill="none" stroke="#3b82f6" stroke-width="12" stroke-linecap="round"/>
+          </svg>
+          <div class="dash-wide-gauge-center">
+            <strong>{{ risk.total }}</strong>
+            <span>{{ risk.level_label }}</span>
+          </div>
+        </div>
+        <ul class="dash-wide-risk-legend">
+          <li><i class="c-crit"></i>매우심각 {{ risk.critical }}</li>
+          <li><i class="c-high"></i>심각 {{ risk.high }}</li>
+          <li><i class="c-norm"></i>보통 {{ risk.normal }}</li>
+          <li><i class="c-low"></i>경미 {{ risk.low }}</li>
+        </ul>
+      </a>
+      <p class="dash-wide-risk-note">정비 KPI 기준 요약 · 상세 평가는 위험성평가에서 진행</p>
+    </section>
+
+    <section class="dash-wide-card dash-wide-quick">
+      <div class="dash-wide-card-head">
+        <h2>바로가기</h2>
+      </div>
+      <div class="dash-wide-quick-grid">
+        <a href="/admin/work-orders"><span>📋</span>정비의뢰</a>
+        <a href="/admin/inspection-logs2"><span>📝</span>점검일지</a>
+        <a href="/admin/materials?popup=1" onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;"><span>📦</span>자재요청</a>
+        <a href="/admin/partners"><span>🤝</span>협력사</a>
+        <a href="/admin/sites"><span>🗺️</span>사업장/건물</a>
+        <a href="/admin/dashboard/layouts"><span>ℹ️</span>화면구성</a>
+      </div>
+    </section>
+  </div>
+</div>

@@ -24,10 +24,10 @@
 {% endif %}
 
 <div class="dash-board dash-board-{{ layout }}">
-  {% if layout != 'ops' %}
+  {% if layout not in ('ops', 'wide') %}
   <header class="dash-top">
     <div class="dash-top-left">
-      <h1>{% if layout == 'gallery' %}시설 Dashboard{% elif layout == 'bento' %}한눈에 Dashboard{% else %}운영 Dashboard{% endif %}</h1>
+    <h1>{% if layout == 'gallery' %}시설 Dashboard{% elif layout == 'bento' %}한눈에 Dashboard{% else %}운영 Dashboard{% endif %}</h1>
       <span class="dash-live"><i></i> LIVE</span>
     </div>
     <div class="dash-top-meta">
@@ -52,6 +52,8 @@
     {% include "dashboard_gallery.html" %}
   {% elif layout == 'bento' %}
     {% include "dashboard_bento.html" %}
+  {% elif layout == 'wide' %}
+    {% include "dashboard_wide.html" %}
   {% else %}
     {% include "dashboard_ops.html" %}
   {% endif %}
