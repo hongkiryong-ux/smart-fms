@@ -93,6 +93,15 @@
     </span>
     <span>메뉴접근 설정</span>
   </a>
+  <a href="/admin/users?tab=roles" class="{% if active_tab == 'roles' %}active{% endif %}">
+    <span class="users-tab-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7l-8-4Z" />
+        <path d="M12 11v4M12 8h.01" />
+      </svg>
+    </span>
+    <span>역할 관리</span>
+  </a>
 </nav>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -110,7 +119,88 @@
 <div class="alert alert-error">자신의 시스템관리자 역할은 변경할 수 없습니다.</div>
 {% elif error == 'last_admin' %}
 <div class="alert alert-error">마지막 시스템관리자 계정은 삭제할 수 없습니다.</div>
+{% elif error == 'role_required' %}
+<div class="alert alert-error">역할 이름을 입력하세요.</div>
+{% elif error == 'role_code' %}
+<div class="alert alert-error">역할 코드는 영문 소문자로 시작하고 영문·숫자·_ 만 사용할 수 있습니다.</div>
+{% elif error == 'role_exists' %}
+<div class="alert alert-error">이미 사용 중인 역할 코드입니다.</div>
+{% elif error == 'role_system' %}
+<div class="alert alert-error">기본(시스템) 역할은 삭제할 수 없습니다.</div>
+{% elif error == 'role_in_use' %}
+<div class="alert alert-error">해당 역할을 사용하는 계정이 있어 삭제할 수 없습니다.</div>
 {% endif %}
+
+{% if active_tab == 'roles' %}
+<section class="card card-wide users-section users-roles-card">
+  <h2>역할 추가</h2>
+  <p class="text-muted">계정 생성·승인·가입신청 화면에 표시할 역할을 추가합니다. 기본 역할은 삭제할 수 없습니다.</p>
+  <form method="post" action="/admin/users/roles/create" class="users-role-create-form">
+    <label>
+      <span>역할 이름 *</span>
+      <input type="text" name="label" required maxlength="100" placeholder="예: 금호시설섹션" />
+    </label>
+    <label>
+      <span>역할 코드 (선택)</span>
+      <input type="text" name="code" maxlength="64" placeholder="비우면 자동 생성 (영문 소문자)" />
+    </label>
+    <label class="users-role-signup-check">
+      <input type="checkbox" name="allow_signup" value="1" checked />
+      가입신청 시 선택 가능
+    </label>
+    <button type="submit" class="btn btn-primary">역할 추가</button>
+  </form>
+</section>
+
+<section class="card card-wide users-section">
+  <h2>역할 목록 <small class="text-muted">({{ app_roles|length }}개)</small></h2>
+  <div class="table-scroll users-table-scroll">
+    <table class="data-table users-roles-table">
+      <thead>
+        <tr>
+          <th>이름</th>
+          <th>코드</th>
+          <th>구분</th>
+          <th>가입신청</th>
+          <th>관리</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in app_roles %}
+        <tr>
+          <td><strong>{{ r.label }}</strong></td>
+          <td><code>{{ r.code }}</code></td>
+          <td>{% if r.is_system %}기본{% else %}추가{% endif %}</td>
+          <td>
+            {% if r.code == 'system_admin' %}
+            <span class="text-muted">불가</span>
+            {% else %}
+            <form method="post" action="/admin/users/roles/{{ r.id }}/toggle-signup" class="inline-form">
+              <button type="submit" class="btn btn-secondary btn-sm">
+                {% if r.allow_signup %}허용{% else %}비허용{% endif %}
+              </button>
+            </form>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.is_system %}
+            <span class="text-muted">삭제 불가</span>
+            {% else %}
+            <form method="post" action="/admin/users/roles/{{ r.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('역할 \'{{ r.label }}\' 을(를) 삭제할까요?');">
+              <button type="submit" class="btn btn-danger btn-sm">삭제</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted">등록된 역할이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
 
 <section class="card card-wide users-filter-card">
   <form method="get" action="/admin/users" class="users-filter-form">
@@ -449,6 +539,8 @@
 
 {% endif %}
 
+{% endif %}
+
 {% if active_tab == 'menu' and active_users %}
 <section class="card card-wide users-section" id="menu-access-section">
   <h2>메뉴 접근 설정</h2>
@@ -483,7 +575,7 @@
 </section>
 {% endif %}
 
-{% if pagination.total_pages > 1 %}
+{% if active_tab != 'roles' and pagination.total_pages > 1 %}
 <nav class="users-pagination" aria-label="계정 목록 페이지">
   {% if pagination.prev_url %}
   <a href="{{ pagination.prev_url }}" class="users-page-arrow" aria-label="이전 페이지">‹ 이전</a>

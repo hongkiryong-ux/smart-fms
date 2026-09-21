@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     JSON,
     UniqueConstraint,
+    TypeDecorator,
 )
 from sqlalchemy.orm import relationship
 
@@ -39,6 +40,38 @@ class UserRole(str, enum.Enum):
     partner = "partner"
     external = "external"
     viewer = "viewer"
+
+
+class RoleValue(str):
+    """DB에만 있는 사용자 정의 역할 (문자열 + .value 호환)."""
+
+    @property
+    def value(self) -> str:
+        return str(self)
+
+    @property
+    def name(self) -> str:
+        return str(self)
+
+
+class RoleColumn(TypeDecorator):
+    """역할을 VARCHAR로 저장. 내장 Enum이면 UserRole, 아니면 RoleValue로 복원."""
+
+    impl = String(64)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return getattr(value, "value", value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        try:
+            return UserRole(value)
+        except ValueError:
+            return RoleValue(value)
 
 
 class WorkOrderStatus(str, enum.Enum):
@@ -84,7 +117,7 @@ class User(Base):
     username = Column(String(64), unique=True, nullable=False, index=True)
     password_hash = Column(String(128), nullable=False)
     name = Column(String(100), nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.viewer)
+    role = Column(RoleColumn(), default=UserRole.viewer, nullable=False)
     phone = Column(String(50), nullable=True)
     email = Column(String(120), nullable=True)
     partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
@@ -111,6 +144,27 @@ class User(Base):
         if self.partner is not None and getattr(self.partner, "name", None):
             return self.partner.name
         return (self.company_name or "").strip()
+
+
+class AppRole(Base):
+    """계정관리에서 관리하는 역할 정의 (내장 + 사용자 추가)."""
+
+    __tablename__ = "app_roles"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(64), unique=True, nullable=False, index=True)
+    label = Column(String(100), nullable=False)
+    is_system = Column(Boolean, default=False, nullable=False)
+    allow_signup = Column(Boolean, default=True, nullable=False)
+    sort_order = Column(Integer, default=100, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def as_role(self):
+        try:
+            return UserRole(self.code)
+        except ValueError:
+            return RoleValue(self.code)
 
 
 class AccessLog(Base):

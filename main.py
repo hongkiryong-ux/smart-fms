@@ -29,9 +29,11 @@ from auth import (
     MENU_ITEMS,
     MENU_ACCESS_FLAG_KEYS,
     ROLE_LABELS,
+    ROLE_LABELS_LOOKUP,
     SIGNUP_ROLES,
     admin_request_bootstrap,
     apply_role_permissions,
+    all_role_codes,
     can_access_equipment_pm,
     can_access_menu,
     can_show_menu_in_sidebar,
@@ -44,6 +46,7 @@ from auth import (
     default_permissions,
     d1_partner_nav_restricted,
     effective_menu_access,
+    ensure_app_roles,
     get_current_user,
     group_buildings_by_site,
     hash_password,
@@ -61,7 +64,11 @@ from auth import (
     require_can_edit,
     require_login,
     require_user_manager,
+    resolve_role,
+    role_options,
     signup_password_is_valid,
+    signup_role_codes,
+    signup_role_options,
     verify_password,
     verify_remember_token,
 )
@@ -132,6 +139,7 @@ from models import (
     Site,
     User,
     UserRole,
+    AppRole,
     WorkOrder,
     WorkOrderStatus,
     Zone,
@@ -1110,6 +1118,7 @@ async def _startup_db_init() -> None:
             await deactivate_test_buildings_47_48()
             async with AsyncSessionLocal() as session:
                 await seed_if_empty(session)
+                await ensure_app_roles(session)
                 from excel_import import backfill_all_building_default_categories
 
                 await backfill_all_building_default_categories(session)
@@ -1406,7 +1415,7 @@ templates.env.globals.update(
     fmt_kst=_fmt_kst,
     fmt_kst_date=_fmt_kst_date,
     fmt_file_size=_fmt_file_size,
-    role_labels=ROLE_LABELS,
+    role_labels=ROLE_LABELS_LOOKUP,
     wo_status_label=_status_label,
     wo_process_step=_wo_process_step,
     d1_status_label=_d1_status_label,
@@ -1747,7 +1756,7 @@ async def admin_signup_page(
         "signup.html",
         {
             "error": request.query_params.get("error"),
-            "signup_roles": SIGNUP_ROLES,
+            "signup_roles": signup_role_options(),
             "partners": partners,
         },
     )
@@ -1786,11 +1795,8 @@ async def admin_signup(
     if exists:
         return RedirectResponse("/admin/signup?error=exists", status_code=303)
 
-    allowed = {r.value for r in SIGNUP_ROLES}
-    try:
-        role_val = UserRole(role) if role in allowed else UserRole.facility_manager
-    except ValueError:
-        role_val = UserRole.facility_manager
+    allowed = set(signup_role_codes())
+    role_val = resolve_role(role, fallback=UserRole.facility_manager, valid=allowed)
 
     new_user = User(
         username=uname,
@@ -1980,6 +1986,7 @@ async def users_manage_page(
     user: User = Depends(require_user_manager),
     db: AsyncSession = Depends(get_db),
 ):
+    await ensure_app_roles(db)
     all_rows = (
         await db.execute(
             select(User)
@@ -1987,7 +1994,7 @@ async def users_manage_page(
             .order_by(User.is_approved.asc(), User.created_at.desc())
         )
     ).scalars().unique().all()
-    active_tab = "menu" if tab == "menu" else "accounts"
+    active_tab = "menu" if tab == "menu" else ("roles" if tab == "roles" else "accounts")
     page_size = 10
     scope_rows = (
         [target for target in all_rows if target.is_approved and target.is_active]
@@ -2011,7 +2018,7 @@ async def users_manage_page(
     company = company.strip()
     menu_key = menu_key.strip() if menu_key.strip() in dict(MENU_ITEMS) else ""
     menu_access = menu_access if menu_access in {"allowed", "denied"} else "allowed"
-    valid_roles = {role.value for role in UserRole}
+    valid_roles = set(all_role_codes())
     role_filter = role_filter if role_filter in valid_roles else ""
     account_status = (
         account_status
@@ -2041,7 +2048,7 @@ async def users_manage_page(
                 return False
         elif company and target.company_display.strip() != company:
             return False
-        if role_filter and target.role.value != role_filter:
+        if role_filter and getattr(target.role, "value", target.role) != role_filter:
             return False
         if account_status and _status(target) != account_status:
             return False
@@ -2058,7 +2065,7 @@ async def users_manage_page(
     rows = filtered_rows[page_start : page_start + page_size]
 
     query_values = {
-        "tab": "menu" if active_tab == "menu" else "",
+        "tab": active_tab if active_tab != "accounts" else "",
         "q": q.strip(),
         "company": company,
         "menu_key": menu_key,
@@ -2100,6 +2107,11 @@ async def users_manage_page(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
         )
     ).scalars().all()
+    app_role_rows = (
+        await db.execute(
+            select(AppRole).order_by(AppRole.sort_order.asc(), AppRole.id.asc())
+        )
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "users.html",
@@ -2109,7 +2121,8 @@ async def users_manage_page(
             "active_users": active,
             "inactive_users": inactive,
             "partners": partners,
-            "roles": list(UserRole),
+            "roles": role_options(),
+            "app_roles": app_role_rows,
             "menu_items": MENU_ITEMS,
             "active_tab": active_tab,
             "menu_page_by_user": menu_page_by_user,
@@ -2220,7 +2233,7 @@ def _users_excel_bytes(rows: list[User]) -> bytes:
             target.id,
             target.username or "",
             target.name or "",
-            ROLE_LABELS.get(target.role, getattr(target.role, "value", "") or ""),
+            ROLE_LABELS_LOOKUP.get(target.role, getattr(target.role, "value", "") or ""),
             target.company_display or "",
             target.partner_id or "",
             target.phone or "",
@@ -2286,7 +2299,7 @@ async def users_export_excel(
     company = company.strip()
     menu_key = menu_key.strip() if menu_key.strip() in dict(MENU_ITEMS) else ""
     menu_access = menu_access if menu_access in {"allowed", "denied"} else "allowed"
-    valid_roles = {role.value for role in UserRole}
+    valid_roles = set(all_role_codes())
     role_filter = role_filter if role_filter in valid_roles else ""
     account_status = (
         account_status
@@ -2316,7 +2329,7 @@ async def users_export_excel(
                 return False
         elif company and target.company_display.strip() != company:
             return False
-        if role_filter and target.role.value != role_filter:
+        if role_filter and getattr(target.role, "value", target.role) != role_filter:
             return False
         if account_status and _status(target) != account_status:
             return False
@@ -2365,10 +2378,7 @@ async def users_create(
         return RedirectResponse("/admin/users?error=short", status_code=303)
     if (await db.execute(select(User).where(User.username == uname))).scalar_one_or_none():
         return RedirectResponse("/admin/users?error=exists", status_code=303)
-    try:
-        role_val = UserRole(role)
-    except ValueError:
-        role_val = UserRole.viewer
+    role_val = resolve_role(role, fallback=UserRole.viewer)
     new_user = User(
         username=uname,
         password_hash=hash_password(pw),
@@ -2415,10 +2425,7 @@ async def users_approve(
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
-    try:
-        role_val = UserRole(role)
-    except ValueError:
-        role_val = UserRole.facility_manager
+    role_val = resolve_role(role, fallback=UserRole.facility_manager)
     target.role = role_val
     target.is_approved = True
     target.is_active = True
@@ -2483,10 +2490,7 @@ async def users_update(
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
-    try:
-        role_val = UserRole(role)
-    except ValueError:
-        role_val = target.role
+    role_val = resolve_role(role, fallback=target.role)
     # 자기 자신의 시스템관리자 역할/활성은 유지
     if target.id == user.id and role_val != UserRole.system_admin:
         return RedirectResponse(
@@ -2558,7 +2562,7 @@ async def users_menu_access(
         return_params["menu_key"] = return_menu_key
         if return_menu_access in {"allowed", "denied"}:
             return_params["menu_access"] = return_menu_access
-    if return_role in {role.value for role in UserRole}:
+    if return_role in set(all_role_codes()):
         return_params["role_filter"] = return_role
     if return_page > 1:
         return_params["page"] = str(return_page)
@@ -2664,6 +2668,122 @@ async def users_delete(
         "/admin/users?message=" + quote(f"{uname} 계정이 삭제되었습니다."),
         status_code=303,
     )
+
+
+@app.post("/admin/users/roles/create")
+async def users_roles_create(
+    label: str = Form(...),
+    code: str = Form(""),
+    allow_signup: str = Form(""),
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """시스템관리자: 계정관리에서 역할 추가."""
+    import re
+    import secrets
+    from urllib.parse import quote
+
+    await ensure_app_roles(db)
+    name = (label or "").strip()
+    if not name:
+        return RedirectResponse(
+            "/admin/users?tab=roles&error=role_required", status_code=303
+        )
+    raw_code = (code or "").strip().lower()
+    if raw_code:
+        if not re.fullmatch(r"[a-z][a-z0-9_]{1,62}", raw_code):
+            return RedirectResponse(
+                "/admin/users?tab=roles&error=role_code", status_code=303
+            )
+        role_code = raw_code
+    else:
+        role_code = "role_" + secrets.token_hex(3)
+
+    exists = (
+        await db.execute(select(AppRole).where(AppRole.code == role_code))
+    ).scalar_one_or_none()
+    if exists:
+        return RedirectResponse(
+            "/admin/users?tab=roles&error=role_exists", status_code=303
+        )
+
+    max_order = (
+        await db.execute(select(func.max(AppRole.sort_order)))
+    ).scalar_one()
+    sort_order = int(max_order or 0) + 10
+
+    db.add(
+        AppRole(
+            code=role_code,
+            label=name,
+            is_system=False,
+            allow_signup=allow_signup == "1",
+            sort_order=sort_order,
+            is_active=True,
+        )
+    )
+    await db.commit()
+    await ensure_app_roles(db)
+    return RedirectResponse(
+        "/admin/users?tab=roles&message="
+        + quote(f"역할 '{name}' 이(가) 추가되었습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/users/roles/{role_id}/delete")
+async def users_roles_delete(
+    role_id: int,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """사용자 추가 역할만 삭제 (사용 중이면 불가)."""
+    from urllib.parse import quote
+
+    await ensure_app_roles(db)
+    row = await db.get(AppRole, role_id)
+    if not row:
+        raise HTTPException(404)
+    if row.is_system:
+        return RedirectResponse(
+            "/admin/users?tab=roles&error=role_system", status_code=303
+        )
+    in_use = (
+        await db.execute(
+            select(func.count()).select_from(User).where(User.role == row.code)
+        )
+    ).scalar_one()
+    if in_use:
+        return RedirectResponse(
+            "/admin/users?tab=roles&error=role_in_use", status_code=303
+        )
+    label = row.label
+    await db.delete(row)
+    await db.commit()
+    await ensure_app_roles(db)
+    return RedirectResponse(
+        "/admin/users?tab=roles&message="
+        + quote(f"역할 '{label}' 을(를) 삭제했습니다."),
+        status_code=303,
+    )
+
+
+@app.post("/admin/users/roles/{role_id}/toggle-signup")
+async def users_roles_toggle_signup(
+    role_id: int,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_app_roles(db)
+    row = await db.get(AppRole, role_id)
+    if not row:
+        raise HTTPException(404)
+    if row.code == UserRole.system_admin.value:
+        return RedirectResponse("/admin/users?tab=roles", status_code=303)
+    row.allow_signup = not bool(row.allow_signup)
+    await db.commit()
+    await ensure_app_roles(db)
+    return RedirectResponse("/admin/users?tab=roles", status_code=303)
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────
@@ -3154,7 +3274,7 @@ async def dashboard(
             "welcome_name": welcome_name,
             "risk_summary": risk_summary,
             "now_label": now_label,
-            "role_label": ROLE_LABELS.get(user.role, ""),
+            "role_label": ROLE_LABELS_LOOKUP.get(user.role, ""),
             "online_count": len(online_users),
         },
     )
@@ -3207,7 +3327,7 @@ def _presence_json_item(item: dict) -> dict:
         "id": item.get("id"),
         "name": item.get("name") or "",
         "username": item.get("username") or "",
-        "role": ROLE_LABELS.get(role, getattr(role, "value", "") or ""),
+        "role": ROLE_LABELS_LOOKUP.get(role, getattr(role, "value", "") or ""),
         "company": item.get("company") or "",
         "last_seen": item.get("last_seen") or "",
         "seconds_ago": item.get("seconds_ago") or 0,

@@ -3928,6 +3928,44 @@ button.link-action:hover { text-decoration: underline; }
   box-shadow: 0 3px 9px rgba(37, 99, 235, 0.28);
   color: #fff;
 }
+.users-role-create-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(160px, 1fr) auto auto;
+  gap: 0.75rem 1rem;
+  align-items: end;
+}
+.users-role-create-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #475569;
+}
+.users-role-create-form input[type="text"] {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.users-role-signup-check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.4rem !important;
+  padding-bottom: 0.45rem;
+  font-weight: 600 !important;
+}
+.users-roles-table code {
+  font-size: 0.78rem;
+  background: #f1f5f9;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+@media (max-width: 900px) {
+  .users-role-create-form {
+    grid-template-columns: 1fr;
+  }
+}
 .users-filter-card {
   padding-bottom: 0.75rem;
 }

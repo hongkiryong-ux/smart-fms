@@ -168,6 +168,27 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'seawater_desalination_section'"
         )
+        # 역할 동적 추가를 위해 users.role 을 VARCHAR 로 전환
+        await _exec(
+            "ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(64) USING role::text"
+        )
+        await _exec(
+            """
+            CREATE TABLE IF NOT EXISTS app_roles (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                label VARCHAR(100) NOT NULL,
+                is_system BOOLEAN NOT NULL DEFAULT FALSE,
+                allow_signup BOOLEAN NOT NULL DEFAULT TRUE,
+                sort_order INTEGER NOT NULL DEFAULT 100,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP WITHOUT TIME ZONE
+            )
+            """
+        )
+        await _exec(
+            "CREATE INDEX IF NOT EXISTS ix_app_roles_code ON app_roles (code)"
+        )
         await _exec(
             "ALTER TABLE buildings ADD COLUMN IF NOT EXISTS excel_imported_at TIMESTAMP WITHOUT TIME ZONE"
         )

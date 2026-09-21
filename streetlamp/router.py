@@ -24,7 +24,7 @@ from auth import (
     effective_menu_access,
     require_login,
     MENU_ITEMS,
-    ROLE_LABELS,
+    ROLE_LABELS_LOOKUP,
 )
 from database import AsyncSessionLocal, get_db
 from streetlamp.models import Lamp, MaintenanceRequest, RequestStatus, RequestType
@@ -53,7 +53,7 @@ templates.env.globals["user_can_access_menu"] = can_access_menu
 templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
 templates.env.globals["user_menu_access"] = effective_menu_access
 templates.env.globals["menu_items"] = MENU_ITEMS
-templates.env.globals["role_labels"] = ROLE_LABELS
+templates.env.globals["role_labels"] = ROLE_LABELS_LOOKUP
 templates.env.globals["fmt_kst"] = _fmt_kst
 templates.env.globals["fmt_kst_date"] = lambda value: _fmt_kst(value, "%Y-%m-%d")
 templates.env.globals["fmt_file_size"] = lambda n: "" if n is None else str(n)

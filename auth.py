@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import AsyncSessionLocal
-from models import Building, InspectionLogBuilding, InspectionLogBuilding2, Partner, Site, User, UserRole
+from models import Building, InspectionLogBuilding, InspectionLogBuilding2, Partner, Site, User, UserRole, AppRole, RoleValue
 
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PW = os.environ.get("ADMIN_PW", "password123")
@@ -199,13 +199,14 @@ def merge_sites_into_building_groups(
     return result
 
 
-def default_permissions(role: UserRole) -> tuple[bool, bool, bool]:
+def default_permissions(role) -> tuple[bool, bool, bool]:
     """역할별 기본 권한 (추가, 수정, 삭제)."""
-    if role == UserRole.system_admin:
+    code = getattr(role, "value", role)
+    if code == UserRole.system_admin.value:
         return True, True, True
-    if role == UserRole.viewer:
+    if code == UserRole.viewer.value:
         return False, False, False
-    if role in (UserRole.partner, UserRole.external):
+    if code in (UserRole.partner.value, UserRole.external.value):
         return False, True, False
     return True, True, True
 
@@ -297,12 +298,13 @@ ADMIN_ONLY_MENU_KEYS: frozenset[str] = frozenset({"users", "server"})
 SIDEBAR_ADMIN_ONLY_MENU_KEYS: frozenset[str] = frozenset({"schedules", "notices"})
 
 
-def default_menu_access(role: UserRole) -> list[str]:
+def default_menu_access(role) -> list[str]:
     """역할별 기본 메뉴 접근 목록."""
-    if role == UserRole.system_admin:
+    code = getattr(role, "value", role)
+    if code == UserRole.system_admin.value:
         return list(MENU_KEYS)
     denied = set(ADMIN_ONLY_MENU_KEYS)
-    if role in (UserRole.partner, UserRole.external):
+    if code in (UserRole.partner.value, UserRole.external.value):
         denied |= {"equipment", "pm", "inspection_logs2", "facility_section", "streetlamp"}
     return [k for k in MENU_KEYS if k not in denied]
 
@@ -830,7 +832,7 @@ ROLE_LABELS = {
     UserRole.viewer: "조회전용",
 }
 
-# 가입신청 시 선택 가능 역할 (시스템관리자 제외)
+# 가입신청 시 선택 가능 역할 기본값 (DB app_roles.allow_signup 우선)
 SIGNUP_ROLES: tuple[UserRole, ...] = (
     UserRole.facility_manager,
     UserRole.site_admin,
@@ -846,6 +848,160 @@ SIGNUP_ROLES: tuple[UserRole, ...] = (
     UserRole.partner,
     UserRole.external,
 )
+
+# 삭제 불가 내장 역할
+SYSTEM_ROLE_CODES: frozenset[str] = frozenset(r.value for r in UserRole)
+
+BUILTIN_ROLE_DEFS: tuple[tuple[str, str, bool, int], ...] = tuple(
+    (
+        role.value,
+        ROLE_LABELS[role],
+        role != UserRole.system_admin,  # 가입 선택: 시스템관리자 제외
+        index * 10,
+    )
+    for index, role in enumerate(UserRole)
+)
+
+_role_label_by_code: dict[str, str] = {
+    role.value: label for role, label in ROLE_LABELS.items()
+}
+_role_codes_ordered: list[str] = [role.value for role in UserRole]
+_signup_role_codes: list[str] = [role.value for role in SIGNUP_ROLES]
+
+
+class RoleLabelsLookup:
+    """Jinja role_labels.get(role) — 코드/Enum/RoleValue 모두 조회."""
+
+    def get(self, key, default=None):
+        code = getattr(key, "value", key)
+        if code in _role_label_by_code:
+            return _role_label_by_code[code]
+        if key in ROLE_LABELS:
+            return ROLE_LABELS[key]
+        return default if default is not None else (code or "")
+
+    def __getitem__(self, key):
+        value = self.get(key, None)
+        if value is None:
+            raise KeyError(key)
+        return value
+
+    def __contains__(self, key):
+        code = getattr(key, "value", key)
+        return code in _role_label_by_code or key in ROLE_LABELS
+
+
+ROLE_LABELS_LOOKUP = RoleLabelsLookup()
+
+
+def role_code_of(role) -> str:
+    if role is None:
+        return ""
+    return str(getattr(role, "value", role) or "")
+
+
+def refresh_role_cache(rows) -> None:
+    """AppRole 목록으로 라벨·가입역할 캐시 갱신."""
+    global _role_label_by_code, _role_codes_ordered, _signup_role_codes
+    labels = {role.value: label for role, label in ROLE_LABELS.items()}
+    ordered: list[str] = []
+    signup: list[str] = []
+    for row in rows:
+        if not getattr(row, "is_active", True):
+            continue
+        code = (row.code or "").strip()
+        if not code:
+            continue
+        labels[code] = (row.label or code).strip() or code
+        ordered.append(code)
+        if getattr(row, "allow_signup", False) and code != UserRole.system_admin.value:
+            signup.append(code)
+    if not ordered:
+        ordered = [role.value for role in UserRole]
+        signup = [role.value for role in SIGNUP_ROLES]
+    _role_label_by_code = labels
+    _role_codes_ordered = ordered
+    _signup_role_codes = signup
+
+
+def all_role_codes() -> list[str]:
+    return list(_role_codes_ordered)
+
+
+def signup_role_codes() -> list[str]:
+    return list(_signup_role_codes)
+
+
+def role_options():
+    """템플릿 select용 — .value 속성을 가진 역할 객체 목록."""
+    out = []
+    for code in _role_codes_ordered:
+        try:
+            out.append(UserRole(code))
+        except ValueError:
+            out.append(RoleValue(code))
+    return out
+
+
+def signup_role_options():
+    out = []
+    for code in _signup_role_codes:
+        try:
+            out.append(UserRole(code))
+        except ValueError:
+            out.append(RoleValue(code))
+    return out
+
+
+def resolve_role(code: str, *, fallback: UserRole = UserRole.viewer, valid: set[str] | None = None):
+    """폼 값을 UserRole 또는 RoleValue로 변환."""
+    raw = (code or "").strip()
+    allowed = valid if valid is not None else set(_role_codes_ordered) | set(SYSTEM_ROLE_CODES)
+    if not raw or raw not in allowed:
+        return fallback
+    try:
+        return UserRole(raw)
+    except ValueError:
+        return RoleValue(raw)
+
+
+async def ensure_app_roles(db: AsyncSession) -> list[AppRole]:
+    """내장 역할을 app_roles에 시드하고 캐시를 갱신한다."""
+    existing = (await db.execute(select(AppRole))).scalars().all()
+    by_code = {row.code: row for row in existing}
+    changed = False
+    for code, label, allow_signup, sort_order in BUILTIN_ROLE_DEFS:
+        row = by_code.get(code)
+        if row is None:
+            db.add(
+                AppRole(
+                    code=code,
+                    label=label,
+                    is_system=True,
+                    allow_signup=allow_signup,
+                    sort_order=sort_order,
+                    is_active=True,
+                )
+            )
+            changed = True
+        else:
+            if not (row.label or "").strip():
+                row.label = label
+                changed = True
+            if not row.is_system:
+                row.is_system = True
+                changed = True
+    if changed:
+        await db.commit()
+    rows = (
+        await db.execute(
+            select(AppRole)
+            .where(AppRole.is_active == True)  # noqa: E712
+            .order_by(AppRole.sort_order.asc(), AppRole.id.asc())
+        )
+    ).scalars().all()
+    refresh_role_cache(rows)
+    return list(rows)
 
 
 def can_access_equipment_pm(user: User | None) -> bool:
