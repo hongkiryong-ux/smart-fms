@@ -125,8 +125,9 @@
           {% if site_status %}
           <div class="ops-site-grid">
             {% for s in site_status %}
-            {% set site_href = s.facilities_url if s.is_gwangyang_ops and s.facilities_url else ('/admin/sites?site_id=' ~ s.id ~ '&view=map') %}
-            <a class="ops-site-card" href="{{ site_href }}" title="{{ s.name }}">
+            {% set site_href = '/admin/sites?site_id=' ~ s.id ~ '&view=map' %}
+            {% set detail_href = s.facilities_url if s.is_gwangyang_ops and s.facilities_url else site_href %}
+            <article class="ops-site-card">
               {% if s.photo_url %}
               <div class="ops-site-thumb has-photo">
                 <img src="{{ s.photo_url }}" alt="" />
@@ -135,17 +136,23 @@
               <div class="ops-site-thumb tone-{{ loop.index0 % 5 }}"></div>
               {% endif %}
               <div class="ops-site-info">
-                <strong class="ops-site-card-name">{{ s.name }}</strong>
-                <p class="ops-site-card-meta">
+                <a class="ops-site-card-name" href="{{ site_href }}" title="{{ s.name }} 사업장">{{ s.name }}</a>
+                {% if m_buildings or m_equipment %}
+                <p class="ops-site-counts">
                   {% if m_buildings %}<span>시설 {{ "{:,}".format(s.buildings) }}</span>{% endif %}
                   {% if m_equipment %}<span>설비 {{ "{:,}".format(s.equipment) }}</span>{% endif %}
-                  {% if m_requests %}<span>정비의뢰 {{ "{:,}".format(s.requests) }}</span>{% endif %}
-                  {% if m_unresolved %}<span>미해결 {{ "{:,}".format(s.unresolved) }}</span>{% endif %}
-                  {% if m_completed %}<span>완료 {{ "{:,}".format(s.completed) }}</span>{% endif %}
                 </p>
+                {% endif %}
+                {% if m_requests or m_unresolved or m_completed %}
+                <p class="ops-site-wo">
+                  {% if m_requests %}<span>정비의뢰 <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed">{{ "{:,}".format(s.requests) }}</a></span>{% endif %}
+                  {% if m_unresolved %}<span>미해결 <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress">{{ "{:,}".format(s.unresolved) }}</a></span>{% endif %}
+                  {% if m_completed %}<span>완료 <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed">{{ "{:,}".format(s.completed) }}</a></span>{% endif %}
+                </p>
+                {% endif %}
               </div>
-              <span class="ops-site-chevron" aria-hidden="true">›</span>
-            </a>
+              <a class="ops-site-chevron" href="{{ detail_href }}" aria-label="{{ s.name }} 상세">›</a>
+            </article>
             {% endfor %}
           </div>
           {% else %}
