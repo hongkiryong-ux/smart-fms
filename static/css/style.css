@@ -6695,6 +6695,13 @@ tr.wo-row-selected {
   background: #fbfdff;
 }
 .ops-site-list li:last-child { border-bottom: 1px solid #eef2f7; }
+.ops-site-list .ops-site-thumb {
+  width: 56px;
+  height: 42px;
+}
+.ops-site-list .ops-site-info {
+  display: block;
+}
 .ops-rank { width: 28px; height: 28px; border-radius: 6px; background: #64748b; color: #fff; display: grid; place-items: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
 .ops-rank.rank-1 { background: #ef4444; }
 .ops-rank.rank-2 { background: #f97316; }
