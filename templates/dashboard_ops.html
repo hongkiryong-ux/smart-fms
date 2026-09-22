@@ -208,7 +208,7 @@
                 <canvas class="dash-energy-spark"
                         id="spark-{{ tab.id }}-{{ card.id }}"
                         width="220" height="64"
-                        data-spark-values='{{ card.values | tojson }}'
+                        data-spark-values='{{ card["values"] | tojson }}'
                         title="{{ card.name }} 최근 7일 전력사용량"
                         {% if card.usage is none %}hidden{% endif %}></canvas>
               </article>
