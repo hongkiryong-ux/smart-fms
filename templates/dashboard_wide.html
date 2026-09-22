@@ -1,6 +1,12 @@
 {# 통합 운영 홈 (wide) — 첨부 시안 배치 기준. 데이터·링크는 기존과 동일 #}
-{% set cfg = dash_config or {'order': [], 'visible': {}} %}
+{% set cfg = dash_config or {'order': [], 'visible': {}, 'site_metrics': {}} %}
 {% set vis = cfg.visible if cfg.visible is mapping else {} %}
+{% set sm = cfg.site_metrics if cfg.site_metrics is mapping else {} %}
+{% set m_buildings = sm['buildings'] if 'buildings' in sm else true %}
+{% set m_equipment = sm['equipment'] if 'equipment' in sm else true %}
+{% set m_requests = sm['requests'] if 'requests' in sm else true %}
+{% set m_unresolved = sm['unresolved'] if 'unresolved' in sm else true %}
+{% set m_completed = sm['completed'] if 'completed' in sm else true %}
 {% set show_m = vis['maintenance_status'] if 'maintenance_status' in vis else true %}
 {% set show_s = vis['sites_status'] if 'sites_status' in vis else true %}
 {% set show_e = vis['energy'] if 'energy' in vis else true %}
@@ -88,47 +94,27 @@
       {% if site_status %}
       <div class="dash-wide-sites">
         {% for s in site_status[:6] %}
-        <article class="dash-wide-site">
-          <div class="dash-wide-site-top">
-            <span class="dash-wide-site-rank rank-{{ s.rank }}">{{ s.rank }}</span>
-            {% if s.photo_url %}
-            <div class="dash-wide-site-thumb has-photo">
-              <img src="{{ s.photo_url }}" alt="{{ s.name }}" />
-            </div>
-            {% else %}
-            <div class="dash-wide-site-thumb tone-{{ loop.index0 % 5 }}"></div>
-            {% endif %}
-            <div class="dash-wide-site-title">
-              <a href="/admin/sites?site_id={{ s.id }}&amp;view=map">{{ s.name }}</a>
-              <p>{{ s.buildings }}개 시설</p>
-            </div>
+        {% set site_href = s.facilities_url if s.is_gwangyang_ops and s.facilities_url else ('/admin/sites?site_id=' ~ s.id ~ '&view=map') %}
+        <a class="dash-wide-site" href="{{ site_href }}" title="{{ s.name }}">
+          {% if s.photo_url %}
+          <div class="dash-wide-site-thumb has-photo">
+            <img src="{{ s.photo_url }}" alt="" />
           </div>
-          <div class="dash-wide-site-metrics">
-            <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed" title="정비의뢰">
-              <i class="m-req" aria-hidden="true"></i>
-              <span>정비요청</span>
-              <strong>{{ s.requests }}</strong>
-            </a>
-            <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress" title="미해결">
-              <i class="m-open" aria-hidden="true"></i>
-              <span>미처리</span>
-              <strong>{{ s.unresolved }}</strong>
-            </a>
-            <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed" title="완료">
-              <i class="m-done" aria-hidden="true"></i>
-              <span>완료</span>
-              <strong>{{ s.completed }}</strong>
-            </a>
+          {% else %}
+          <div class="dash-wide-site-thumb tone-{{ loop.index0 % 5 }}"></div>
+          {% endif %}
+          <div class="dash-wide-site-body">
+            <strong class="dash-wide-site-name">{{ s.name }}</strong>
+            <p class="dash-wide-site-meta">
+              {% if m_buildings %}<span>시설 {{ "{:,}".format(s.buildings) }}</span>{% endif %}
+              {% if m_equipment %}<span>설비 {{ "{:,}".format(s.equipment) }}</span>{% endif %}
+              {% if m_requests %}<span>정비의뢰 {{ "{:,}".format(s.requests) }}</span>{% endif %}
+              {% if m_unresolved %}<span>미해결 {{ "{:,}".format(s.unresolved) }}</span>{% endif %}
+              {% if m_completed %}<span>완료 {{ "{:,}".format(s.completed) }}</span>{% endif %}
+            </p>
           </div>
-          <div class="dash-wide-site-foot">
-            <span>설비수 {{ "{:,}".format(s.equipment) }}대</span>
-            {% if s.is_gwangyang_ops and s.facilities_url %}
-            <a href="{{ s.facilities_url }}">상세 ›</a>
-            {% else %}
-            <a href="/admin/sites?site_id={{ s.id }}&amp;view=map">상세 ›</a>
-            {% endif %}
-          </div>
-        </article>
+          <span class="dash-wide-site-chevron" aria-hidden="true">›</span>
+        </a>
         {% endfor %}
       </div>
       {% else %}

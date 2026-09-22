@@ -77,6 +77,19 @@
       {% endfor %}
     </ul>
     <p class="board-help">왼쪽 ⋮⋮ 핸들을 잡고 드래그하거나 ▲▼ 버튼으로 순서를 바꿀 수 있습니다. 체크 해제 시 해당 구역이 숨겨집니다.</p>
+
+    <h3 class="dash-settings-section-title" style="margin-top:1.25rem;font-size:0.98rem;">사업장 현황 표시 항목</h3>
+    <p class="board-help" style="margin-top:0;">카드에 표시할 수치를 선택합니다. 체크한 항목만 사업장 현황에 나타납니다.</p>
+    <div class="dash-site-metrics-pick">
+      {% for m in site_metrics %}
+      <label class="dash-site-metrics-check">
+        <input type="hidden" name="site_metric_{{ m.key }}" value="0" />
+        <input type="checkbox" name="site_metric_{{ m.key }}" value="1"{% if m.visible %} checked{% endif %} />
+        <span>{{ m.label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+
     <div class="board-form-actions">
       <button type="submit" class="btn btn-primary">저장</button>
       <button type="submit" formaction="/admin/dashboard/settings/reset" formmethod="post" class="btn btn-secondary" onclick="return confirm('기본 구성으로 되돌릴까요?');">기본값 복원</button>

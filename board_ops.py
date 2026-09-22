@@ -51,14 +51,29 @@ DASH_WIDGETS: tuple[tuple[str, str], ...] = (
 DASH_WIDGET_KEYS = [k for k, _ in DASH_WIDGETS]
 DASH_WIDGET_HINTS = {
     "maintenance_status": "긴급·의뢰·해결·오늘 작업 KPI 카드 (전체 폭)",
-    "sites_status": "사업장별 정비의뢰·미해결·완료 순위 (좌측)",
+    "sites_status": "사업장별 시설·설비·정비의뢰·미해결·완료 카드 (좌측)",
     "energy": "No.1~3 TR 전일 사용량·부하율·최근 7일 그래프 (좌측)",
     "schedules": "오늘 등록된 주요설비 일정 (우측)",
     "notices": "최근 공지 목록 (우측)",
 }
+SITE_METRIC_KEYS: tuple[str, ...] = (
+    "buildings",
+    "equipment",
+    "requests",
+    "unresolved",
+    "completed",
+)
+SITE_METRIC_LABELS: dict[str, str] = {
+    "buildings": "시설",
+    "equipment": "설비",
+    "requests": "정비의뢰",
+    "unresolved": "미해결",
+    "completed": "완료",
+}
 DEFAULT_DASH_CONFIG = {
     "order": list(DASH_WIDGET_KEYS),
     "visible": {k: True for k in DASH_WIDGET_KEYS},
+    "site_metrics": {k: True for k in SITE_METRIC_KEYS},
 }
 GWANGYANG_FACILITIES_SETTING_KEY = "dashboard.gwangyang_public_facilities"
 GWANGYANG_EXCEL_MAX_BYTES = 5 * 1024 * 1024
@@ -89,6 +104,7 @@ def _normalize_dash_config(raw: dict | None) -> dict:
         return {
             "order": list(DEFAULT_DASH_CONFIG["order"]),
             "visible": dict(DEFAULT_DASH_CONFIG["visible"]),
+            "site_metrics": dict(DEFAULT_DASH_CONFIG["site_metrics"]),
         }
     order = [k for k in (raw.get("order") or []) if k in DASH_WIDGET_KEYS]
     for k in DASH_WIDGET_KEYS:
@@ -101,7 +117,14 @@ def _normalize_dash_config(raw: dict | None) -> dict:
             visible[k] = _as_bool(visible_raw.get(k), False)
         else:
             visible[k] = True
-    return {"order": order, "visible": visible}
+    metrics_raw = raw.get("site_metrics") if isinstance(raw.get("site_metrics"), dict) else {}
+    site_metrics = {}
+    for k in SITE_METRIC_KEYS:
+        if k in metrics_raw:
+            site_metrics[k] = _as_bool(metrics_raw.get(k), False)
+        else:
+            site_metrics[k] = True
+    return {"order": order, "visible": visible, "site_metrics": site_metrics}
 
 
 async def get_dashboard_widget_config(db: AsyncSession) -> dict:
@@ -908,6 +931,14 @@ async def dashboard_settings_page(
         for key, label in DASH_WIDGETS
     ]
     widgets.sort(key=lambda x: x["order"])
+    site_metrics = [
+        {
+            "key": key,
+            "label": SITE_METRIC_LABELS[key],
+            "visible": cfg["site_metrics"].get(key, True),
+        }
+        for key in SITE_METRIC_KEYS
+    ]
     site_order_items = await load_site_status(db)
     layout_meta = {
         "wide": {
@@ -941,6 +972,7 @@ async def dashboard_settings_page(
         {
             "user": user,
             "widgets": widgets,
+            "site_metrics": site_metrics,
             "can_edit": True,
             "is_admin": True,
             "site_order_items": site_order_items,
@@ -972,7 +1004,16 @@ async def dashboard_settings_save(
             visible[k] = _as_bool(vals[-1], False)
         else:
             visible[k] = form.get(f"visible_{k}") in ("1", "on", "true", "True")
-    await set_dashboard_widget_config(db, {"order": order, "visible": visible})
+    site_metrics = {}
+    for k in SITE_METRIC_KEYS:
+        vals = form.getlist(f"site_metric_{k}") if hasattr(form, "getlist") else []
+        if vals:
+            site_metrics[k] = _as_bool(vals[-1], False)
+        else:
+            site_metrics[k] = form.get(f"site_metric_{k}") in ("1", "on", "true", "True")
+    await set_dashboard_widget_config(
+        db, {"order": order, "visible": visible, "site_metrics": site_metrics}
+    )
     await db.commit()
     return RedirectResponse("/admin/dashboard/settings?flash=saved", status_code=303)
 
