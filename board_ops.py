@@ -941,13 +941,13 @@ async def dashboard_settings_page(
     ]
     site_order_items = await load_site_status(db)
     layout_meta = {
-        "wide": {
-            "label": "통합 운영 홈",
-            "desc": "환영 배너·정비 요약·사업장 현황·일정·공지·전력·바로가기 통합 화면",
-        },
         "ops": {
-            "label": "운영 보드",
-            "desc": "기존 운영 대시보드 화면으로 돌아갑니다",
+            "label": "운영 보드 (기존 화면)",
+            "desc": "사업장 현황을 순위·정비의뢰 목록형으로 보여주는 기존 대시보드입니다.",
+        },
+        "wide": {
+            "label": "통합 운영 홈 (새 화면)",
+            "desc": "시안형 카드 배치. 시설·설비·정비의뢰·미해결·완료를 한눈에 봅니다.",
         },
         "gallery": {
             "label": "시설 갤러리",

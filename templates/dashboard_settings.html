@@ -25,7 +25,7 @@
 
 <section class="card">
   <h2 class="dash-settings-section-title">대시보드 화면 구성</h2>
-  <p class="board-help" style="margin-top:0;">통합 운영 홈(새 화면)과 기존 운영 보드 등 레이아웃을 선택합니다. 데이터·바로가기 기능은 동일합니다.</p>
+  <p class="board-help" style="margin-top:0;">새 화면(통합 운영 홈)과 기존 화면(운영 보드)을 선택할 수 있습니다. 데이터·바로가기 기능은 동일합니다.</p>
   {% if can_edit %}
   <form method="post" action="/admin/dashboard/layout" class="dash-layout-pick-form">
     <div class="dash-layout-pick-grid">
@@ -42,8 +42,8 @@
     </div>
     <div class="board-form-actions" style="margin-top:1rem">
       <button type="submit" class="btn btn-primary">선택한 화면 적용</button>
-      <a class="btn btn-secondary" href="/admin/dashboard?preview=wide">통합 홈 미리보기</a>
-      <a class="btn btn-secondary" href="/admin/dashboard?preview=ops">운영 보드 미리보기</a>
+      <a class="btn btn-secondary" href="/admin/dashboard?preview=ops">기존 화면 미리보기</a>
+      <a class="btn btn-secondary" href="/admin/dashboard?preview=wide">새 화면 미리보기</a>
     </div>
   </form>
   {% else %}

@@ -7117,7 +7117,9 @@ tr.wo-row-selected {
   .ops-steelworks-energy { flex-direction: column; gap: 0.35rem; }
   .ops-steelworks-energy-list { max-width: 100%; }
   .ops-site-list li { grid-template-columns: 28px 1fr; }
-  .ops-site-link, .ops-site-metrics { display: none; }
+  .ops-site-list .ops-site-thumb,
+  .ops-site-link,
+  .ops-site-metrics { display: none; }
   .ops-site-grid { grid-template-columns: 1fr; }
   .ops-live-top-right { width: 100%; flex-wrap: wrap; }
   .online-users-list li { grid-template-columns: 38px minmax(0, 1fr); }
