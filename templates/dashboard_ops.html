@@ -165,48 +165,60 @@
           {% endif %}
         </section>
         {% elif key == 'energy' and show_e %}
-        <section class="ops-card" data-widget="energy">
-          <div class="ops-card-head">
-            <h2>주택변전소 전력사용량<span class="ops-sub">(전일 기준. 사용량 Trend 최근 7일)</span></h2>
-          </div>
-          <div class="ops-energy-grid ops-tr-energy-grid">
-            {% for tr in kpi.energy.trs %}
-            <div class="ops-energy-tile ops-tr-energy-tile tone-{{ loop.index }}">
-              <div class="ops-tr-energy-line">
-                <strong>{{ tr.name }}</strong>
-                <div class="ops-tr-energy-metrics">
-                  <span><span id="nrg-{{ tr.id }}-usage">{{ "{:,.0f}".format(tr.usage) if tr.usage is not none else '-' }}</span> KWH,</span>
-                  <span>부하율(<span id="nrg-{{ tr.id }}-amp">{{ "{:,.1f}".format(tr.max_a).rstrip('0').rstrip('.') if tr.max_a is not none else '-' }}</span>A,
-                    <span id="nrg-{{ tr.id }}-load">{{ "{:,.1f}".format(tr.load_pct).rstrip('0').rstrip('.') if tr.load_pct is not none else '-' }}</span>%)</span>
-                </div>
-              </div>
-              <canvas class="ops-spark ops-tr-spark" id="spark-{{ tr.id }}" width="110" height="42"
-                      title="{{ tr.name }} 최근 7일 전력사용량"></canvas>
+        {% set energy = kpi.energy %}
+        {% set energy_tabs = energy.tabs if energy.tabs is defined else [] %}
+        <section class="ops-card dash-energy-panel" data-widget="energy" data-energy-root>
+          <div class="dash-energy-head">
+            <div class="dash-energy-title">
+              <h2>전력사용량</h2>
+              <span class="dash-energy-sub" id="energy-as-of">{{ energy.as_of_label or '' }} 기준 · 최근 7일</span>
             </div>
-            {% endfor %}
-          </div>
-          {% set central = kpi.energy.central %}
-          <div class="ops-central-energy">
-            <strong>중앙관제실 전력사용량</strong>
-            <div class="ops-central-energy-values">
-              <span>{{ central.name }}</span>
-              <span>전일 전력사용량 <b id="nrg-central-usage">{{ "{:,.0f}".format(central.usage) if central.usage is not none else '-' }}</b> KWH,</span>
-              <span>전일 최대 <b id="nrg-central-amp">{{ "{:,.1f}".format(central.max_a).rstrip('0').rstrip('.') if central.max_a is not none else '-' }}</b>A</span>
-            </div>
-          </div>
-          <div class="ops-steelworks-energy">
-            <strong>제철소본부 전력사용량</strong>
-            <div class="ops-steelworks-energy-list">
-              {% for item in kpi.energy.steelworks["items"] %}
-              <div class="ops-central-energy-values">
-                <span>{{ item.name }}</span>
-                <span>전일 전력사용량 <b id="nrg-steelworks-{{ item.id }}-usage">{{ "{:,.0f}".format(item.usage) if item.usage is not none else '-' }}</b> KWH,</span>
-                <span>전일 최대 <b id="nrg-steelworks-{{ item.id }}-amp">{{ "{:,.1f}".format(item.max_a).rstrip('0').rstrip('.') if item.max_a is not none else '-' }}</b>A</span>
-              </div>
+            <div class="dash-energy-tabs" role="tablist" aria-label="전력사용량 사업장">
+              {% for tab in energy_tabs %}
+              <button type="button"
+                      class="dash-energy-tab{% if loop.first %} is-active{% endif %}"
+                      role="tab"
+                      aria-selected="{{ 'true' if loop.first else 'false' }}"
+                      data-energy-tab="{{ tab.id }}">{{ tab.label }}</button>
               {% endfor %}
             </div>
           </div>
-          <p class="dash-footnote" id="energy-note">{{ kpi.energy.note }}</p>
+          {% for tab in energy_tabs %}
+          <div class="dash-energy-pane{% if loop.first %} is-active{% endif %}"
+               role="tabpanel"
+               data-energy-pane="{{ tab.id }}"
+               {% if not loop.first %}hidden{% endif %}>
+            <div class="dash-energy-cards">
+              {% for card in tab.cards %}
+              <article class="dash-energy-card{% if card.usage is none %} is-empty{% endif %}" data-energy-card="{{ tab.id }}-{{ card.id }}">
+                <div class="dash-energy-card-name">{{ card.name }}</div>
+                <div class="dash-energy-card-value">
+                  <span id="nrg-{{ tab.id }}-{{ card.id }}-usage">{% if card.usage is none %}미입력{% else %}{{ "{:,.0f}".format(card.usage) }}{% endif %}</span>
+                  <em class="dash-energy-unit"{% if card.usage is none %} hidden{% endif %}>kWh</em>
+                </div>
+                <div class="dash-energy-card-sub" id="nrg-{{ tab.id }}-{{ card.id }}-sub">
+                  {% if card.usage is none %}
+                  전일 점검일지를 입력해 주세요
+                  {% elif card.change_pct is not none %}
+                  전일 대비 {% if card.change_pct > 0 %}+{% endif %}{{ "{:,.1f}".format(card.change_pct) }}%
+                  {% else %}
+                  전일 대비 -
+                  {% endif %}
+                </div>
+                <canvas class="dash-energy-spark"
+                        id="spark-{{ tab.id }}-{{ card.id }}"
+                        width="220" height="64"
+                        data-spark-values='{{ card.values | tojson }}'
+                        title="{{ card.name }} 최근 7일 전력사용량"
+                        {% if card.usage is none %}hidden{% endif %}></canvas>
+              </article>
+              {% else %}
+              <p class="empty">표시할 전력 데이터가 없습니다.</p>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+          <p class="dash-footnote" id="energy-note">{{ energy.note }}</p>
         </section>
         {% endif %}
       {% endfor %}

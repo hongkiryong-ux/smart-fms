@@ -684,13 +684,19 @@ def compute_dashboard_tr_energy(
                 rolling_prev = next_prev
 
         max_a = max_values[-1] if max_values else None
+        curr = values[-1] if values else None
+        prev = values[-2] if len(values) >= 2 else None
+        change_pct = None
+        if curr is not None and prev not in (None, 0):
+            change_pct = round((curr - prev) / abs(prev) * 100, 1)
         result.append(
             {
                 "id": block_id,
                 "name": display_name,
-                "usage": values[-1] if values else None,
+                "usage": curr,
                 "max_a": max_a,
                 "load_pct": round(max_a / 350 * 100, 1) if max_a is not None else None,
+                "change_pct": change_pct,
                 "values": values,
             }
         )

@@ -661,8 +661,11 @@ def _breaker_row_from_daily(
 def compute_dashboard_incoming_power(
     daily_rows: list[CentralControlRoomDaily],
     target_date: date,
+    days: int = 7,
 ) -> dict[str, Any]:
-    """압연/수전 LINE INCOMING의 지정일 사용량과 최대전류."""
+    """압연/수전 LINE INCOMING의 지정일 사용량·최대전류·최근 N일 추이."""
+    days = max(1, days)
+    start_date = target_date - timedelta(days=days - 1)
     block_def = next(
         (
             block
@@ -680,26 +683,73 @@ def compute_dashboard_incoming_power(
         None,
     )
     by_date = {row.log_date: row.data or {} for row in daily_rows}
+    labels = [
+        (start_date + timedelta(days=offset)).strftime("%m/%d")
+        for offset in range(days)
+    ]
     if not meter:
         return {
+            "id": "central",
             "name": "압연 / 수전 LINE INCOMING",
             "usage": None,
             "max_a": None,
+            "change_pct": None,
+            "values": [None] * days,
+            "labels": labels,
+            "cards": [
+                {
+                    "id": "central",
+                    "name": "압연",
+                    "usage": None,
+                    "max_a": None,
+                    "change_pct": None,
+                    "values": [None] * days,
+                }
+            ],
         }
 
-    previous_data = by_date.get(target_date - timedelta(days=1), {}).get("main", {})
-    previous_reading = _parse_num(_meter_reading_at_2200(previous_data, meter))
-    target_data = by_date.get(target_date, {}).get("main", {})
-    prev_map = target_data.get("prev") or {}
-    if prev_map.get(meter["id"]) not in (None, ""):
-        manual_prev = _parse_num(prev_map.get(meter["id"]))
-        if manual_prev is not None:
-            previous_reading = manual_prev
-    row, _ = _breaker_row_from_daily(target_data, meter, previous_reading)
+    values: list[float | None] = []
+    max_values: list[float | None] = []
+    rolling_prev: float | None = None
+    seed_data = by_date.get(start_date - timedelta(days=1), {}).get("main", {})
+    rolling_prev = _parse_num(_meter_reading_at_2200(seed_data, meter))
+
+    for offset in range(days):
+        current_date = start_date + timedelta(days=offset)
+        target_data = by_date.get(current_date, {}).get("main", {})
+        prev_map = target_data.get("prev") or {}
+        if prev_map.get(meter["id"]) not in (None, ""):
+            manual_prev = _parse_num(prev_map.get(meter["id"]))
+            if manual_prev is not None:
+                rolling_prev = manual_prev
+        row, next_prev = _breaker_row_from_daily(target_data, meter, rolling_prev)
+        values.append(_parse_num(row.get("usage")))
+        max_values.append(_parse_num(row.get("max_a")))
+        if next_prev is not None:
+            rolling_prev = next_prev
+
+    curr = values[-1] if values else None
+    prev = values[-2] if len(values) >= 2 else None
+    change_pct = None
+    if curr is not None and prev not in (None, 0):
+        change_pct = round((curr - prev) / abs(prev) * 100, 1)
+    card = {
+        "id": "central",
+        "name": "압연",
+        "usage": curr,
+        "max_a": max_values[-1] if max_values else None,
+        "change_pct": change_pct,
+        "values": values,
+    }
     return {
+        "id": "central",
         "name": "압연 / 수전 LINE INCOMING",
-        "usage": _parse_num(row.get("usage")),
-        "max_a": _parse_num(row.get("max_a")),
+        "usage": curr,
+        "max_a": card["max_a"],
+        "change_pct": change_pct,
+        "values": values,
+        "labels": labels,
+        "cards": [card],
     }
 
 

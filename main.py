@@ -2874,14 +2874,16 @@ async def _dashboard_energy_payload(db: AsyncSession, today: date) -> dict:
                     .where(
                         CentralControlRoomDaily.building_id == central_building_id,
                         CentralControlRoomDaily.log_date
-                        >= end_date - timedelta(days=1),
+                        >= start_date - timedelta(days=1),
                         CentralControlRoomDaily.log_date <= end_date,
                     )
                     .order_by(CentralControlRoomDaily.log_date)
                 )
             ).scalars().all()
         )
-    payload["central"] = compute_dashboard_incoming_power(central_rows, end_date)
+    payload["central"] = compute_dashboard_incoming_power(
+        central_rows, end_date, days=7
+    )
 
     steelworks_building_id = (
         await db.execute(
@@ -2903,7 +2905,7 @@ async def _dashboard_energy_payload(db: AsyncSession, today: date) -> dict:
                     .where(
                         SteelworksHqDaily.building_id == steelworks_building_id,
                         SteelworksHqDaily.log_date
-                        >= end_date - timedelta(days=1),
+                        >= start_date - timedelta(days=1),
                         SteelworksHqDaily.log_date <= end_date,
                     )
                     .order_by(SteelworksHqDaily.log_date)
@@ -2911,8 +2913,40 @@ async def _dashboard_energy_payload(db: AsyncSession, today: date) -> dict:
             ).scalars().all()
         )
     payload["steelworks"] = compute_steelworks_incoming_power(
-        steelworks_rows, end_date
+        steelworks_rows, end_date, days=7
     )
+    # 탭 UI용 카드 묶음
+    as_of_label = end_date.strftime("%m.%d")
+    payload["as_of_label"] = as_of_label
+    payload["tabs"] = [
+        {
+            "id": "housing",
+            "label": "주택변전소(한전)",
+            "cards": payload.get("trs") or [],
+        },
+        {
+            "id": "central",
+            "label": "중앙관제실(압연)",
+            "cards": (payload.get("central") or {}).get("cards")
+            or [
+                {
+                    "id": "central",
+                    "name": (payload.get("central") or {}).get("name") or "압연",
+                    "usage": (payload.get("central") or {}).get("usage"),
+                    "max_a": (payload.get("central") or {}).get("max_a"),
+                    "change_pct": (payload.get("central") or {}).get("change_pct"),
+                    "values": (payload.get("central") or {}).get("values") or [],
+                }
+            ],
+        },
+        {
+            "id": "steelworks",
+            "label": "제철소본부(수전)",
+            "cards": (payload.get("steelworks") or {}).get("cards")
+            or (payload.get("steelworks") or {}).get("items")
+            or [],
+        },
+    ]
     return payload
 
 

@@ -98,46 +98,148 @@
 
   function drawSpark(canvasId, values, color) {
     var c = document.getElementById(canvasId);
-    if (!c || !values || !values.length) return;
+    if (!c) return;
     var ctx = c.getContext('2d');
     var w = c.width, h = c.height;
     ctx.clearRect(0, 0, w, h);
+    if (!values || !values.length) return;
     var valid = values.filter(function (v) { return v != null && Number.isFinite(Number(v)); }).map(Number);
     if (!valid.length) return;
     var min = Math.min.apply(null, valid);
     var max = Math.max.apply(null, valid);
     var span = (max - min) || 1;
-    ctx.beginPath();
-    ctx.strokeStyle = color || '#3b82f6';
-    ctx.lineWidth = 2;
-    var drawing = false;
+    var padX = 6, padY = 8;
+    var points = [];
     values.forEach(function (v, i) {
       if (v == null || !Number.isFinite(Number(v))) {
-        drawing = false;
+        points.push(null);
         return;
       }
-      var x = (i / (values.length - 1 || 1)) * (w - 2) + 1;
-      var y = h - 3 - ((Number(v) - min) / span) * (h - 8);
-      if (!drawing) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      drawing = true;
+      var x = padX + (i / (values.length - 1 || 1)) * (w - padX * 2);
+      var y = h - padY - ((Number(v) - min) / span) * (h - padY * 2);
+      points.push({ x: x, y: y });
     });
+    var first = points.find(function (p) { return p; });
+    var last = null;
+    for (var i = points.length - 1; i >= 0; i--) {
+      if (points[i]) { last = points[i]; break; }
+    }
+    if (!first || !last) return;
+    var stroke = color || '#2563eb';
+    ctx.beginPath();
+    var started = false;
+    points.forEach(function (p) {
+      if (!p) { started = false; return; }
+      if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.stroke();
+
+    ctx.beginPath();
+    started = false;
+    points.forEach(function (p) {
+      if (!p) { started = false; return; }
+      if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.lineTo(last.x, h - 2);
+    ctx.lineTo(first.x, h - 2);
+    ctx.closePath();
+    var grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(37, 99, 235, 0.28)');
+    grad.addColorStop(1, 'rgba(37, 99, 235, 0.02)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    points.forEach(function (p) {
+      if (!p) return;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
   }
 
   function renderSparks(energy) {
     if (!energy) return;
-    var colors = ['#2563eb', '#7c3aed', '#ea580c'];
+    var tabs = energy.tabs || [];
+    if (tabs.length) {
+      tabs.forEach(function (tab) {
+        (tab.cards || []).forEach(function (card) {
+          if (card.usage == null) return;
+          drawSpark('spark-' + tab.id + '-' + card.id, card.values || [], '#2563eb');
+        });
+      });
+      return;
+    }
     (energy.trs || []).forEach(function (tr, index) {
-      drawSpark('spark-' + tr.id, tr.values || [], colors[index % colors.length]);
+      drawSpark('spark-' + tr.id, tr.values || [], '#2563eb');
     });
   }
 
   function formatEnergy(value, decimals) {
-    if (value == null || !Number.isFinite(Number(value))) return '-';
+    if (value == null || !Number.isFinite(Number(value))) return null;
     return Number(value).toLocaleString('ko-KR', {
       minimumFractionDigits: 0,
       maximumFractionDigits: decimals || 0
     });
+  }
+
+  function formatChange(pct) {
+    if (pct == null || !Number.isFinite(Number(pct))) return '전일 대비 -';
+    var n = Number(pct);
+    var sign = n > 0 ? '+' : '';
+    return '전일 대비 ' + sign + n.toLocaleString('ko-KR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    }) + '%';
+  }
+
+  function applyEnergyCards(energy) {
+    if (!energy) return;
+    var asOf = document.getElementById('energy-as-of');
+    if (asOf && energy.as_of_label) {
+      asOf.textContent = energy.as_of_label + ' 기준 · 최근 7일';
+    }
+    (energy.tabs || []).forEach(function (tab) {
+      (tab.cards || []).forEach(function (card) {
+        var usageEl = document.getElementById('nrg-' + tab.id + '-' + card.id + '-usage');
+        var subEl = document.getElementById('nrg-' + tab.id + '-' + card.id + '-sub');
+        var article = document.querySelector('[data-energy-card="' + tab.id + '-' + card.id + '"]');
+        var formatted = formatEnergy(card.usage, 0);
+        if (usageEl) {
+          if (formatted == null) usageEl.textContent = '미입력';
+          else usageEl.textContent = formatted;
+        }
+        if (subEl) {
+          subEl.textContent = formatted == null
+            ? '전일 점검일지를 입력해 주세요'
+            : formatChange(card.change_pct);
+        }
+        if (article) {
+          article.classList.toggle('is-empty', formatted == null);
+          var unit = article.querySelector('.dash-energy-unit');
+          var spark = article.querySelector('.dash-energy-spark');
+          if (unit) {
+            if (formatted == null) unit.setAttribute('hidden', '');
+            else unit.removeAttribute('hidden');
+          }
+          if (spark) {
+            if (formatted == null) spark.setAttribute('hidden', '');
+            else spark.removeAttribute('hidden');
+          }
+        }
+      });
+    });
+    setText('energy-note', energy.note);
+    renderSparks(energy);
   }
 
   function applyKpi(data) {
@@ -148,21 +250,45 @@
     setText('kpi-wo-unresolved', data.wo_unresolved);
     setText('kpi-d1-plan', data.d1_today_plan);
     if (data.energy) {
+      applyEnergyCards(data.energy);
+      // bento 등 구형 마크업 호환
       (data.energy.trs || []).forEach(function (tr) {
-        setText('nrg-' + tr.id + '-usage', formatEnergy(tr.usage, 0));
-        setText('nrg-' + tr.id + '-amp', formatEnergy(tr.max_a, 1));
-        setText('nrg-' + tr.id + '-load', formatEnergy(tr.load_pct, 1));
+        var usage = formatEnergy(tr.usage, 0);
+        if (usage != null) setText('nrg-' + tr.id + '-usage', usage);
+        setText('nrg-' + tr.id + '-amp', formatEnergy(tr.max_a, 1) || '-');
+        setText('nrg-' + tr.id + '-load', formatEnergy(tr.load_pct, 1) || '-');
       });
       var central = data.energy.central || {};
-      setText('nrg-central-usage', formatEnergy(central.usage, 0));
-      setText('nrg-central-amp', formatEnergy(central.max_a, 1));
+      setText('nrg-central-usage', formatEnergy(central.usage, 0) || '-');
+      setText('nrg-central-amp', formatEnergy(central.max_a, 1) || '-');
       ((data.energy.steelworks || {}).items || []).forEach(function (item) {
-        setText('nrg-steelworks-' + item.id + '-usage', formatEnergy(item.usage, 0));
-        setText('nrg-steelworks-' + item.id + '-amp', formatEnergy(item.max_a, 1));
+        setText('nrg-steelworks-' + item.id + '-usage', formatEnergy(item.usage, 0) || '-');
+        setText('nrg-steelworks-' + item.id + '-amp', formatEnergy(item.max_a, 1) || '-');
       });
-      setText('energy-note', data.energy.note);
-      renderSparks(data.energy);
     }
+  }
+
+  function setupEnergyTabs() {
+    document.querySelectorAll('[data-energy-root]').forEach(function (root) {
+      var tabs = root.querySelectorAll('[data-energy-tab]');
+      var panes = root.querySelectorAll('[data-energy-pane]');
+      tabs.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-energy-tab');
+          tabs.forEach(function (t) {
+            var on = t === btn;
+            t.classList.toggle('is-active', on);
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          panes.forEach(function (pane) {
+            var on = pane.getAttribute('data-energy-pane') === id;
+            pane.classList.toggle('is-active', on);
+            if (on) pane.removeAttribute('hidden');
+            else pane.setAttribute('hidden', '');
+          });
+        });
+      });
+    });
   }
 
   function tickClock() {
@@ -285,6 +411,7 @@
   }
 
   renderSparks(energyInit);
+  setupEnergyTabs();
   tickClock();
   setInterval(tickClock, 30000);
   setInterval(function () {

@@ -382,26 +382,20 @@ def _incoming_meter_today(data: dict, meter_id: str) -> str:
 def compute_dashboard_incoming_power(
     daily_rows: list[SteelworksHqDaily],
     target_date: date,
+    days: int = 7,
 ) -> dict[str, Any]:
-    """제철소본부 NO.1·2 수전의 지정일 사용량과 최대전류."""
+    """제철소본부 NO.1·2 수전의 지정일 사용량·최대전류·최근 N일 추이."""
+    days = max(1, days)
+    start_date = target_date - timedelta(days=days - 1)
     incoming_schema = next(
         (block for block in _electrical_blocks() if block.get("id") == "incoming"),
         {},
     )
     by_date = {row.log_date: row.data or {} for row in daily_rows}
-    target_block = (
-        (by_date.get(target_date, {}).get("electrical") or {}).get("incoming") or {}
-    )
-    previous_block = (
-        (
-            by_date.get(target_date - timedelta(days=1), {}).get("electrical")
-            or {}
-        ).get("incoming")
-        or {}
-    )
-    target_times = target_block.get("times") or {}
-    previous_times = previous_block.get("times") or {}
-    target_prev = target_block.get("prev") or {}
+    labels = [
+        (start_date + timedelta(days=offset)).strftime("%m/%d")
+        for offset in range(days)
+    ]
     result = []
 
     for group in incoming_schema.get("groups") or []:
@@ -415,38 +409,67 @@ def compute_dashboard_incoming_power(
             ),
             None,
         )
-        previous_reading = _parse_num(
-            (previous_times.get("22:00") or {}).get(meter.get("reading_col"))
-        )
-        if meter_id and target_prev.get(meter_id) not in (None, ""):
-            manual_previous = _parse_num(target_prev.get(meter_id))
-            if manual_previous is not None:
-                previous_reading = manual_previous
-        target_reading = _parse_num(
-            (target_times.get("22:00") or {}).get(meter.get("reading_col"))
-        )
-        usage = None
-        if previous_reading is not None and target_reading is not None:
-            usage = (target_reading - previous_reading) * float(
-                meter.get("multiplier") or 1
+        values: list[float | None] = []
+        max_values: list[float | None] = []
+        for offset in range(days):
+            current_date = start_date + timedelta(days=offset)
+            target_block = (
+                (by_date.get(current_date, {}).get("electrical") or {}).get("incoming")
+                or {}
             )
+            previous_block = (
+                (
+                    by_date.get(current_date - timedelta(days=1), {}).get("electrical")
+                    or {}
+                ).get("incoming")
+                or {}
+            )
+            target_times = target_block.get("times") or {}
+            previous_times = previous_block.get("times") or {}
+            target_prev = target_block.get("prev") or {}
 
-        amp_values = []
-        if current_col:
-            for cells in target_times.values():
-                amp = _parse_num((cells or {}).get(current_col))
-                if amp is not None:
-                    amp_values.append(amp)
+            previous_reading = _parse_num(
+                (previous_times.get("22:00") or {}).get(meter.get("reading_col"))
+            )
+            if meter_id and target_prev.get(meter_id) not in (None, ""):
+                manual_previous = _parse_num(target_prev.get(meter_id))
+                if manual_previous is not None:
+                    previous_reading = manual_previous
+            target_reading = _parse_num(
+                (target_times.get("22:00") or {}).get(meter.get("reading_col"))
+            )
+            usage = None
+            if previous_reading is not None and target_reading is not None:
+                usage = (target_reading - previous_reading) * float(
+                    meter.get("multiplier") or 1
+                )
+            values.append(round(usage, 2) if usage is not None else None)
+
+            amp_values = []
+            if current_col:
+                for cells in target_times.values():
+                    amp = _parse_num((cells or {}).get(current_col))
+                    if amp is not None:
+                        amp_values.append(amp)
+            max_values.append(max(amp_values) if amp_values else None)
+
+        curr = values[-1] if values else None
+        prev = values[-2] if len(values) >= 2 else None
+        change_pct = None
+        if curr is not None and prev not in (None, 0):
+            change_pct = round((curr - prev) / abs(prev) * 100, 1)
         result.append(
             {
                 "id": str(meter_id or ""),
                 "name": str(group.get("name") or meter.get("name") or ""),
-                "usage": round(usage, 2) if usage is not None else None,
-                "max_a": max(amp_values) if amp_values else None,
+                "usage": curr,
+                "max_a": max_values[-1] if max_values else None,
+                "change_pct": change_pct,
+                "values": values,
             }
         )
 
-    return {"items": result}
+    return {"items": result, "labels": labels, "cards": result}
 
 
 def _utility_prev_monthly_map(prev_row_data: dict | None, log_date: date) -> dict[str, str]:
