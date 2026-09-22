@@ -7601,6 +7601,11 @@ tr.wo-row-selected {
   flex-direction: column;
   gap: 0.2rem;
 }
+.dash-energy-card-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+}
 .dash-energy-card-value {
   font-size: 1.45rem;
   font-weight: 800;
