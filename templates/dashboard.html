@@ -210,14 +210,23 @@
     }
     (energy.tabs || []).forEach(function (tab) {
       (tab.cards || []).forEach(function (card) {
-        var usageEl = document.getElementById('nrg-' + tab.id + '-' + card.id + '-usage');
-        var subEl = document.getElementById('nrg-' + tab.id + '-' + card.id + '-sub');
+        var prefix = 'nrg-' + tab.id + '-' + card.id;
+        var usageEl = document.getElementById(prefix + '-usage');
+        var usage2El = document.getElementById(prefix + '-usage2');
+        var ampEl = document.getElementById(prefix + '-amp');
+        var loadEl = document.getElementById(prefix + '-load');
+        var subEl = document.getElementById(prefix + '-sub');
+        var metricsEl = document.getElementById(prefix + '-metrics');
         var article = document.querySelector('[data-energy-card="' + tab.id + '-' + card.id + '"]');
         var formatted = formatEnergy(card.usage, 0);
+        var ampText = formatEnergy(card.max_a, 1) || '-';
+        var loadText = formatEnergy(card.load_pct, 1) || '-';
         if (usageEl) {
-          if (formatted == null) usageEl.textContent = '미입력';
-          else usageEl.textContent = formatted;
+          usageEl.textContent = formatted == null ? '미입력' : formatted;
         }
+        if (usage2El) usage2El.textContent = formatted == null ? '-' : formatted;
+        if (ampEl) ampEl.textContent = ampText;
+        if (loadEl) loadEl.textContent = loadText;
         if (subEl) {
           subEl.textContent = formatted == null
             ? '전일 점검일지를 입력해 주세요'
@@ -227,13 +236,23 @@
           article.classList.toggle('is-empty', formatted == null);
           var unit = article.querySelector('.dash-energy-unit');
           var spark = article.querySelector('.dash-energy-spark');
+          var loadWrap = article.querySelector('.dash-energy-load');
           if (unit) {
             if (formatted == null) unit.setAttribute('hidden', '');
             else unit.removeAttribute('hidden');
           }
+          if (metricsEl) {
+            if (formatted == null) metricsEl.setAttribute('hidden', '');
+            else metricsEl.removeAttribute('hidden');
+          }
           if (spark) {
             if (formatted == null) spark.setAttribute('hidden', '');
             else spark.removeAttribute('hidden');
+          }
+          if (loadWrap) {
+            var showLoad = tab.id === 'housing' || (card.load_pct != null && Number.isFinite(Number(card.load_pct)));
+            if (showLoad) loadWrap.removeAttribute('hidden');
+            else loadWrap.setAttribute('hidden', '');
           }
         }
       });

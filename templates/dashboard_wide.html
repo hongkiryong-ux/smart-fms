@@ -218,11 +218,18 @@
            {% if not loop.first %}hidden{% endif %}>
         <div class="dash-energy-cards">
           {% for card in tab.cards %}
-          <article class="dash-energy-card{% if card.usage is none %} is-empty{% endif %}" data-energy-card="{{ tab.id }}-{{ card.id }}">
+          <article class="dash-energy-card{% if card.usage is none %} is-empty{% endif %}"
+                   data-energy-card="{{ tab.id }}-{{ card.id }}"
+                   data-energy-tab-id="{{ tab.id }}">
             <div class="dash-energy-card-name">{{ card.name }}</div>
             <div class="dash-energy-card-value">
               <span id="nrg-{{ tab.id }}-{{ card.id }}-usage">{% if card.usage is none %}미입력{% else %}{{ "{:,.0f}".format(card.usage) }}{% endif %}</span>
               <em class="dash-energy-unit"{% if card.usage is none %} hidden{% endif %}>kWh</em>
+            </div>
+            <div class="dash-energy-metrics" id="nrg-{{ tab.id }}-{{ card.id }}-metrics"{% if card.usage is none %} hidden{% endif %}>
+              <span><b id="nrg-{{ tab.id }}-{{ card.id }}-usage2">{{ "{:,.0f}".format(card.usage) if card.usage is not none else '-' }}</b> kWh</span>
+              <span>최대 <b id="nrg-{{ tab.id }}-{{ card.id }}-amp">{{ "{:,.1f}".format(card.max_a).rstrip('0').rstrip('.') if card.max_a is not none else '-' }}</b>A</span>
+              <span class="dash-energy-load"{% if tab.id != 'housing' and card.get('load_pct') is none %} hidden{% endif %}>부하율 (<b id="nrg-{{ tab.id }}-{{ card.id }}-load">{{ "{:,.1f}".format(card.load_pct).rstrip('0').rstrip('.') if card.get('load_pct') is not none else '-' }}</b>%)</span>
             </div>
             <div class="dash-energy-card-sub" id="nrg-{{ tab.id }}-{{ card.id }}-sub">
               {% if card.usage is none %}
