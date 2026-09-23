@@ -17,6 +17,12 @@
 <div class="alert alert-error">새 비밀번호 확인이 일치하지 않습니다.</div>
 {% elif error == 'no_menu' %}
 <div class="alert alert-error">해당 메뉴에 대한 접근 권한이 없습니다. 관리자에게 문의하세요.</div>
+{% elif error == 'withdraw_password' %}
+<div class="alert alert-error">비밀번호가 올바르지 않습니다.</div>
+{% elif error == 'withdraw_confirm' %}
+<div class="alert alert-error">탈퇴 확인에 체크해 주세요.</div>
+{% elif error == 'withdraw_admin' %}
+<div class="alert alert-error">마지막 시스템관리자 계정은 탈퇴할 수 없습니다. 다른 관리자를 지정한 뒤 진행하세요.</div>
 {% endif %}
 
 <div class="grid-2">
@@ -75,6 +81,26 @@
     </form>
   </section>
 </div>
+
+<section class="card account-withdraw-card" style="margin-top:1.25rem;">
+  <h2>계정 탈퇴</h2>
+  <p class="text-muted" style="margin-top:0">
+    탈퇴하면 즉시 로그아웃되며 더 이상 로그인할 수 없습니다.
+    계정은 비활성 처리되고, 필요 시 시스템관리자가 복구할 수 있습니다.
+  </p>
+  <form method="post" action="/admin/account/withdraw" class="form-stack" id="account-withdraw-form">
+    <label>비밀번호 확인</label>
+    <input type="password" name="password" required autocomplete="current-password" placeholder="현재 비밀번호" />
+    <label class="account-withdraw-check">
+      <input type="checkbox" name="confirm" value="1" required />
+      <span>탈퇴에 동의하며, 계정 비활성화를 요청합니다.</span>
+    </label>
+    <button type="submit" class="btn btn-danger"
+            onclick="return confirm('정말 탈퇴하시겠습니까?\n탈퇴 후 바로 로그아웃되고 로그인할 수 없습니다.');">
+      탈퇴하기
+    </button>
+  </form>
+</section>
 <script>
 (function () {
   var sel = document.getElementById('account-company-partner');

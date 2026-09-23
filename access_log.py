@@ -31,6 +31,7 @@ DETAIL_LABELS: dict[str, str] = {
     "invalid_credentials": "아이디/비밀번호 오류",
     "inactive": "비활성 계정",
     "pending_approval": "승인 대기",
+    "withdraw": "계정 탈퇴",
 }
 
 # 긴 경로 우선

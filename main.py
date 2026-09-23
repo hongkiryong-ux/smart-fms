@@ -1921,6 +1921,71 @@ async def account_change_password(
     )
 
 
+@app.post("/admin/account/withdraw")
+async def account_withdraw(
+    request: Request,
+    password: str = Form(...),
+    confirm: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """본인 계정 탈퇴(비활성화) 후 로그아웃."""
+    from presence import remove_presence
+
+    db_user = await db.get(User, user.id)
+    if not db_user:
+        raise HTTPException(404)
+    if confirm != "1":
+        return RedirectResponse("/admin/account?error=withdraw_confirm", status_code=303)
+    if not verify_password(password, db_user.password_hash):
+        return RedirectResponse("/admin/account?error=withdraw_password", status_code=303)
+
+    if db_user.role == UserRole.system_admin:
+        other_admins = (
+            await db.execute(
+                select(func.count())
+                .select_from(User)
+                .where(
+                    User.role == UserRole.system_admin,
+                    User.id != db_user.id,
+                    User.is_active == True,  # noqa: E712
+                    User.is_approved == True,  # noqa: E712
+                )
+            )
+        ).scalar_one()
+        if not other_admins:
+            return RedirectResponse("/admin/account?error=withdraw_admin", status_code=303)
+
+    uname = db_user.username
+    display = db_user.name
+    uid = db_user.id
+    db_user.is_active = False
+    await record_access_log(
+        db,
+        event_type="action",
+        username=uname,
+        request=request,
+        success=True,
+        user_id=uid,
+        display_name=display,
+        http_method="POST",
+        path="/admin/account/withdraw",
+        resource="내 계정",
+        summary="계정 탈퇴(비활성화)",
+        detail="withdraw",
+    )
+    await remove_presence(db, int(uid))
+    await db.commit()
+
+    request.session.clear()
+    resp = RedirectResponse(
+        "/admin/login?message=" + quote("계정이 탈퇴 처리되었습니다."),
+        status_code=303,
+    )
+    clear_remember_cookie(resp)
+    return resp
+
+
 # ── Users / Account Admin ─────────────────────────────────────────────
 
 

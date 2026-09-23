@@ -1483,6 +1483,20 @@ a.dm:hover {
 .info-dl { margin: 0; }
 .info-dl dt { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
 .info-dl dd { margin: 0.15rem 0 0; font-weight: 500; }
+.account-withdraw-card {
+  border-color: #fecaca;
+  background: #fffafa;
+}
+.account-withdraw-card h2 { color: #991b1b; }
+.account-withdraw-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  color: #334155;
+  cursor: pointer;
+}
+.account-withdraw-check input { margin-top: 0.2rem; }
 
 .list-item {
   padding: 0.5rem 0;
