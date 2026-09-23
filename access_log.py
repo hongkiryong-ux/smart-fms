@@ -382,6 +382,7 @@ async def query_access_logs(
     date_to: str | None = None,
     page: int = 1,
     per_page: int = 15,
+    export_limit: int | None = None,
 ) -> dict:
     per_page = max(15, min(per_page, 200))
     page = max(1, page)
@@ -419,6 +420,24 @@ async def query_access_logs(
         count_stmt = count_stmt.where(AccessLog.created_at <= end)
 
     total = int((await db.execute(count_stmt)).scalar_one() or 0)
+
+    if export_limit is not None:
+        limit = max(1, min(int(export_limit), 50000))
+        rows = (
+            await db.execute(
+                stmt.order_by(AccessLog.created_at.desc(), AccessLog.id.desc()).limit(limit)
+            )
+        ).scalars().all()
+        items = [_access_log_item(row) for row in rows]
+        return {
+            "items": items,
+            "total": total,
+            "page": 1,
+            "per_page": len(items),
+            "pages": 1,
+            "truncated": total > len(items),
+        }
+
     pages = max(1, (total + per_page - 1) // per_page)
     if page > pages:
         page = pages
@@ -431,30 +450,7 @@ async def query_access_logs(
         )
     ).scalars().all()
 
-    items = []
-    for row in rows:
-        detail = row.detail or ""
-        summary = row.summary or detail or row.path or ""
-        items.append(
-            {
-                "id": row.id,
-                "event_type": row.event_type,
-                "event_label": EVENT_LABELS.get(row.event_type, row.event_type),
-                "username": row.username,
-                "display_name": row.display_name or "",
-                "ip_address": row.ip_address or "",
-                "user_agent": row.user_agent or "",
-                "success": bool(row.success),
-                "detail": detail,
-                "detail_label": DETAIL_LABELS.get(detail, detail),
-                "http_method": row.http_method or "",
-                "path": row.path or "",
-                "status_code": row.status_code,
-                "resource": row.resource or "",
-                "summary": summary,
-                "created_at": _fmt_kst(row.created_at),
-            }
-        )
+    items = [_access_log_item(row) for row in rows]
 
     return {
         "items": items,
@@ -463,3 +459,85 @@ async def query_access_logs(
         "per_page": per_page,
         "pages": pages,
     }
+
+
+def _access_log_item(row: AccessLog) -> dict:
+    detail = row.detail or ""
+    summary = row.summary or detail or row.path or ""
+    return {
+        "id": row.id,
+        "event_type": row.event_type,
+        "event_label": EVENT_LABELS.get(row.event_type, row.event_type),
+        "username": row.username,
+        "display_name": row.display_name or "",
+        "ip_address": row.ip_address or "",
+        "user_agent": row.user_agent or "",
+        "success": bool(row.success),
+        "detail": detail,
+        "detail_label": DETAIL_LABELS.get(detail, detail),
+        "http_method": row.http_method or "",
+        "path": row.path or "",
+        "status_code": row.status_code,
+        "resource": row.resource or "",
+        "summary": summary,
+        "created_at": _fmt_kst(row.created_at),
+    }
+
+
+def build_access_logs_xlsx(items: list[dict]) -> bytes:
+    """활동 로그 목록을 엑셀(.xlsx) 바이트로 변환."""
+    from io import BytesIO
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "활동로그"
+
+    headers = (
+        "시각(KST)",
+        "유형",
+        "메뉴/기능",
+        "요약",
+        "아이디",
+        "이름",
+        "IP",
+        "HTTP",
+        "상태코드",
+        "URL",
+        "User-Agent",
+        "성공여부",
+    )
+    header_fill = PatternFill("solid", fgColor="003876")
+    header_font = Font(color="FFFFFF", bold=True)
+    for col, title in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=title)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for r_idx, item in enumerate(items, start=2):
+        ws.cell(row=r_idx, column=1, value=item.get("created_at") or "")
+        ws.cell(row=r_idx, column=2, value=item.get("event_label") or item.get("event_type") or "")
+        ws.cell(row=r_idx, column=3, value=item.get("resource") or "")
+        ws.cell(row=r_idx, column=4, value=item.get("summary") or "")
+        ws.cell(row=r_idx, column=5, value=item.get("username") or "")
+        ws.cell(row=r_idx, column=6, value=item.get("display_name") or "")
+        ws.cell(row=r_idx, column=7, value=item.get("ip_address") or "")
+        ws.cell(row=r_idx, column=8, value=item.get("http_method") or "")
+        status = item.get("status_code")
+        ws.cell(row=r_idx, column=9, value="" if status is None else status)
+        ws.cell(row=r_idx, column=10, value=item.get("path") or "")
+        ws.cell(row=r_idx, column=11, value=item.get("user_agent") or "")
+        ws.cell(row=r_idx, column=12, value="성공" if item.get("success") else "실패")
+
+    widths = (20, 12, 18, 40, 14, 12, 16, 8, 10, 36, 28, 10)
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

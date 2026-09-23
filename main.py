@@ -83,7 +83,13 @@ from database import (
 from init_data import seed_if_empty
 import onlyoffice as oo
 from server_status import collect_server_status
-from access_log import AuditLogMiddleware, EVENT_LABELS, query_access_logs, record_access_log
+from access_log import (
+    AuditLogMiddleware,
+    EVENT_LABELS,
+    build_access_logs_xlsx,
+    query_access_logs,
+    record_access_log,
+)
 from models import (
     Building,
     BuildingDrawing,
@@ -3595,6 +3601,34 @@ async def server_access_logs_api(
     )
     data["event_types"] = [{"value": k, "label": v} for k, v in EVENT_LABELS.items()]
     return JSONResponse(data)
+
+
+@app.get("/admin/server/access-logs.xlsx")
+async def server_access_logs_excel(
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+    q: str = Query("", max_length=100),
+    event: str = Query("", max_length=32),
+    date_from: str | None = Query(None, max_length=10),
+    date_to: str | None = Query(None, max_length=10),
+):
+    """활동 로그 엑셀 다운로드 — 현재 검색 조건 기준(최대 5만 건)."""
+    data = await query_access_logs(
+        db,
+        q=q,
+        event=event,
+        date_from=date_from,
+        date_to=date_to,
+        export_limit=50000,
+    )
+    content = build_access_logs_xlsx(data.get("items") or [])
+    stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
+    filename = quote(f"활동로그_{stamp}.xlsx")
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
 
 
 @app.get("/admin/dashboard/server-status")
