@@ -132,11 +132,11 @@
   ],
   "generator": {
     "title": "나. 공조설비",
-    "times": ["t1", "t2"],
+    "times": ["t1", "t2", "t3"],
     "fields": [
       {"id": "time", "label": "시간"},
-      {"id": "coolant_temp", "label": "냉각수온도(℃)"},
-      {"id": "oil_p", "label": "윤활유압력"},
+      {"id": "coolant_temp", "label": "급기온도(℃)"},
+      {"id": "oil_p", "label": "환기온도(℃)"},
       {"id": "etc", "label": "기타"}
     ]
   },
