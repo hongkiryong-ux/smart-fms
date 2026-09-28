@@ -21,6 +21,7 @@ from auth import (
     can_create,
     can_delete,
     can_edit,
+    can_show_menu_in_sidebar,
     effective_menu_access,
     require_login,
     MENU_ITEMS,
@@ -50,6 +51,7 @@ templates.env.globals["user_can_create"] = can_create
 templates.env.globals["user_can_edit"] = can_edit
 templates.env.globals["user_can_delete"] = can_delete
 templates.env.globals["user_can_access_menu"] = can_access_menu
+templates.env.globals["user_can_show_menu"] = can_show_menu_in_sidebar
 templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
 templates.env.globals["user_menu_access"] = effective_menu_access
 templates.env.globals["menu_items"] = MENU_ITEMS

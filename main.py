@@ -1431,6 +1431,13 @@ templates.env.globals.update(
 )
 
 from streetlamp.router import router as streetlamp_router
+from streetlamp.router import templates as streetlamp_templates
+
+# 가로등 화면도 base.html을 쓰므로 사이드바가 참조하는 헬퍼가 빠지면 500이 난다.
+for _name, _fn in templates.env.globals.items():
+    streetlamp_templates.env.globals.setdefault(_name, _fn)
+for _name, _fn in templates.env.filters.items():
+    streetlamp_templates.env.filters.setdefault(_name, _fn)
 
 app.include_router(streetlamp_router)
 
