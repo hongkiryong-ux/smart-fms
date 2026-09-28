@@ -24,6 +24,7 @@ from models import (
     Equipment,
     EquipmentType,
     Floor,
+    InspectionLog2Attachment,
     InspectionLogBuilding,
     InspectionLogFile,
     MaintenanceRecord,
@@ -288,6 +289,12 @@ async def build_backup_zip(db: AsyncSession, dest: Path) -> dict:
             disk_builder=lambda bid, stored: (
                 Path("static") / "uploads" / "buildings" / str(bid) / "inspection_logs" / stored
             ),
+        )
+        counts["inspection_log2_attachments"] = await _add_blob_files(
+            zf,
+            db,
+            InspectionLog2Attachment,
+            "files/inspection_log2_attachments",
         )
         counts["drawings"] = await _add_blob_files(
             zf,

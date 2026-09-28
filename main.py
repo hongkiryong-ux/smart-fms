@@ -130,6 +130,7 @@ from models import (
     CentralControlRoomDaily,
     HousingSubstationArchive,
     HousingSubstationDaily,
+    InspectionLog2Attachment,
     InspectionLogBuilding,
     InspectionLogBuilding2,
     InspectionLogFile,
@@ -10326,6 +10327,22 @@ async def inspection_logs2_page(
         if b.id not in selected_ids and (b.name or "").strip() != "중앙관제실(설비)"
     ]
     building_groups = group_buildings_by_site(selected_buildings)
+    attach_counts: dict[int, int] = {}
+    try:
+        attach_counts = {
+            int(bid): int(cnt)
+            for bid, cnt in (
+                await db.execute(
+                    select(
+                        InspectionLog2Attachment.building_id,
+                        func.count(InspectionLog2Attachment.id),
+                    ).group_by(InspectionLog2Attachment.building_id)
+                )
+            ).all()
+        }
+    except Exception as e:
+        await db.rollback()
+        print(f"[inspection_logs2] attachment counts skip: {e}", flush=True)
 
     return templates.TemplateResponse(
         request,
@@ -10335,6 +10352,7 @@ async def inspection_logs2_page(
             "selected_buildings": selected_buildings,
             "building_groups": building_groups,
             "available_buildings": available_buildings,
+            "attach_counts": attach_counts,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -10566,6 +10584,249 @@ async def inspection_logs2_building_detail(
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
+    )
+
+
+ILOG2_ATTACH_EXTS = frozenset(
+    {
+        ".pdf", ".xls", ".xlsx", ".xlsm", ".csv", ".doc", ".docx", ".hwp", ".hwpx",
+        ".ppt", ".pptx", ".txt", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp",
+        ".tif", ".tiff", ".zip",
+    }
+)
+_ILOG2_INLINE_EXTS = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".txt"})
+
+
+async def _ilog2_registered_building(db: AsyncSession, building_id: int) -> Building | None:
+    row = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(
+                InspectionLogBuilding2.building_id == building_id,
+                Building.is_active == True,  # noqa: E712
+            )
+            .options(selectinload(Building.site))
+        )
+    ).first()
+    return row[1] if row else None
+
+
+def _ilog2_size_label(size: int | None) -> str:
+    n = int(size or 0)
+    if n >= 1024 * 1024:
+        return f"{n / (1024 * 1024):.1f}MB"
+    if n >= 1024:
+        return f"{n / 1024:.0f}KB"
+    return f"{n}B"
+
+
+@app.get("/admin/inspection-logs2/{building_id}/files")
+async def inspection_logs2_files_page(
+    building_id: int,
+    request: Request,
+    q: str = Query("", max_length=100),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """일지 생성 건물의 첨부파일(기존 일지 보관) 목록."""
+    building = await _ilog2_registered_building(db, building_id)
+    if not building:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    stmt = (
+        select(InspectionLog2Attachment)
+        .where(InspectionLog2Attachment.building_id == building_id)
+        .options(defer(InspectionLog2Attachment.file_data))
+    )
+    needle = (q or "").strip()
+    if needle:
+        like = f"%{needle}%"
+        stmt = stmt.where(
+            or_(
+                InspectionLog2Attachment.title.ilike(like),
+                InspectionLog2Attachment.period.ilike(like),
+                InspectionLog2Attachment.memo.ilike(like),
+                InspectionLog2Attachment.original_name.ilike(like),
+            )
+        )
+    rows = (
+        await db.execute(
+            stmt.order_by(
+                InspectionLog2Attachment.period.is_(None),
+                InspectionLog2Attachment.period.desc(),
+                InspectionLog2Attachment.created_at.desc(),
+            )
+        )
+    ).scalars().all()
+    files = []
+    for doc in rows:
+        name = doc.original_name or doc.stored_name or ""
+        created = doc.created_at
+        created_label = ""
+        if created is not None:
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            created_label = created.astimezone(KST).strftime("%Y-%m-%d %H:%M")
+        files.append(
+            {
+                "id": doc.id,
+                "title": doc.title,
+                "period": doc.period or "",
+                "memo": doc.memo or "",
+                "original_name": name,
+                "size_label": _ilog2_size_label(doc.file_size),
+                "uploaded_by": doc.uploaded_by or "",
+                "created_label": created_label,
+                "can_view": Path(name).suffix.lower() in _ILOG2_INLINE_EXTS,
+            }
+        )
+    return templates.TemplateResponse(
+        request,
+        "inspection_log2_files.html",
+        {
+            "user": user,
+            "building": building,
+            "files": files,
+            "q": needle,
+            "max_mb": UPLOAD_MAX_FILE_MB,
+            "max_files": UPLOAD_MAX_FILES_PER_REQUEST,
+            "accept": ",".join(sorted(ILOG2_ATTACH_EXTS)),
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/files/upload")
+async def inspection_logs2_files_upload(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_can_create),
+    db: AsyncSession = Depends(get_db),
+):
+    import uuid
+
+    base = f"/admin/inspection-logs2/{building_id}/files"
+    building = await _ilog2_registered_building(db, building_id)
+    if not building:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    form = await _parse_multipart_form(request)
+    title = str(form.get("title") or "").strip()
+    period = str(form.get("period") or "").strip()[:50]
+    memo = str(form.get("memo") or "").strip()[:500]
+    uploads = form.getlist("files") if hasattr(form, "getlist") else []
+
+    saved = 0
+    errors: list[str] = []
+    picked = [u for u in uploads if hasattr(u, "filename") and u.filename]
+    for item in picked[:UPLOAD_MAX_FILES_PER_REQUEST]:
+        fname = item.filename
+        ext = Path(fname).suffix.lower()
+        if ext not in ILOG2_ATTACH_EXTS:
+            errors.append(f"{fname}: 지원하지 않는 형식입니다.")
+            continue
+        raw = await item.read()
+        if not raw:
+            errors.append(f"{fname}: 빈 파일입니다.")
+            continue
+        if len(raw) > UPLOAD_MAX_FILE_BYTES:
+            errors.append(f"{fname}: {UPLOAD_MAX_FILE_MB}MB 초과")
+            continue
+        # 여러 파일에 같은 제목을 쓰면 구분이 안 되므로 2개 이상이면 파일명을 제목으로 사용
+        display_title = title if (title and len(picked) == 1) else Path(fname).stem
+        db.add(
+            InspectionLog2Attachment(
+                building_id=building_id,
+                title=display_title[:200],
+                period=period or None,
+                memo=memo or None,
+                original_name=fname[:300],
+                stored_name=f"{uuid.uuid4().hex}{ext}",
+                content_type=(getattr(item, "content_type", None) or "")[:100],
+                file_data=raw,
+                file_size=len(raw),
+                uploaded_by=user.name or user.username,
+            )
+        )
+        saved += 1
+    if len(picked) > UPLOAD_MAX_FILES_PER_REQUEST:
+        errors.append(f"한 번에 최대 {UPLOAD_MAX_FILES_PER_REQUEST}개까지 올릴 수 있습니다.")
+
+    if saved:
+        await db.commit()
+    if saved and not errors:
+        return RedirectResponse(
+            f"{base}?message=" + quote(f"첨부파일 {saved}개가 저장되었습니다."),
+            status_code=303,
+        )
+    if saved:
+        msg = f"{saved}개 저장, 일부 실패: " + "; ".join(errors[:3])
+        return RedirectResponse(f"{base}?message=" + quote(msg), status_code=303)
+    err = errors[0] if errors else "첨부할 파일을 선택하세요."
+    return RedirectResponse(f"{base}?error=" + quote(err), status_code=303)
+
+
+@app.get("/admin/inspection-logs2/{building_id}/files/{file_id}")
+async def inspection_logs2_file_download(
+    building_id: int,
+    file_id: int,
+    view: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import mimetypes
+
+    doc = await db.get(InspectionLog2Attachment, file_id)
+    if not doc or doc.building_id != building_id or not doc.file_data:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+    filename = doc.original_name or doc.stored_name or "attachment"
+    ext = Path(filename).suffix.lower()
+    media = (
+        mimetypes.guess_type(filename)[0]
+        or doc.content_type
+        or "application/octet-stream"
+    )
+    inline = bool(view) and ext in _ILOG2_INLINE_EXTS
+    if inline and ext == ".txt":
+        media = "text/plain; charset=utf-8"
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii") or f"attachment{ext}"
+    disposition = "inline" if inline else "attachment"
+    return Response(
+        content=bytes(doc.file_data),
+        media_type=media,
+        headers={
+            "Content-Disposition": (
+                f'{disposition}; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+            ),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/files/{file_id}/delete")
+async def inspection_logs2_file_delete(
+    building_id: int,
+    file_id: int,
+    user: User = Depends(require_can_delete),
+    db: AsyncSession = Depends(get_db),
+):
+    base = f"/admin/inspection-logs2/{building_id}/files"
+    doc = await db.get(InspectionLog2Attachment, file_id)
+    if not doc or doc.building_id != building_id:
+        return RedirectResponse(f"{base}?error=" + quote("파일을 찾을 수 없습니다."), status_code=303)
+    name = doc.title
+    await db.delete(doc)
+    await db.commit()
+    return RedirectResponse(
+        f"{base}?message=" + quote(f"「{name}」 첨부파일이 삭제되었습니다."),
+        status_code=303,
     )
 
 

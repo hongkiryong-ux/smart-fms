@@ -38,6 +38,7 @@
   <a href="?tab=monthly&year={{ year }}&month={{ month }}" class="sw-tab{% if tab == 'monthly' %} active{% endif %}">월보</a>
   <a href="?tab=yearly&year={{ year }}" class="sw-tab{% if tab == 'yearly' %} active{% endif %}">년보</a>
   <a href="?tab=notes&year={{ year }}&month={{ month }}" class="sw-tab{% if tab == 'notes' %} active{% endif %}">특이사항</a>
+  <a class="sw-tab" href="/admin/inspection-logs2/{{ building.id }}/files">첨부파일</a>
   {% endif %}
 </nav>
 

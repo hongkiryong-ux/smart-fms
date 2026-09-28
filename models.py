@@ -899,6 +899,26 @@ class BaegunShoppingArchive(Base):
     )
 
 
+class InspectionLog2Attachment(Base):
+    """점검일지(일지 생성 건물) 첨부파일 — 기존 일지를 파일로 보관."""
+
+    __tablename__ = "inspection_log2_attachments"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    # 일지 기간 (예: 2025-03, 2025년) — 목록 정렬·검색용 자유 입력
+    period = Column(String(50), nullable=True, index=True)
+    memo = Column(String(500), nullable=True)
+    original_name = Column(String(300), nullable=True)
+    stored_name = Column(String(300), nullable=False)
+    content_type = Column(String(100), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)
+    uploaded_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class InspectionLogFile(Base):
     """점검일지 엑셀 파일."""
 

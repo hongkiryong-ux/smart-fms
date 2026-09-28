@@ -2891,6 +2891,105 @@ a.dm:hover {
   margin: 0;
   align-self: flex-start;
 }
+.ilog-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.ilog-card-actions .ilog-remove-form { align-self: center; }
+.ilog-attach-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+  text-decoration: none;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 999px;
+  background: #f8fafc;
+}
+.ilog-attach-link.has-files {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+.ilog-attach-link:hover { text-decoration: underline; }
+
+/* 점검일지 첨부파일 */
+.ilog2-files-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.ilog2-files-nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.ilog2-upload-form { display: flex; flex-direction: column; gap: 0.85rem; }
+.ilog2-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 1.4rem 1rem;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.ilog2-dropzone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.ilog2-dropzone strong { color: #0f172a; }
+.ilog2-dropzone.is-dragover,
+.ilog2-dropzone.has-files {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+.ilog2-picked { font-size: 0.85rem; color: #1d4ed8; word-break: break-all; }
+.ilog2-upload-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 1rem;
+}
+.ilog2-upload-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 0 1 200px;
+}
+.ilog2-upload-fields label.ilog2-memo { flex: 1 1 260px; }
+.ilog2-upload-fields label span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ilog2-upload-fields input { min-height: 2.2rem; padding: 0.35rem 0.55rem; }
+.ilog2-files-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.ilog2-files-list-head h2 { margin: 0; }
+.ilog2-search { display: flex; gap: 0.35rem; align-items: center; }
+.ilog2-search input { min-width: 14rem; padding: 0.35rem 0.55rem; }
+.ilog2-files-table td { vertical-align: middle; font-size: 0.88rem; }
+.ilog2-period { white-space: nowrap; font-weight: 700; color: #0f172a; }
+.ilog2-fname { max-width: 16rem; word-break: break-all; color: #475569; }
+.ilog2-memo-cell { max-width: 16rem; color: #475569; }
+.ilog2-meta { white-space: nowrap; color: #475569; }
+.ilog2-actions { white-space: nowrap; }
+.ilog2-actions form { display: inline; margin: 0; }
 .ilog-file-open {
   color: var(--primary, #003876);
   font-weight: 600;
