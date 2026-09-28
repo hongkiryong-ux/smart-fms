@@ -2916,7 +2916,7 @@ a.dm:hover {
 }
 .ilog-attach-link:hover { text-decoration: underline; }
 
-/* 점검일지 첨부파일 */
+/* 점검일지 과거 일지 자료 */
 .ilog2-files-header {
   display: flex;
   justify-content: space-between;
@@ -2990,6 +2990,18 @@ a.dm:hover {
 .ilog2-meta { white-space: nowrap; color: #475569; }
 .ilog2-actions { white-space: nowrap; }
 .ilog2-actions form { display: inline; margin: 0; }
+.ilog2-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+.ilog2-bulk-bar .text-muted { font-size: 0.82rem; }
+.ilog2-chk { width: 2.2rem; text-align: center; }
+.ilog2-chk input { width: 1rem; height: 1rem; cursor: pointer; }
+.ilog2-fname a { color: #1d4ed8; text-decoration: none; }
+.ilog2-fname a:hover { text-decoration: underline; }
 .ilog-file-open {
   color: var(--primary, #003876);
   font-weight: 600;

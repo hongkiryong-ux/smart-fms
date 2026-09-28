@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}첨부파일 · {{ building.name }}{% endblock %}
+{% block title %}과거 일지 자료 · {{ building.name }}{% endblock %}
 {% block content %}
 <header class="page-header ilog2-files-header">
   <div>
-    <h1>첨부파일 · {{ building.name }}</h1>
-    <p>{% if building.site %}{{ building.site.name }} · {% endif %}{{ building.code }} · 기존 일지(스캔본·엑셀·한글 등)를 파일로 보관합니다.</p>
+    <h1>과거 일지 자료 · {{ building.name }}</h1>
+    <p>{% if building.site %}{{ building.site.name }} · {% endif %}{{ building.code }} · 기존 일지(스캔본·엑셀·한글 등)를 파일로 보관하고 내려받습니다.</p>
   </div>
   <div class="ilog2-files-nav">
     <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}">← 일지로</a>
@@ -17,7 +17,7 @@
 
 {% if user_can_create(user) %}
 <section class="card card-wide">
-  <h2>파일 첨부</h2>
+  <h2>자료 올리기</h2>
   <form method="post"
         action="/admin/inspection-logs2/{{ building.id }}/files/upload"
         enctype="multipart/form-data"
@@ -35,14 +35,14 @@
         <input type="text" name="period" maxlength="50" placeholder="예: 2025-03, 2025년" />
       </label>
       <label>
-        <span>제목 (1개 첨부 시)</span>
+        <span>제목 (1개 올릴 때)</span>
         <input type="text" name="title" maxlength="200" placeholder="비우면 파일명 사용" />
       </label>
       <label class="ilog2-memo">
         <span>메모</span>
         <input type="text" name="memo" maxlength="500" placeholder="예: 3월 운영일보 원본 스캔" />
       </label>
-      <button type="submit" class="btn btn-primary">첨부</button>
+      <button type="submit" class="btn btn-primary">올리기</button>
     </div>
   </form>
 </section>
@@ -50,7 +50,7 @@
 
 <section class="card card-wide">
   <div class="ilog2-files-list-head">
-    <h2>첨부된 파일 <small class="text-muted">({{ files|length }})</small></h2>
+    <h2>보관된 자료 <small class="text-muted">({{ files|length }})</small></h2>
     <form method="get" class="ilog2-search">
       <input type="search" name="q" value="{{ q }}" placeholder="제목 · 기간 · 메모 · 파일명" />
       <button type="submit" class="btn btn-secondary btn-sm">검색</button>
@@ -58,10 +58,19 @@
     </form>
   </div>
   {% if files %}
+  <div class="ilog2-bulk-bar">
+    <button type="button" class="btn btn-primary btn-sm" id="ilog2-zip-selected" disabled>선택 다운로드 (<span id="ilog2-sel-count">0</span>)</button>
+    <a class="btn btn-secondary btn-sm" id="ilog2-zip-all"
+       href="/admin/inspection-logs2/{{ building.id }}/files-zip{% if q %}?{% for f in files %}ids={{ f.id }}{% if not loop.last %}&amp;{% endif %}{% endfor %}{% endif %}">
+      {% if q %}검색 결과 전체 다운로드 (ZIP){% else %}전체 다운로드 (ZIP){% endif %}
+    </a>
+    <span class="text-muted">파일은 기간별 폴더로 묶여 ZIP으로 내려받습니다.</span>
+  </div>
   <div class="table-scroll">
     <table class="data-table ilog2-files-table">
       <thead>
         <tr>
+          <th class="ilog2-chk"><input type="checkbox" id="ilog2-chk-all" aria-label="전체 선택" /></th>
           <th>기간</th>
           <th>제목</th>
           <th>파일</th>
@@ -74,21 +83,24 @@
       <tbody>
         {% for f in files %}
         <tr>
+          <td class="ilog2-chk"><input type="checkbox" class="ilog2-chk-item" value="{{ f.id }}" aria-label="{{ f.title }} 선택" /></td>
           <td class="ilog2-period">{{ f.period or '-' }}</td>
           <td><strong>{{ f.title }}</strong></td>
-          <td class="ilog2-fname">{{ f.original_name }}</td>
+          <td class="ilog2-fname">
+            <a href="/admin/inspection-logs2/{{ building.id }}/files/{{ f.id }}" title="다운로드">{{ f.original_name }}</a>
+          </td>
           <td>{{ f.size_label }}</td>
           <td class="ilog2-memo-cell">{{ f.memo or '' }}</td>
           <td class="ilog2-meta">{{ f.uploaded_by }}<br /><small>{{ f.created_label }}</small></td>
           <td class="ilog2-actions">
+            <a class="btn btn-primary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/files/{{ f.id }}" download>다운로드</a>
             {% if f.can_view %}
             <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/files/{{ f.id }}?view=1" target="_blank" rel="noopener">보기</a>
             {% endif %}
-            <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/files/{{ f.id }}">다운로드</a>
             {% if user_can_delete(user) %}
             <form method="post"
                   action="/admin/inspection-logs2/{{ building.id }}/files/{{ f.id }}/delete"
-                  onsubmit="return confirm('「{{ f.title }}」 첨부파일을 삭제할까요?');">
+                  onsubmit="return confirm('「{{ f.title }}」 자료를 삭제할까요?');">
               <button type="submit" class="btn btn-danger btn-sm">삭제</button>
             </form>
             {% endif %}
@@ -99,7 +111,7 @@
     </table>
   </div>
   {% else %}
-  <p class="empty">{% if q %}검색 결과가 없습니다.{% else %}첨부된 파일이 없습니다.{% endif %}</p>
+  <p class="empty">{% if q %}검색 결과가 없습니다.{% else %}보관된 자료가 없습니다.{% endif %}</p>
   {% endif %}
 </section>
 
@@ -134,6 +146,42 @@
     input.files = e.dataTransfer.files;
     showPicked();
   });
+})();
+
+(function () {
+  var all = document.getElementById('ilog2-chk-all');
+  var btn = document.getElementById('ilog2-zip-selected');
+  var cnt = document.getElementById('ilog2-sel-count');
+  if (!all || !btn) return;
+  var items = Array.prototype.slice.call(document.querySelectorAll('.ilog2-chk-item'));
+
+  function checked() {
+    return items.filter(function (c) { return c.checked; });
+  }
+  function sync() {
+    var n = checked().length;
+    cnt.textContent = n;
+    btn.disabled = n === 0;
+    all.checked = n > 0 && n === items.length;
+    all.indeterminate = n > 0 && n < items.length;
+  }
+
+  all.addEventListener('change', function () {
+    items.forEach(function (c) { c.checked = all.checked; });
+    sync();
+  });
+  items.forEach(function (c) { c.addEventListener('change', sync); });
+  btn.addEventListener('click', function () {
+    var sel = checked();
+    if (!sel.length) return;
+    if (sel.length === 1) {
+      window.location.href = '/admin/inspection-logs2/{{ building.id }}/files/' + sel[0].value;
+      return;
+    }
+    var qs = sel.map(function (c) { return 'ids=' + encodeURIComponent(c.value); }).join('&');
+    window.location.href = '/admin/inspection-logs2/{{ building.id }}/files-zip?' + qs;
+  });
+  sync();
 })();
 </script>
 {% endblock %}

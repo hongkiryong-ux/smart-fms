@@ -10629,7 +10629,7 @@ async def inspection_logs2_files_page(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    """일지 생성 건물의 첨부파일(기존 일지 보관) 목록."""
+    """일지 생성 건물의 과거 일지 자료(파일 보관) 목록."""
     building = await _ilog2_registered_building(db, building_id)
     if not building:
         return RedirectResponse(
@@ -10762,7 +10762,7 @@ async def inspection_logs2_files_upload(
         await db.commit()
     if saved and not errors:
         return RedirectResponse(
-            f"{base}?message=" + quote(f"첨부파일 {saved}개가 저장되었습니다."),
+            f"{base}?message=" + quote(f"과거 일지 자료 {saved}개가 저장되었습니다."),
             status_code=303,
         )
     if saved:
@@ -10810,6 +10810,66 @@ async def inspection_logs2_file_download(
     )
 
 
+@app.get("/admin/inspection-logs2/{building_id}/files-zip")
+async def inspection_logs2_files_zip(
+    building_id: int,
+    ids: list[int] = Query(default=[]),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """과거 일지 자료를 ZIP으로 일괄 다운로드 (ids 미지정 시 전체)."""
+    import zipfile
+
+    building = await _ilog2_registered_building(db, building_id)
+    if not building:
+        raise HTTPException(404, detail="등록되지 않은 건물입니다.")
+    stmt = select(InspectionLog2Attachment).where(
+        InspectionLog2Attachment.building_id == building_id
+    )
+    if ids:
+        stmt = stmt.where(InspectionLog2Attachment.id.in_(ids[:500]))
+    docs = (
+        await db.execute(
+            stmt.order_by(
+                InspectionLog2Attachment.period.is_(None),
+                InspectionLog2Attachment.period.desc(),
+                InspectionLog2Attachment.created_at.desc(),
+            )
+        )
+    ).scalars().all()
+    docs = [d for d in docs if d.file_data]
+    if not docs:
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/files?error="
+            + quote("다운로드할 파일이 없습니다."),
+            status_code=303,
+        )
+    buf = BytesIO()
+    used: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for doc in docs:
+            name = (doc.original_name or doc.stored_name or f"file_{doc.id}").replace("/", "_").replace("\\", "_")
+            folder = (doc.period or "기간미지정").replace("/", "_").replace("\\", "_").strip() or "기간미지정"
+            arc = f"{folder}/{name}"
+            if arc in used:
+                stem, ext = Path(name).stem, Path(name).suffix
+                arc = f"{folder}/{stem}_{doc.id}{ext}"
+            used.add(arc)
+            zf.writestr(arc, bytes(doc.file_data))
+    safe_bname = (building.name or f"building_{building_id}").replace("/", "_").replace("\\", "_")
+    filename = f"과거일지자료_{safe_bname}_{datetime.now(KST).strftime('%Y%m%d')}.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="ilog_files_{building_id}.zip"; '
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+        },
+    )
+
+
 @app.post("/admin/inspection-logs2/{building_id}/files/{file_id}/delete")
 async def inspection_logs2_file_delete(
     building_id: int,
@@ -10825,7 +10885,7 @@ async def inspection_logs2_file_delete(
     await db.delete(doc)
     await db.commit()
     return RedirectResponse(
-        f"{base}?message=" + quote(f"「{name}」 첨부파일이 삭제되었습니다."),
+        f"{base}?message=" + quote(f"「{name}」 자료가 삭제되었습니다."),
         status_code=303,
     )
 

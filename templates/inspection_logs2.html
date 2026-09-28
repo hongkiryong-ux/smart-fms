@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-header">
   <h1>점검일지</h1>
-  <p>건물을 추가한 뒤, 건물을 클릭해 해당 건물 점검일지를 관리합니다. 기존 일지는 「📎 첨부파일」에 파일로 보관할 수 있습니다.</p>
+  <p>건물을 추가한 뒤, 건물을 클릭해 해당 건물 점검일지를 관리합니다. 기존 일지는 「📎 과거 일지 자료」에 파일로 보관하고 내려받을 수 있습니다.</p>
 </header>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -51,7 +51,7 @@
             {% set n_attach = (attach_counts or {}).get(b.id, 0) %}
             <a class="ilog-attach-link{% if n_attach %} has-files{% endif %}"
                href="/admin/inspection-logs2/{{ b.id }}/files"
-               title="기존 일지 등 첨부파일 보관">📎 첨부파일 {{ n_attach }}</a>
+               title="기존 일지 파일 보관·다운로드">📎 과거 일지 자료 {{ n_attach }}</a>
             {% if user_can_delete(user) %}
             <form method="post"
                   action="/admin/inspection-logs2/buildings/{{ b.id }}/remove"
