@@ -116,9 +116,11 @@ def empty_daily_payload() -> dict[str, Any]:
     events = schema.get("events") or {}
 
     elec_fields = _electrical_field_ids(schema)
+    elec_suffixes = [str(sr.get("suffix") or "") for sr in elec.get("subrows") or []] or [""]
     electrical = {
-        t: {fid: "" for fid in elec_fields}
+        f"{t}{suffix}": {fid: "" for fid in elec_fields}
         for t in elec.get("times") or ["t1"]
+        for suffix in elec_suffixes
     }
 
     indoor_locs = [loc["id"] for loc in indoor.get("locations") or []]

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/eoulrim_gym.css?v=1" />
+<link rel="stylesheet" href="/static/css/eoulrim_gym.css?v=2" />
 {% endblock %}
 {% block content %}
 {% set qr_mode = qr_mode|default(false) %}
@@ -10,6 +10,7 @@
 {% set utility = daily_data.get('utility', {}) if daily_data else {} %}
 {% set multipliers = daily_data.get('multipliers', {}) if daily_data else {} %}
 {% set el_data = daily_data.get('electrical', {}) if daily_data else {} %}
+{% set el_subrows = schema.electrical.subrows or [{'suffix': '', 'label': ''}] %}
 {% set cl_data = daily_data.get('cooling', {}) if daily_data else {} %}
 {% set ht_data = daily_data.get('heating', {}) if daily_data else {} %}
 {% set ahu_data = daily_data.get('ahu', {}) if daily_data else {} %}
@@ -124,6 +125,7 @@
           <thead>
             <tr>
               <th rowspan="2">시간</th>
+              {% if el_subrows|length > 1 %}<th rowspan="2">구분</th>{% endif %}
               <th colspan="{{ schema.electrical.main_fields|length }}">MAIN VCB PANEL</th>
               {% for g in schema.electrical.vcb_groups %}
               <th colspan="{{ g.fields|length }}">{{ g.label }}</th>
@@ -138,18 +140,24 @@
           </thead>
           <tbody>
             {% for t in schema.electrical.times %}
-            {% set row = el_data.get(t, {}) %}
-            <tr>
-              <td class="eg-time-col"><input class="eg-cell eg-time-input" name="el__{{ t }}__time" value="{{ row.get('time','') }}" title="시간 수기 입력" /></td>
+            {% for sr in el_subrows %}
+            {% set rk = t ~ (sr.suffix or '') %}
+            {% set row = el_data.get(rk, {}) %}
+            <tr{% if not loop.first %} data-col-offset="1"{% endif %}>
+              {% if loop.first %}
+              <td class="eg-time-col"{% if el_subrows|length > 1 %} rowspan="{{ el_subrows|length }}"{% endif %}><input class="eg-cell eg-time-input" name="el__{{ t }}__time" value="{{ row.get('time','') }}" title="시간 수기 입력" /></td>
+              {% endif %}
+              {% if el_subrows|length > 1 %}<td class="eg-gs-col">{{ sr.label }}</td>{% endif %}
               {% for f in schema.electrical.main_fields %}
-              <td><input class="eg-cell" name="el__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+              <td><input class="eg-cell" name="el__{{ rk }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
               {% endfor %}
               {% for g in schema.electrical.vcb_groups %}
                 {% for f in g.fields %}
-                <td><input class="eg-cell" name="el__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
+                <td><input class="eg-cell" name="el__{{ rk }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" /></td>
                 {% endfor %}
               {% endfor %}
             </tr>
+            {% endfor %}
             {% endfor %}
           </tbody>
         </table>
@@ -413,7 +421,7 @@
   </form>
 </section>
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-{% if can_write %}<script src="/static/js/eoulrim_gym.js?v=1"></script>{% endif %}
+{% if can_write %}<script src="/static/js/eoulrim_gym.js?v=2"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">

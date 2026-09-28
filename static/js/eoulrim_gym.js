@@ -201,7 +201,9 @@
     const grid = [];
     const cellMap = new Map();
     table.querySelectorAll("tbody tr").forEach(function (tr, rowIdx) {
-      tr.querySelectorAll(".eg-cell:not([readonly])").forEach(function (input, colIdx) {
+      const offset = parseInt(tr.dataset.colOffset || "0", 10) || 0;
+      tr.querySelectorAll(".eg-cell:not([readonly])").forEach(function (input, idx) {
+        const colIdx = idx + offset;
         if (!grid[rowIdx]) grid[rowIdx] = [];
         grid[rowIdx][colIdx] = input;
         cellMap.set(input, { row: rowIdx, col: colIdx });

@@ -55,6 +55,10 @@
   "electrical": {
     "title": "가. 전기설비",
     "times": ["t1", "t2", "t3"],
+    "subrows": [
+      {"suffix": "", "label": "G"},
+      {"suffix": "_s", "label": "S"}
+    ],
     "main_fields": [
       {"id": "main_v", "label": "전압(V)"},
       {"id": "main_a", "label": "전류(A)"},
