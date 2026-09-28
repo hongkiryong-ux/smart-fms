@@ -27,6 +27,7 @@ from models import (
     InspectionLog2Attachment,
     InspectionLogBuilding,
     InspectionLogFile,
+    MaintenancePerformanceFile,
     MaintenanceRecord,
     MaterialItem,
     MaterialLog,
@@ -295,6 +296,13 @@ async def build_backup_zip(db: AsyncSession, dest: Path) -> dict:
             db,
             InspectionLog2Attachment,
             "files/inspection_log2_attachments",
+        )
+        counts["maintenance_performance_files"] = await _add_blob_files(
+            zf,
+            db,
+            MaintenancePerformanceFile,
+            "files/maintenance_performance",
+            building_attr="site_id",
         )
         counts["drawings"] = await _add_blob_files(
             zf,

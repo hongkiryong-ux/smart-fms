@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}정비실적(변동비){% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>정비실적(변동비)</h1>
+  <p>월별 정비실적·변동비 정산 자료(엑셀·PDF·한글 등)를 올려 보관하고 내려받습니다.</p>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+{% if user_can_create(user) %}
+<section class="card card-wide">
+  <h2>자료 올리기</h2>
+  <form method="post"
+        action="/admin/maintenance-performance/upload"
+        enctype="multipart/form-data"
+        class="ilog2-upload-form">
+    <label class="ilog2-dropzone" id="mperf-dropzone">
+      <input type="file" name="files" id="mperf-files" multiple required accept="{{ accept }}" />
+      <strong>여기에 파일을 끌어다 놓거나 클릭해서 선택</strong>
+      <span class="text-muted">엑셀 · PDF · 한글 · 워드 · 이미지 · ZIP · 파일당 {{ max_mb }}MB, 한 번에 {{ max_files }}개까지</span>
+      <span class="ilog2-picked" id="mperf-picked"></span>
+    </label>
+    <div class="ilog2-upload-fields">
+      <label>
+        <span>실적월</span>
+        <input type="month" name="period" value="{{ default_period }}" />
+      </label>
+      <label>
+        <span>사업장</span>
+        <select name="site_id">
+          <option value="">전체/공통</option>
+          {% for s in sites %}<option value="{{ s.id }}"{% if site_id == s.id %} selected{% endif %}>{{ s.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>제목 (1개 올릴 때)</span>
+        <input type="text" name="title" maxlength="200" placeholder="비우면 파일명 사용" />
+      </label>
+      <label class="ilog2-memo">
+        <span>메모</span>
+        <input type="text" name="memo" maxlength="500" placeholder="예: 9월 변동비 정산서" />
+      </label>
+      <button type="submit" class="btn btn-primary">올리기</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+<section class="card card-wide">
+  <div class="ilog2-files-list-head">
+    <h2>보관된 자료 <small class="text-muted">({{ files|length }}건 · {{ total_size_label }})</small></h2>
+    <form method="get" class="ilog2-search mperf-filter">
+      <select name="year" aria-label="연도">
+        <option value="">전체 연도</option>
+        {% for y in years %}<option value="{{ y }}"{% if year == y %} selected{% endif %}>{{ y }}년</option>{% endfor %}
+      </select>
+      <select name="site_id" aria-label="사업장">
+        <option value="">전체 사업장</option>
+        {% for s in sites %}<option value="{{ s.id }}"{% if site_id == s.id %} selected{% endif %}>{{ s.name }}</option>{% endfor %}
+      </select>
+      <input type="search" name="q" value="{{ q }}" placeholder="제목 · 실적월 · 메모 · 파일명" />
+      <button type="submit" class="btn btn-secondary btn-sm">검색</button>
+      {% if filtered %}<a class="btn btn-secondary btn-sm" href="/admin/maintenance-performance">초기화</a>{% endif %}
+    </form>
+  </div>
+  {% if files %}
+  <div class="ilog2-bulk-bar">
+    <button type="button" class="btn btn-primary btn-sm" id="mperf-zip-selected" disabled>선택 다운로드 (<span id="mperf-sel-count">0</span>)</button>
+    <a class="btn btn-secondary btn-sm" href="{{ zip_all_url }}">{% if filtered %}조회 결과 전체 다운로드 (ZIP){% else %}전체 다운로드 (ZIP){% endif %}</a>
+    <span class="text-muted">ZIP은 실적월별 폴더로 묶여 내려받습니다.</span>
+  </div>
+  <div class="table-scroll">
+    <table class="data-table ilog2-files-table">
+      <thead>
+        <tr>
+          <th class="ilog2-chk"><input type="checkbox" id="mperf-chk-all" aria-label="전체 선택" /></th>
+          <th>실적월</th>
+          <th>사업장</th>
+          <th>제목</th>
+          <th>파일</th>
+          <th>크기</th>
+          <th>메모</th>
+          <th>등록</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td class="ilog2-chk"><input type="checkbox" class="mperf-chk-item" value="{{ f.id }}" aria-label="{{ f.title }} 선택" /></td>
+          <td class="ilog2-period">{{ f.period or '-' }}</td>
+          <td>{{ f.site_name or '공통' }}</td>
+          <td><strong>{{ f.title }}</strong></td>
+          <td class="ilog2-fname"><a href="/admin/maintenance-performance/files/{{ f.id }}" title="다운로드">{{ f.original_name }}</a></td>
+          <td>{{ f.size_label }}</td>
+          <td class="ilog2-memo-cell">{{ f.memo }}</td>
+          <td class="ilog2-meta">{{ f.uploaded_by }}<br /><small>{{ f.created_label }}</small></td>
+          <td class="ilog2-actions">
+            <a class="btn btn-primary btn-sm" href="/admin/maintenance-performance/files/{{ f.id }}" download>다운로드</a>
+            {% if f.can_view %}
+            <a class="btn btn-secondary btn-sm" href="/admin/maintenance-performance/files/{{ f.id }}?view=1" target="_blank" rel="noopener">보기</a>
+            {% endif %}
+            {% if user_can_delete(user) %}
+            <form method="post"
+                  action="/admin/maintenance-performance/files/{{ f.id }}/delete"
+                  onsubmit="return confirm('「{{ f.title }}」 자료를 삭제할까요?');">
+              <button type="submit" class="btn btn-danger btn-sm">삭제</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">{% if filtered %}조회 결과가 없습니다.{% else %}보관된 자료가 없습니다.{% endif %}</p>
+  {% endif %}
+</section>
+
+<script>
+(function () {
+  var zone = document.getElementById('mperf-dropzone');
+  var input = document.getElementById('mperf-files');
+  var picked = document.getElementById('mperf-picked');
+  if (!zone || !input) return;
+  function showPicked() {
+    var names = Array.prototype.map.call(input.files || [], function (f) { return f.name; });
+    picked.textContent = names.length ? ('선택됨: ' + names.join(', ')) : '';
+    zone.classList.toggle('has-files', names.length > 0);
+  }
+  input.addEventListener('change', showPicked);
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('is-dragover'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.remove('is-dragover'); });
+  });
+  zone.addEventListener('drop', function (e) {
+    if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+    input.files = e.dataTransfer.files;
+    showPicked();
+  });
+})();
+
+(function () {
+  var all = document.getElementById('mperf-chk-all');
+  var btn = document.getElementById('mperf-zip-selected');
+  var cnt = document.getElementById('mperf-sel-count');
+  if (!all || !btn) return;
+  var items = Array.prototype.slice.call(document.querySelectorAll('.mperf-chk-item'));
+  function checked() { return items.filter(function (c) { return c.checked; }); }
+  function sync() {
+    var n = checked().length;
+    cnt.textContent = n;
+    btn.disabled = n === 0;
+    all.checked = n > 0 && n === items.length;
+    all.indeterminate = n > 0 && n < items.length;
+  }
+  all.addEventListener('change', function () {
+    items.forEach(function (c) { c.checked = all.checked; });
+    sync();
+  });
+  items.forEach(function (c) { c.addEventListener('change', sync); });
+  btn.addEventListener('click', function () {
+    var sel = checked();
+    if (!sel.length) return;
+    if (sel.length === 1) {
+      window.location.href = '/admin/maintenance-performance/files/' + sel[0].value;
+      return;
+    }
+    window.location.href = '/admin/maintenance-performance/zip?' +
+      sel.map(function (c) { return 'ids=' + encodeURIComponent(c.value); }).join('&');
+  });
+  sync();
+})();
+</script>
+{% endblock %}

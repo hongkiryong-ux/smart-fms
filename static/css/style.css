@@ -2998,6 +2998,9 @@ a.dm:hover {
   margin: 0 0 0.75rem;
 }
 .ilog2-bulk-bar .text-muted { font-size: 0.82rem; }
+.mperf-filter { flex-wrap: wrap; }
+.mperf-filter select { padding: 0.35rem 0.5rem; }
+.ilog2-upload-fields select { min-height: 2.2rem; padding: 0.35rem 0.55rem; }
 .ilog2-chk { width: 2.2rem; text-align: center; }
 .ilog2-chk input { width: 1rem; height: 1rem; cursor: pointer; }
 .ilog2-fname a { color: #1d4ed8; text-decoration: none; }

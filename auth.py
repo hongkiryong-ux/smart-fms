@@ -231,6 +231,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("work_orders", "정비접수/승인(정비섹션)"),
     ("d1", "정비 List(D-1)/협력사"),
     ("facility_section", "작업허가/승인(시설섹션)"),
+    ("maintenance_performance", "정비실적(변동비)"),
     ("streetlamp", "가로등"),
     ("ai_analysis", "AI 분석"),
     ("server", "서버관리"),
@@ -262,6 +263,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/pm", "pm"),
     ("/admin/work-orders", "work_orders"),
     ("/admin/facility-section", "facility_section"),
+    ("/admin/maintenance-performance", "maintenance_performance"),
     ("/admin/streetlamp", "streetlamp"),
     ("/admin/ai-analysis", "ai_analysis"),
     ("/admin/server", "server"),
@@ -282,6 +284,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("work_orders", "/admin/work-orders"),
     ("d1", "/admin/d1"),
     ("facility_section", "/admin/facility-section"),
+    ("maintenance_performance", "/admin/maintenance-performance"),
     ("streetlamp", "/admin/streetlamp/requests"),
     ("ai_analysis", "/admin/ai-analysis"),
     ("server", "/admin/server"),
@@ -305,7 +308,10 @@ def default_menu_access(role) -> list[str]:
         return list(MENU_KEYS)
     denied = set(ADMIN_ONLY_MENU_KEYS)
     if code in (UserRole.partner.value, UserRole.external.value):
-        denied |= {"equipment", "pm", "inspection_logs2", "facility_section", "streetlamp"}
+        denied |= {
+            "equipment", "pm", "inspection_logs2", "facility_section",
+            "maintenance_performance", "streetlamp",
+        }
     return [k for k in MENU_KEYS if k not in denied]
 
 

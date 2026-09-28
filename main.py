@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -131,6 +132,7 @@ from models import (
     HousingSubstationArchive,
     HousingSubstationDaily,
     InspectionLog2Attachment,
+    MaintenancePerformanceFile,
     InspectionLogBuilding,
     InspectionLogBuilding2,
     InspectionLogFile,
@@ -7732,6 +7734,290 @@ async def maintenance_final_approval_selected(
         q=q,
         page=page,
         message=message,
+    )
+
+
+# ── 정비실적(변동비) ──────────────────────────────────────────────────
+
+_MPERF_BASE = "/admin/maintenance-performance"
+_MPERF_PERIOD_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+def _mperf_filtered_stmt(year: str, site_id: int | None, q: str):
+    stmt = select(MaintenancePerformanceFile)
+    if year:
+        stmt = stmt.where(MaintenancePerformanceFile.period.like(f"{year}-%"))
+    if site_id:
+        stmt = stmt.where(MaintenancePerformanceFile.site_id == site_id)
+    needle = (q or "").strip()
+    if needle:
+        like = f"%{needle}%"
+        stmt = stmt.where(
+            or_(
+                MaintenancePerformanceFile.title.ilike(like),
+                MaintenancePerformanceFile.period.ilike(like),
+                MaintenancePerformanceFile.memo.ilike(like),
+                MaintenancePerformanceFile.original_name.ilike(like),
+            )
+        )
+    return stmt.order_by(
+        MaintenancePerformanceFile.period.is_(None),
+        MaintenancePerformanceFile.period.desc(),
+        MaintenancePerformanceFile.created_at.desc(),
+    )
+
+
+@app.get("/admin/maintenance-performance")
+async def maintenance_performance_page(
+    request: Request,
+    year: str = Query("", max_length=4),
+    site_id: int | None = Query(None),
+    q: str = Query("", max_length=100),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """정비실적(변동비) 자료 목록·첨부."""
+    year = year if year.isdigit() and len(year) == 4 else ""
+    sites = (
+        await db.execute(
+            select(Site).where(Site.is_active == True).order_by(Site.name)  # noqa: E712
+        )
+    ).scalars().all()
+    rows = (
+        await db.execute(
+            _mperf_filtered_stmt(year, site_id, q).options(
+                defer(MaintenancePerformanceFile.file_data),
+                selectinload(MaintenancePerformanceFile.site),
+            )
+        )
+    ).scalars().all()
+    years_raw = (
+        await db.execute(
+            select(func.substr(MaintenancePerformanceFile.period, 1, 4))
+            .where(MaintenancePerformanceFile.period.is_not(None))
+            .distinct()
+        )
+    ).scalars().all()
+    this_year = str(datetime.now(KST).year)
+    years = sorted({y for y in years_raw if y and y.isdigit()} | {this_year}, reverse=True)
+    files = []
+    total_size = 0
+    for doc in rows:
+        name = doc.original_name or doc.stored_name or ""
+        created = doc.created_at
+        created_label = ""
+        if created is not None:
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            created_label = created.astimezone(KST).strftime("%Y-%m-%d %H:%M")
+        total_size += int(doc.file_size or 0)
+        files.append(
+            {
+                "id": doc.id,
+                "period": doc.period or "",
+                "site_name": doc.site.name if doc.site else "",
+                "title": doc.title,
+                "memo": doc.memo or "",
+                "original_name": name,
+                "size_label": _ilog2_size_label(doc.file_size),
+                "uploaded_by": doc.uploaded_by or "",
+                "created_label": created_label,
+                "can_view": Path(name).suffix.lower() in _ILOG2_INLINE_EXTS,
+            }
+        )
+    zip_params = [("ids", f["id"]) for f in files] if (year or site_id or q.strip()) else []
+    return templates.TemplateResponse(
+        request,
+        "maintenance_performance.html",
+        {
+            "user": user,
+            "sites": sites,
+            "files": files,
+            "total_size_label": _ilog2_size_label(total_size),
+            "years": years,
+            "year": year,
+            "site_id": site_id,
+            "q": q.strip(),
+            "filtered": bool(year or site_id or q.strip()),
+            "zip_all_url": f"{_MPERF_BASE}/zip" + (("?" + urlencode(zip_params)) if zip_params else ""),
+            "default_period": datetime.now(KST).strftime("%Y-%m"),
+            "max_mb": UPLOAD_MAX_FILE_MB,
+            "max_files": UPLOAD_MAX_FILES_PER_REQUEST,
+            "accept": ",".join(sorted(ILOG2_ATTACH_EXTS)),
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/maintenance-performance/upload")
+async def maintenance_performance_upload(
+    request: Request,
+    user: User = Depends(require_can_create),
+    db: AsyncSession = Depends(get_db),
+):
+    import uuid
+
+    form = await _parse_multipart_form(request)
+    period = str(form.get("period") or "").strip()
+    if period and not _MPERF_PERIOD_RE.match(period):
+        return RedirectResponse(
+            f"{_MPERF_BASE}?error=" + quote("실적월은 YYYY-MM 형식으로 입력하세요."), status_code=303
+        )
+    site_raw = str(form.get("site_id") or "").strip()
+    site_id = int(site_raw) if site_raw.isdigit() else None
+    if site_id is not None and not await db.get(Site, site_id):
+        site_id = None
+    title = str(form.get("title") or "").strip()
+    memo = str(form.get("memo") or "").strip()[:500]
+    uploads = form.getlist("files") if hasattr(form, "getlist") else []
+    picked = [u for u in uploads if hasattr(u, "filename") and u.filename]
+
+    saved = 0
+    errors: list[str] = []
+    for item in picked[:UPLOAD_MAX_FILES_PER_REQUEST]:
+        fname = item.filename
+        ext = Path(fname).suffix.lower()
+        if ext not in ILOG2_ATTACH_EXTS:
+            errors.append(f"{fname}: 지원하지 않는 형식입니다.")
+            continue
+        raw = await item.read()
+        if not raw:
+            errors.append(f"{fname}: 빈 파일입니다.")
+            continue
+        if len(raw) > UPLOAD_MAX_FILE_BYTES:
+            errors.append(f"{fname}: {UPLOAD_MAX_FILE_MB}MB 초과")
+            continue
+        display_title = title if (title and len(picked) == 1) else Path(fname).stem
+        db.add(
+            MaintenancePerformanceFile(
+                site_id=site_id,
+                period=period or None,
+                title=display_title[:200],
+                memo=memo or None,
+                original_name=fname[:300],
+                stored_name=f"{uuid.uuid4().hex}{ext}",
+                content_type=(getattr(item, "content_type", None) or "")[:100],
+                file_data=raw,
+                file_size=len(raw),
+                uploaded_by=user.name or user.username,
+            )
+        )
+        saved += 1
+    if len(picked) > UPLOAD_MAX_FILES_PER_REQUEST:
+        errors.append(f"한 번에 최대 {UPLOAD_MAX_FILES_PER_REQUEST}개까지 올릴 수 있습니다.")
+
+    if saved:
+        await db.commit()
+    back = _MPERF_BASE + (f"?year={period[:4]}" if period else "")
+    sep = "&" if "?" in back else "?"
+    if saved and not errors:
+        return RedirectResponse(
+            f"{back}{sep}message=" + quote(f"정비실적 자료 {saved}개가 저장되었습니다."), status_code=303
+        )
+    if saved:
+        msg = f"{saved}개 저장, 일부 실패: " + "; ".join(errors[:3])
+        return RedirectResponse(f"{back}{sep}message=" + quote(msg), status_code=303)
+    err = errors[0] if errors else "첨부할 파일을 선택하세요."
+    return RedirectResponse(f"{_MPERF_BASE}?error=" + quote(err), status_code=303)
+
+
+@app.get("/admin/maintenance-performance/files/{file_id}")
+async def maintenance_performance_download(
+    file_id: int,
+    view: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import mimetypes
+
+    doc = await db.get(MaintenancePerformanceFile, file_id)
+    if not doc or not doc.file_data:
+        raise HTTPException(404, detail="파일을 찾을 수 없습니다.")
+    filename = doc.original_name or doc.stored_name or "attachment"
+    ext = Path(filename).suffix.lower()
+    media = mimetypes.guess_type(filename)[0] or doc.content_type or "application/octet-stream"
+    inline = bool(view) and ext in _ILOG2_INLINE_EXTS
+    if inline and ext == ".txt":
+        media = "text/plain; charset=utf-8"
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii").replace('"', "")
+    if ascii_name.strip().lower() in ("", ext):
+        ascii_name = f"attachment{ext}"
+    disposition = "inline" if inline else "attachment"
+    return Response(
+        content=bytes(doc.file_data),
+        media_type=media,
+        headers={
+            "Content-Disposition": (
+                f'{disposition}; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+            ),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
+@app.get("/admin/maintenance-performance/zip")
+async def maintenance_performance_zip(
+    ids: list[int] = Query(default=[]),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """정비실적 자료 ZIP 일괄 다운로드 (ids 미지정 시 전체). 실적월별 폴더로 묶는다."""
+    import zipfile
+
+    stmt = _mperf_filtered_stmt("", None, "").options(selectinload(MaintenancePerformanceFile.site))
+    if ids:
+        stmt = stmt.where(MaintenancePerformanceFile.id.in_(ids[:1000]))
+    docs = [d for d in (await db.execute(stmt)).scalars().all() if d.file_data]
+    if not docs:
+        return RedirectResponse(
+            f"{_MPERF_BASE}?error=" + quote("다운로드할 파일이 없습니다."), status_code=303
+        )
+
+    def _clean(s: str) -> str:
+        return re.sub(r'[\\/:*?"<>|]+', "_", s).strip() or "_"
+
+    buf = BytesIO()
+    used: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for doc in docs:
+            name = _clean(doc.original_name or doc.stored_name or f"file_{doc.id}")
+            folder = _clean(doc.period or "실적월미지정")
+            if doc.site:
+                name = f"{_clean(doc.site.name)}_{name}"
+            arc = f"{folder}/{name}"
+            if arc in used:
+                arc = f"{folder}/{Path(name).stem}_{doc.id}{Path(name).suffix}"
+            used.add(arc)
+            zf.writestr(arc, bytes(doc.file_data))
+    filename = f"정비실적(변동비)_{datetime.now(KST).strftime('%Y%m%d')}.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="maintenance_performance.zip"; '
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+        },
+    )
+
+
+@app.post("/admin/maintenance-performance/files/{file_id}/delete")
+async def maintenance_performance_delete(
+    file_id: int,
+    user: User = Depends(require_can_delete),
+    db: AsyncSession = Depends(get_db),
+):
+    doc = await db.get(MaintenancePerformanceFile, file_id)
+    if not doc:
+        return RedirectResponse(f"{_MPERF_BASE}?error=" + quote("파일을 찾을 수 없습니다."), status_code=303)
+    name = doc.title
+    await db.delete(doc)
+    await db.commit()
+    return RedirectResponse(
+        f"{_MPERF_BASE}?message=" + quote(f"「{name}」 자료가 삭제되었습니다."), status_code=303
     )
 
 

@@ -919,6 +919,28 @@ class InspectionLog2Attachment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class MaintenancePerformanceFile(Base):
+    """정비실적(변동비) 첨부파일 — 월별 실적·정산 자료 보관."""
+
+    __tablename__ = "maintenance_performance_files"
+
+    id = Column(Integer, primary_key=True)
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=True, index=True)
+    # 실적월 YYYY-MM
+    period = Column(String(20), nullable=True, index=True)
+    title = Column(String(200), nullable=False)
+    memo = Column(String(500), nullable=True)
+    original_name = Column(String(300), nullable=True)
+    stored_name = Column(String(300), nullable=False)
+    content_type = Column(String(100), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)
+    uploaded_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    site = relationship("Site")
+
+
 class InspectionLogFile(Base):
     """점검일지 엑셀 파일."""
 
