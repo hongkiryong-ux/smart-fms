@@ -72,7 +72,7 @@
         "id": "gym",
         "label": "체육관(500kVA)",
         "fields": [
-          {"id": "gym_v", "label": "전압(V)"},
+          {"id": "gym_v", "label": "전력(kW)"},
           {"id": "gym_a", "label": "전류(A)"},
           {"id": "gym_temp", "label": "온도(℃)"}
         ]
@@ -81,7 +81,7 @@
         "id": "power",
         "label": "동력(750kVA)",
         "fields": [
-          {"id": "pwr_v", "label": "전압(V)"},
+          {"id": "pwr_v", "label": "전력(kW)"},
           {"id": "pwr_a", "label": "전류(A)"},
           {"id": "pwr_temp", "label": "온도(℃)"}
         ]
@@ -90,7 +90,7 @@
         "id": "light",
         "label": "조명(500kVA)",
         "fields": [
-          {"id": "lit_v", "label": "전압(V)"},
+          {"id": "lit_v", "label": "전력(kW)"},
           {"id": "lit_a", "label": "전류(A)"},
           {"id": "lit_temp", "label": "온도(℃)"}
         ]
