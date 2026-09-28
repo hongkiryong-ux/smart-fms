@@ -140,9 +140,7 @@
       {"id": "supply_temp", "label": "온도 공급"},
       {"id": "return_temp", "label": "온도 환수"},
       {"id": "supply_pressure", "label": "압력 공급"},
-      {"id": "return_pressure", "label": "압력 환수"},
-      {"id": "hw_temp", "label": "급탕탱크 온도"},
-      {"id": "hw_pressure", "label": "급탕탱크 압력"}
+      {"id": "return_pressure", "label": "압력 환수"}
     ]
   },
   "misc": {

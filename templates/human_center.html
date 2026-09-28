@@ -279,12 +279,10 @@
               <th rowspan="2">시간</th>
               <th colspan="2">온도</th>
               <th colspan="2">압력</th>
-              <th colspan="2">급탕 탱크</th>
             </tr>
             <tr>
               <th>공급</th><th>환수</th>
               <th>공급</th><th>환수</th>
-              <th>온도</th><th>압력</th>
             </tr>
           </thead>
           <tbody>
@@ -299,8 +297,6 @@
                 <td><input class="hc-cell" name="ht__{{ key }}__return_temp" value="{{ row.get('return_temp','') }}" /></td>
                 <td><input class="hc-cell" name="ht__{{ key }}__supply_pressure" value="{{ row.get('supply_pressure','') }}" /></td>
                 <td><input class="hc-cell" name="ht__{{ key }}__return_pressure" value="{{ row.get('return_pressure','') }}" /></td>
-                <td><input class="hc-cell" name="ht__{{ key }}__hw_temp" value="{{ row.get('hw_temp','') }}" /></td>
-                <td><input class="hc-cell" name="ht__{{ key }}__hw_pressure" value="{{ row.get('hw_pressure','') }}" /></td>
               </tr>
               {% endfor %}
             {% endfor %}
