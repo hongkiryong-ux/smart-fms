@@ -83,7 +83,7 @@
     },
     {
       "id": "tr1",
-      "title": "수전 TR #1 (750kVA) · 동력 MCC",
+      "title": "수전 MAIN VCB (1250kVA) · 동력 ACB",
       "times": ["t1", "t2", "t3"],
       "fields": [
         {"id": "v", "label": "전압(kV)"},
@@ -92,14 +92,14 @@
         {"id": "kvar", "label": "무효(kVAR)"},
         {"id": "pf", "label": "역률(%)"},
         {"id": "temp", "label": "온도(℃)"},
-        {"id": "mcc_v", "label": "MCC 전압(V)"},
-        {"id": "mcc_a", "label": "MCC 전류(A)"},
-        {"id": "mcc_pf", "label": "MCC 역률(%)"}
+        {"id": "mcc_v", "label": "ACB 전압(V)"},
+        {"id": "mcc_a", "label": "ACB 전류(A)"},
+        {"id": "mcc_pf", "label": "ACB 역률(%)"}
       ]
     },
     {
       "id": "tr2",
-      "title": "수전 TR #2 (500kVA) · 공조 MCC",
+      "title": "수전 MAIN VCB (1000kVA) · 조명 ACB",
       "times": ["t1", "t2", "t3"],
       "fields": [
         {"id": "v", "label": "전압(kV)"},
@@ -108,14 +108,14 @@
         {"id": "kvar", "label": "무효(kVAR)"},
         {"id": "pf", "label": "역률(%)"},
         {"id": "temp", "label": "온도(℃)"},
-        {"id": "mcc_v", "label": "MCC 전압(V)"},
-        {"id": "mcc_a", "label": "MCC 전류(A)"},
-        {"id": "mcc_pf", "label": "MCC 역률(%)"}
+        {"id": "mcc_v", "label": "ACB 전압(V)"},
+        {"id": "mcc_a", "label": "ACB 전류(A)"},
+        {"id": "mcc_pf", "label": "ACB 역률(%)"}
       ]
     },
     {
       "id": "abs_vcb",
-      "title": "흡수식냉온수기 MAIN VCB (400kVA) · 제어반",
+      "title": "홍보관행 MAIN VCB (4750kVA) · 홍보관행 2차 VCB",
       "times": ["t1", "t2", "t3"],
       "fields": [
         {"id": "v", "label": "전압(kV)"},
@@ -124,14 +124,14 @@
         {"id": "kvar", "label": "무효(kVAR)"},
         {"id": "pf", "label": "역률(%)"},
         {"id": "temp", "label": "온도(℃)"},
-        {"id": "ctrl_v", "label": "제어반 전압(V)"},
-        {"id": "ctrl_a", "label": "제어반 전류(A)"},
-        {"id": "ctrl_pf", "label": "제어반 역률(%)"}
+        {"id": "ctrl_v", "label": "2차 VCB 전압(V)"},
+        {"id": "ctrl_a", "label": "2차 VCB 전류(A)"},
+        {"id": "ctrl_pf", "label": "2차 VCB 역률(%)"}
       ]
     }
   ],
   "generator": {
-    "title": "나. 발전설비",
+    "title": "나. 공조설비",
     "times": ["t1", "t2"],
     "fields": [
       {"id": "time", "label": "시간"},
@@ -161,7 +161,7 @@
     ]
   },
   "pump_fire": {
-    "title": "라. 펌프 및 소방 설비",
+    "title": "라. 급탕 및 소화 설비",
     "rows": [
       {"id": "ws_dorm", "group": "급수설비", "label": "생활관"},
       {"id": "ws_comm", "group": "급수설비", "label": "근생"}
