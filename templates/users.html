@@ -544,11 +544,51 @@
 {% if active_tab == 'menu' and active_users %}
 <section class="card card-wide users-section" id="menu-access-section">
   <h2>메뉴 접근 설정</h2>
-  <p class="text-muted users-menu-section-hint">계정별로 접근을 허용할 메뉴를 선택한 후 저장하세요.</p>
+  <p class="text-muted users-menu-section-hint">계정별로 접근을 허용할 메뉴를 선택한 후 저장하세요. 여러 계정을 한 번에 바꾸려면 아래 「일괄 변경」을 쓰세요.</p>
+
+  <form method="post" action="/admin/users/menu-access/bulk" id="users-bulk-form" class="users-bulk-panel">
+    <input type="hidden" name="return_page" value="{{ pagination.page }}" />
+    <input type="hidden" name="return_q" value="{{ filter_values.q }}" />
+    <input type="hidden" name="return_company" value="{{ filter_values.company }}" />
+    <input type="hidden" name="return_menu_key" value="{{ filter_values.menu_key }}" />
+    <input type="hidden" name="return_menu_access" value="{{ filter_values.menu_access }}" />
+    <input type="hidden" name="return_role" value="{{ filter_values.role }}" />
+    <input type="hidden" name="filtered_ids" value="{{ bulk_filtered_ids|join(',') }}" />
+    <div class="users-bulk-head">
+      <strong>일괄 변경</strong>
+      <label class="users-perm"><input type="checkbox" id="users-bulk-all" /> 이 페이지 계정 전체 선택</label>
+      <span class="users-bulk-count" id="users-bulk-count">선택 0명</span>
+    </div>
+    <div class="users-bulk-row">
+      <span class="users-bulk-label">대상</span>
+      <label class="users-perm"><input type="radio" name="bulk_scope" value="selected" checked /> 선택한 계정</label>
+      <label class="users-perm"><input type="radio" name="bulk_scope" value="filtered" /> 현재 조회 결과 전체 ({{ bulk_filtered_ids|length }}명, 모든 페이지)</label>
+    </div>
+    <div class="users-bulk-row">
+      <span class="users-bulk-label">방식</span>
+      <label class="users-perm"><input type="radio" name="bulk_mode" value="add" checked /> 선택 메뉴 허용 추가</label>
+      <label class="users-perm"><input type="radio" name="bulk_mode" value="remove" /> 선택 메뉴 허용 해제</label>
+      <label class="users-perm"><input type="radio" name="bulk_mode" value="replace" /> 선택 메뉴로 덮어쓰기</label>
+    </div>
+    <div class="users-menu-grid users-bulk-menus">
+      {% for key, label in menu_items %}
+      {% if key not in ('users', 'server') %}
+      <label class="users-perm users-menu-perm"><input type="checkbox" name="bulk_menu_key" value="{{ key }}" /> {{ label }}</label>
+      {% endif %}
+      {% endfor %}
+    </div>
+    <div class="users-bulk-actions">
+      <button type="button" class="btn btn-sm btn-secondary" id="users-bulk-menus-all">메뉴 전체 선택</button>
+      <button type="button" class="btn btn-sm btn-secondary" id="users-bulk-menus-none">메뉴 선택 해제</button>
+      <button type="submit" class="btn btn-sm btn-primary">일괄 적용</button>
+    </div>
+  </form>
+
   <div class="users-menu-list">
     {% for u in active_users %}
     <article class="users-menu-card" id="menu-access-{{ u.id }}">
       <div class="users-menu-card-head">
+        {% if u.role.value != 'system_admin' %}<input type="checkbox" class="users-bulk-pick" name="user_id" value="{{ u.id }}" form="users-bulk-form" aria-label="{{ u.username }} 일괄 변경 선택" />{% endif %}
         <strong><code>{{ u.username }}</code> {{ u.name }}</strong>
         <span class="text-muted">{{ role_labels.get(u.role, u.role.value) }}</span>
       </div>
@@ -654,8 +694,76 @@
     });
   });
 
-  if (location.hash && location.hash.indexOf('#menu-access-') === 0) {
+  if (location.hash && location.hash.indexOf('#menu-access-') === 0 && location.hash !== '#menu-access-section') {
     highlightMenuCard(location.hash.slice(1));
+  }
+
+  var bulkForm = document.getElementById('users-bulk-form');
+  if (bulkForm) {
+    var picks = Array.prototype.slice.call(document.querySelectorAll('.users-bulk-pick'));
+    var pickAll = document.getElementById('users-bulk-all');
+    var countEl = document.getElementById('users-bulk-count');
+    var filteredIds = bulkForm.elements['filtered_ids'].value;
+    var filteredCount = filteredIds ? filteredIds.split(',').length : 0;
+    var menuBoxes = Array.prototype.slice.call(bulkForm.querySelectorAll('input[name="bulk_menu_key"]'));
+    function checkedValue(name) {
+      var el = bulkForm.querySelector('input[name="' + name + '"]:checked');
+      return el ? el.value : '';
+    }
+    function selectedCount() {
+      return picks.filter(function (p) { return p.checked; }).length;
+    }
+    function refreshBulk() {
+      var n = selectedCount();
+      countEl.textContent = '선택 ' + n + '명';
+      pickAll.checked = picks.length > 0 && n === picks.length;
+      pickAll.indeterminate = n > 0 && n < picks.length;
+      document.querySelectorAll('.users-menu-card').forEach(function (card) {
+        var p = card.querySelector('.users-bulk-pick');
+        card.classList.toggle('is-bulk-picked', !!(p && p.checked));
+      });
+    }
+    picks.forEach(function (p) {
+      p.addEventListener('change', function () {
+        if (p.checked) {
+          var sel = bulkForm.querySelector('input[name="bulk_scope"][value="selected"]');
+          if (sel) sel.checked = true;
+        }
+        refreshBulk();
+      });
+    });
+    pickAll.addEventListener('change', function () {
+      picks.forEach(function (p) { p.checked = pickAll.checked; });
+      refreshBulk();
+    });
+    document.getElementById('users-bulk-menus-all').addEventListener('click', function () {
+      menuBoxes.forEach(function (b) { b.checked = true; });
+    });
+    document.getElementById('users-bulk-menus-none').addEventListener('click', function () {
+      menuBoxes.forEach(function (b) { b.checked = false; });
+    });
+    bulkForm.addEventListener('submit', function (e) {
+      var scope = checkedValue('bulk_scope');
+      var mode = checkedValue('bulk_mode');
+      var targets = scope === 'filtered' ? filteredCount : selectedCount();
+      var menus = menuBoxes.filter(function (b) { return b.checked; }).length;
+      if (!targets) {
+        e.preventDefault();
+        alert(scope === 'filtered' ? '조회 결과에 변경할 계정이 없습니다.' : '일괄 변경할 계정을 선택하세요.');
+        return;
+      }
+      if (!menus && mode !== 'replace') {
+        e.preventDefault();
+        alert('허용 추가/해제할 메뉴를 선택하세요.');
+        return;
+      }
+      var modeText = { add: '선택 메뉴 허용 추가', remove: '선택 메뉴 허용 해제', replace: '선택 메뉴로 덮어쓰기' }[mode];
+      var warn = mode === 'replace' && !menus ? '\n(선택한 메뉴가 없어 모든 메뉴 접근이 해제됩니다)' : '';
+      if (!confirm(targets + '개 계정에 「' + modeText + '」(메뉴 ' + menus + '개)를 적용할까요?' + warn)) {
+        e.preventDefault();
+      }
+    });
+    refreshBulk();
   }
 
   document.querySelectorAll('table.users-resizable').forEach(function (table) {

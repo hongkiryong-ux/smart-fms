@@ -4406,6 +4406,49 @@ button.link-action:hover { text-decoration: underline; }
   border-color: var(--primary, #003876);
   box-shadow: 0 0 0 2px rgba(0, 56, 118, 0.15);
 }
+.users-menu-card.is-bulk-picked {
+  border-color: #2563eb;
+  background: #f5f9ff;
+}
+.users-menu-card-head .users-bulk-pick {
+  width: 1.05rem;
+  height: 1.05rem;
+  align-self: center;
+  cursor: pointer;
+}
+.users-bulk-panel {
+  border: 1px solid #bfd3f2;
+  border-radius: 8px;
+  background: #f5f9ff;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.9rem;
+  scroll-margin-top: 1rem;
+}
+.users-bulk-head,
+.users-bulk-row,
+.users-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.users-bulk-label {
+  font-weight: 600;
+  min-width: 2.5rem;
+}
+.users-bulk-count {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+.users-bulk-panel .users-bulk-menus {
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  margin-bottom: 0.5rem;
+}
+.users-bulk-actions {
+  justify-content: flex-end;
+  margin-bottom: 0;
+}
 .users-menu-card-head {
   display: flex;
   flex-wrap: wrap;

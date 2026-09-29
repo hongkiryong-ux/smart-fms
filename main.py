@@ -2280,6 +2280,10 @@ async def users_manage_page(
             },
             "filtered_count": len(filtered_rows),
             "total_count": len(scope_rows),
+            "bulk_filtered_ids": [
+                target.id for target in filtered_rows
+                if target.role != UserRole.system_admin
+            ] if active_tab == "menu" else [],
             "pagination": {
                 "page": current_page,
                 "total_pages": total_pages,
@@ -2674,19 +2678,8 @@ async def users_update(
     )
 
 
-@app.post("/admin/users/{uid}/menu-access")
-async def users_menu_access(
-    request: Request,
-    uid: int,
-    user: User = Depends(require_user_manager),
-    db: AsyncSession = Depends(get_db),
-):
-    """메뉴접근 설정 탭 전용 저장."""
-    from urllib.parse import quote
-
-    from sqlalchemy.orm.attributes import flag_modified
-
-    form = await request.form()
+def _users_menu_return_url(form) -> str:
+    """메뉴접근 탭 저장 후 조회 조건·페이지를 복원할 URL."""
     try:
         return_page = max(1, int(form.get("return_page", "1")))
     except (TypeError, ValueError):
@@ -2709,7 +2702,87 @@ async def users_menu_access(
         return_params["role_filter"] = return_role
     if return_page > 1:
         return_params["page"] = str(return_page)
-    return_url = "/admin/users?" + urlencode(return_params)
+    return "/admin/users?" + urlencode(return_params)
+
+
+@app.post("/admin/users/menu-access/bulk")
+async def users_menu_access_bulk(
+    request: Request,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """메뉴접근 일괄 변경: 여러 계정에 선택한 메뉴를 허용 추가/해제/덮어쓰기."""
+    from urllib.parse import quote
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    form = await request.form()
+    return_url = _users_menu_return_url(form)
+
+    def back(key: str, text: str) -> RedirectResponse:
+        return RedirectResponse(f"{return_url}&{key}={quote(text)}#menu-access-section", status_code=303)
+
+    mode = str(form.get("bulk_mode") or "")
+    if mode not in {"add", "remove", "replace"}:
+        return back("error", "변경 방식을 선택하세요.")
+    if str(form.get("bulk_scope") or "") == "filtered":
+        raw_ids = str(form.get("filtered_ids") or "").split(",")
+    else:
+        raw_ids = form.getlist("user_id")
+    ids = {int(x) for x in raw_ids if str(x).strip().isdigit()}
+    if not ids:
+        return back("error", "일괄 변경할 계정을 선택하세요.")
+    menus = [
+        k for k in normalize_menu_access(form.getlist("bulk_menu_key"))
+        if k not in ADMIN_ONLY_MENU_KEYS
+    ]
+    if not menus and mode != "replace":
+        return back("error", "허용 추가/해제할 메뉴를 선택하세요.")
+
+    targets = (
+        await db.execute(
+            select(User).where(User.id.in_(ids), User.is_active == True)  # noqa: E712
+        )
+    ).scalars().all()
+    changed = skipped_admin = 0
+    for target in targets:
+        if target.role == UserRole.system_admin:
+            skipped_admin += 1
+            continue
+        current = [k for k in menu_access_for_edit(target) if k not in ADMIN_ONLY_MENU_KEYS]
+        if mode == "add":
+            keys = current + [k for k in menus if k not in current]
+        elif mode == "remove":
+            keys = [k for k in current if k not in menus]
+        else:
+            keys = list(menus)
+        new_value = normalize_menu_access(keys) + sorted(menu_access_flags_for_edit(target))
+        if target.menu_access is None or list(target.menu_access) != new_value:
+            target.menu_access = new_value
+            flag_modified(target, "menu_access")
+            changed += 1
+    await db.commit()
+    label = {"add": "허용 추가", "remove": "허용 해제", "replace": "덮어쓰기"}[mode]
+    msg = f"메뉴 접근 일괄 {label}: {len(targets) - skipped_admin}개 계정 중 {changed}개 변경"
+    if skipped_admin:
+        msg += f" (시스템관리자 {skipped_admin}개는 항상 전체 메뉴라 제외)"
+    return back("message", msg)
+
+
+@app.post("/admin/users/{uid}/menu-access")
+async def users_menu_access(
+    request: Request,
+    uid: int,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """메뉴접근 설정 탭 전용 저장."""
+    from urllib.parse import quote
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    form = await request.form()
+    return_url = _users_menu_return_url(form)
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
