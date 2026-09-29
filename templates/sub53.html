@@ -250,11 +250,6 @@
 </section>
 
 {% elif tab == 'notes' %}
-<section class="card card-wide">
-  <form method="get" class="s53-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
-  {% if notes_list.entries %}
-  <ul class="s53-notes-list">{% for e in notes_list.entries %}<li><strong>{{ e.date }}</strong><pre>{{ e.items[0].text }}</pre></li>{% endfor %}</ul>
-  {% else %}<p class="empty">등록된 특이사항이 없습니다.</p>{% endif %}
-</section>
+{% with notes_kind = 'sub53' %}{% include "_ilog2_notes_table.html" %}{% endwith %}
 {% endif %}
 {% endblock %}

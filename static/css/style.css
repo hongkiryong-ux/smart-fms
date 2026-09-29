@@ -8147,3 +8147,63 @@ tr.wo-row-selected {
   .dash-wide-risk-body { flex-direction: column; }
   .dash-wide-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* 점검일지2 특이사항 — 건별 한 줄 목록 */
+.ilog-notes-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.ilog-notes-search input[type="search"] {
+  min-width: 14rem;
+}
+.ilog-notes-hint {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.85rem;
+}
+.ilog-notes-count {
+  margin: 0.25rem 0 0.5rem;
+  font-weight: 600;
+}
+.ilog-notes-wrap {
+  overflow-x: auto;
+}
+.ilog-notes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.ilog-notes-table th,
+.ilog-notes-table td {
+  border: 1px solid var(--border, #d9dee7);
+  padding: 0.35rem 0.5rem;
+  vertical-align: middle;
+}
+.ilog-notes-table th {
+  background: #eef4fb;
+  text-align: center;
+  white-space: nowrap;
+}
+.ilog-notes-table tbody tr:nth-child(even) {
+  background: #fafbfd;
+}
+.ilog-notes-table tbody tr:hover {
+  background: #f1f6ff;
+}
+.ilog-notes-table td.c {
+  text-align: center;
+}
+.ilog-notes-table td.nowrap {
+  white-space: nowrap;
+}
+.ilog-notes-table td.is-sat {
+  color: #1d4ed8;
+}
+.ilog-notes-table td.is-sun {
+  color: #dc2626;
+}
+.ilog-notes-text {
+  width: 100%;
+  word-break: break-word;
+}

@@ -393,9 +393,6 @@
 </section>
 
 {% elif tab == 'notes' %}
-<section class="card card-wide">
-  <form method="get" class="p8-date-nav inline-form"><input type="hidden" name="tab" value="notes" /><label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label><button class="btn btn-secondary btn-sm">조회</button></form>
-  {% for entry in notes_list.entries %}<article class="p8-note-entry"><h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }}</a></h3>{% for item in entry['items'] %}<p>{{ item.text }}</p>{% endfor %}</article>{% else %}<p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>{% endfor %}
-</section>
+{% with notes_kind = 'park1538' %}{% include "_ilog2_notes_table.html" %}{% endwith %}
 {% endif %}
 {% endblock %}

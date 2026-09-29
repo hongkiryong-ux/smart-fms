@@ -608,35 +608,6 @@
 </section>
 
 {% elif tab == 'notes' %}
-<section class="card card-wide hs-notes">
-  <form method="get" class="hs-date-nav inline-form">
-    <input type="hidden" name="tab" value="notes" />
-    <label>연월
-      <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
-      <input type="number" name="month" value="{{ month }}" min="1" max="12" style="width:3rem" />
-    </label>
-    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
-  </form>
-  <p class="text-muted hs-hint">1일 일지에 작성된 특이사항을 날짜·시간별로 모아서 보여줍니다.</p>
-
-  {% if notes_list['entries'] %}
-  <div class="hs-notes-list">
-    {% for entry in notes_list['entries'] %}
-    <article class="hs-notes-day">
-      <h3 class="hs-notes-date">
-        <a href="?tab=daily&date={{ entry.date }}">{{ entry.date }} ({{ entry.day }}일)</a>
-      </h3>
-      <ul>
-        {% for item in entry['items'] %}
-        <li><strong>{{ item.time }}</strong> — {{ item.text }}</li>
-        {% endfor %}
-      </ul>
-    </article>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p class="text-muted">해당 월에 작성된 특이사항이 없습니다.</p>
-  {% endif %}
-</section>
+{% with notes_kind = 'housing_substation' %}{% include "_ilog2_notes_table.html" %}{% endwith %}
 {% endif %}
 {% endblock %}

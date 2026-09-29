@@ -82,6 +82,7 @@ from database import (
     get_db,
 )
 from init_data import seed_if_empty
+from ilog2_notes import notes_rows as ilog2_notes_rows
 import onlyoffice as oo
 from server_status import collect_server_status
 from access_log import (
@@ -1482,6 +1483,7 @@ templates.env.globals["user_menu_access_flags"] = menu_access_flags_for_edit
 templates.env.globals["menu_items"] = MENU_ITEMS
 templates.env.globals["upload_max_mb"] = UPLOAD_MAX_FILE_MB
 templates.env.globals["upload_max_files"] = UPLOAD_MAX_FILES_PER_REQUEST
+templates.env.globals["ilog2_notes_rows"] = ilog2_notes_rows
 templates.env.globals.update(
     fmt_kst=_fmt_kst,
     fmt_kst_date=_fmt_kst_date,
@@ -11986,6 +11988,43 @@ async def housing_substation_close_day(
     return RedirectResponse(
         f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={tomorrow.isoformat()}&message={quote('마감·엑셀 저장 완료. 다음 날짜가 열렸습니다.')}",
         status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/notes/export.xlsx")
+async def ilog2_notes_export(
+    building_id: int,
+    kind: str = Query(...),
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    q: str = Query(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """점검일지2 특이사항을 건별 한 줄로 엑셀 출력 (검색어 적용)."""
+    from urllib.parse import quote
+
+    from ilog2_notes import NOTES_MODULES, export_rows_workbook, notes_rows, resolve_module
+
+    building = await db.get(Building, building_id)
+    module = resolve_module(kind, building) if building else None
+    if module is None:
+        raise HTTPException(404)
+    notes_list = await module.fetch_notes_list(db, building_id, year, month)
+    keyword = q.strip()[:100]
+    rows = notes_rows(notes_list, keyword)
+    label = NOTES_MODULES[kind][1]
+    title = f"{building.name} 특이사항 {year}-{month:02d}"
+    if kind == "ccr_facility":
+        title = f"{label} 특이사항 {year}-{month:02d}"
+    if keyword:
+        title += f" (검색: {keyword})"
+    xbytes = export_rows_workbook(rows, title=title)
+    fname = quote(f"{label}_특이사항_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
 
 

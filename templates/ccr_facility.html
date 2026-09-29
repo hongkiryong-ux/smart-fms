@@ -430,23 +430,6 @@
 </section>
 
 {% elif tab == 'notes' %}
-<section class="card card-wide">
-  <form method="get" class="cf-date-nav inline-form">
-    <input type="hidden" name="tab" value="notes" />
-    <label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" style="width:5rem" />
-      <input type="number" name="month" value="{{ month }}" min="1" max="12" style="width:3rem" /></label>
-    <button type="submit" class="btn btn-secondary btn-sm">조회</button>
-  </form>
-  {% if notes_list['entries'] %}
-  <div class="cf-notes-list">
-    {% for entry in notes_list['entries'] %}
-    <article class="cf-notes-day">
-      <h3><a href="?tab=daily&date={{ entry.date }}">{{ entry.date }} ({{ entry.day }}일)</a></h3>
-      <ul>{% for item in entry['items'] %}<li><strong>{{ item.section }} {{ item.time }}</strong> — {{ item.text }}</li>{% endfor %}</ul>
-    </article>
-    {% endfor %}
-  </div>
-  {% else %}<p class="text-muted">해당 월 특이사항 없음</p>{% endif %}
-</section>
+{% with notes_kind = 'ccr_facility' %}{% include "_ilog2_notes_table.html" %}{% endwith %}
 {% endif %}
 {% endblock %}
