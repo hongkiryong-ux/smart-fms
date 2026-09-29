@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ilog2_monthly import month_rows_before, sum_by_key
 from models import Building, CcrFacilityArchive, CcrFacilityDaily
 
 ROOT = Path(__file__).resolve().parent
@@ -221,7 +222,7 @@ def recompute_daily(data: dict) -> dict:
     for mid in ("heat", "flow"):
         m = s1.setdefault(mid, {})
         daily, monthly = _calc_meter(
-            m.get("prev", ""), m.get("today", ""), "", _s1_meter_multiplier(mid)
+            m.get("prev", ""), m.get("today", ""), m.get("prev_monthly", ""), _s1_meter_multiplier(mid)
         )
         m["daily"] = daily
         m["monthly"] = monthly
@@ -284,71 +285,56 @@ async def _fetch_day_data(
 async def sync_prev_values(
     session: AsyncSession, building_id: int, log_date: date, data: dict
 ) -> dict:
-    """전일 금일지침·월누계·전일누계 자동 반영."""
+    """전일 금일지침 이월 + 월누계·전일누계(이달 1일~전날 합계, 달이 바뀌면 0부터) 반영."""
     data = recompute_daily(data)
-    prev_date = log_date - timedelta(days=1)
-    prev = await _fetch_day_data(session, building_id, prev_date)
-    if not prev:
-        return data
-
-    prev = recompute_daily(prev)
+    prev = await _fetch_day_data(session, building_id, log_date - timedelta(days=1))
     s1 = data.setdefault("s1", {})
-    prev_s1 = prev.get("s1", {})
+    if prev:
+        prev_s1 = recompute_daily(prev).get("s1", {})
+        for mid in ("heat", "flow", "power"):
+            m = s1.setdefault(mid, {})
+            if not m.get("prev_manual"):
+                m["prev"] = (prev_s1.get(mid) or {}).get("today", "")
 
-    for mid in ("heat", "flow", "power"):
-        m = s1.setdefault(mid, {})
-        if not m.get("prev_manual"):
-            m["prev"] = (prev_s1.get(mid) or {}).get("today", "")
-    pm = s1.setdefault("power", {})
-    if not pm.get("prev_manual"):
-        pm["prev_monthly"] = (prev_s1.get("power") or {}).get("monthly", "")
+    earlier = [
+        recompute_daily(r.data or {})
+        for r in await month_rows_before(session, CcrFacilityDaily, building_id, log_date)
+    ]
 
-    for mid in ("heat", "flow"):
-        m = s1.setdefault(mid, {})
-        prev_m = prev_s1.get(mid) or {}
-        prev_monthly_val = prev_m.get("monthly", "")
-        daily, monthly = _calc_meter(
-            m.get("prev", ""),
-            m.get("today", ""),
-            prev_monthly_val,
-            _s1_meter_multiplier(mid),
-        )
-        m["daily"] = daily
-        m["monthly"] = monthly
+    def month_sum(getter, keys) -> dict[str, str]:
+        totals = sum_by_key(earlier, keys, getter, _parse_num)
+        return {k: _fmt_num(round(totals[k], 6)) if k in totals else "" for k in keys}
 
-    pm = s1.setdefault("power", {})
-    daily, monthly = _calc_meter(
-        pm.get("prev", ""),
-        pm.get("today", ""),
-        pm.get("prev_monthly", ""),
-        _s1_meter_multiplier("power"),
-    )
-    pm["daily"] = daily
-    pm["monthly"] = monthly
+    s1_prev = month_sum(lambda d, mid: ((d.get("s1") or {}).get(mid) or {}).get("daily"),
+                        ["heat", "flow", "power"])
+    for mid, value in s1_prev.items():
+        s1.setdefault(mid, {})["prev_monthly"] = value
 
     schema = load_schema()
     for sec_key, rows_key, shifts in (
         ("s3", schema["section3"]["rows"], schema["section3"]["shifts"]),
         ("s5", schema["section5"]["rows"], schema["section5"]["shifts"]),
     ):
-        for r in rows_key:
-            rid = r["id"]
+        ids = [r["id"] for r in rows_key]
+        sums = month_sum(lambda d, rid, sk=sec_key: ((d.get(sk) or {}).get(rid) or {}).get("daily"), ids)
+        for rid in ids:
             row = data.setdefault(sec_key, {}).setdefault(rid, _empty_shift_row(shifts))
-            prev_row = (prev.get(sec_key) or {}).get(rid, {})
-            row["prev_day"] = prev_row.get("monthly", "") or prev_row.get("daily", "")
+            row["prev_day"] = sums[rid]
 
-    for uid in schema["section4"]["units"]:
-        unit = data.setdefault("s4", {}).setdefault(uid, {})
-        prev_unit = (prev.get("s4") or {}).get(uid, {})
-        unit["prev_day"] = prev_unit.get("monthly", "") or prev_unit.get("daily", "")
+    units = list(schema["section4"]["units"])
+    sums = month_sum(lambda d, uid: ((d.get("s4") or {}).get(uid) or {}).get("daily"), units)
+    for uid in units:
+        data.setdefault("s4", {}).setdefault(uid, {})["prev_day"] = sums[uid]
 
-    for r in schema["section6"]["operation_rows"]:
-        rid = r["id"]
+    op_ids = [r["id"] for r in schema["section6"]["operation_rows"]]
+    sums = month_sum(
+        lambda d, rid: (((d.get("s6") or {}).get("op") or {}).get(rid) or {}).get("daily"), op_ids
+    )
+    for rid in op_ids:
         row = data.setdefault("s6", {}).setdefault("op", {}).setdefault(
             rid, _empty_shift_row(schema["section6"]["shifts"])
         )
-        prev_row = (prev.get("s6") or {}).get("op", {}).get(rid, {})
-        row["prev_day"] = prev_row.get("monthly", "") or prev_row.get("daily", "")
+        row["prev_day"] = sums[rid]
 
     return recompute_daily(data)
 

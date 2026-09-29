@@ -13,6 +13,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ilog2_monthly import utility_month_base
+
 from models import Building, BaegundaeArchive, BaegundaeDaily
 
 ROOT = Path(__file__).resolve().parent
@@ -254,14 +256,15 @@ async def get_daily_row(
     ).scalar_one_or_none()
 
 
-def _monthly_from_previous(previous: dict | None, log_date: date) -> dict[str, str]:
-    if not previous or (log_date - timedelta(days=1)).month != log_date.month:
-        return {}
-    utility = previous.get("utility") or {}
-    return {
-        uid: str((utility.get(uid) or {}).get("monthly") or "")
-        for uid in (load_schema().get("utility") or {}).get("monthly_ids") or []
-    }
+async def _monthly_base(session: AsyncSession, building_id: int, log_date: date) -> dict[str, str]:
+    """유틸리티 monthly_ids: 이달 1일~전날 일사용량 합계 (달이 바뀌면 0부터 다시 누계)."""
+    from models import BaegundaeDaily
+
+    return await utility_month_base(
+        session, BaegundaeDaily, building_id, log_date,
+        (load_schema().get("utility") or {}).get("monthly_ids") or [],
+        recompute_daily, _parse_num, _fmt_num,
+    )
 
 
 async def sync_prev_values(
@@ -269,7 +272,7 @@ async def sync_prev_values(
 ) -> tuple[dict, bool]:
     previous_row = await get_daily_row(session, building_id, log_date - timedelta(days=1))
     previous = previous_row.data if previous_row else {}
-    monthly = _monthly_from_previous(previous, log_date)
+    monthly = await _monthly_base(session, building_id, log_date)
     out = merge_daily_save(empty_daily_payload(), data, monthly)
     before = deepcopy(data or {})
     if previous:
@@ -293,8 +296,7 @@ async def finalize_daily_save(
     existing: dict,
     posted: dict,
 ) -> dict:
-    previous_row = await get_daily_row(session, building_id, log_date - timedelta(days=1))
-    monthly = _monthly_from_previous(previous_row.data if previous_row else None, log_date)
+    monthly = await _monthly_base(session, building_id, log_date)
     posted = deepcopy(posted or {})
     existing_utility = (existing or {}).get("utility") or {}
     for uid, values in (posted.get("utility") or {}).items():
