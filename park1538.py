@@ -762,8 +762,9 @@ if __name__ == "__main__":
     assert set(payload["hw"]["1"]["edu"]) == {
         "sup_temp", "sup_p", "ret_temp", "ret_p",
     }
-    assert set(payload["water"]["2"]) == {"promo", "edu"}
-    assert set(payload["water"]["2"]["promo"]) == {"set_p", "cur_p"}
+    assert set(payload["water"]["1"]) == {"promo", "edu"}
+    assert "2" not in payload["water"]
+    assert set(payload["water"]["1"]["promo"]) == {"set_p", "cur_p"}
     assert set(payload["tank"]["1"]) == {"time", "height", "level"}
     assert set(payload["floor_hvac"]) == {
         "time", "sup_temp", "sup_p", "ret_temp", "ret_p",
@@ -795,7 +796,7 @@ if __name__ == "__main__":
         "el__vcb1__t1__acb_v": "380",
         "ahu__ahu101__1__ra_temp": "24",
         "hw__1__edu__sup_temp": "55",
-        "ws__2__promo__set_p": "3.0",
+        "ws__1__promo__set_p": "3.0",
         "tank__1__height": "2.5",
         "tank__1__time": "09:00",
         "fh__sup_temp": "22",
@@ -811,7 +812,7 @@ if __name__ == "__main__":
     assert parsed["electrical"]["vcb1"]["t1"]["acb_v"] == "380"
     assert parsed["ahu"]["ahu101"]["1"]["ra_temp"] == "24"
     assert parsed["hw"]["1"]["edu"]["sup_temp"] == "55"
-    assert parsed["water"]["2"]["promo"]["set_p"] == "3.0"
+    assert parsed["water"]["1"]["promo"]["set_p"] == "3.0"
     assert parsed["tank"]["1"]["height"] == "2.5"
     assert parsed["tank"]["1"]["time"] == "09:00"
     assert parsed["floor_hvac"]["sup_temp"] == "22"

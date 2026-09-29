@@ -91,7 +91,7 @@
   },
   "hotwater_water": {
     "title": "다·라. 급탕·급수설비",
-    "slots": ["1", "2"],
+    "slots": ["1"],
     "hotwater": [
       {"id": "edu", "label": "교육관"},
       {"id": "promo", "label": "홍보관"}
