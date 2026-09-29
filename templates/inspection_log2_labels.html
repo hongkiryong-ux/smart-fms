@@ -48,6 +48,7 @@
             <td class="ilbl-input">
               <input type="text" name="v__{{ it.idx }}" value="{{ it.current }}" maxlength="300"
                      data-original="{{ it.original }}" data-saved="{{ it.current }}" />
+              {% if it.tpl %}<input type="hidden" name="o__{{ it.idx }}" value="{{ it.original }}" />{% endif %}
             </td>
             <td><button type="button" class="btn btn-secondary btn-sm ilbl-reset">기본값</button></td>
           </tr>
@@ -77,7 +78,7 @@
   var dirty = false;
 
   function refreshRow(row) {
-    var input = row.querySelector('input');
+    var input = row.querySelector('input[type="text"]');
     var v = input.value.trim();
     var changed = v !== '' && v !== input.dataset.original;
     row.classList.toggle('is-changed', changed);
@@ -104,7 +105,7 @@
   }
 
   rows.forEach(function (row) {
-    var input = row.querySelector('input');
+    var input = row.querySelector('input[type="text"]');
     input.addEventListener('input', function () { refreshRow(row); refreshCount(); });
     row.querySelector('.ilbl-reset').addEventListener('click', function () {
       input.value = input.dataset.original;

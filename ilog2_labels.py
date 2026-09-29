@@ -6,7 +6,10 @@ id 등 데이터 키는 건드리지 않아 저장된 입력값은 그대로 유
 """
 from __future__ import annotations
 
+import hashlib
+import html as _html
 import json
+import re
 from contextvars import ContextVar
 from copy import deepcopy
 from pathlib import Path
@@ -34,6 +37,15 @@ MODULES: dict[str, tuple[str, str]] = {
     "baegun_dorm": ("baegun_dorm_schema.json", "baegun-dorm"),
     "giga_town": ("giga_town_schema.json", "giga-town"),
     "park1538": ("park1538_schema.json", "park1538"),
+}
+
+# QR 1일 입력 화면 경로 첫 조각 → module key
+QR_PREFIXES: dict[str, str] = {
+    "hs": "housing_substation", "ccr": "central_control_room", "ccrf": "ccr_facility",
+    "swhq": "steelworks_hq", "swhall": "steelworks_hall", "hcenter": "human_center",
+    "egym": "eoulrim_gym", "bahall": "baegun_art_hall", "s53": "sub53",
+    "bshop": "baegun_shopping", "bdae": "baegundae", "bdorm": "baegun_dorm",
+    "gtown": "giga_town", "p1538": "park1538",
 }
 
 # 행마다 개별 수정하는 표시 문구
@@ -67,6 +79,10 @@ def module_for_segment(segment: str) -> str | None:
         if seg == segment:
             return key
     return None
+
+
+def module_for_qr_prefix(prefix: str) -> str | None:
+    return QR_PREFIXES.get(prefix)
 
 
 def set_mark_module(module_key: str | None):
@@ -272,6 +288,20 @@ async def load_all(db: AsyncSession) -> None:
         if isinstance(data, dict):
             _set_memory(mk, {str(k): str(v) for k, v in data.items()})
 
+    rows = (
+        await db.execute(select(AppSetting).where(AppSetting.key.like(f"{TPL_SETTING_PREFIX}%")))
+    ).scalars().all()
+    for row in rows:
+        mk = row.key[len(TPL_SETTING_PREFIX):]
+        if mk not in MODULES:
+            continue
+        try:
+            data = json.loads(row.value or "{}")
+        except ValueError:
+            continue
+        if isinstance(data, dict):
+            _tpl_set_memory(mk, _clean_tpl_data(data))
+
 
 async def save_overrides(db: AsyncSession, module_key: str, data: dict[str, str]) -> None:
     from models import AppSetting
@@ -288,3 +318,157 @@ async def save_overrides(db: AsyncSession, module_key: str, data: dict[str, str]
         await db.delete(row)
     await db.commit()
     _set_memory(module_key, data)
+
+
+# ── 화면 고정 문구 (템플릿에 직접 쓰인 글씨) ──────────────────────────────
+# 일지 화면 HTML을 내보낼 때 content 영역의 글씨 조각마다
+# "문구 해시 + 같은 문구 중 몇 번째"로 키를 매겨 수정값을 바꿔 끼운다.
+# 스키마 문구는 화면에서 항상 표식으로 감싸 두어 이 키 계산에서 빠지게 한다.
+TPL_SETTING_PREFIX = "ilog2.tpl."
+TPL_START = "<!--ilbl-tpl-->"
+TPL_END = "<!--/ilbl-tpl-->"
+TPL_MAX_LEN = 300
+
+_tpl_overrides: dict[str, dict[str, list[str]]] = {}
+
+_TOKEN_RE = re.compile(
+    r"<!--.*?-->|<(script|style|textarea|title|button|select)\b[^>]*>.*?</\1\s*>|<[^>]*>|[^<]+",
+    re.S | re.I,
+)
+_SCHEMA_OPEN_RE = re.compile("\ue000[^\ue001\ue002]*\ue001")
+_HAS_WORD_RE = re.compile(r"[A-Za-z\u3131-\u318e\uac00-\ud7a3]")
+_TPL_KEY_RE = re.compile(r"t[0-9a-f]{10}_\d{1,4}")
+
+
+def _norm_text(raw_html_text: str) -> str:
+    return " ".join(_html.unescape(raw_html_text).split())
+
+
+def tpl_key(text: str, occurrence: int) -> str:
+    return f"t{hashlib.sha1(text.encode('utf-8')).hexdigest()[:10]}_{occurrence}"
+
+
+def is_tpl_key(key: str) -> bool:
+    return bool(_TPL_KEY_RE.fullmatch(key or ""))
+
+
+def tpl_key_matches(key: str, original: str) -> bool:
+    if not is_tpl_key(key):
+        return False
+    occ = int(key.rsplit("_", 1)[1])
+    return tpl_key(_norm_text(original), occ) == key
+
+
+def strip_marks(html_text: str) -> str:
+    return _SCHEMA_OPEN_RE.sub("", html_text).replace(MARK_END, "")
+
+
+def _tpl_value_html(value: str) -> str:
+    return _html.escape(value, quote=False).replace("\r\n", "\n").replace("\n", "<br />")
+
+
+def _process_region(region: str, module_key: str, edit: bool) -> str:
+    ov = _tpl_overrides.get(module_key) or {}
+    counts: dict[str, int] = {}
+    originals: dict[str, str] = {}
+    out: list[str] = []
+    in_schema = False
+
+    def plain(raw: str) -> str:
+        core = raw.strip()
+        if not core or not _HAS_WORD_RE.search(core) or core.startswith(("http://", "https://")):
+            return raw
+        lead = raw[: len(raw) - len(raw.lstrip())]
+        trail = raw[len(raw.rstrip()):]
+        text = _norm_text(core)
+        occ = counts.get(text, 0)
+        counts[text] = occ + 1
+        key = tpl_key(text, occ)
+        saved = ov.get(key)
+        shown = _tpl_value_html(saved[1]) if saved and saved[0] == text else core
+        if edit:
+            originals[key] = text
+            shown = f"{MARK_START}{key}{MARK_MID}{shown}{MARK_END}"
+        return lead + shown + trail
+
+    for m in _TOKEN_RE.finditer(region):
+        tok = m.group(0)
+        if tok.startswith("<"):
+            out.append(tok)
+            continue
+        pos = 0
+        while pos < len(tok):
+            if in_schema:
+                j = tok.find(MARK_END, pos)
+                if j < 0:
+                    out.append(tok[pos:])
+                    break
+                out.append(tok[pos:j + 1])
+                pos = j + 1
+                in_schema = False
+                continue
+            mo = _SCHEMA_OPEN_RE.search(tok, pos)
+            end = mo.start() if mo else len(tok)
+            if end > pos:
+                out.append(plain(tok[pos:end]))
+            if not mo:
+                break
+            out.append(mo.group(0))
+            pos = mo.end()
+            in_schema = True
+
+    body = "".join(out)
+    if edit and originals:
+        payload = json.dumps(originals).replace("</", "<\\/")
+        body = f'<script type="application/json" id="ilbl-tpl-orig">{payload}</script>' + body
+    return body
+
+
+def render_page(html_text: str, module_key: str, edit: bool) -> str:
+    """일지 화면 HTML에 화면 고정 문구 수정값을 반영하고, 수정 모드가 아니면 표식을 지운다."""
+    start = html_text.find(TPL_START)
+    if start >= 0:
+        end = html_text.find(TPL_END, start)
+        if end < 0:
+            end = len(html_text)
+        region = html_text[start + len(TPL_START):end]
+        html_text = html_text[:start] + _process_region(region, module_key, edit) + html_text[end:]
+    if not edit:
+        html_text = strip_marks(html_text)
+    return html_text
+
+
+def _clean_tpl_data(data: dict) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for k, v in data.items():
+        if is_tpl_key(str(k)) and isinstance(v, (list, tuple)) and len(v) == 2:
+            out[str(k)] = [str(v[0]), str(v[1])]
+    return out
+
+
+def _tpl_set_memory(module_key: str, data: dict[str, list[str]]) -> None:
+    if data:
+        _tpl_overrides[module_key] = dict(data)
+    else:
+        _tpl_overrides.pop(module_key, None)
+
+
+def current_tpl_overrides(module_key: str) -> dict[str, list[str]]:
+    return {k: list(v) for k, v in (_tpl_overrides.get(module_key) or {}).items()}
+
+
+async def save_tpl_overrides(db: AsyncSession, module_key: str, data: dict[str, list[str]]) -> None:
+    from models import AppSetting
+
+    key = f"{TPL_SETTING_PREFIX}{module_key}"
+    row = await db.get(AppSetting, key)
+    if data:
+        payload = json.dumps(data, ensure_ascii=False)
+        if row is None:
+            db.add(AppSetting(key=key, value=payload))
+        else:
+            row.value = payload
+    elif row is not None:
+        await db.delete(row)
+    await db.commit()
+    _tpl_set_memory(module_key, data)

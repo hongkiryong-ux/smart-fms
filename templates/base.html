@@ -668,7 +668,7 @@
   {% endif %}
 
   <div class="{% if user and not is_popup %}main-with-sidebar{% else %}main-full{% endif %}{% if is_popup %} materials-popup-main{% endif %}">
-    {% block content %}{% endblock %}
+    {% block content %}{% endblock %}<!--/ilbl-tpl-->
   </div>
 
   {% if user %}

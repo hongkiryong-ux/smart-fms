@@ -1368,7 +1368,7 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
                 request.session.clear()
                 return _login_redirect_for_request(request)
             request.state.current_user = user
-            return await call_next(request)
+            return await _ilog2_label_dispatch(request, call_next, user)
 
         async with AsyncSessionLocal() as session:
             try:
@@ -1385,30 +1385,61 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
         if current is None:
             request.session.clear()
             return _login_redirect_for_request(request)
-        mark_module = _ilog2_label_edit_module(request, current)
-        if mark_module:
-            import ilog2_labels
-
-            token = ilog2_labels.set_mark_module(mark_module)
-            try:
-                return await call_next(request)
-            finally:
-                ilog2_labels.reset_mark_module(token)
-        return await call_next(request)
+        return await _ilog2_label_dispatch(request, call_next, current)
 
 
 _ILOG2_PAGE_RE = re.compile(r"^/admin/inspection-logs2/\d+/([\w-]+)$")
+_ILOG2_QR_RE = re.compile(r"^/([\w-]+)/[^/]+/daily$")
 
 
-def _ilog2_label_edit_module(request: Request, user) -> str | None:
-    if request.method != "GET" or request.query_params.get("label_edit") != "1":
-        return None
-    m = _ILOG2_PAGE_RE.match(request.url.path or "")
-    if not m or not can_edit(user):
+def _ilog2_page_module(request: Request) -> str | None:
+    if request.method != "GET":
         return None
     import ilog2_labels
 
-    return ilog2_labels.module_for_segment(m.group(1))
+    path = request.url.path or ""
+    m = _ILOG2_PAGE_RE.match(path)
+    if m:
+        return ilog2_labels.module_for_segment(m.group(1))
+    m = _ILOG2_QR_RE.match(path)
+    if m:
+        return ilog2_labels.module_for_qr_prefix(m.group(1))
+    return None
+
+
+async def _ilog2_label_dispatch(request: Request, call_next, user):
+    """점검일지 화면: 스키마 문구 표식 → 화면 고정 문구 수정값 반영 / 수정 모드 표식."""
+    module_key = _ilog2_page_module(request)
+    if not module_key:
+        return await call_next(request)
+    import ilog2_labels
+
+    edit = bool(
+        request.query_params.get("label_edit") == "1"
+        and _ILOG2_PAGE_RE.match(request.url.path or "")
+        and can_edit(user)
+    )
+    request.state.ilbl_edit = edit
+    token = ilog2_labels.set_mark_module(module_key)
+    try:
+        response = await call_next(request)
+    finally:
+        ilog2_labels.reset_mark_module(token)
+    if not (response.headers.get("content-type") or "").startswith("text/html"):
+        return response
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    try:
+        text = ilog2_labels.render_page(body.decode("utf-8"), module_key, edit)
+        body = text.encode("utf-8")
+    except Exception as e:
+        print(f"[ilog2] label render skipped: {e}", flush=True)
+        body = ilog2_labels.strip_marks(body.decode("utf-8", "replace")).encode("utf-8")
+    out = Response(content=body, status_code=response.status_code,
+                   background=getattr(response, "background", None))
+    out.raw_headers = [
+        (k, v) for k, v in response.raw_headers if k.lower() != b"content-length"
+    ] + [(b"content-length", str(len(body)).encode())]
+    return out
 
 
 # 하위 호환 alias
@@ -11230,6 +11261,18 @@ async def inspection_logs2_labels_page(
             by_name[it["section"]] = sec
             sections.append(sec)
         sec["rows"].append(it)
+    tpl_rows = [
+        {
+            "idx": key, "tpl": True, "context": "", "key_label": "화면 문구",
+            "original": orig, "current": value, "changed": True,
+        }
+        for key, (orig, value) in sorted(
+            ilog2_labels.current_tpl_overrides(module_key).items(), key=lambda kv: kv[1][0]
+        )
+    ]
+    if tpl_rows:
+        sections.insert(0, {"name": "화면에서 수정한 고정 문구", "rows": tpl_rows})
+        items = items + tpl_rows
     base = ilog2_labels.load_base_schema(module_key)
     return templates.TemplateResponse(
         request,
@@ -11274,6 +11317,7 @@ async def inspection_logs2_labels_save(
     items = ilog2_labels.collect_items(module_key)
     if str(form.get("action") or "") == "reset_all":
         await ilog2_labels.save_overrides(db, module_key, {})
+        await ilog2_labels.save_tpl_overrides(db, module_key, {})
         return RedirectResponse(
             page + "?message=" + quote("모든 문구를 기본값으로 되돌렸습니다."), status_code=303
         )
@@ -11293,6 +11337,27 @@ async def inspection_logs2_labels_save(
             data[it["id"]] = value
         if (value or it["original"]) != before:
             changed += 1
+    tpl = ilog2_labels.current_tpl_overrides(module_key)
+    tpl_before = {k: list(v) for k, v in tpl.items()}
+    for field in form.keys():
+        if not field.startswith("v__t"):
+            continue
+        key = field[3:]
+        if not ilog2_labels.is_tpl_key(key):
+            continue
+        original = str(form.get(f"o__{key}") or "") or (tpl.get(key) or ["", ""])[0]
+        original = " ".join(original.split())
+        if not ilog2_labels.tpl_key_matches(key, original):
+            continue
+        value = str(form.get(field) or "").strip()[: ilog2_labels.TPL_MAX_LEN]
+        if not value or " ".join(value.split()) == original:
+            tpl.pop(key, None)
+        else:
+            tpl[key] = [original, value]
+        if tpl.get(key) != tpl_before.get(key):
+            changed += 1
+    if tpl != tpl_before:
+        await ilog2_labels.save_tpl_overrides(db, module_key, tpl)
     await ilog2_labels.save_overrides(db, module_key, data)
     msg = f"문구 {changed}건이 저장되었습니다. 일지 화면에 바로 반영됩니다." if changed else "변경된 문구가 없습니다."
     return RedirectResponse(page + "?message=" + quote(msg), status_code=303)

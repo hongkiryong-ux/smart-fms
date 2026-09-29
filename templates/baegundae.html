@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="/static/css/baegundae.css?v=2" />
 {% endblock %}
 {% block content %}
+{% set label_module = 'baegundae' %}{% include "_ilog2_label_edit.html" %}
 {% set qr_mode = qr_mode|default(false) %}
 {% set can_write = qr_mode or user is not none %}
 {% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/baegundae/save') %}
@@ -30,7 +31,7 @@
   <a class="bdae-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
   <a class="bdae-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
   <a class="bdae-tab" href="/admin/inspection-logs2/{{ building.id }}/files">과거 일지 자료</a>
-  {% if user_can_edit(user) %}<a class="bdae-tab{% if request.query_params.get('label_edit') == '1' %} ilbl-tab-on{% endif %}" href="{{ request.url.include_query_params(label_edit=1) }}" title="화면에서 글씨를 클릭해 문구 수정">✏️ 문구 수정</a>{% set label_module = 'baegundae' %}{% include "_ilog2_label_edit.html" %}{% endif %}
+  {% if user_can_edit(user) %}<a class="bdae-tab{% if request.query_params.get('label_edit') == '1' %} ilbl-tab-on{% endif %}" href="{{ request.url.include_query_params(label_edit=1) }}" title="화면에서 글씨를 클릭해 문구 수정">✏️ 문구 수정</a>{% endif %}
   {% endif %}
 </nav>
 

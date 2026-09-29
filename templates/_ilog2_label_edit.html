@@ -1,9 +1,9 @@
-{% if request.query_params.get('label_edit') == '1' and user_can_edit(user) %}
+{% if request.state.ilbl_edit %}
 <div class="ilbl-inline-bar" id="ilbl-inline-bar"
      data-save-url="/admin/inspection-logs2/{{ building.id }}/labels/{{ label_module }}"
      data-exit-url="{{ request.url.remove_query_params('label_edit') }}">
   <strong>✏️ 문구 수정 모드</strong>
-  <span class="ilbl-inline-help">점선으로 표시된 글씨를 클릭해 고친 뒤 「저장」을 누르세요. 비우면 기본 문구로 돌아갑니다. (Enter: 입력 끝, Shift+Enter: 줄바꿈)</span>
+  <span class="ilbl-inline-help">제목·항목·안내문 등 점선으로 표시된 글씨를 클릭해 고친 뒤 「저장」을 누르세요. 비우면 기본 문구로 돌아갑니다. (Enter: 입력 끝, Shift+Enter: 줄바꿈)</span>
   <span class="ilbl-inline-count" id="ilbl-inline-count"></span>
   <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/labels/{{ label_module }}">목록으로 보기</a>
   <button type="button" class="btn btn-secondary btn-sm" id="ilbl-inline-cancel">취소</button>
@@ -12,7 +12,7 @@
 <script>
 (function () {
   var S = '\uE000', E = '\uE002';
-  var RE = /\uE000(\d+)\uE001([\s\S]*?)\uE002/g;
+  var RE = /\uE000([^\uE001\uE002]+)\uE001([\s\S]*?)\uE002/g;
   var bar = document.getElementById('ilbl-inline-bar');
   var countEl = document.getElementById('ilbl-inline-count');
   var initial = {};
@@ -126,7 +126,7 @@
     while ((t = walkerIn.nextNode())) { if (/[\uE000-\uE002]/.test(t.nodeValue)) toClean.push(t); }
     toClean.forEach(function (tn) {
       if (span.contains(tn)) return;
-      tn.nodeValue = tn.nodeValue.replace(/\uE000\d+\uE001$/, '').replace(/^\uE002/, '');
+      tn.nodeValue = tn.nodeValue.replace(/\uE000[^\uE001\uE002]+\uE001$/, '').replace(/^\uE002/, '');
     });
     bindSpan(span);
     return true;
@@ -196,7 +196,12 @@
     if (!keys.length) { exitEdit(); return; }
     var body = new URLSearchParams();
     body.append('action', 'save');
-    keys.forEach(function (idx) { body.append('v__' + idx, map[idx].trim()); });
+    var origEl = document.getElementById('ilbl-tpl-orig');
+    var originals = origEl ? JSON.parse(origEl.textContent || '{}') : {};
+    keys.forEach(function (idx) {
+      body.append('v__' + idx, map[idx].trim());
+      if (idx in originals) body.append('o__' + idx, originals[idx]);
+    });
     var btn = this;
     btn.disabled = true;
     btn.textContent = '저장 중…';
@@ -222,4 +227,4 @@
   });
 })();
 </script>
-{% endif %}
+{% endif %}<!--ilbl-tpl-->
