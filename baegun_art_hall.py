@@ -27,7 +27,8 @@ def load_schema() -> dict:
         data = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         data["_mtime"] = mtime
         _schema_cache = data
-    return _schema_cache
+    from ilog2_labels import apply_label_overrides
+    return apply_label_overrides("baegun_art_hall", _schema_cache)
 
 
 def is_baegun_art_hall_building(building: Building | None) -> bool:

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}문구 수정 · {{ form_title }}{% endblock %}
+{% block content %}
+<header class="page-header ilog2-files-header">
+  <div>
+    <h1>문구 수정 · {{ form_title }}</h1>
+    <p>{% if building.site %}{{ building.site.name }} · {% endif %}{{ building.name }} · 일지 양식에 고정된 제목·항목명·단위·기준 문구를 바꿉니다. 입력해 둔 값은 그대로 유지됩니다.</p>
+  </div>
+  <div class="ilog2-files-nav">
+    <a class="btn btn-secondary btn-sm" href="{{ back_url }}">← 일지로</a>
+  </div>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<form method="post" id="ilbl-form">
+  <section class="card card-wide ilbl-toolbar">
+    <div class="ilbl-toolbar-row">
+      <input type="search" id="ilbl-search" value="{{ q }}" placeholder="문구 검색 (예: 전압, 급탕, 공조)" aria-label="문구 검색" />
+      <label class="ilbl-only-changed"><input type="checkbox" id="ilbl-only-changed" /> 수정된 문구만</label>
+      <span class="text-muted">전체 {{ total }}개 · 수정됨 <strong id="ilbl-changed-count">{{ changed_count }}</strong>개</span>
+    </div>
+    <p class="text-muted ilbl-help">수정할 칸의 문구를 고친 뒤 「저장」을 누르세요. 칸을 비우거나 「기본값」을 누르면 원래 문구로 돌아갑니다. 「구분(묶음)」은 같은 이름으로 묶인 행 전체에 함께 적용됩니다.</p>
+  </section>
+
+  {% for sec in sections %}
+  <section class="card card-wide ilbl-section">
+    <h2>{{ sec.name }}</h2>
+    <div class="table-scroll">
+      <table class="data-table ilbl-table">
+        <thead>
+          <tr>
+            <th>위치</th>
+            <th>종류</th>
+            <th>기본 문구</th>
+            <th>수정 문구</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in sec.rows %}
+          <tr class="ilbl-row{% if it.changed %} is-changed{% endif %}"
+              data-search="{{ (it.context ~ ' ' ~ it.original ~ ' ' ~ it.current)|lower }}">
+            <td class="ilbl-ctx">{{ it.context or '-' }}</td>
+            <td class="ilbl-kind">{{ it.key_label }}</td>
+            <td class="ilbl-orig">{{ it.original }}</td>
+            <td class="ilbl-input">
+              <input type="text" name="v__{{ it.idx }}" value="{{ it.current }}" maxlength="300"
+                     data-original="{{ it.original }}" data-saved="{{ it.current }}" />
+            </td>
+            <td><button type="button" class="btn btn-secondary btn-sm ilbl-reset">기본값</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+
+  <div class="ilbl-savebar">
+    <span class="text-muted" id="ilbl-dirty-note"></span>
+    <button type="submit" name="action" value="reset_all" class="btn btn-secondary"
+            onclick="return confirm('이 일지의 모든 문구를 기본값으로 되돌릴까요?');">전체 기본값 복원</button>
+    <button type="submit" name="action" value="save" class="btn btn-primary">저장</button>
+  </div>
+</form>
+
+<script>
+(function () {
+  var form = document.getElementById('ilbl-form');
+  var search = document.getElementById('ilbl-search');
+  var onlyChanged = document.getElementById('ilbl-only-changed');
+  var countEl = document.getElementById('ilbl-changed-count');
+  var dirtyNote = document.getElementById('ilbl-dirty-note');
+  var rows = Array.prototype.slice.call(document.querySelectorAll('.ilbl-row'));
+  var dirty = false;
+
+  function refreshRow(row) {
+    var input = row.querySelector('input');
+    var v = input.value.trim();
+    var changed = v !== '' && v !== input.dataset.original;
+    row.classList.toggle('is-changed', changed);
+    row.classList.toggle('is-dirty', v !== input.dataset.saved.trim());
+  }
+  function refreshCount() {
+    countEl.textContent = rows.filter(function (r) { return r.classList.contains('is-changed'); }).length;
+    var n = rows.filter(function (r) { return r.classList.contains('is-dirty'); }).length;
+    dirty = n > 0;
+    dirtyNote.textContent = n ? ('저장하지 않은 변경 ' + n + '건') : '';
+  }
+  function applyFilter() {
+    var q = (search.value || '').trim().toLowerCase();
+    var only = onlyChanged.checked;
+    document.querySelectorAll('.ilbl-section').forEach(function (sec) {
+      var visible = 0;
+      sec.querySelectorAll('.ilbl-row').forEach(function (row) {
+        var show = (!q || row.dataset.search.indexOf(q) !== -1) && (!only || row.classList.contains('is-changed'));
+        row.hidden = !show;
+        if (show) visible++;
+      });
+      sec.hidden = visible === 0;
+    });
+  }
+
+  rows.forEach(function (row) {
+    var input = row.querySelector('input');
+    input.addEventListener('input', function () { refreshRow(row); refreshCount(); });
+    row.querySelector('.ilbl-reset').addEventListener('click', function () {
+      input.value = input.dataset.original;
+      refreshRow(row);
+      refreshCount();
+    });
+  });
+  search.addEventListener('input', applyFilter);
+  onlyChanged.addEventListener('change', applyFilter);
+  form.addEventListener('submit', function () { dirty = false; });
+  window.addEventListener('beforeunload', function (e) {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+  applyFilter();
+})();
+</script>
+{% endblock %}

@@ -36,6 +36,7 @@
   <a class="bs-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
   <a class="bs-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
   <a class="bs-tab" href="/admin/inspection-logs2/{{ building.id }}/files">과거 일지 자료</a>
+  {% if user_can_edit(user) %}<a class="bs-tab" href="/admin/inspection-logs2/{{ building.id }}/labels/baegun_shopping">✏️ 문구 수정</a>{% endif %}
   {% endif %}
 </nav>
 

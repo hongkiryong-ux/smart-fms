@@ -39,6 +39,7 @@
   <a href="?tab=yearly&year={{ year }}" class="hs-tab{% if tab == 'yearly' %} active{% endif %}">년보</a>
   <a href="?tab=notes&year={{ year }}&month={{ month }}" class="hs-tab{% if tab == 'notes' %} active{% endif %}">특이사항</a>
   <a class="hs-tab" href="/admin/inspection-logs2/{{ building.id }}/files">과거 일지 자료</a>
+  {% if user_can_edit(user) %}<a class="hs-tab" href="/admin/inspection-logs2/{{ building.id }}/labels/central_control_room">✏️ 문구 수정</a>{% endif %}
   {% endif %}
 </nav>
 

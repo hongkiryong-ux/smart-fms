@@ -37,6 +37,7 @@
   <a class="eg-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
   <a class="eg-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
   <a class="eg-tab" href="/admin/inspection-logs2/{{ building.id }}/files">과거 일지 자료</a>
+  {% if user_can_edit(user) %}<a class="eg-tab" href="/admin/inspection-logs2/{{ building.id }}/labels/eoulrim_gym">✏️ 문구 수정</a>{% endif %}
   {% endif %}
 </nav>
 
@@ -356,7 +357,7 @@
             {% set ns = namespace(prev='') %}
             {% for row in schema.equipment_run.rows %}
             {% set item = eq_data.get(row.id, {}) %}
-            {% set group_span = 2 if row.group == '냉동기' else 3 %}
+            {% set group_span = schema.equipment_run.rows|selectattr('group', 'equalto', row.group)|list|length %}
             <tr class="eg-eq-row" data-eq="{{ row.id }}">
               {% if ns.prev != row.group %}
               <th rowspan="{{ group_span }}" class="eg-cat">{{ row.group }}</th>

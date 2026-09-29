@@ -1136,6 +1136,13 @@ async def _startup_db_init() -> None:
                 await ensure_default_settings(session)
                 await session.commit()
             try:
+                import ilog2_labels
+
+                async with AsyncSessionLocal() as session:
+                    await ilog2_labels.load_all(session)
+            except Exception as e:
+                print(f"[startup] ilog2 label overrides skipped: {e}", flush=True)
+            try:
                 from streetlamp.import_lamps_from_csv import import_lamps_if_needed
 
                 await import_lamps_if_needed()
@@ -11161,6 +11168,110 @@ async def inspection_logs2_files_zip(
             ),
         },
     )
+
+
+def _ilog2_labels_back_url(building_id: int, module_key: str) -> str:
+    import ilog2_labels
+
+    return f"/admin/inspection-logs2/{building_id}/{ilog2_labels.MODULES[module_key][1]}"
+
+
+@app.get("/admin/inspection-logs2/{building_id}/labels/{module_key}")
+async def inspection_logs2_labels_page(
+    building_id: int,
+    module_key: str,
+    request: Request,
+    q: str = Query("", max_length=100),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """일지 양식 고정 문구 수정 화면."""
+    import ilog2_labels
+
+    if module_key not in ilog2_labels.MODULES:
+        raise HTTPException(404, detail="알 수 없는 일지 양식입니다.")
+    building = await _ilog2_registered_building(db, building_id)
+    if not building:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."), status_code=303
+        )
+    items = ilog2_labels.collect_items(module_key)
+    sections: list[dict] = []
+    by_name: dict[str, dict] = {}
+    for idx, it in enumerate(items):
+        it["idx"] = idx
+        sec = by_name.get(it["section"])
+        if sec is None:
+            sec = {"name": it["section"], "rows": []}
+            by_name[it["section"]] = sec
+            sections.append(sec)
+        sec["rows"].append(it)
+    base = ilog2_labels.load_base_schema(module_key)
+    return templates.TemplateResponse(
+        request,
+        "inspection_log2_labels.html",
+        {
+            "user": user,
+            "building": building,
+            "module_key": module_key,
+            "form_title": base.get("title") or base.get("building_name") or building.name,
+            "sections": sections,
+            "total": len(items),
+            "changed_count": sum(1 for it in items if it["changed"]),
+            "back_url": _ilog2_labels_back_url(building_id, module_key),
+            "q": q.strip(),
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/labels/{module_key}")
+async def inspection_logs2_labels_save(
+    building_id: int,
+    module_key: str,
+    request: Request,
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    import ilog2_labels
+
+    if module_key not in ilog2_labels.MODULES:
+        raise HTTPException(404, detail="알 수 없는 일지 양식입니다.")
+    if not await _ilog2_registered_building(db, building_id):
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."), status_code=303
+        )
+    page = f"/admin/inspection-logs2/{building_id}/labels/{module_key}"
+    try:
+        form = await request.form(max_fields=5000)
+    except TypeError:
+        form = await request.form()
+    items = ilog2_labels.collect_items(module_key)
+    if str(form.get("action") or "") == "reset_all":
+        await ilog2_labels.save_overrides(db, module_key, {})
+        return RedirectResponse(
+            page + "?message=" + quote("모든 문구를 기본값으로 되돌렸습니다."), status_code=303
+        )
+    data = ilog2_labels.current_overrides(module_key)
+    valid_ids = {it["id"] for it in items}
+    data = {k: v for k, v in data.items() if k in valid_ids}
+    changed = 0
+    for idx, it in enumerate(items):
+        field = f"v__{idx}"
+        if field not in form:
+            continue
+        value = str(form.get(field) or "").strip()[:300]
+        before = data.get(it["id"], it["original"])
+        if not value or value == it["original"]:
+            data.pop(it["id"], None)
+        else:
+            data[it["id"]] = value
+        if (value or it["original"]) != before:
+            changed += 1
+    await ilog2_labels.save_overrides(db, module_key, data)
+    msg = f"문구 {changed}건이 저장되었습니다. 일지 화면에 바로 반영됩니다." if changed else "변경된 문구가 없습니다."
+    return RedirectResponse(page + "?message=" + quote(msg), status_code=303)
 
 
 @app.post("/admin/inspection-logs2/{building_id}/files/{file_id}/delete")

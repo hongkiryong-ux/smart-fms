@@ -104,7 +104,8 @@ def load_schema() -> dict:
     global _schema_cache
     if _schema_cache is None:
         _schema_cache = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    return _schema_cache
+    from ilog2_labels import apply_label_overrides
+    return apply_label_overrides("steelworks_hq", _schema_cache)
 
 
 def is_steelworks_hq_building(building: Building | None) -> bool:

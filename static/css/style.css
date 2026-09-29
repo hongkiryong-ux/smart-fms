@@ -2998,6 +2998,33 @@ a.dm:hover {
   margin: 0 0 0.75rem;
 }
 .ilog2-bulk-bar .text-muted { font-size: 0.82rem; }
+.ilbl-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
+.ilbl-toolbar-row input[type="search"] { min-width: 16rem; padding: 0.4rem 0.6rem; }
+.ilbl-only-changed { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.9rem; }
+.ilbl-help { margin: 0.6rem 0 0; font-size: 0.85rem; }
+.ilbl-section h2 { margin-top: 0; }
+.ilbl-table td { vertical-align: middle; font-size: 0.88rem; }
+.ilbl-ctx { color: #475569; max-width: 20rem; }
+.ilbl-kind { white-space: nowrap; color: #64748b; }
+.ilbl-orig { color: #334155; }
+.ilbl-input input { width: 100%; min-width: 12rem; padding: 0.35rem 0.5rem; }
+.ilbl-row.is-changed { background: #fefce8; }
+.ilbl-row.is-changed .ilbl-input input { border-color: #eab308; font-weight: 600; }
+.ilbl-row.is-dirty .ilbl-input input { box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25); }
+.ilbl-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
+}
+.ilbl-savebar .text-muted { margin-right: auto; }
 .mperf-filter { flex-wrap: wrap; }
 .mperf-filter select { padding: 0.35rem 0.5rem; }
 .ilog2-upload-fields select { min-height: 2.2rem; padding: 0.35rem 0.55rem; }
