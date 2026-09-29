@@ -9,7 +9,8 @@
   {% if detail %}
   <pre class="error-detail">{{ detail }}</pre>
   {% endif %}
-  <p><a class="btn btn-primary" href="/admin/dashboard">대시보드로</a>
-     <a class="btn btn-secondary" href="/admin/login">로그인</a></p>
+  <p><a class="btn btn-primary" href="javascript:history.back()">이전 화면으로</a>
+     <a class="btn btn-secondary" href="/admin/dashboard">대시보드로</a>
+     {% if not user %}<a class="btn btn-secondary" href="/admin/login">로그인</a>{% endif %}</p>
 </section>
 {% endblock %}

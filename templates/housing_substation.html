@@ -358,8 +358,8 @@
       <button type="submit"
               formaction="/admin/inspection-logs2/{{ building.id }}/housing/close-day"
               formmethod="post"
-              class="btn btn-secondary"
-              onclick="return confirm('{{ log_date.isoformat() }} 일지를 마감하고 엑셀로 저장할까요?\n(내일 일지가 준비됩니다)');">
+              class="btn btn-secondary hs-close-day-btn"
+              data-confirm="{{ log_date.isoformat() }} 일지를 마감하고 엑셀로 저장할까요?&#10;(입력 내용을 먼저 저장한 뒤 마감하며, 내일 일지가 준비됩니다)">
         이 날짜 마감 · 엑셀 저장
       </button>
       {% endif %}
@@ -369,7 +369,7 @@
 </section>
 {% if can_write %}
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-<script src="/static/js/housing_substation.js?v=6"></script>
+<script src="/static/js/housing_substation.js?v=7"></script>
 {% endif %}
 
 {% elif tab == 'monthly' %}

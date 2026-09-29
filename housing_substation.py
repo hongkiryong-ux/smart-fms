@@ -303,10 +303,15 @@ async def fetch_notes_list(
     return {"year": year, "month": month, "entries": entries}
 
 
+def _footer_fac_2200(source_data: dict | None) -> dict:
+    footer = _as_dict((source_data or {}).get("footer"))
+    times = _as_dict(_as_dict(footer.get("facilities")).get("times"))
+    return _as_dict(times.get("22:00"))
+
+
 def prev_facility_readings_from_daily_data(source_data: dict) -> dict[str, str]:
     footer_schema = get_daily_footer_schema()
-    tf_times = ((source_data or {}).get("footer") or {}).get("facilities", {}).get("times") or {}
-    t2200 = tf_times.get("22:00") or {}
+    t2200 = _footer_fac_2200(source_data)
     out: dict[str, str] = {}
     for grp in (footer_schema.get("facilities") or {}).get("groups") or []:
         prev = grp.get("prev")
@@ -356,8 +361,7 @@ async def propagate_footer_prev_to_next_day(
     if not next_row:
         return
     footer_schema = get_daily_footer_schema()
-    tf_times = ((saved_data or {}).get("footer") or {}).get("facilities", {}).get("times") or {}
-    t2200 = tf_times.get("22:00") or {}
+    t2200 = _footer_fac_2200(saved_data)
     prev_vals: dict[str, str] = {}
     for grp in (footer_schema.get("facilities") or {}).get("groups") or []:
         prev = grp.get("prev")
@@ -461,9 +465,9 @@ def prev_readings_from_daily_data(source_data: dict) -> dict[str, dict[str, Any]
     out: dict[str, dict[str, Any]] = {}
     for block in schema["daily_blocks"]:
         bid = block["id"]
-        block_data = (source_data or {}).get(bid) or {}
-        times = block_data.get("times") or {}
-        t2200 = times.get("22:00") or {}
+        block_data = _as_dict((source_data or {}).get(bid))
+        times = _as_dict(block_data.get("times"))
+        t2200 = _as_dict(times.get("22:00"))
         prev: dict[str, Any] = {}
         for m in block["meters"]:
             rc = m["reading_col"]
@@ -540,46 +544,84 @@ async def get_or_create_daily(
     return row
 
 
-def merge_daily_save(existing: dict, posted: dict) -> dict:
-    data = deepcopy(existing) if existing else empty_daily_payload()
-    for bid, block_post in (posted or {}).items():
+def _as_dict(value: Any) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _normalize_daily_shape(data: dict) -> dict:
+    """과거 저장분·가져오기 데이터의 빠진 키/잘못된 타입을 보정 (저장 중 KeyError 방지)."""
+    for bid, block in list(data.items()):
         if bid == "footer":
+            continue
+        block = _as_dict(block)
+        block["prev"] = _as_dict(block.get("prev"))
+        block["prev_manual"] = _as_dict(block.get("prev_manual"))
+        times = _as_dict(block.get("times"))
+        block["times"] = {t: _as_dict(cells) for t, cells in times.items()}
+        data[bid] = block
+    if "footer" in data:
+        base = empty_footer_payload()
+        footer = _as_dict(data.get("footer"))
+        fac = _as_dict(footer.get("facilities"))
+        fac["prev"] = _as_dict(fac.get("prev"))
+        fac["prev_manual"] = _as_dict(fac.get("prev_manual"))
+        fac["times"] = {
+            t: _as_dict(c) for t, c in _as_dict(fac.get("times") or base["facilities"]["times"]).items()
+        }
+        footer["facilities"] = fac
+        for sec in ("main", "transformer"):
+            part = _as_dict(footer.get(sec))
+            part["times"] = {
+                t: _as_dict(c) for t, c in _as_dict(part.get("times") or base[sec]["times"]).items()
+            }
+            footer[sec] = part
+        footer["notes"] = _as_dict(footer.get("notes")) or base["notes"]
+        data["footer"] = footer
+    return data
+
+
+def merge_daily_save(existing: dict, posted: dict) -> dict:
+    data = deepcopy(existing) if isinstance(existing, dict) and existing else empty_daily_payload()
+    data = _normalize_daily_shape(data)
+    for bid, block_post in (posted or {}).items():
+        if bid == "footer" or not isinstance(block_post, dict):
             continue
         if bid not in data:
             data[bid] = {"prev": {}, "prev_manual": {}, "times": {}}
         if "prev" in block_post:
-            data[bid]["prev"].update(block_post.get("prev") or {})
+            data[bid]["prev"].update(_as_dict(block_post.get("prev")))
         if "prev_manual" in block_post:
             data[bid]["prev_manual"] = {
-                k: v for k, v in (block_post.get("prev_manual") or {}).items() if v
+                k: v for k, v in _as_dict(block_post.get("prev_manual")).items() if v
             }
-        for t, cells in (block_post.get("times") or {}).items():
+        for t, cells in _as_dict(block_post.get("times")).items():
             data[bid]["times"].setdefault(t, {})
-            data[bid]["times"][t].update(cells or {})
-    footer_post = (posted or {}).get("footer") or {}
+            data[bid]["times"][t].update(_as_dict(cells))
+    footer_post = _as_dict((posted or {}).get("footer"))
     if footer_post or "footer" in data:
-        data.setdefault("footer", empty_footer_payload())
-        fac = footer_post.get("facilities") or {}
+        if "footer" not in data:
+            data["footer"] = empty_footer_payload()
+        footer_post = {
+            "facilities": _as_dict(footer_post.get("facilities")),
+            "main": _as_dict(footer_post.get("main")),
+            "transformer": _as_dict(footer_post.get("transformer")),
+            "notes": _as_dict(footer_post.get("notes")),
+        }
+        fac = footer_post["facilities"]
         if "prev" in fac:
-            data["footer"]["facilities"].setdefault("prev", {})
-            data["footer"]["facilities"]["prev"].update(fac.get("prev") or {})
+            data["footer"]["facilities"]["prev"].update(_as_dict(fac.get("prev")))
         if "prev_manual" in fac:
             data["footer"]["facilities"]["prev_manual"] = {
-                k: v for k, v in (fac.get("prev_manual") or {}).items() if v
+                k: v for k, v in _as_dict(fac.get("prev_manual")).items() if v
             }
-        for t, cells in (fac.get("times") or {}).items():
+        for t, cells in _as_dict(fac.get("times")).items():
             data["footer"]["facilities"]["times"].setdefault(t, {})
-            data["footer"]["facilities"]["times"][t].update(cells or {})
-        main = footer_post.get("main") or {}
-        for t, cells in (main.get("times") or {}).items():
-            data["footer"]["main"]["times"].setdefault(t, {})
-            data["footer"]["main"]["times"][t].update(cells or {})
-        tf = footer_post.get("transformer") or {}
-        for t, cells in (tf.get("times") or {}).items():
-            data["footer"]["transformer"]["times"].setdefault(t, {})
-            data["footer"]["transformer"]["times"][t].update(cells or {})
-        notes = footer_post.get("notes") or {}
-        data["footer"]["notes"].update(notes)
+            data["footer"]["facilities"]["times"][t].update(_as_dict(cells))
+        for sec in ("main", "transformer"):
+            for t, cells in _as_dict(footer_post[sec].get("times")).items():
+                data["footer"][sec]["times"].setdefault(t, {})
+                data["footer"][sec]["times"][t].update(_as_dict(cells))
+        data["footer"]["notes"].update(footer_post["notes"])
     return data
 
 

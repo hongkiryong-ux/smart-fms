@@ -15,7 +15,14 @@ from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from app_templates import templates
 from sqlalchemy import and_, case, func, or_, select
@@ -1333,6 +1340,18 @@ def _login_redirect_for_request(request: Request) -> RedirectResponse:
     return RedirectResponse(login_url, status_code=303)
 
 
+def _temporary_error_response(request: Request) -> Response:
+    msg = "서버 연결이 일시적으로 불안정합니다. 잠시 후 다시 시도해 주세요."
+    if request.method.upper() not in ("GET", "HEAD"):
+        return JSONResponse({"ok": False, "detail": "temporary_error", "message": msg}, status_code=503)
+    return HTMLResponse(
+        f"<!doctype html><meta charset='utf-8'><title>잠시 후 다시 시도</title>"
+        f"<p style='font-family:sans-serif;padding:2rem'>{msg} "
+        f"<a href='javascript:location.reload()'>새로고침</a></p>",
+        status_code=503,
+    )
+
+
 class _AdminDbMiddleware(BaseHTTPMiddleware):
     """전체 화면 로그인 보호 + /admin 사용자·메뉴·네비 초기화."""
 
@@ -1371,6 +1390,7 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
             request.state.current_user = user
             return await _ilog2_label_dispatch(request, call_next, user)
 
+        bootstrap_failed = False
         async with AsyncSessionLocal() as session:
             try:
                 denied = await admin_request_bootstrap(request, session)
@@ -1380,9 +1400,29 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
 
                 apply_nav_state(request, {})
                 denied = None
+                bootstrap_failed = True
             if denied is not None:
                 return denied
         current = getattr(request.state, "current_user", None)
+        if current is None and bootstrap_failed:
+            # 일시적 DB 오류로 사용자 조회에 실패한 것 — 세션을 지우면 입력 중 로그아웃된다
+            try:
+                async with AsyncSessionLocal() as session:
+                    current = (
+                        await session.execute(
+                            select(User).where(
+                                User.id == user_id,
+                                User.is_active == True,  # noqa: E712
+                                User.is_approved == True,  # noqa: E712
+                            )
+                        )
+                    ).scalar_one_or_none()
+            except Exception as e:
+                print(f"[admin] user reload failed: {e}", flush=True)
+                return _temporary_error_response(request)
+            if current is not None:
+                request.state.current_user = current
+                request.state._current_user_loaded = True
         if current is None:
             request.session.clear()
             return _login_redirect_for_request(request)
@@ -1547,7 +1587,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
                 request,
                 "error.html",
                 {
-                    "user": None,
+                    "user": getattr(request.state, "current_user", None),
                     "status_code": 500,
                     "message": "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
                     "detail": str(exc)[:500],
@@ -11933,11 +11973,26 @@ async def housing_substation_save(
             f"/admin/inspection-logs2/{building_id}/housing?error={quote('날짜 형식 오류')}",
             status_code=303,
         )
-    form = await request.form()
-    posted = _parse_housing_daily_form(form)
-    await _housing_save_daily_data(db, building_id, d, posted)
-    await db.commit()
-    if request.headers.get("X-HS-Autosave") == "1":
+    autosave = request.headers.get("X-HS-Autosave") == "1"
+    try:
+        form = await request.form()
+        posted = _parse_housing_daily_form(form)
+        await _housing_save_daily_data(db, building_id, d, posted)
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        import traceback
+
+        print(f"[housing] save failed {building_id} {d}: {exc!r}", flush=True)
+        traceback.print_exc()
+        reason = f"{type(exc).__name__}: {exc}"[:300]
+        if autosave:
+            return JSONResponse({"ok": False, "message": reason}, status_code=500)
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={d.isoformat()}&error={quote('저장 실패 — ' + reason)}",
+            status_code=303,
+        )
+    if autosave:
         return JSONResponse({"ok": True, "log_date": d.isoformat()})
     return RedirectResponse(
         f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={d.isoformat()}&message={quote('저장되었습니다.')}",
@@ -11974,17 +12029,29 @@ async def housing_substation_close_day(
             f"/admin/inspection-logs2/{building_id}/housing?error={quote('날짜 형식 오류')}",
             status_code=303,
         )
-    form = await request.form()
-    posted = _parse_housing_daily_form(form)
-    row = await get_or_create_daily(db, building_id, d)
-    row.data = merge_daily_save(row.data or {}, posted)
-    synced, _ = await sync_daily_prev(db, building_id, d, row.data)
-    row.data = synced
-    await archive_daily_excel(db, building_id, d)
     tomorrow = d + timedelta(days=1)
-    await propagate_prev_to_next_day(db, building_id, d, row.data)
-    await get_or_create_daily(db, building_id, tomorrow)
-    await db.commit()
+    try:
+        form = await request.form()
+        posted = _parse_housing_daily_form(form)
+        row = await get_or_create_daily(db, building_id, d)
+        row.data = merge_daily_save(row.data or {}, posted)
+        synced, _ = await sync_daily_prev(db, building_id, d, row.data)
+        row.data = synced
+        await archive_daily_excel(db, building_id, d)
+        await propagate_prev_to_next_day(db, building_id, d, row.data)
+        await get_or_create_daily(db, building_id, tomorrow)
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        import traceback
+
+        print(f"[housing] close-day failed {building_id} {d}: {exc!r}", flush=True)
+        traceback.print_exc()
+        reason = f"{type(exc).__name__}: {exc}"[:300]
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={d.isoformat()}&error={quote('마감 실패 — ' + reason)}",
+            status_code=303,
+        )
     return RedirectResponse(
         f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={tomorrow.isoformat()}&message={quote('마감·엑셀 저장 완료. 다음 날짜가 열렸습니다.')}",
         status_code=303,

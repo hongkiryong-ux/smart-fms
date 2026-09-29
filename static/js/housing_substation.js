@@ -5,42 +5,89 @@
   if (!form || !statusEl) return;
 
   let debounceTimer = null;
+  let retryTimer = null;
   let saving = false;
   let pending = false;
+  let dirty = false;
   let activeSelector = null;
+  let savePromise = null;
   const DEBOUNCE_MS = 600;
+  const RETRY_MS = 5000;
 
   function setStatus(text, cls) {
     statusEl.textContent = text;
     statusEl.className = "hs-save-status " + (cls || "");
   }
 
+  function failMessage(kind, detail) {
+    if (kind === "login") {
+      return "로그인이 만료되어 저장되지 않았습니다 — 새 탭에서 로그인하면 자동으로 다시 저장합니다 (이 창은 닫지 마세요)";
+    }
+    const suffix = detail ? " (" + detail + ")" : "";
+    return "저장 실패 — 입력 내용은 화면에 남아 있고 5초 후 자동으로 다시 저장합니다" + suffix;
+  }
+
+  async function postOnce() {
+    let res;
+    try {
+      res = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: { "X-HS-Autosave": "1", "X-Requested-With": "XMLHttpRequest" },
+        credentials: "same-origin",
+      });
+    } catch (_err) {
+      return { ok: false, kind: "network", detail: "네트워크 연결 확인" };
+    }
+    const type = res.headers.get("content-type") || "";
+    if ((res.redirected && res.url.indexOf("/admin/login") >= 0) || res.status === 401) {
+      return { ok: false, kind: "login" };
+    }
+    if (type.indexOf("application/json") < 0) {
+      return { ok: false, kind: res.ok ? "login" : "server", detail: res.ok ? "" : "HTTP " + res.status };
+    }
+    let body = {};
+    try {
+      body = await res.json();
+    } catch (_err) {
+      body = {};
+    }
+    if (!res.ok || body.ok === false) {
+      return { ok: false, kind: "server", detail: body.message || "HTTP " + res.status };
+    }
+    return { ok: true };
+  }
+
   async function doSave() {
     if (saving) {
       pending = true;
-      return;
+      return savePromise;
     }
+    clearTimeout(retryTimer);
     saving = true;
+    dirty = false;
     setStatus("저장 중…", "saving");
-    try {
-      const res = await fetch(form.action, {
-        method: "POST",
-        body: new FormData(form),
-        headers: { "X-HS-Autosave": "1" },
-        credentials: "same-origin",
-      });
-      if (!res.ok) throw new Error("save failed");
-      await res.json();
-      setStatus("저장됨", "saved");
-    } catch (_err) {
-      setStatus("저장 실패 — 다시 입력해 주세요", "error");
-    } finally {
-      saving = false;
+    savePromise = (async function () {
+      let result;
+      try {
+        result = await postOnce();
+        if (result.ok) {
+          setStatus("저장됨", "saved");
+        } else {
+          dirty = true;
+          setStatus(failMessage(result.kind, result.detail), "error");
+          retryTimer = setTimeout(doSave, RETRY_MS);
+        }
+      } finally {
+        saving = false;
+      }
       if (pending) {
         pending = false;
-        doSave();
+        return doSave();
       }
-    }
+      return result;
+    })();
+    return savePromise;
   }
 
   function scheduleSave() {
@@ -49,8 +96,41 @@
   }
 
   function notifyDirty() {
+    dirty = true;
     setStatus("입력됨…", "dirty");
     scheduleSave();
+  }
+
+  window.addEventListener("beforeunload", function (e) {
+    if (!dirty && !saving) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
+
+  const closeBtn = form.querySelector(".hs-close-day-btn");
+  let closing = false;
+  if (closeBtn) {
+    closeBtn.addEventListener("click", async function (e) {
+      if (closing) return;
+      e.preventDefault();
+      if (!window.confirm(closeBtn.dataset.confirm || "이 날짜를 마감할까요?")) return;
+      clearTimeout(debounceTimer);
+      closeBtn.disabled = true;
+      let result = await doSave();
+      if (saving && savePromise) result = await savePromise;
+      if (!result || !result.ok) {
+        closeBtn.disabled = false;
+        window.alert(
+          "입력 내용이 저장되지 않아 마감하지 않았습니다.\n" +
+          failMessage(result ? result.kind : "server", result ? result.detail : "")
+        );
+        return;
+      }
+      closing = true;
+      dirty = false;
+      closeBtn.disabled = false;
+      form.requestSubmit ? form.requestSubmit(closeBtn) : closeBtn.click();
+    });
   }
 
   function isGridPasteText(text) {
