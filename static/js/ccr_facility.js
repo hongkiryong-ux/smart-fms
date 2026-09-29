@@ -46,6 +46,11 @@
       if (prev != null && today != null) daily = (today - prev) * multiplier;
       const outD = document.querySelector('[data-out="' + mid + '-daily"]');
       if (outD) outD.textContent = daily != null ? fmtNum(daily) : "";
+      const outM = document.querySelector('[data-out="' + mid + '-monthly"]');
+      if (outM) {
+        const prevMonthly = parseNum(outM.dataset.prevMonthly);
+        outM.textContent = daily != null ? fmtNum((prevMonthly || 0) + daily) : "";
+      }
     });
   }
 
@@ -155,8 +160,13 @@
       const outD = document.querySelector('[data-out="' + mid + '-daily"]');
       const outM = document.querySelector('[data-out="' + mid + '-monthly"]');
       if (outD) outD.textContent = m.daily || "";
-      if (outM) outM.textContent = m.monthly || "";
+      if (outM) {
+        outM.dataset.prevMonthly = m.prev_monthly || "";
+        outM.textContent = m.monthly || "";
+      }
     });
+    const powerPrevMonthly = form.querySelector('[name="f__s1__power__prev_monthly"]');
+    if (powerPrevMonthly) powerPrevMonthly.value = (s1.power || {}).prev_monthly || "";
     recalcAll();
   }
 
