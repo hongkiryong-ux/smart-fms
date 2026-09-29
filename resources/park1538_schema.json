@@ -22,6 +22,20 @@
   "electrical": {
     "title": "가. 전기실",
     "times": ["t1", "t2"],
+    "main_vcb": {
+      "title": "Main VCB(HV-2)",
+      "times": ["t1"],
+      "fields": [
+        {"id": "time", "label": "시간"},
+        {"id": "mv_v", "label": "전압(kV)"},
+        {"id": "mv_a", "label": "전류(A)"},
+        {"id": "mv_kw", "label": "유효전력(kW)"},
+        {"id": "mv_kvar", "label": "무효전력(kVar)"},
+        {"id": "mv_pf", "label": "역률(%)"},
+        {"id": "mv_load", "label": "부하율(%)"},
+        {"id": "mv_temp", "label": "TR온도(℃)"}
+      ]
+    },
     "panels": [
       {
         "id": "vcb1",

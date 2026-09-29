@@ -116,6 +116,30 @@
     <div class="p8-sheet">
       <div class="p8-sheet-title">2. UTILITY 점검사항</div>
       <div class="p8-sheet-subtitle">{{ schema.electrical.title }}</div>
+      {% set mv_schema = schema.electrical.main_vcb or {} %}
+      {% if mv_schema.fields %}
+      {% set mv_data = daily_data.get('main_vcb', {}) if daily_data else {} %}
+      <div class="p8-sheet-subtitle p8-panel-title">{{ mv_schema.title }}</div>
+      <div class="p8-table-wrap">
+        <table class="p8-excel p8-elec-table">
+          <thead>
+            <tr>
+              {% for f in mv_schema.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in mv_schema.times %}
+            {% set row = mv_data.get(t, {}) %}
+            <tr>
+              {% for f in mv_schema.fields %}
+              <td{% if f.id == 'time' %} class="p8-time-col"{% endif %}><input class="p8-cell{% if f.id == 'time' %} p8-time-input{% endif %}" name="mv__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" {% if f.id == 'time' %}title="시간 수기 입력"{% endif %} /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
       {% for panel in schema.electrical.panels %}
       {% set panel_data = el_data.get(panel.id, {}) %}
       <div class="p8-sheet-subtitle p8-panel-title">{{ panel.title }}</div>

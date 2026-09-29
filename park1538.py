@@ -150,6 +150,12 @@ def empty_daily_payload() -> dict[str, Any]:
         }
         for panel in elec.get("panels") or []
     }
+    mv_schema = elec.get("main_vcb") or {}
+    mv_fields = [f["id"] for f in mv_schema.get("fields") or []]
+    main_vcb = {
+        str(t): {fid: "" for fid in mv_fields}
+        for t in mv_schema.get("times") or ["t1"]
+    }
 
     ahu_schema = schema.get("ahu") or {}
     ahu_fields = _ahu_field_ids(schema)
@@ -193,6 +199,7 @@ def empty_daily_payload() -> dict[str, Any]:
     return {
         "utility": utility,
         "electrical": electrical,
+        "main_vcb": main_vcb,
         "ahu": ahu,
         "hw": hw,
         "water": water,
@@ -276,6 +283,10 @@ def parse_daily_form(form) -> dict:
             block = data["electrical"].get(panel) or {}
             if t in block and fid in block[t]:
                 data["electrical"][panel][t][fid] = raw
+        elif key.startswith("mv__") and len(parts) == 3:
+            t, fid = parts[1], parts[2]
+            if t in data["main_vcb"] and fid in data["main_vcb"][t]:
+                data["main_vcb"][t][fid] = raw
         elif key.startswith("ahu__") and len(parts) == 4:
             unit, slot, fid = parts[1], parts[2], parts[3]
             block = data["ahu"].get(unit) or {}
@@ -794,6 +805,8 @@ if __name__ == "__main__":
         "u__promo_water__remark": "ok",
         "el__vcb1__t1__tr_a": "12",
         "el__vcb1__t1__acb_v": "380",
+        "mv__t1__time": "09:00",
+        "mv__t1__mv_load": "45",
         "ahu__ahu101__1__ra_temp": "24",
         "hw__1__edu__sup_temp": "55",
         "ws__1__promo__set_p": "3.0",
@@ -810,6 +823,8 @@ if __name__ == "__main__":
     assert parsed["utility"]["promo_water"]["today"] == "4"
     assert parsed["electrical"]["vcb1"]["t1"]["tr_a"] == "12"
     assert parsed["electrical"]["vcb1"]["t1"]["acb_v"] == "380"
+    assert parsed["main_vcb"]["t1"]["time"] == "09:00"
+    assert parsed["main_vcb"]["t1"]["mv_load"] == "45"
     assert parsed["ahu"]["ahu101"]["1"]["ra_temp"] == "24"
     assert parsed["hw"]["1"]["edu"]["sup_temp"] == "55"
     assert parsed["water"]["1"]["promo"]["set_p"] == "3.0"
