@@ -3025,6 +3025,39 @@ a.dm:hover {
   box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
 }
 .ilbl-savebar .text-muted { margin-right: auto; }
+.ilbl-inline-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3000;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.6rem 1rem;
+  background: #1e3a8a;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+}
+.ilbl-inline-bar .ilbl-inline-help { font-size: 0.85rem; opacity: 0.9; flex: 1 1 18rem; }
+.ilbl-inline-bar .ilbl-inline-count { font-weight: 700; color: #fde047; }
+body.ilbl-edit-mode { padding-top: 3.4rem; }
+.ilbl-tab-on { outline: 2px solid #f59e0b; outline-offset: -2px; font-weight: 700; }
+.ilbl-edit {
+  outline: 1px dashed #f59e0b;
+  outline-offset: 1px;
+  border-radius: 2px;
+  cursor: text;
+  background: rgba(254, 243, 199, 0.55);
+  min-width: 1em;
+  display: inline-block;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ilbl-edit:hover { background: #fde68a; }
+.ilbl-edit:focus { outline: 2px solid #2563eb; background: #fff; color: #0f172a; }
+.ilbl-edit.is-changed { background: #bbf7d0; outline-color: #16a34a; }
 .mperf-filter { flex-wrap: wrap; }
 .mperf-filter select { padding: 0.35rem 0.5rem; }
 .ilog2-upload-fields select { min-height: 2.2rem; padding: 0.35rem 0.55rem; }

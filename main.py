@@ -1381,10 +1381,34 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
                 denied = None
             if denied is not None:
                 return denied
-        if getattr(request.state, "current_user", None) is None:
+        current = getattr(request.state, "current_user", None)
+        if current is None:
             request.session.clear()
             return _login_redirect_for_request(request)
+        mark_module = _ilog2_label_edit_module(request, current)
+        if mark_module:
+            import ilog2_labels
+
+            token = ilog2_labels.set_mark_module(mark_module)
+            try:
+                return await call_next(request)
+            finally:
+                ilog2_labels.reset_mark_module(token)
         return await call_next(request)
+
+
+_ILOG2_PAGE_RE = re.compile(r"^/admin/inspection-logs2/\d+/([\w-]+)$")
+
+
+def _ilog2_label_edit_module(request: Request, user) -> str | None:
+    if request.method != "GET" or request.query_params.get("label_edit") != "1":
+        return None
+    m = _ILOG2_PAGE_RE.match(request.url.path or "")
+    if not m or not can_edit(user):
+        return None
+    import ilog2_labels
+
+    return ilog2_labels.module_for_segment(m.group(1))
 
 
 # 하위 호환 alias

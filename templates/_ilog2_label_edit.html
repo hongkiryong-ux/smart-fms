@@ -1,0 +1,225 @@
+{% if request.query_params.get('label_edit') == '1' and user_can_edit(user) %}
+<div class="ilbl-inline-bar" id="ilbl-inline-bar"
+     data-save-url="/admin/inspection-logs2/{{ building.id }}/labels/{{ label_module }}"
+     data-exit-url="{{ request.url.remove_query_params('label_edit') }}">
+  <strong>✏️ 문구 수정 모드</strong>
+  <span class="ilbl-inline-help">점선으로 표시된 글씨를 클릭해 고친 뒤 「저장」을 누르세요. 비우면 기본 문구로 돌아갑니다. (Enter: 입력 끝, Shift+Enter: 줄바꿈)</span>
+  <span class="ilbl-inline-count" id="ilbl-inline-count"></span>
+  <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/labels/{{ label_module }}">목록으로 보기</a>
+  <button type="button" class="btn btn-secondary btn-sm" id="ilbl-inline-cancel">취소</button>
+  <button type="button" class="btn btn-primary btn-sm" id="ilbl-inline-save">저장</button>
+</div>
+<script>
+(function () {
+  var S = '\uE000', E = '\uE002';
+  var RE = /\uE000(\d+)\uE001([\s\S]*?)\uE002/g;
+  var bar = document.getElementById('ilbl-inline-bar');
+  var countEl = document.getElementById('ilbl-inline-count');
+  var initial = {};
+  var dirty = false;
+  document.body.classList.add('ilbl-edit-mode');
+
+  function clean(s) { return String(s).replace(RE, '$2').replace(/[\uE000-\uE002]/g, ''); }
+
+  function spansOf(idx) {
+    return document.querySelectorAll('.ilbl-edit[data-idx="' + idx + '"]');
+  }
+  function textOf(span) { return span.innerText.replace(/\u00a0/g, ' ').replace(/\n+$/, ''); }
+
+  function changedMap() {
+    var out = {};
+    Object.keys(initial).forEach(function (idx) {
+      var first = spansOf(idx)[0];
+      if (!first) return;
+      var v = textOf(first);
+      if (v !== initial[idx]) out[idx] = v;
+    });
+    return out;
+  }
+  function refreshCount() {
+    var n = Object.keys(changedMap()).length;
+    dirty = n > 0;
+    countEl.textContent = n ? ('변경 ' + n + '건') : '';
+    document.querySelectorAll('.ilbl-edit').forEach(function (sp) {
+      sp.classList.toggle('is-changed', textOf(sp) !== initial[sp.dataset.idx]);
+    });
+  }
+
+  function bindSpan(span) {
+    var idx = span.dataset.idx;
+    if (!(idx in initial)) initial[idx] = textOf(span);
+    span.setAttribute('contenteditable', 'true');
+    span.setAttribute('spellcheck', 'false');
+    span.title = '클릭해서 문구 수정';
+    ['click', 'mousedown', 'mouseup', 'dblclick'].forEach(function (ev) {
+      span.addEventListener(ev, function (e) {
+        e.stopPropagation();
+        if (ev === 'click' && span.closest('a, label, button')) e.preventDefault();
+      });
+    });
+    span.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); span.blur(); }
+      if (e.key === 'Escape') { span.blur(); }
+    });
+    ['keyup', 'keypress', 'paste', 'copy', 'cut'].forEach(function (ev) {
+      span.addEventListener(ev, function (e) { e.stopPropagation(); });
+    });
+    span.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var t = (e.clipboardData || window.clipboardData).getData('text');
+      document.execCommand('insertText', false, t.replace(/\r?\n/g, ' '));
+    });
+    span.addEventListener('input', function (e) {
+      e.stopPropagation();
+      var v = textOf(span);
+      spansOf(idx).forEach(function (other) {
+        if (other !== span && textOf(other) !== v) other.textContent = v;
+      });
+      refreshCount();
+    });
+  }
+
+  function wrapRange(startNode, startPos, endNode, endPos, idx) {
+    var range = document.createRange();
+    range.setStart(startNode, startPos);
+    range.setEnd(endNode, endPos);
+    var span = document.createElement('span');
+    span.className = 'ilbl-edit';
+    span.dataset.idx = idx;
+    span.appendChild(range.extractContents());
+    range.insertNode(span);
+    return span;
+  }
+
+  function processTextNode(node) {
+    var text = node.nodeValue;
+    var s = text.indexOf(S);
+    if (s < 0) return false;
+    var parent = node.parentNode;
+    if (!parent) return false;
+    var tag = parent.nodeName;
+    if (tag === 'OPTION' || tag === 'TEXTAREA' || tag === 'TITLE' || parent.closest('select')) {
+      node.nodeValue = clean(text);
+      return true;
+    }
+    var mid = text.indexOf('\uE001', s);
+    if (mid < 0) { node.nodeValue = clean(text); return true; }
+    var idx = text.slice(s + 1, mid);
+    var e = text.indexOf(E, mid);
+    var span;
+    if (e >= 0) {
+      span = wrapRange(node, mid + 1, node, e, idx);
+    } else {
+      var endNode = null, walker = node.nextSibling;
+      while (walker) {
+        if (walker.nodeType === 3 && walker.nodeValue.indexOf(E) >= 0) { endNode = walker; break; }
+        if (walker.nodeType === 1 && walker.textContent.indexOf(E) >= 0) { break; }
+        walker = walker.nextSibling;
+      }
+      if (!endNode) { node.nodeValue = clean(text); return true; }
+      span = wrapRange(node, mid + 1, endNode, endNode.nodeValue.indexOf(E), idx);
+    }
+    var walkerIn = document.createTreeWalker(span.parentNode, NodeFilter.SHOW_TEXT);
+    var t;
+    var toClean = [];
+    while ((t = walkerIn.nextNode())) { if (/[\uE000-\uE002]/.test(t.nodeValue)) toClean.push(t); }
+    toClean.forEach(function (tn) {
+      if (span.contains(tn)) return;
+      tn.nodeValue = tn.nodeValue.replace(/\uE000\d+\uE001$/, '').replace(/^\uE002/, '');
+    });
+    bindSpan(span);
+    return true;
+  }
+
+  function markedTextNodes(root) {
+    var list = [];
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        if (!n.nodeValue || n.nodeValue.indexOf(S) < 0) return NodeFilter.FILTER_REJECT;
+        var p = n.parentNode && n.parentNode.nodeName;
+        return (p === 'SCRIPT' || p === 'STYLE') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var n;
+    while ((n = walker.nextNode())) list.push(n);
+    return list;
+  }
+
+  function scan(root) {
+    for (var pass = 0; pass < 30; pass++) {
+      var nodes = markedTextNodes(root);
+      if (!nodes.length) break;
+      nodes.forEach(function (n) {
+        if (n.isConnected && n.nodeValue.indexOf(S) >= 0) processTextNode(n);
+      });
+    }
+    var stray = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    var sn;
+    while ((sn = stray.nextNode())) {
+      if (/[\uE000-\uE002]/.test(sn.nodeValue)) sn.nodeValue = clean(sn.nodeValue);
+    }
+    (root.querySelectorAll ? root.querySelectorAll('*') : []).forEach(function (el) {
+      for (var i = 0; i < el.attributes.length; i++) {
+        var a = el.attributes[i];
+        if (a.value.indexOf(S) >= 0 || a.value.indexOf(E) >= 0) el.setAttribute(a.name, clean(a.value));
+      }
+      if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && /[\uE000-\uE002]/.test(el.value)) {
+        el.value = clean(el.value);
+      }
+    });
+  }
+
+  document.title = clean(document.title);
+  scan(document.body);
+  refreshCount();
+
+  new MutationObserver(function (muts) {
+    muts.forEach(function (m) {
+      m.addedNodes.forEach(function (node) {
+        if (node.nodeType === 1 && /[\uE000-\uE002]/.test(node.textContent + (node.outerHTML || ''))) scan(node);
+        else if (node.nodeType === 3 && node.nodeValue.indexOf(S) >= 0 && node.parentNode) scan(node.parentNode);
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+
+  function exitEdit() { window.location.href = bar.dataset.exitUrl; }
+
+  document.getElementById('ilbl-inline-cancel').addEventListener('click', function () {
+    if (dirty && !confirm('저장하지 않은 변경이 있습니다. 취소할까요?')) return;
+    dirty = false;
+    exitEdit();
+  });
+  document.getElementById('ilbl-inline-save').addEventListener('click', function () {
+    var map = changedMap();
+    var keys = Object.keys(map);
+    if (!keys.length) { exitEdit(); return; }
+    var body = new URLSearchParams();
+    body.append('action', 'save');
+    keys.forEach(function (idx) { body.append('v__' + idx, map[idx].trim()); });
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = '저장 중…';
+    fetch(bar.dataset.saveUrl, {
+      method: 'POST',
+      body: body,
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      dirty = false;
+      exitEdit();
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = '저장';
+      alert('저장하지 못했습니다: ' + err.message);
+    });
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+})();
+</script>
+{% endif %}

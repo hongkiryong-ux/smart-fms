@@ -7,6 +7,7 @@ id 등 데이터 키는 건드리지 않아 저장된 입력값은 그대로 유
 from __future__ import annotations
 
 import json
+from contextvars import ContextVar
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -53,6 +54,27 @@ KEY_LABELS = {
 _overrides: dict[str, dict[str, str]] = {}
 _version = 0
 _applied: dict[str, tuple[int, int, dict]] = {}
+_items_cache: dict[str, tuple[int, list[dict]]] = {}
+_marked_cache: dict[str, tuple[int, int, dict]] = {}
+
+# 화면 수정 모드: 문구를 사용자 영역 문자로 감싸 화면 JS가 어느 문구인지 알 수 있게 한다.
+MARK_START, MARK_MID, MARK_END = "\ue000", "\ue001", "\ue002"
+_mark_module: ContextVar[str | None] = ContextVar("ilog2_mark_module", default=None)
+
+
+def module_for_segment(segment: str) -> str | None:
+    for key, (_fname, seg) in MODULES.items():
+        if seg == segment:
+            return key
+    return None
+
+
+def set_mark_module(module_key: str | None):
+    return _mark_module.set(module_key)
+
+
+def reset_mark_module(token) -> None:
+    _mark_module.reset(token)
 
 
 def _item_id(kind: str, path: list, key: str, original: str) -> str:
@@ -86,7 +108,7 @@ def _apply_one(schema: dict, item_id: str, value: str) -> None:
                 row[key] = value
 
 
-def apply_label_overrides(module_key: str, schema: dict) -> dict:
+def _with_overrides(module_key: str, schema: dict) -> dict:
     ov = _overrides.get(module_key)
     if not ov or not isinstance(schema, dict):
         return schema
@@ -98,6 +120,38 @@ def apply_label_overrides(module_key: str, schema: dict) -> dict:
         _apply_one(out, item_id, value)
     _applied[module_key] = (id(schema), _version, out)
     return out
+
+
+def _with_marks(module_key: str, schema: dict) -> dict:
+    cached = _marked_cache.get(module_key)
+    if cached and cached[0] == id(schema) and cached[1] == _version:
+        return cached[2]
+    out = deepcopy(schema)
+    for idx, it in enumerate(collect_items(module_key)):
+        try:
+            kind, path, key, _orig = json.loads(it["id"])
+        except (ValueError, TypeError):
+            continue
+        cur = it["current"]
+        wrapped = f"{MARK_START}{idx}{MARK_MID}{cur}{MARK_END}"
+        target = _resolve(out, path)
+        if kind == "p" and isinstance(target, dict) and target.get(key) == cur:
+            target[key] = wrapped
+        elif kind == "g" and isinstance(target, list):
+            for row in target:
+                if isinstance(row, dict) and row.get(key) == cur:
+                    row[key] = wrapped
+    _marked_cache[module_key] = (id(schema), _version, out)
+    return out
+
+
+def apply_label_overrides(module_key: str, schema: dict) -> dict:
+    if not isinstance(schema, dict):
+        return schema
+    applied = _with_overrides(module_key, schema)
+    if _mark_module.get() == module_key:
+        return _with_marks(module_key, applied)
+    return applied
 
 
 def load_base_schema(module_key: str) -> dict:
@@ -115,6 +169,15 @@ def _context_name(node: dict) -> str:
 
 def collect_items(module_key: str) -> list[dict]:
     """수정 가능한 문구 목록 (기본 스키마 기준, 현재 수정값 포함)."""
+    cached = _items_cache.get(module_key)
+    if cached and cached[0] == _version:
+        return [dict(it) for it in cached[1]]
+    items = _collect_items(module_key)
+    _items_cache[module_key] = (_version, items)
+    return [dict(it) for it in items]
+
+
+def _collect_items(module_key: str) -> list[dict]:
     base = load_base_schema(module_key)
     ov = _overrides.get(module_key) or {}
     items: list[dict] = []
@@ -187,6 +250,8 @@ def _set_memory(module_key: str, data: dict[str, str]) -> None:
     else:
         _overrides.pop(module_key, None)
     _applied.pop(module_key, None)
+    _marked_cache.pop(module_key, None)
+    _items_cache.pop(module_key, None)
     _version += 1
 
 
