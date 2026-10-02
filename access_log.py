@@ -72,6 +72,7 @@ RESOURCE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/gtown/", "점검일지·기가타운(QR)"),
     ("/p1538/", "점검일지·PARK1538(QR)"),
     ("/swhall/", "점검일지·제철회관(QR)"),
+    ("/rist/", "점검일지·RIST(QR)"),
     ("/eq/", "설비(QR)"),
     ("/lamp/", "가로등(QR)"),
     ("/admin/", "관리자"),

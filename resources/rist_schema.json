@@ -1,0 +1,96 @@
+{
+  "building_name": "RIST",
+  "building_aliases": ["RIST", "RIST 운영일보", "RIST운영일보"],
+  "title": "RIST 운영일보",
+  "utility": {
+    "title": "1. UTILITY 사용량",
+    "power": {
+      "title": "전력",
+      "unit": "배율×1,800",
+      "label": "연구동 전력",
+      "building": "연구동",
+      "multiplier": 1800,
+      "daily": {"title": "일사용량"},
+      "monthly": {"title": "월누계량"},
+      "bands": [
+        {"id": "power_mid", "label": "중간부하", "sub_label": "중부하"},
+        {"id": "power_peak", "label": "최대부하", "sub_label": "최대부하"},
+        {"id": "power_off", "label": "경부하", "sub_label": "경부하"}
+      ]
+    },
+    "meters_head": {"title": "구분"},
+    "meters": [
+      {"id": "water", "label": "용수", "unit": "m³", "multiplier": 1},
+      {"id": "gas", "label": "GAS", "unit": "m³", "multiplier": 1}
+    ],
+    "monthly_ids": ["power_mid", "power_peak", "power_off", "water", "gas"]
+  },
+  "inspect": {"title": "2. UTILITY 점검사항"},
+  "elec": {
+    "title": "전기",
+    "unit_row": {"label": "단위"},
+    "time_row": {"label": "시간"},
+    "fields": [
+      {"id": "mid", "label": "중간", "unit": "KWh", "meter": true},
+      {"id": "peak", "label": "최대", "unit": "KWh", "meter": true},
+      {"id": "off", "label": "경부하", "unit": "KWh", "meter": true},
+      {"id": "volt", "label": "전압(KV)", "std": "6.6"},
+      {"id": "amp", "label": "전류[A]", "std": "78이하"},
+      {"id": "kw", "label": "유효(KW)", "std": "800(이하)"},
+      {"id": "pf", "label": "역률(%)", "std": "90이상"}
+    ],
+    "tr": {"title": "T R 온도"},
+    "tr_fields": [
+      {"id": "tr1", "label": "#1"},
+      {"id": "tr2", "label": "#2"},
+      {"id": "tr3", "label": "#3"}
+    ],
+    "buildings": [
+      {"id": "lab", "label": "연구동", "times": ["t1", "t2"], "meter": true, "tr": true},
+      {"id": "exp", "label": "실험동", "times": ["t1", "t2"], "meter": false, "tr": false}
+    ]
+  },
+  "solar": {
+    "title": "태양광",
+    "location": {"title": "인버터 위치(용량kW)"},
+    "fields": [
+      {"id": "dc_v", "label": "모듈전압[DC V]"},
+      {"id": "ac_v", "label": "출력전압[AC V]"},
+      {"id": "amp", "label": "출력전류[A]"},
+      {"id": "kw", "label": "출력[KW]"}
+    ],
+    "rows": [
+      {"id": "lab_roof", "group": "연구동", "label": "옥상(100kW)"},
+      {"id": "exp_bipv1", "group": "실험동", "label": "1층 전기실 10.1kW", "sub_label": "BIPV 1"},
+      {"id": "exp_bipv2", "group": "실험동", "label": "1층 전기실 9kW", "sub_label": "BIPV 2"}
+    ]
+  },
+  "mech": {
+    "title": "기계",
+    "building": {"label": "연구동"},
+    "times": ["t1", "t2"],
+    "fields": [
+      {"id": "gas_p", "label": "가스압력", "unit": "kpa"},
+      {"id": "boiler_vac", "label": "보일러진공", "unit": "kpa"},
+      {"id": "comp_supply", "group": "콤프레샤", "label": "공급압"},
+      {"id": "comp_tank", "group": "콤프레샤", "label": "저장조"},
+      {"id": "comp_ref", "group": "콤프레샤", "label": "냉동식"},
+      {"id": "comp_ads", "group": "콤프레샤", "label": "흡착식"},
+      {"id": "in_lobby", "group": "실내온도", "label": "로비"},
+      {"id": "in_lounge", "group": "실내온도", "label": "휴게실"}
+    ]
+  },
+  "water": {
+    "title": "급수",
+    "unit": "Kg/㎠",
+    "times": ["t1", "t2"],
+    "fields": [
+      {"id": "supply", "label": "급수"},
+      {"id": "lab", "label": "실험실"},
+      {"id": "hot", "label": "급탕(℃)"},
+      {"id": "fire_p", "group": "소화전", "label": "압력탱크(Kg/㎠)"},
+      {"id": "fire_level", "group": "소화전", "label": "저수량(%)"}
+    ]
+  },
+  "notes": {"title": "▶ 특이사항"}
+}

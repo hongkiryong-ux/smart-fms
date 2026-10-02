@@ -28,6 +28,7 @@ NOTES_MODULES: dict[str, tuple[str, str]] = {
     "sub53": ("is_sub53_building", "53서브"),
     "baegundae": ("is_baegundae_building", "백운대"),
     "baegun_shopping": ("is_baegun_shopping_building", "백운쇼핑"),
+    "rist": ("is_rist_building", "RIST"),
 }
 
 HEADERS = ["No", "날짜", "요일", "시간", "구분", "내용"]

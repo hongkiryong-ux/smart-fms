@@ -899,6 +899,45 @@ class BaegunShoppingArchive(Base):
     )
 
 
+class RistDaily(Base):
+    """RIST 운영일보 1일."""
+
+    __tablename__ = "rist_daily"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_rist_daily"),
+    )
+
+
+class RistArchive(Base):
+    """RIST 운영일보 1일 엑셀 아카이브."""
+
+    __tablename__ = "rist_archives"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    original_name = Column(String(300), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_rist_archive"),
+    )
+
+
 class InspectionLog2Attachment(Base):
     """점검일지(일지 생성 건물) 첨부파일 — 기존 일지를 파일로 보관."""
 
