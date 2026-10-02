@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import json
 import re
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -578,6 +578,9 @@ def _put_cell(ws, row: int, col: int, value: Any) -> None:
     """병합 셀 안쪽 좌표면 병합 시작 셀에 쓰고, 이미 값이 있으면 줄바꿈으로 덧붙임."""
     if value in (None, ""):
         return
+    num = _parse_num(value) if re.fullmatch(r"-?\d+(\.\d+)?", str(value).strip()) else None
+    if num is not None:
+        value = int(num) if num.is_integer() else num
     for rng in ws.merged_cells.ranges:
         if rng.min_row <= row <= rng.max_row and rng.min_col <= col <= rng.max_col:
             if (row, col) == (rng.min_row, rng.min_col):
@@ -586,6 +589,30 @@ def _put_cell(ws, row: int, col: int, value: Any) -> None:
             anchor.value = f"{anchor.value}\n{value}" if anchor.value not in (None, "") else value
             return
     ws.cell(row, col, value)
+
+
+def _split_rows_merge(ws, first_row: int, last_row: int, min_col: int) -> None:
+    """세로 병합(예: D29:E31)을 행별 병합(D29:E29 …)으로 나눠 차수별 값을 따로 쓸 수 있게 함."""
+    targets = [
+        rng for rng in list(ws.merged_cells.ranges)
+        if rng.min_row == first_row and rng.max_row == last_row and rng.min_col >= min_col
+    ]
+    for rng in targets:
+        c1, c2 = rng.min_col, rng.max_col
+        anchor = ws.cell(first_row, c1)
+        style = (copy(anchor.border), copy(anchor.alignment), copy(anchor.font), copy(anchor.fill))
+        ws.unmerge_cells(str(rng))
+        for r in range(first_row, last_row + 1):
+            for c in range(c1, c2 + 1):
+                cell = ws.cell(r, c)
+                cell.border, cell.alignment, cell.font, cell.fill = (copy(s) for s in style)
+            if c2 > c1:
+                ws.merge_cells(start_row=r, start_column=c1, end_row=r, end_column=c2)
+
+
+def _put_shift_row(ws, r: int, row: dict, cols: dict[str, int]) -> None:
+    for key, col in cols.items():
+        _put_cell(ws, r, col, row.get(key))
 
 
 def export_daily_to_excel(data: dict, log_date: date) -> bytes:
@@ -630,18 +657,42 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
         _put_cell(ws, r_idx, 12, row.get("return_pressure"))
         _put_cell(ws, r_idx, 14, row.get("notes"))
 
+    three_shift_cols = {
+        "s1_time": 4, "s1_hr": 6, "s2_time": 7, "s2_hr": 9, "s3_time": 10, "s3_hr": 12,
+        "daily": 13, "monthly": 14, "prev_day": 15,
+    }
     s3_rows = {"housing": 21, "baegun": 22, "dongbaek": 23, "welfare": 24}
     for rid, r in s3_rows.items():
-        row = (data.get("s3") or {}).get(rid, {})
-        _put_cell(ws, r, 4, row.get("s1_time"))
-        _put_cell(ws, r, 6, row.get("s1_hr"))
-        _put_cell(ws, r, 7, row.get("s2_time"))
-        _put_cell(ws, r, 9, row.get("s2_hr"))
-        _put_cell(ws, r, 10, row.get("s3_time"))
-        _put_cell(ws, r, 12, row.get("s3_hr"))
-        _put_cell(ws, r, 13, row.get("daily"))
-        _put_cell(ws, r, 14, row.get("monthly"))
-        _put_cell(ws, r, 15, row.get("prev_day"))
+        _put_shift_row(ws, r, (data.get("s3") or {}).get(rid, {}), three_shift_cols)
+
+    _split_rows_merge(ws, 29, 31, 4)
+    s4 = data.get("s4") or {}
+    for idx, unit in enumerate(load_schema()["section4"]["units"]):
+        col = 4 + idx * 2
+        ud = s4.get(unit, {})
+        for si in (1, 2, 3):
+            _put_cell(ws, 28 + si, col, ud.get(f"s{si}"))
+        _put_cell(ws, 32, col, ud.get("daily"))
+        _put_cell(ws, 33, col, ud.get("prev_day"))
+        _put_cell(ws, 34, col, ud.get("monthly"))
+
+    s5_cols = {
+        "s1_time": 6, "s1_hr": 8, "s2_time": 9, "s2_hr": 11,
+        "daily": 12, "monthly": 13, "prev_day": 14, "steam": 15, "notes": 16,
+    }
+    for rid, r in {"b1": 39, "b2": 40}.items():
+        _put_shift_row(ws, r, (data.get("s5") or {}).get(rid, {}), s5_cols)
+
+    s6 = data.get("s6") or {}
+    s6_rows = {"b2": 45, "b4": 46, "b6": 47, "w1": 48, "w2": 49}
+    for rid, r in s6_rows.items():
+        _put_shift_row(ws, r, (s6.get("op") or {}).get(rid, {}), three_shift_cols)
+    chiller_cols = {
+        "high": 6, "low": 8, "refrigerant": 10, "oil": 11, "cold_out": 12,
+        "cold_in": 13, "cool_in": 14, "cool_out": 15, "ct_fan": 16,
+    }
+    for rid, r in {"c1_10": 52, "c1_16": 53, "c2_10": 54, "c2_16": 55}.items():
+        _put_shift_row(ws, r, (s6.get("chiller") or {}).get(rid, {}), chiller_cols)
 
     buf = io.BytesIO()
     wb.save(buf)
