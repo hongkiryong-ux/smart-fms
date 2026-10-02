@@ -177,14 +177,29 @@
       <div class="gt-sheet-subtitle">{{ schema.mechanical.title }}</div>
       <div class="gt-table-wrap">
         <table class="gt-excel">
+          {% set mech_fields = schema.mechanical.fields %}
+          {% set mech_has_groups = mech_fields|selectattr('group')|list|length > 0 %}
           <thead>
             <tr>
-              <th colspan="2">구 분</th>
-              {% for f in schema.mechanical.fields %}<th>{{ f.label }}</th>{% endfor %}
+              <th colspan="2"{% if mech_has_groups %} rowspan="2"{% endif %}>구 분</th>
+              {% set mh_ns = namespace(prev=none) %}
+              {% for f in mech_fields %}
+                {% if not f.group %}
+              <th{% if mech_has_groups %} rowspan="2"{% endif %}>{{ f.label }}</th>
+                {% elif f.group != mh_ns.prev %}
+              <th colspan="{{ mech_fields|selectattr('group', 'equalto', f.group)|list|length }}">{{ f.group }}</th>
+                {% endif %}
+                {% set mh_ns.prev = f.group %}
+              {% endfor %}
             </tr>
+            {% if mech_has_groups %}
+            <tr>
+              {% for f in mech_fields if f.group %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+            {% endif %}
           </thead>
           <tbody>
-            {% set mech_ns = namespace(prev='') %}
+            {% set mech_ns = namespace(prev='', prev_sub='') %}
             {% for row in schema.mechanical.rows %}
             {% set item = mech_data.get(row.id, {}) %}
             <tr>
@@ -192,9 +207,15 @@
               {% set group_span = schema.mechanical.rows|selectattr('group', 'equalto', row.group)|list|length %}
               <th rowspan="{{ group_span }}" class="gt-cat">{{ row.group }}</th>
               {% set mech_ns.prev = row.group %}
+              {% set mech_ns.prev_sub = '' %}
               {% endif %}
-              <th class="gt-sub">{{ row.label }}</th>
-              {% for f in schema.mechanical.fields %}
+              {% set sub_key = row.sub or row.id %}
+              {% if mech_ns.prev_sub != sub_key %}
+              {% set sub_span = schema.mechanical.rows|selectattr('group', 'equalto', row.group)|selectattr('sub', 'defined')|selectattr('sub', 'equalto', row.sub)|list|length if row.sub else 1 %}
+              <th rowspan="{{ sub_span }}" class="gt-sub">{{ row.label }}</th>
+              {% set mech_ns.prev_sub = sub_key %}
+              {% endif %}
+              {% for f in mech_fields %}
               <td{% if f.id == 'time' %} class="gt-time-col"{% endif %}>
                 <input class="gt-cell{% if f.id == 'time' %} gt-time-input{% endif %}" name="mech__{{ row.id }}__{{ f.id }}" value="{{ item.get(f.id,'') }}" {% if f.id == 'time' %}title="시간 수기 입력"{% endif %} />
               </td>
@@ -210,25 +231,30 @@
     <div class="gt-sheet">
       <div class="gt-sheet-subtitle">{{ schema.pump_fire.title }}</div>
       <div class="gt-table-wrap">
-        <table class="gt-excel">
-          <thead>
-            <tr>
-              <th colspan="2">구 분</th>
-              {% for f in schema.pump_fire.fields %}<th>{{ f.label }}</th>{% endfor %}
-            </tr>
-          </thead>
+        {% set pf_hw = schema.pump_fire.fields|selectattr('part', 'equalto', 'hot_water')|list %}
+        {% set pf_fire = schema.pump_fire.fields|selectattr('part', 'equalto', 'fire')|list %}
+        {% set pf_rows = schema.pump_fire.rows %}
+        <table class="gt-excel gt-pump-fire">
           <tbody>
-            {% set pf_ns = namespace(prev='') %}
-            {% for row in schema.pump_fire.rows %}
+            <tr>
+              <th rowspan="2" class="gt-cat">{{ schema.pump_fire.hot_water_title }}</th>
+              {% for f in pf_hw %}
+              <th{% if not f.unit %} rowspan="2"{% endif %}>{{ f.label }}</th>
+              {% endfor %}
+              {% if pf_fire %}
+              <th rowspan="{{ 2 + pf_rows|length }}" class="gt-cat gt-pf-fire-title">{{ schema.pump_fire.fire_title }}</th>
+              {% for f in pf_fire %}<th>{{ f.label }}</th>{% endfor %}
+              {% endif %}
+            </tr>
+            <tr>
+              {% for f in pf_hw if f.unit %}<th class="gt-unit">({{ f.unit }})</th>{% endfor %}
+              {% for f in pf_fire %}<th class="gt-unit">{% if f.unit %}({{ f.unit }}){% endif %}</th>{% endfor %}
+            </tr>
+            {% for row in pf_rows %}
             {% set item = pf_data.get(row.id, {}) %}
             <tr>
-              {% if pf_ns.prev != row.group %}
-              {% set group_span = schema.pump_fire.rows|selectattr('group', 'equalto', row.group)|list|length %}
-              <th rowspan="{{ group_span }}" class="gt-cat">{{ row.group }}</th>
-              {% set pf_ns.prev = row.group %}
-              {% endif %}
               <th class="gt-sub">{{ row.label }}</th>
-              {% for f in schema.pump_fire.fields %}
+              {% for f in pf_hw + pf_fire %}
               <td{% if f.id == 'time' %} class="gt-time-col"{% endif %}>
                 <input class="gt-cell{% if f.id == 'time' %} gt-time-input{% endif %}" name="pf__{{ row.id }}__{{ f.id }}" value="{{ item.get(f.id,'') }}" {% if f.id == 'time' %}title="시간 수기 입력"{% endif %} />
               </td>

@@ -143,37 +143,40 @@
   "mechanical": {
     "title": "다. 기계설비",
     "rows": [
-      {"id": "heat_dorm", "group": "난방 P/P", "label": "생활관"},
-      {"id": "heat_comm", "group": "난방 P/P", "label": "근생"},
-      {"id": "hw_dorm", "group": "급탕 P/P", "label": "생활관"},
-      {"id": "hw_comm", "group": "급탕 P/P", "label": "근생"}
+      {"id": "heat_dorm", "group": "난방 P/P", "sub": "dorm", "label": "생활관"},
+      {"id": "heat_dorm_2", "group": "난방 P/P", "sub": "dorm", "label": "생활관"},
+      {"id": "heat_dorm_3", "group": "난방 P/P", "sub": "dorm", "label": "생활관"},
+      {"id": "heat_comm", "group": "난방 P/P", "sub": "comm", "label": "근생"},
+      {"id": "heat_comm_2", "group": "난방 P/P", "sub": "comm", "label": "근생"},
+      {"id": "heat_comm_3", "group": "난방 P/P", "sub": "comm", "label": "근생"}
     ],
     "fields": [
       {"id": "time", "label": "시간"},
-      {"id": "hvac_sup", "label": "냉난방수 공급"},
-      {"id": "hvac_ret", "label": "냉난방수 환수"},
-      {"id": "cw_sup", "label": "냉각수 공급"},
-      {"id": "cw_ret", "label": "냉각수 환수"},
-      {"id": "steam_sup", "label": "증수수 공급"},
-      {"id": "steam_ret", "label": "증수수 환수"},
-      {"id": "hw_p_sup", "label": "중온수압 공급"},
-      {"id": "hw_p_ret", "label": "중온수압 환수"}
+      {"id": "hvac_sup", "group": "난방온도(℃)", "label": "S"},
+      {"id": "hvac_ret", "group": "난방온도(℃)", "label": "R"},
+      {"id": "heat_p_sup", "group": "난방압력(kg/㎠)", "label": "S"},
+      {"id": "heat_p_ret", "group": "난방압력(kg/㎠)", "label": "R"},
+      {"id": "hw_t_sup", "group": "중온수온도(℃)", "label": "S"},
+      {"id": "hw_t_ret", "group": "중온수온도(℃)", "label": "R"},
+      {"id": "hw_p_sup", "group": "중온수압력(kg/㎠)", "label": "S"},
+      {"id": "hw_p_ret", "group": "중온수압력(kg/㎠)", "label": "R"}
     ]
   },
   "pump_fire": {
-    "title": "라. 급탕 및 소화 설비",
+    "title": "라. 급탕 및 소화설비",
+    "hot_water_title": "급탕 설비",
+    "fire_title": "소화 설비",
     "rows": [
-      {"id": "ws_dorm", "group": "급수설비", "label": "생활관"},
-      {"id": "ws_comm", "group": "급수설비", "label": "근생"}
+      {"id": "ws_dorm", "label": "생활관"},
+      {"id": "ws_comm", "label": "근생"}
     ],
     "fields": [
-      {"id": "time", "label": "시간"},
-      {"id": "temp", "label": "온도(℃)"},
-      {"id": "pressure", "label": "압력"},
-      {"id": "level", "label": "저수위(%)"},
-      {"id": "hydrant", "label": "소화전"},
-      {"id": "sprinkler", "label": "스프링클러"},
-      {"id": "tank", "label": "저수량"}
+      {"id": "time", "part": "hot_water", "label": "시간"},
+      {"id": "temp", "part": "hot_water", "label": "온도", "unit": "℃"},
+      {"id": "pressure", "part": "hot_water", "label": "압력", "unit": "kg/㎠"},
+      {"id": "hydrant", "part": "fire", "label": "소화전", "unit": "MPa"},
+      {"id": "sprinkler", "part": "fire", "label": "스프링클러", "unit": "MPa"},
+      {"id": "tank", "part": "fire", "label": "저수량", "unit": "%"}
     ]
   },
   "indoor_temp": {
