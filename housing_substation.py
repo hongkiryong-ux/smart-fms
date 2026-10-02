@@ -156,7 +156,12 @@ def empty_footer_payload(footer_schema: dict | None = None) -> dict[str, Any]:
 
 def build_daily_footer_layout(schema: dict | None = None) -> dict:
     footer = get_daily_footer_schema(schema)
-    return footer
+    if not footer.get("transformer"):
+        return footer
+    return {
+        **footer,
+        "transformer": {**footer["transformer"], "layout": transformer_layout(footer)},
+    }
 
 
 def _footer_times(footer_schema: dict) -> list[str]:
@@ -174,10 +179,32 @@ def _footer_transformer_fields(footer_schema: dict) -> list[dict]:
     return (footer_schema.get("transformer") or {}).get("fields") or []
 
 
+_SINGLE_SUB = [{"id": "", "label": ""}]
+
+
 def transformer_subs(footer_schema: dict | None = None) -> list[dict]:
-    """변압기온도 항목별 하위 칸 (권선/절연유). 없으면 항목당 한 칸."""
+    """변압기온도 기본 하위 칸 (권선/절연유)."""
     footer_schema = footer_schema if footer_schema is not None else get_daily_footer_schema()
-    return (footer_schema.get("transformer") or {}).get("subs") or [{"id": "", "label": ""}]
+    return (footer_schema.get("transformer") or {}).get("subs") or []
+
+
+def _field_sub_ids(field: dict, footer_schema: dict) -> list[str]:
+    subs = field["subs"] if "subs" in field else transformer_subs(footer_schema)
+    return [s["id"] for s in subs or [] if s.get("id")]
+
+
+def transformer_layout(footer_schema: dict | None = None) -> list[dict]:
+    """항목별 칸 구성 — 항목에 subs: [] 이면 한 칸."""
+    footer_schema = footer_schema if footer_schema is not None else get_daily_footer_schema()
+    out = []
+    for field in _footer_transformer_fields(footer_schema):
+        subs = field["subs"] if "subs" in field else transformer_subs(footer_schema)
+        subs = [s for s in subs or [] if s.get("id")] or _SINGLE_SUB
+        out.append({
+            "field": field,
+            "subs": [{**s, "key": transformer_key(field["col"], s["id"])} for s in subs],
+        })
+    return out
 
 
 def transformer_key(col: str, sub_id: str) -> str:
@@ -185,13 +212,7 @@ def transformer_key(col: str, sub_id: str) -> str:
 
 
 def transformer_keys(footer_schema: dict | None = None) -> list[str]:
-    footer_schema = footer_schema if footer_schema is not None else get_daily_footer_schema()
-    subs = transformer_subs(footer_schema)
-    return [
-        transformer_key(f["col"], s["id"])
-        for f in _footer_transformer_fields(footer_schema)
-        for s in subs
-    ]
+    return [s["key"] for item in transformer_layout(footer_schema) for s in item["subs"]]
 
 
 def _split_legacy_temp(raw: Any) -> list[str]:
@@ -200,23 +221,46 @@ def _split_legacy_temp(raw: Any) -> list[str]:
     return [p for p in re.split(r"[/|,\s]+", str(raw or "").strip()) if p]
 
 
+def _all_sub_ids(footer_schema: dict) -> list[str]:
+    ids = [s["id"] for s in transformer_subs(footer_schema) if s.get("id")]
+    for field in _footer_transformer_fields(footer_schema):
+        for s in field.get("subs") or []:
+            if s.get("id") and s["id"] not in ids:
+                ids.append(s["id"])
+    return ids or ["w", "o"]
+
+
 def migrate_transformer_cells(cells: dict, footer_schema: dict | None = None) -> bool:
-    """항목당 한 칸에 '33/34'처럼 적던 값을 권선/절연유 칸으로 옮긴다 (앞=권선, 뒤=절연유)."""
+    """저장 키를 현재 칸 구성에 맞춘다.
+    한 칸 → 권선/절연유: '33/34'는 앞=권선, 뒤=절연유. 권선/절연유 → 한 칸: 값을 '/'로 합친다."""
     footer_schema = footer_schema if footer_schema is not None else get_daily_footer_schema()
-    subs = [s["id"] for s in transformer_subs(footer_schema) if s.get("id")]
-    if not subs or not isinstance(cells, dict):
+    if not isinstance(cells, dict):
         return False
     changed = False
     for field in _footer_transformer_fields(footer_schema):
         col = field["col"]
-        if col not in cells:
-            continue
-        legacy = cells.pop(col)
-        changed = True
-        if any(str(cells.get(transformer_key(col, s)) or "").strip() for s in subs):
-            continue
-        for sub_id, part in zip(subs, _split_legacy_temp(legacy)):
-            cells[transformer_key(col, sub_id)] = part
+        sub_ids = _field_sub_ids(field, footer_schema)
+        if sub_ids:
+            if col not in cells:
+                continue
+            legacy = cells.pop(col)
+            changed = True
+            if any(str(cells.get(transformer_key(col, s)) or "").strip() for s in sub_ids):
+                continue
+            for sub_id, part in zip(sub_ids, _split_legacy_temp(legacy)):
+                cells[transformer_key(col, sub_id)] = part
+        else:
+            sub_keys = [transformer_key(col, s) for s in _all_sub_ids(footer_schema)]
+            present = [k for k in sub_keys if k in cells]
+            if not present:
+                continue
+            parts = [str(cells.pop(k) or "").strip() for k in present]
+            changed = True
+            if str(cells.get(col) or "").strip():
+                continue
+            filled = [p for p in parts if p]
+            if filled:
+                cells[col] = "/".join(filled)
     return changed
 
 
@@ -243,13 +287,13 @@ def _transformer_values_for_day(day_data: dict, footer_schema: dict) -> dict[str
 
 def _transformer_report_meta(footer_schema: dict) -> dict[str, Any]:
     tf = footer_schema.get("transformer") or {}
-    subs = transformer_subs(footer_schema)
+    layout = transformer_layout(footer_schema)
     return {
         "title": tf.get("title", "변압기온도"),
         "subtitle": tf.get("subtitle", ""),
         "fields": _footer_transformer_fields(footer_schema),
-        "subs": subs,
-        "has_subs": any(s.get("id") for s in subs),
+        "layout": layout,
+        "has_subs": any(s["id"] for item in layout for s in item["subs"]),
     }
 
 
@@ -630,12 +674,12 @@ def _normalize_daily_shape(data: dict) -> dict:
 
 
 def _has_legacy_transformer(data: dict) -> bool:
-    if not any(s.get("id") for s in transformer_subs()):
-        return False
-    cols = {f["col"] for f in _footer_transformer_fields(get_daily_footer_schema())}
     footer = _as_dict((data or {}).get("footer"))
     times = _as_dict(_as_dict(footer.get("transformer")).get("times"))
-    return any(col in _as_dict(cells) for cells in times.values() for col in cols)
+    footer_schema = get_daily_footer_schema()
+    return any(
+        migrate_transformer_cells(dict(_as_dict(cells)), footer_schema) for cells in times.values()
+    )
 
 
 def merge_daily_save(existing: dict, posted: dict) -> dict:
@@ -1409,14 +1453,16 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
         for col in grp.get("columns") or []:
             main_cols.append(col["id"])
     tf_cols = [f["col"] for f in (footer_schema.get("transformer") or {}).get("fields") or []]
-    tf_sub_ids = [s["id"] for s in transformer_subs(footer_schema)]
+    tf_layout = transformer_layout(footer_schema)
     tf_times = {t: dict(_as_dict(c)) for t, c in _as_dict(tf_times).items()}
     for cells in tf_times.values():
         migrate_transformer_cells(cells, footer_schema)
-        for col in tf_cols:
-            parts = [str(cells.get(transformer_key(col, s)) or "").strip() for s in tf_sub_ids]
+        for item in tf_layout:
+            if len(item["subs"]) < 2:
+                continue
+            parts = [str(cells.get(s["key"]) or "").strip() for s in item["subs"]]
             if any(parts):
-                cells[col] = "/".join(p or "-" for p in parts) if len(parts) > 1 else parts[0]
+                cells[item["field"]["col"]] = "/".join(p or "-" for p in parts)
     for t in footer_times:
         row = footer_row_map.get(t)
         if not row:

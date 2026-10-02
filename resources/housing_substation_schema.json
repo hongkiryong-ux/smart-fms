@@ -983,8 +983,8 @@
         {"id": "no1", "name": "NO.1", "col": "N", "range": "0~55℃"},
         {"id": "no2", "name": "NO.2", "col": "O", "range": "0~55℃"},
         {"id": "no3", "name": "NO.3", "col": "P", "range": "0~55℃"},
-        {"id": "dongbaek", "name": "동백", "col": "Q", "range": "0~85℃"},
-        {"id": "indoor", "name": "실내온도", "col": "R", "range": "10~30℃"}
+        {"id": "dongbaek", "name": "동백", "col": "Q", "range": "0~85℃", "subs": []},
+        {"id": "indoor", "name": "실내온도", "col": "R", "range": "10~30℃", "subs": []}
       ]
     },
     "notes": {
