@@ -14744,14 +14744,20 @@ async def ccr_facility_export_daily(
 ):
     from urllib.parse import quote
 
-    from ccr_facility import export_daily_to_excel, get_or_create_daily, is_ccr_facility_building
+    from ccr_facility import (
+        apply_electric_peak,
+        export_daily_to_excel,
+        get_or_create_daily,
+        is_ccr_facility_building,
+    )
 
     building = await db.get(Building, building_id)
     if not building or not is_ccr_facility_building(building):
         raise HTTPException(404)
     d = date.fromisoformat(log_date)
     row = await get_or_create_daily(db, building_id, d)
-    xbytes = export_daily_to_excel(row.data or {}, d)
+    data = await apply_electric_peak(db, building_id, d, json.loads(json.dumps(row.data or {})))
+    xbytes = export_daily_to_excel(data, d)
     fname = quote(f"중앙관제실설비_1일_{d.isoformat()}.xlsx")
     return StreamingResponse(
         BytesIO(xbytes),

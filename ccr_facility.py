@@ -282,6 +282,71 @@ async def _fetch_day_data(
     return (row.data or {}) if row else {}
 
 
+ELECTRIC_PEAK_BLOCK = "main"
+ELECTRIC_PEAK_METER = "main_H"
+
+
+async def fetch_electric_peak(
+    session: AsyncSession, building_id: int, log_date: date
+) -> dict[str, str] | None:
+    """같은 날 1일 전기 일보 「압연 / 수전 LINE INCOMING」 전류 최대값과 그 시간."""
+    from central_control_room import load_schema as load_cc_schema
+    from models import CentralControlRoomDaily
+
+    row = (
+        await session.execute(
+            select(CentralControlRoomDaily).where(
+                CentralControlRoomDaily.building_id == building_id,
+                CentralControlRoomDaily.log_date == log_date,
+            )
+        )
+    ).scalar_one_or_none()
+    if not row or not isinstance(row.data, dict):
+        return None
+    block = next(
+        (b for b in load_cc_schema().get("daily_blocks", []) if b.get("id") == ELECTRIC_PEAK_BLOCK),
+        None,
+    )
+    if not block:
+        return None
+    meter = next((m for m in block.get("meters", []) if m.get("id") == ELECTRIC_PEAK_METER), None)
+    col = (meter or {}).get("current_col")
+    if not col:
+        return None
+    block_data = row.data.get(ELECTRIC_PEAK_BLOCK)
+    times = block_data.get("times") if isinstance(block_data, dict) else None
+    if not isinstance(times, dict):
+        return None
+    best: tuple[float, str, str] | None = None
+    for t in block.get("times", []):
+        cells = times.get(t)
+        if not isinstance(cells, dict):
+            continue
+        raw = str(cells.get(col) or "").strip()
+        val = _parse_num(raw)
+        if val is not None and (best is None or val > best[0]):
+            best = (val, t, raw)
+    if best is None:
+        return None
+    return {"time": best[1], "load": best[2]}
+
+
+async def apply_electric_peak(
+    session: AsyncSession, building_id: int, log_date: date, data: dict
+) -> dict:
+    """PEAK 시간·부하(A)를 전기 일보 값으로 채움. 전기 일보 값이 없으면 수기 입력 유지."""
+    s1 = data.setdefault("s1", {})
+    peak = s1.get("peak") if isinstance(s1.get("peak"), dict) else {}
+    found = await fetch_electric_peak(session, building_id, log_date)
+    if found:
+        s1["peak"] = {**found, "auto": "1"}
+    elif peak.get("auto"):
+        s1["peak"] = {"time": "", "load": ""}
+    else:
+        s1["peak"] = {"time": peak.get("time", ""), "load": peak.get("load", "")}
+    return data
+
+
 async def sync_prev_values(
     session: AsyncSession, building_id: int, log_date: date, data: dict
 ) -> dict:
@@ -336,6 +401,7 @@ async def sync_prev_values(
         )
         row["prev_day"] = sums[rid]
 
+    await apply_electric_peak(session, building_id, log_date, data)
     return recompute_daily(data)
 
 
@@ -508,6 +574,20 @@ def parse_daily_form(form) -> dict:
     return data
 
 
+def _put_cell(ws, row: int, col: int, value: Any) -> None:
+    """병합 셀 안쪽 좌표면 병합 시작 셀에 쓰고, 이미 값이 있으면 줄바꿈으로 덧붙임."""
+    if value in (None, ""):
+        return
+    for rng in ws.merged_cells.ranges:
+        if rng.min_row <= row <= rng.max_row and rng.min_col <= col <= rng.max_col:
+            if (row, col) == (rng.min_row, rng.min_col):
+                break
+            anchor = ws.cell(rng.min_row, rng.min_col)
+            anchor.value = f"{anchor.value}\n{value}" if anchor.value not in (None, "") else value
+            return
+    ws.cell(row, col, value)
+
+
 def export_daily_to_excel(data: dict, log_date: date) -> bytes:
     data = recompute_daily(data)
     if TEMPLATE_XLSX.exists():
@@ -544,24 +624,24 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
     s2 = data.get("s2", {})
     for r_idx, rid in ((15, "day"), (16, "night")):
         row = s2.get(rid, {})
-        ws.cell(r_idx, 6, row.get("supply_temp"))
-        ws.cell(r_idx, 8, row.get("supply_pressure"))
-        ws.cell(r_idx, 10, row.get("return_temp"))
-        ws.cell(r_idx, 12, row.get("return_pressure"))
-        ws.cell(r_idx, 14, row.get("notes"))
+        _put_cell(ws, r_idx, 6, row.get("supply_temp"))
+        _put_cell(ws, r_idx, 8, row.get("supply_pressure"))
+        _put_cell(ws, r_idx, 10, row.get("return_temp"))
+        _put_cell(ws, r_idx, 12, row.get("return_pressure"))
+        _put_cell(ws, r_idx, 14, row.get("notes"))
 
     s3_rows = {"housing": 21, "baegun": 22, "dongbaek": 23, "welfare": 24}
     for rid, r in s3_rows.items():
         row = (data.get("s3") or {}).get(rid, {})
-        ws.cell(r, 4, row.get("s1_time"))
-        ws.cell(r, 6, row.get("s1_hr"))
-        ws.cell(r, 7, row.get("s2_time"))
-        ws.cell(r, 9, row.get("s2_hr"))
-        ws.cell(r, 10, row.get("s3_time"))
-        ws.cell(r, 12, row.get("s3_hr"))
-        ws.cell(r, 13, row.get("daily"))
-        ws.cell(r, 14, row.get("monthly"))
-        ws.cell(r, 15, row.get("prev_day"))
+        _put_cell(ws, r, 4, row.get("s1_time"))
+        _put_cell(ws, r, 6, row.get("s1_hr"))
+        _put_cell(ws, r, 7, row.get("s2_time"))
+        _put_cell(ws, r, 9, row.get("s2_hr"))
+        _put_cell(ws, r, 10, row.get("s3_time"))
+        _put_cell(ws, r, 12, row.get("s3_hr"))
+        _put_cell(ws, r, 13, row.get("daily"))
+        _put_cell(ws, r, 14, row.get("monthly"))
+        _put_cell(ws, r, 15, row.get("prev_day"))
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -579,7 +659,8 @@ async def archive_daily_excel(session: AsyncSession, building_id: int, log_date:
     ).scalar_one_or_none()
     if not row:
         return
-    xbytes = export_daily_to_excel(row.data or {}, log_date)
+    data = await apply_electric_peak(session, building_id, log_date, deepcopy(row.data or {}))
+    xbytes = export_daily_to_excel(data, log_date)
     arch = (
         await session.execute(
             select(CcrFacilityArchive).where(

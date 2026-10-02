@@ -128,12 +128,18 @@
               <td class="cf-calc-out" data-out="power-daily">{{ power.get('daily','') }}</td>
               <td class="cf-calc-out" data-out="power-monthly" data-prev-monthly="{{ power.get('prev_monthly','') }}">{{ power.get('monthly','') }}</td>
               <td class="cf-readonly"><input name="f__s1__power__prev_monthly" value="{{ power.get('prev_monthly','') }}" class="cf-cell cf-hidden-calc" readonly tabindex="-1" /></td>
+              {% if peak.get('auto') %}
+              <td class="cf-readonly" title="1일 전기 일보 압연/수전 LINE INCOMING 전류 최대값"><input name="f__s1__peak__time" value="{{ peak.get('time','') }}" class="cf-cell cf-peak" readonly tabindex="-1" /></td>
+              <td class="cf-readonly" title="1일 전기 일보 압연/수전 LINE INCOMING 전류 최대값"><input name="f__s1__peak__load" value="{{ peak.get('load','') }}" class="cf-cell cf-peak" readonly tabindex="-1" /></td>
+              {% else %}
               <td><input name="f__s1__peak__time" value="{{ peak.get('time','') }}" class="cf-cell" /></td>
               <td><input name="f__s1__peak__load" value="{{ peak.get('load','') }}" class="cf-cell" /></td>
+              {% endif %}
             </tr>
           </tbody>
         </table>
       </div>
+      <p class="text-muted cf-hint">PEAK 시간·부하(A)는 당일 1일 전기 일보의 압연 / 수전 LINE INCOMING 전류 중 최대값과 그 시간으로 자동 입력됩니다. (전기 일보 미입력 시 직접 입력)</p>
     </div>
 
     {# 2. 가압펌프 #}
@@ -355,7 +361,7 @@
   </form>
 </section>
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-{% if can_write %}<script src="/static/js/ccr_facility.js?v=6"></script>{% endif %}
+{% if can_write %}<script src="/static/js/ccr_facility.js?v=7"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">

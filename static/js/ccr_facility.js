@@ -167,6 +167,13 @@
     });
     const powerPrevMonthly = form.querySelector('[name="f__s1__power__prev_monthly"]');
     if (powerPrevMonthly) powerPrevMonthly.value = (s1.power || {}).prev_monthly || "";
+    const peak = s1.peak || {};
+    if (peak.auto) {
+      ["time", "load"].forEach(function (k) {
+        const el = form.querySelector('[name="f__s1__peak__' + k + '"]');
+        if (el && el.readOnly) el.value = peak[k] || "";
+      });
+    }
     recalcAll();
   }
 
