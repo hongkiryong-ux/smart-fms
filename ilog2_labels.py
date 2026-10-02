@@ -38,6 +38,7 @@ MODULES: dict[str, tuple[str, str]] = {
     "giga_town": ("giga_town_schema.json", "giga-town"),
     "park1538": ("park1538_schema.json", "park1538"),
     "rist": ("rist_schema.json", "rist"),
+    "ground_gwangyang": ("ground_gwangyang_schema.json", "ground-gwangyang"),
 }
 
 # QR 1일 입력 화면 경로 첫 조각 → module key
@@ -47,6 +48,7 @@ QR_PREFIXES: dict[str, str] = {
     "egym": "eoulrim_gym", "bahall": "baegun_art_hall", "s53": "sub53",
     "bshop": "baegun_shopping", "bdae": "baegundae", "bdorm": "baegun_dorm",
     "gtown": "giga_town", "p1538": "park1538", "rist": "rist",
+    "ggy": "ground_gwangyang",
 }
 
 # 행마다 개별 수정하는 표시 문구

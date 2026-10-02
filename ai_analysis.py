@@ -799,6 +799,7 @@ _LOG_NOTES_MODULES: list[tuple[str, tuple[str, ...], str, str]] = [
     ("백운대", ("백운대",), "baegundae", "is_baegundae_building"),
     ("백운쇼핑", ("백운쇼핑", "쇼핑센터"), "baegun_shopping", "is_baegun_shopping_building"),
     ("RIST", ("rist",), "rist", "is_rist_building"),
+    ("GROUND광양", ("ground", "그라운드"), "ground_gwangyang", "is_ground_gwangyang_building"),
 ]
 
 

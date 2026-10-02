@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/ground_gwangyang.css?v=1" />
+{% endblock %}
+{% block content %}
+{% set label_module = 'ground_gwangyang' %}{% include "_ilog2_label_edit.html" %}
+{% set qr_mode = qr_mode|default(false) %}
+{% set can_write = qr_mode or user is not none %}
+{% set save_url = daily_save_url|default('/admin/inspection-logs2/' ~ building.id ~ '/ground-gwangyang/save') %}
+{% set utility = daily_data.get('utility', {}) if daily_data else {} %}
+{% set elec_data = daily_data.get('elec', {}) if daily_data else {} %}
+{% set equip_data = daily_data.get('equip', {}) if daily_data else {} %}
+{% set power = schema.utility.power %}
+{% set mh = schema.utility.meters_head %}
+
+<header class="page-header gg-page-header">
+  <div>
+    <h1>{{ schema.title }}</h1>
+    <p>{{ building.name }}{% if qr_mode %} · QR · 자동 저장{% else %} · 1일 · 월보 · 년보 · 특이사항{% endif %}</p>
+  </div>
+  {% if not qr_mode %}<a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2">← 건물 목록</a>{% endif %}
+</header>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<nav class="gg-tabs" aria-label="GROUND광양 탭">
+  <a class="gg-tab{% if tab == 'daily' %} active{% endif %}" href="?tab=daily&date={{ log_date.isoformat() }}">1일</a>
+  {% if not qr_mode %}
+  <a class="gg-tab{% if tab == 'monthly' %} active{% endif %}" href="?tab=monthly&year={{ year }}&month={{ month }}">월보</a>
+  <a class="gg-tab{% if tab == 'yearly' %} active{% endif %}" href="?tab=yearly&year={{ year }}">년보</a>
+  <a class="gg-tab{% if tab == 'notes' %} active{% endif %}" href="?tab=notes&year={{ year }}&month={{ month }}">특이사항</a>
+  <a class="gg-tab" href="/admin/inspection-logs2/{{ building.id }}/files">과거 일지 자료</a>
+  {% if user_can_edit(user) %}<a class="gg-tab{% if request.query_params.get('label_edit') == '1' %} ilbl-tab-on{% endif %}" href="{{ request.url.include_query_params(label_edit=1) }}" title="화면에서 글씨를 클릭해 문구 수정">✏️ 문구 수정</a>{% endif %}
+  {% endif %}
+</nav>
+
+{% if tab == 'daily' %}
+<section class="card card-wide gg-daily">
+  <form method="get" class="gg-date-nav inline-form">
+    {% if qr_mode %}
+    <label>날짜 <input type="date" value="{{ log_date.isoformat() }}" onchange="location.href='/ggy/{{ building.code }}/daily?date='+this.value" /></label>
+    <a class="btn btn-secondary btn-sm" href="/ggy/{{ building.code }}/daily?date={{ today.isoformat() }}">오늘</a>
+    {% else %}
+    <input type="hidden" name="tab" value="daily" />
+    <label>날짜 <input type="date" name="date" value="{{ log_date.isoformat() }}" onchange="this.form.submit()" /></label>
+    <a class="btn btn-secondary btn-sm" href="?tab=daily&date={{ today.isoformat() }}">오늘</a>
+    <a class="btn btn-secondary btn-sm"
+       href="/admin/inspection-logs2/{{ building.id }}/ground-gwangyang/export/daily?log_date={{ log_date.isoformat() }}">
+      엑셀 다운로드
+    </a>
+    {% endif %}
+  </form>
+
+  {% if not qr_mode and qr_url %}
+  <div class="gg-qr-box">
+    <img src="/admin/inspection-logs2/{{ building.id }}/ground-gwangyang/qr.png" alt="{{ building.name }} 1일 QR" />
+    <div><a href="{{ qr_url }}" target="_blank" rel="noopener">{{ qr_url }}</a><br />
+      <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/ground-gwangyang/qr.png?download=1">QR 다운로드</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-muted gg-hint">원본 양식 · 전일지침 자동이월(수기 가능) · 일사용량 = (금일−전일)×배율 · 드래그 선택 · 엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+
+  <form method="post" action="{{ save_url }}" id="gg-daily-form" class="gg-daily-form">
+    <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+
+    <div class="gg-sheet">
+      <div class="gg-form-title">{{ schema.title }}</div>
+      <div class="gg-sheet-title">{{ schema.utility.title }}</div>
+      <div class="gg-table-wrap">
+        <table class="gg-excel gg-power-table">
+          <thead>
+            <tr>
+              <th rowspan="2">{{ power.title }}</th>
+              {% for band in power.bands %}<th colspan="2">{{ band.label }}</th>{% endfor %}
+              <th colspan="{{ power.bands|length }}">{{ power.daily.title }}</th>
+              <th colspan="{{ power.bands|length }}">{{ power.monthly.title }}</th>
+            </tr>
+            <tr>
+              {% for band in power.bands %}<th class="gg-yellow">{{ power.prev_col.title }}</th><th>{{ power.today_col.title }}</th>{% endfor %}
+              {% for band in power.bands %}<th>{{ band.sub_label }}</th>{% endfor %}
+              {% for band in power.bands %}<th>{{ band.sub_label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th class="gg-sub">{{ power.label }}</th>
+              {% for band in power.bands %}
+              {% set item = utility.get(band.id, {}) %}
+              <td class="gg-yellow">
+                <input class="gg-cell gg-prev" name="u__{{ band.id }}__prev" value="{{ item.get('prev','') }}" data-utility="{{ band.id }}" data-multiplier="{{ power.multiplier }}" inputmode="decimal" />
+                <input class="gg-prev-flag" type="hidden" name="u__{{ band.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+              </td>
+              <td><input class="gg-cell" name="u__{{ band.id }}__today" value="{{ item.get('today','') }}" inputmode="decimal" /></td>
+              {% endfor %}
+              {% for band in power.bands %}
+              <td><input class="gg-cell gg-readonly" name="u__{{ band.id }}__daily" value="{{ utility.get(band.id, {}).get('daily','') }}" readonly /></td>
+              {% endfor %}
+              {% for band in power.bands %}
+              <td><input class="gg-cell gg-readonly" name="u__{{ band.id }}__monthly" value="{{ utility.get(band.id, {}).get('monthly','') }}" readonly /></td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="gg-table-wrap">
+        <table class="gg-excel gg-meter-table">
+          <thead>
+            <tr>
+              <th>{{ mh.title }}</th>
+              <th class="gg-yellow">{{ mh.prev.title }}</th>
+              <th>{{ mh.today.title }}</th>
+              <th>{{ mh.daily.title }}</th>
+              <th>{{ mh.monthly.title }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for meter in schema.utility.meters %}
+            {% set item = utility.get(meter.id, {}) %}
+            <tr>
+              <th class="gg-sub">{{ meter.label }}</th>
+              <td class="gg-yellow">
+                <input class="gg-cell gg-prev" name="u__{{ meter.id }}__prev" value="{{ item.get('prev','') }}" data-utility="{{ meter.id }}" data-multiplier="{{ meter.multiplier|default(1) }}" inputmode="decimal" />
+                <input class="gg-prev-flag" type="hidden" name="u__{{ meter.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
+              </td>
+              <td><input class="gg-cell" name="u__{{ meter.id }}__today" value="{{ item.get('today','') }}" inputmode="decimal" /></td>
+              <td><input class="gg-cell gg-readonly" name="u__{{ meter.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
+              <td><input class="gg-cell gg-readonly" name="u__{{ meter.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="gg-sheet">
+      <div class="gg-sheet-title">{{ schema.inspect.title }}</div>
+
+      {% set elec = schema.elec %}
+      <div class="gg-table-wrap">
+        <table class="gg-excel gg-elec-table">
+          <thead>
+            <tr>
+              <th>{{ schema.head.cat.title }}</th>
+              <th>{{ schema.head.basis.title }}</th>
+              <th>{{ schema.head.time.title }}</th>
+              {% for f in elec.fields %}<th>{{ f.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="gg-std-row">
+              <th rowspan="{{ 1 + (schema.times|length) }}" class="gg-cat">{{ elec.title }}</th>
+              <th colspan="2" class="gg-sub">{{ elec.std_row.title }}</th>
+              {% for f in elec.fields %}<td class="gg-std gg-pre">{{ f.std }}</td>{% endfor %}
+            </tr>
+            {% for t in schema.times %}
+            {% set row = elec_data.get(t.id, {}) %}
+            <tr>
+              <th class="gg-sub">{{ t.label }}</th>
+              <td class="gg-time-col"><input class="gg-cell gg-time-input" name="el__{{ t.id }}__time" value="{{ row.get('time','') }}" placeholder="00:00" title="시간 수기 입력" /></td>
+              {% for f in elec.fields %}
+              <td><input class="gg-cell" name="el__{{ t.id }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" inputmode="decimal" /></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% set equip = schema.equip %}
+      {% set slots = equip.slots|default(3) %}
+      <div class="gg-table-wrap">
+        <table class="gg-excel gg-equip-table">
+          <thead>
+            <tr>
+              <th>{{ schema.head.cat.title }}</th>
+              <th>{{ schema.head.basis.title }}</th>
+              <th>{{ schema.head.time.title }}</th>
+              <th colspan="{{ slots }}">{{ equip.setting.title }}</th>
+              <th>{{ equip.result.title }}</th>
+              <th>{{ equip.remark.title }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for erow in equip.rows %}
+            {% set block = equip_data.get(erow.id, {}) %}
+            {% set lines = erow.lines if erow.lines else schema.times %}
+            {% set per_line_note = erow.lines and (erow.lines | selectattr('note', 'defined') | list | length) > 0 %}
+            {% for line in lines %}
+            {% set tid = line.time if erow.lines else line.id %}
+            {% set fields = (line.fields if erow.lines and line.fields else erow.fields) %}
+            {% set cell = block.get(tid, {}) %}
+            {% set tlabel = namespace(v=tid) %}
+            {% for t in schema.times %}{% if t.id == tid %}{% set tlabel.v = t.label %}{% endif %}{% endfor %}
+            <tr>
+              {% if loop.first %}
+              <th rowspan="{{ lines|length }}" class="gg-cat gg-pre">{{ erow.title }}</th>
+              {% endif %}
+              <th class="gg-sub">{{ tlabel.v }}</th>
+              <td class="gg-time-col"><input class="gg-cell gg-time-input" name="eq__{{ erow.id }}__{{ tid }}__time" value="{{ cell.get('time','') }}" placeholder="00:00" title="시간 수기 입력" /></td>
+              {% for f in fields %}
+              {% set span = (slots - (fields|length) + 1) if loop.last else 1 %}
+              <td class="gg-slot"{% if span > 1 %} colspan="{{ span }}"{% endif %}>
+                <span class="gg-slot-label">{{ f.label }}</span>
+                <input class="gg-cell gg-slot-input{% if f.choices %} gg-choice-input{% endif %}" name="eq__{{ erow.id }}__{{ tid }}__{{ f.id }}" value="{{ cell.get(f.id,'') }}"{% if f.choices %} placeholder="{{ f.choices|join('/') }}"{% else %} inputmode="decimal"{% endif %} />
+                {% if f.unit %}<span class="gg-unit">{{ f.unit }}</span>{% endif %}
+                {% if f.choices %}
+                <span class="gg-choices">
+                  {% for c in f.choices %}<button type="button" class="gg-choice{% if cell.get(f.id,'') == c %} on{% endif %}" data-value="{{ c }}">{{ '☑' if cell.get(f.id,'') == c else '☐' }}{{ c }}</button>{% endfor %}
+                </span>
+                {% endif %}
+              </td>
+              {% endfor %}
+              <td><input class="gg-cell gg-result" name="eq__{{ erow.id }}__{{ tid }}__result" value="{{ cell.get('result','') }}" /></td>
+              {% if per_line_note %}
+              <td class="gg-note-cell gg-pre">{{ line.note }}</td>
+              {% elif loop.first %}
+              <td rowspan="{{ lines|length }}" class="gg-note-cell gg-pre">{{ erow.note }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="gg-sheet">
+      <div class="gg-sheet-title">{{ schema.notes.title }}</div>
+      <textarea class="gg-notes" name="notes" rows="5">{{ daily_data.get('notes','') }}</textarea>
+    </div>
+
+    {% if can_write %}
+    <div class="gg-form-actions">
+      <span id="gg-save-status">자동 저장</span>
+      {% if not qr_mode and user_can_edit(user) %}
+      <button class="btn btn-secondary" type="submit" formaction="/admin/inspection-logs2/{{ building.id }}/ground-gwangyang/close-day" onclick="return confirm('이 날짜를 마감하고 다음 날 양식을 준비할까요?')">이 날짜 마감</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+<script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
+{% if can_write %}<script src="/static/js/ground_gwangyang.js?v=1"></script>{% endif %}
+
+{% elif tab == 'monthly' %}
+<section class="card card-wide">
+  <form method="get" class="gg-date-nav inline-form">
+    <input type="hidden" name="tab" value="monthly" />
+    <label>연월 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /> <input type="number" name="month" value="{{ month }}" min="1" max="12" /></label>
+    <button class="btn btn-secondary btn-sm">조회</button>
+    <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/ground-gwangyang/export/monthly?year={{ year }}&month={{ month }}">엑셀 다운로드</a>
+  </form>
+  <div class="gg-sheet">
+    <div class="gg-sheet-title">{{ year }}년 {{ month }}월 UTILITY 월보</div>
+    <div class="gg-table-wrap">
+      <table class="gg-excel gg-month-grid">
+        <thead>
+          <tr>
+            <th>일</th>
+            {% for meter in monthly.meters %}
+            <th>{% if meter.building %}{{ meter.building }} {{ meter.cat }}<br /><small>{{ meter.label or meter.id }}</small>{% else %}{{ meter.label or meter.id }}{% endif %}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in monthly.days %}
+          <tr>
+            <th>{{ day.day }}</th>
+            {% for meter in monthly.meters %}<td>{{ day.utility.get(meter.id,{}).get('daily','') }}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="gg-sum-row">
+            <th>합</th>
+            {% for meter in monthly.meters %}<td>{{ monthly.totals.get(meter.id,'') }}</td>{% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+{% elif tab == 'yearly' %}
+<section class="card card-wide">
+  <form method="get" class="gg-date-nav inline-form">
+    <input type="hidden" name="tab" value="yearly" />
+    <label>연도 <input type="number" name="year" value="{{ year }}" min="2020" max="2099" /></label>
+    <button class="btn btn-secondary btn-sm">조회</button>
+    <a class="btn btn-secondary btn-sm" href="/admin/inspection-logs2/{{ building.id }}/ground-gwangyang/export/yearly?year={{ year }}">엑셀 다운로드</a>
+  </form>
+  <div class="gg-sheet">
+    <div class="gg-sheet-title">{{ year }}년 UTILITY 년보</div>
+    <div class="gg-table-wrap">
+      <table class="gg-excel">
+        <thead>
+          <tr>
+            <th>월</th>
+            {% for meter in yearly.meters %}
+            <th>{% if meter.building %}{{ meter.building }} {{ meter.cat }}<br /><small>{{ meter.label or meter.id }}</small>{% else %}{{ meter.label or meter.id }}{% endif %}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in yearly.months %}
+          <tr>
+            <th>{{ item.month }}월</th>
+            {% for meter in yearly.meters %}<td>{{ item.utility.get(meter.id,'') }}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+          <tr class="gg-sum-row">
+            <th>합</th>
+            {% for meter in yearly.meters %}<td>{{ yearly.totals.get(meter.id,'') }}</td>{% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+{% elif tab == 'notes' %}
+{% with notes_kind = 'ground_gwangyang' %}{% include "_ilog2_notes_table.html" %}{% endwith %}
+{% endif %}
+{% endblock %}

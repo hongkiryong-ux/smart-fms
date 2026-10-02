@@ -938,6 +938,45 @@ class RistArchive(Base):
     )
 
 
+class GroundGwangyangDaily(Base):
+    """GROUND광양 운영일보 1일."""
+
+    __tablename__ = "ground_gwangyang_daily"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_ground_gwangyang_daily"),
+    )
+
+
+class GroundGwangyangArchive(Base):
+    """GROUND광양 운영일보 1일 엑셀 아카이브."""
+
+    __tablename__ = "ground_gwangyang_archives"
+
+    id = Column(Integer, primary_key=True)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=False, index=True)
+    log_date = Column(Date, nullable=False, index=True)
+    original_name = Column(String(300), nullable=True)
+    file_data = Column(LargeBinary, nullable=True)
+    file_size = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    building = relationship("Building")
+
+    __table_args__ = (
+        UniqueConstraint("building_id", "log_date", name="uq_ground_gwangyang_archive"),
+    )
+
+
 class InspectionLog2Attachment(Base):
     """점검일지(일지 생성 건물) 첨부파일 — 기존 일지를 파일로 보관."""
 

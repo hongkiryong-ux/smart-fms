@@ -1258,6 +1258,9 @@ async def lifespan(app: FastAPI):
             from rist import register_scheduler as register_rist_scheduler
 
             register_rist_scheduler(scheduler, AsyncSessionLocal, KST)
+            from ground_gwangyang import register_scheduler as register_ggy_scheduler
+
+            register_ggy_scheduler(scheduler, AsyncSessionLocal, KST)
             scheduler.start()
         except Exception as e:
             print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
@@ -10777,6 +10780,20 @@ async def inspection_logs2_page(
         await db.rollback()
         print(f"[rist] ensure register skip: {e}", flush=True)
 
+    try:
+        from ground_gwangyang import ensure_registered as ensure_ggy_registered
+        from ground_gwangyang import ensure_tables as ensure_ggy_tables
+
+        await ensure_ggy_tables(engine)
+        if await ensure_ggy_registered(db):
+            await db.commit()
+            from auth import invalidate_nav_cache
+
+            invalidate_nav_cache()
+    except Exception as e:
+        await db.rollback()
+        print(f"[ggy] ensure register skip: {e}", flush=True)
+
 
     selected_rows = (
         await db.execute(
@@ -11022,6 +11039,13 @@ async def inspection_logs2_building_detail(
     if is_rist_building(building):
         return RedirectResponse(
             f"/admin/inspection-logs2/{building_id}/rist",
+            status_code=303,
+        )
+    from ground_gwangyang import is_ground_gwangyang_building
+
+    if is_ground_gwangyang_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}/ground-gwangyang",
             status_code=303,
         )
     from baegun_dorm import is_baegun_dorm_building
@@ -14923,6 +14947,430 @@ async def rist_qr_save(
         return JSONResponse({"ok": True, "data": row.data})
     return RedirectResponse(
         f"/rist/{code}/daily?date={log_date.isoformat()}"
+        f"&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/ground-gwangyang/qr.png")
+async def ground_gwangyang_qr_png(
+    building_id: int,
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import re
+    from urllib.parse import quote
+
+    from ground_gwangyang import is_ground_gwangyang_building, qr_png_bytes, ggy_daily_qr_url
+
+    building = await db.get(Building, building_id)
+    if not building or not is_ground_gwangyang_building(building) or not building.code:
+        raise HTTPException(404)
+    data = qr_png_bytes(ggy_daily_qr_url(building.code, request))
+    safe = re.sub(r"[^\w가-힣\-]+", "_", building.code.strip()) or "ggy"
+    filename = f"{safe}_1일QR.png"
+    disposition = "attachment" if download else "inline"
+    return StreamingResponse(
+        iter([data]),
+        media_type="image/png",
+        headers={
+            "Content-Disposition": (
+                f"{disposition}; filename*=UTF-8''{quote(filename)}"
+            )
+        },
+    )
+
+
+async def _ggy_month_rows(db: AsyncSession, building_id: int, year: int, month: int):
+    import calendar
+
+    from models import GroundGwangyangDaily
+
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    rows = (
+        await db.execute(
+            select(GroundGwangyangDaily).where(
+                GroundGwangyangDaily.building_id == building_id,
+                GroundGwangyangDaily.log_date >= start,
+                GroundGwangyangDaily.log_date <= end,
+            )
+        )
+    ).scalars().all()
+    previous = (
+        await db.execute(
+            select(GroundGwangyangDaily).where(
+                GroundGwangyangDaily.building_id == building_id,
+                GroundGwangyangDaily.log_date == start - timedelta(days=1),
+            )
+        )
+    ).scalar_one_or_none()
+    return list(rows), previous
+
+
+@app.get("/admin/inspection-logs2/{building_id}/ground-gwangyang")
+async def ground_gwangyang_page(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from ground_gwangyang import (
+        compute_monthly_report,
+        ensure_tables as ensure_ggy_tables,
+        fetch_notes_list,
+        fetch_yearly_report_data,
+        get_or_create_daily,
+        is_ground_gwangyang_building,
+        load_schema,
+        ggy_daily_qr_url,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_ggy_tables(engine)
+    except Exception as exc:
+        print(f"[ggy] ensure: {exc}", flush=True)
+
+    registered = (
+        await db.execute(
+            select(InspectionLogBuilding2, Building)
+            .join(Building, Building.id == InspectionLogBuilding2.building_id)
+            .where(
+                InspectionLogBuilding2.building_id == building_id,
+                Building.is_active == True,  # noqa: E712
+            )
+        )
+    ).first()
+    if not registered:
+        return RedirectResponse(
+            "/admin/inspection-logs2?error=" + quote("등록되지 않은 건물입니다."),
+            status_code=303,
+        )
+    _, building = registered
+    if not is_ground_gwangyang_building(building):
+        return RedirectResponse(
+            f"/admin/inspection-logs2/{building_id}", status_code=303
+        )
+
+    today = _today_kst()
+    tab = request.query_params.get("tab") or "daily"
+    schema = load_schema()
+    daily_data = {}
+    monthly = {"meters": [], "days": [], "totals": {}}
+    yearly = {"months": [], "totals": {}}
+    notes_list = {"entries": []}
+    log_date = today
+    year, month = today.year, today.month
+
+    if tab == "monthly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        rows, previous = await _ggy_month_rows(db, building_id, year, month)
+        monthly = compute_monthly_report(year, month, rows, previous)
+    elif tab == "yearly":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+        except ValueError:
+            year = today.year
+        yearly = await fetch_yearly_report_data(db, building_id, year)
+    elif tab == "notes":
+        try:
+            year = int(request.query_params.get("year") or today.year)
+            month = int(request.query_params.get("month") or today.month)
+        except ValueError:
+            year, month = today.year, today.month
+        notes_list = await fetch_notes_list(db, building_id, year, month)
+    else:
+        tab = "daily"
+        try:
+            raw_date = request.query_params.get("date")
+            log_date = date.fromisoformat(raw_date) if raw_date else today
+        except ValueError:
+            log_date = today
+        daily_row = await get_or_create_daily(db, building_id, log_date)
+        await db.commit()
+        daily_data = daily_row.data or {}
+        year, month = log_date.year, log_date.month
+
+    return templates.TemplateResponse(
+        request,
+        "ground_gwangyang.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": schema,
+            "tab": tab,
+            "log_date": log_date,
+            "today": today,
+            "year": year,
+            "month": month,
+            "daily_data": daily_data,
+            "monthly": monthly,
+            "yearly": yearly,
+            "notes_list": notes_list,
+            "qr_mode": False,
+            "qr_url": (
+                ggy_daily_qr_url(building.code, request) if building.code else ""
+            ),
+            "daily_save_url": f"/admin/inspection-logs2/{building_id}/ground-gwangyang/save",
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/ground-gwangyang/save")
+async def ground_gwangyang_save(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from ground_gwangyang import (
+        finalize_daily_save,
+        get_or_create_daily,
+        is_ground_gwangyang_building,
+        parse_daily_form,
+        propagate_to_next_day,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_ground_gwangyang_building(building):
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building_id, log_date)
+    row.data = await finalize_daily_save(
+        db, building_id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    row.updated_at = datetime.utcnow()
+    await propagate_to_next_day(db, building_id, log_date, row.data)
+    await db.commit()
+    if request.headers.get("X-GGY-Autosave") == "1":
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"ok": True, "data": row.data})
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/ground-gwangyang"
+        f"?tab=daily&date={log_date.isoformat()}&message={quote('저장되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.post("/admin/inspection-logs2/{building_id}/ground-gwangyang/close-day")
+async def ground_gwangyang_close_day(
+    building_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from ground_gwangyang import (
+        finalize_daily_save,
+        get_or_create_daily,
+        is_ground_gwangyang_building,
+        parse_daily_form,
+        rollover_at_midnight,
+    )
+
+    building = await db.get(Building, building_id)
+    if not building or not is_ground_gwangyang_building(building):
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building_id, log_date)
+    row.data = await finalize_daily_save(
+        db, building_id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    await db.flush()
+    await rollover_at_midnight(db, building_id, log_date)
+    tomorrow = log_date + timedelta(days=1)
+    return RedirectResponse(
+        f"/admin/inspection-logs2/{building_id}/ground-gwangyang"
+        f"?tab=daily&date={tomorrow.isoformat()}&message={quote('마감되었습니다.')}",
+        status_code=303,
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/ground-gwangyang/export/daily")
+async def ground_gwangyang_export_daily(
+    building_id: int,
+    log_date: str = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from ground_gwangyang import export_daily_to_excel, get_or_create_daily, is_ground_gwangyang_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_ground_gwangyang_building(building):
+        raise HTTPException(404)
+    try:
+        d = date.fromisoformat(log_date)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류")
+    row = await get_or_create_daily(db, building_id, d)
+    await db.commit()
+    xbytes = export_daily_to_excel(row.data or {}, d)
+    fname = quote(f"GROUND광양_1일_{d.isoformat()}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/ground-gwangyang/export/monthly")
+async def ground_gwangyang_export_monthly(
+    building_id: int,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from ground_gwangyang import compute_monthly_report, export_monthly_to_excel, is_ground_gwangyang_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_ground_gwangyang_building(building):
+        raise HTTPException(404)
+    rows, previous = await _ggy_month_rows(db, building_id, year, month)
+    report = compute_monthly_report(year, month, rows, previous)
+    xbytes = export_monthly_to_excel(report)
+    fname = quote(f"GROUND광양_월보_{year}-{month:02d}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/admin/inspection-logs2/{building_id}/ground-gwangyang/export/yearly")
+async def ground_gwangyang_export_yearly(
+    building_id: int,
+    year: int = Query(...),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from ground_gwangyang import export_yearly_to_excel, fetch_yearly_report_data, is_ground_gwangyang_building
+
+    building = await db.get(Building, building_id)
+    if not building or not is_ground_gwangyang_building(building):
+        raise HTTPException(404)
+    report = await fetch_yearly_report_data(db, building_id, year)
+    xbytes = export_yearly_to_excel(report)
+    fname = quote(f"GROUND광양_년보_{year}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
+@app.get("/ggy/{code}/daily")
+async def ground_gwangyang_qr_daily(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+):
+    from ground_gwangyang import (
+        ensure_tables as ensure_ggy_tables,
+        get_building_for_qr,
+        get_or_create_daily,
+        load_schema,
+    )
+
+    try:
+        await _ensure_inspection_log2_tables()
+        await ensure_ggy_tables(engine)
+    except Exception:
+        pass
+    building = await get_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    today = _today_kst()
+    try:
+        raw_date = request.query_params.get("date")
+        log_date = date.fromisoformat(raw_date) if raw_date else today
+    except ValueError:
+        log_date = today
+    row = await get_or_create_daily(db, building.id, log_date)
+    await db.commit()
+    return templates.TemplateResponse(
+        request,
+        "ground_gwangyang.html",
+        {
+            "user": user,
+            "building": building,
+            "schema": load_schema(),
+            "tab": "daily",
+            "log_date": log_date,
+            "today": today,
+            "year": log_date.year,
+            "month": log_date.month,
+            "daily_data": row.data or {},
+            "monthly": {"meters": [], "days": [], "totals": {}},
+            "yearly": {"months": [], "totals": {}},
+            "notes_list": {"entries": []},
+            "qr_mode": True,
+            "qr_url": "",
+            "daily_save_url": f"/ggy/{building.code}/daily/save",
+            "error": request.query_params.get("error"),
+            "message": request.query_params.get("message"),
+        },
+    )
+
+
+@app.post("/ggy/{code}/daily/save")
+async def ground_gwangyang_qr_save(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from ground_gwangyang import (
+        finalize_daily_save,
+        get_building_for_qr,
+        get_or_create_daily,
+        parse_daily_form,
+        propagate_to_next_day,
+    )
+
+    building = await get_building_for_qr(db, code)
+    if not building:
+        raise HTTPException(404)
+    form = await request.form()
+    log_date = date.fromisoformat(str(form.get("log_date")))
+    row = await get_or_create_daily(db, building.id, log_date)
+    row.data = await finalize_daily_save(
+        db, building.id, log_date, row.data or {}, parse_daily_form(form)
+    )
+    row.updated_at = datetime.utcnow()
+    await propagate_to_next_day(db, building.id, log_date, row.data)
+    await db.commit()
+    if request.headers.get("X-GGY-Autosave") == "1":
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"ok": True, "data": row.data})
+    return RedirectResponse(
+        f"/ggy/{code}/daily?date={log_date.isoformat()}"
         f"&message={quote('저장되었습니다.')}",
         status_code=303,
     )

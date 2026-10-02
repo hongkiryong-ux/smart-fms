@@ -1,0 +1,129 @@
+{
+  "building_name": "GROUND광양",
+  "building_aliases": ["GROUND광양", "GROUND 광양", "그라운드광양", "그라운드 광양", "GROUND광양 운영일보"],
+  "title": "GROUND광양 운영일보",
+  "utility": {
+    "title": "1. UTILITY 사용량(검침)",
+    "power": {
+      "title": "전 력",
+      "cat": "전력",
+      "label": "메인전력(600)",
+      "building": "메인",
+      "multiplier": 600,
+      "prev_col": {"title": "전일지침"},
+      "today_col": {"title": "금일지침"},
+      "daily": {"title": "일사용량(kWh)"},
+      "monthly": {"title": "월누계량(kWh)"},
+      "bands": [
+        {"id": "power_mid", "label": "중간부하", "sub_label": "중 간"},
+        {"id": "power_peak", "label": "최대부하", "sub_label": "최 대"},
+        {"id": "power_off", "label": "경 부 하", "sub_label": "경부하"}
+      ]
+    },
+    "meters_head": {
+      "title": "구 분",
+      "prev": {"title": "전일지침"},
+      "today": {"title": "금일지침"},
+      "daily": {"title": "일사용량"},
+      "monthly": {"title": "월누계사용량"}
+    },
+    "meters": [
+      {"id": "energy", "label": "적산전력(MWh)", "multiplier": 1},
+      {"id": "water", "label": "용수(시수, ㎥)", "multiplier": 1},
+      {"id": "gas", "label": "GAS(GHP, ㎥)", "multiplier": 1}
+    ],
+    "monthly_ids": ["power_mid", "power_peak", "power_off", "energy", "water", "gas"]
+  },
+  "inspect": {"title": "2. UTILITY 및 주요 설비 점검사항(시간대별 계측)"},
+  "head": {
+    "cat": {"title": "구 분"},
+    "basis": {"title": "기 준"},
+    "time": {"title": "시 간"}
+  },
+  "times": [
+    {"id": "am", "label": "오전"},
+    {"id": "pm", "label": "오후"}
+  ],
+  "elec": {
+    "title": "전기",
+    "std_row": {"title": "관리기준"},
+    "fields": [
+      {"id": "volt", "label": "전 압 [V]", "std": "380V±10%(342~418)\n220V±6%(207~233)"},
+      {"id": "amp", "label": "전 류 [A]", "std": "600A이하(최대 760A)\n변압기 500kVA 기준"},
+      {"id": "kw", "label": "유효전력 [kW]", "std": "270~360kW(450kW)\n변압기 유효력 60~80%"},
+      {"id": "pf", "label": "역 률 [%]", "std": "90%이상"},
+      {"id": "tr", "label": "TR/판넬온도[℃]", "std": "80℃이하"}
+    ]
+  },
+  "equip": {
+    "setting": {"title": "설정 기준 / 운전 점검"},
+    "result": {"title": "점검결과"},
+    "remark": {"title": "비 고"},
+    "slots": 3,
+    "rows": [
+      {
+        "id": "temp",
+        "title": "실내·외 온도",
+        "note": "* 실내 기준 설정온도\n  - 하계 : 26℃\n  - 동계 : 20℃\n* 중앙제어 연동 점검",
+        "fields": [
+          {"id": "f1", "label": "1층 :", "unit": "℃"},
+          {"id": "f2", "label": "2층 :", "unit": "℃"},
+          {"id": "out", "label": "외기 :", "unit": "℃"}
+        ]
+      },
+      {
+        "id": "ghp",
+        "title": "GHP 가스",
+        "lines": [
+          {
+            "time": "am",
+            "note": "설정압력 : 103.46",
+            "fields": [
+              {"id": "press", "label": "압력 :", "unit": "kpa"},
+              {"id": "ref", "label": "공급기준", "unit": "kPa"},
+              {"id": "temp", "label": "온도 :", "unit": "℃"}
+            ]
+          },
+          {
+            "time": "pm",
+            "note": "현재압력 : 103.20",
+            "fields": [
+              {"id": "press", "label": "압력 :", "unit": "kpa"},
+              {"id": "ref", "label": "표준기압", "unit": "kPa"},
+              {"id": "temp", "label": "온도 :", "unit": "℃"}
+            ]
+          }
+        ]
+      },
+      {
+        "id": "comp",
+        "title": "에어콤프레샤",
+        "note": "* 동절기 COOLER 사용금지\n* 드레인 배수 확인\n* 기준 8.0bar(설정값 6.4~7)",
+        "fields": [
+          {"id": "out", "label": "토출 :", "unit": "bar"},
+          {"id": "cooler", "label": "쿨러 :", "unit": "bar"},
+          {"id": "temp", "label": "온도 :", "unit": "℃"}
+        ]
+      },
+      {
+        "id": "heater",
+        "title": "전기온수기\n/\n평형탱크",
+        "note": "* 설정온도 : 50℃\n* 서모스탯 : 35℃\n* 배관 누수 점검",
+        "fields": [
+          {"id": "tank", "label": "탱크 :", "unit": "bar"},
+          {"id": "valve", "label": "밸브 :", "unit": "bar"},
+          {"id": "hot", "label": "온수 :", "unit": "℃"}
+        ]
+      },
+      {
+        "id": "pump",
+        "title": "오/배수펌프",
+        "note": "",
+        "fields": [
+          {"id": "level", "label": "집수정 수위 :", "choices": ["High", "Normal", "Low"]}
+        ]
+      }
+    ]
+  },
+  "notes": {"title": "3. 특이사항"}
+}
