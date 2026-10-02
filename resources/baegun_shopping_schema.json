@@ -50,8 +50,10 @@
         "building": "2단계",
         "multiplier_key": null,
         "rows": [
-          {"id": "hw2_heat", "label": "열량", "unit": "Mcal", "multiplier": 1},
-          {"id": "hw2_flow", "label": "유량", "unit": "m³", "multiplier": 1}
+          {"id": "hw2_heat", "group": "급탕", "label": "열량", "unit": "Mcal", "multiplier": 1},
+          {"id": "hw2_flow", "group": "급탕", "label": "유량", "unit": "m³", "multiplier": 1},
+          {"id": "hw2c_heat", "group": "냉동기", "label": "열량", "unit": "Mcal", "multiplier": 1},
+          {"id": "hw2c_flow", "group": "냉동기", "label": "유량", "unit": "m³", "multiplier": 1}
         ]
       },
       {
@@ -99,7 +101,7 @@
     "monthly_ids": [
       "p1_mid", "p1_peak", "p1_off",
       "p23_mid", "p23_peak", "p23_off",
-      "hw1_heat", "hw1_flow", "hw2_heat", "hw2_flow", "hw3_heat", "hw3_flow",
+      "hw1_heat", "hw1_flow", "hw2_heat", "hw2_flow", "hw2c_heat", "hw2c_flow", "hw3_heat", "hw3_flow",
       "w1_flow", "w2_flow", "w3_flow",
       "gas_m3"
     ]

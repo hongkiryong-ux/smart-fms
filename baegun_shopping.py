@@ -62,10 +62,13 @@ def _utility_rows(schema: dict | None = None) -> list[dict]:
     rows: list[dict] = []
     for block in (schema.get("utility") or {}).get("blocks") or []:
         for row in block.get("rows") or []:
+            building = block.get("building") or block.get("stage") or ""
+            if row.get("group"):
+                building = f"{building} {row['group']}".strip()
             rows.append({
                 **row,
                 "cat": block.get("cat") or "",
-                "building": block.get("building") or block.get("stage") or "",
+                "building": building,
                 "item": block.get("item") or "",
                 "multiplier_key": block.get("multiplier_key"),
                 "multiplier": row.get("multiplier", 1),
@@ -716,7 +719,7 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
     return export_daily_utility_workbook(
         title=title,
         log_date=log_date,
-        meter_defs=_utility_rows(schema),
+        meter_defs=_export_meters(_utility_rows(schema)),
         utility=data.get("utility") or {},
         notes=str(data.get("notes") or ""),
         multipliers=data.get("multipliers") if isinstance(data.get("multipliers"), dict) else None,
@@ -725,12 +728,24 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
     )
 
 
+def _export_meters(meters: list[dict], with_cat: bool = False) -> list[dict]:
+    """엑셀 항목명에 단계·소구분을 붙여 같은 이름(열량·유량)이 구분되게 함."""
+    return [
+        {**m, "label": " ".join(
+            str(p).strip() for p in ((m.get("cat") if with_cat else ""), m.get("building"), m.get("label"))
+            if str(p or "").strip()
+        )}
+        for m in meters
+    ]
+
+
 def export_monthly_to_excel(monthly_report: dict) -> bytes:
     from inspection_log2_export import export_monthly_utility_workbook
 
     schema = load_schema()
     title = str(schema.get("title") or schema.get("building_name") or "백운쇼핑센터")
-    return export_monthly_utility_workbook(monthly_report, title=title)
+    report = {**monthly_report, "meters": _export_meters(monthly_report.get("meters") or [], True)}
+    return export_monthly_utility_workbook(report, title=title)
 
 
 def export_yearly_to_excel(yearly_report: dict) -> bytes:
@@ -738,7 +753,8 @@ def export_yearly_to_excel(yearly_report: dict) -> bytes:
 
     schema = load_schema()
     title = str(schema.get("title") or schema.get("building_name") or "백운쇼핑센터")
-    return export_yearly_utility_workbook(yearly_report, title=title)
+    report = {**yearly_report, "meters": _export_meters(yearly_report.get("meters") or [], True)}
+    return export_yearly_utility_workbook(report, title=title)
 
 
 async def ensure_registered(session: AsyncSession) -> bool:

@@ -87,7 +87,9 @@
             <tr>
               <th>구분</th>
               <th>단계</th>
-              <th>항목</th>
+              {% set grp_ns = namespace(any=false) %}
+              {% for b in schema.utility.blocks %}{% for r in b.rows %}{% if r.group %}{% set grp_ns.any = true %}{% endif %}{% endfor %}{% endfor %}
+              <th{% if grp_ns.any %} colspan="2"{% endif %}>항목</th>
               <th class="bs-yellow">전일지침</th>
               <th>금일지침</th>
               <th>일사용량</th>
@@ -118,7 +120,14 @@
                 {% if loop.first %}
                 <th rowspan="{{ block.rows|length }}" class="bs-sub">{{ block.building or '—' }}</th>
                 {% endif %}
+                {% if row.group %}
+                {% if loop.first or block.rows[loop.index0 - 1].group != row.group %}
+                <th rowspan="{{ block.rows | selectattr('group', 'equalto', row.group) | list | length }}" class="bs-sub bs-group">{{ row.group }}</th>
+                {% endif %}
                 <th class="bs-sub">{{ row.label }}{% if row.unit %} <small>({{ row.unit }})</small>{% endif %}</th>
+                {% else %}
+                <th class="bs-sub"{% if grp_ns.any %} colspan="2"{% endif %}>{{ row.label }}{% if row.unit %} <small>({{ row.unit }})</small>{% endif %}</th>
+                {% endif %}
                 <td class="bs-yellow">
                   <input class="bs-cell bs-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" inputmode="decimal" />
                   <input class="bs-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" />
