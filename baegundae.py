@@ -182,7 +182,9 @@ def recompute_daily(
     out = deepcopy(empty_daily_payload())
     _deep_merge(out, data or {})
     previous = prev_monthly or {}
-    multipliers = out.get("multipliers") or {}
+    saved_mul = out.get("multipliers") if isinstance(out.get("multipliers"), dict) else {}
+    multipliers = {k: saved_mul.get(k, v) for k, v in _default_multipliers().items()}
+    out["multipliers"] = multipliers
     row_defs = {row["id"]: row for row in _utility_rows()}
     for uid, definition in row_defs.items():
         row = out["utility"].setdefault(uid, {})

@@ -71,10 +71,9 @@
       <div class="bdae-form-title">{{ schema.title }}</div>
       <div class="bdae-mul-bar">
         <strong>전력 배율</strong>
-        <label>전력(KWH)
-          <input class="bdae-cell bdae-mul" name="mul__power_bdae" value="{{ multipliers.get('power_bdae','1') }}" inputmode="decimal" />
-        </label>
-        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율</span>
+        {% set power_mul = (schema.utility.meters | selectattr('id', 'equalto', 'power') | first).multiplier %}
+        <span>전력(KWH) ×{{ power_mul }}</span>
+        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × {{ power_mul }}</span>
       </div>
 
       <div class="bdae-utility-row">

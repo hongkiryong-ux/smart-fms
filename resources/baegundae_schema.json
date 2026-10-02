@@ -4,9 +4,7 @@
   "title": "백운대 점검일지",
   "utility": {
     "title": "사용량",
-    "default_multipliers": {
-      "power_bdae": "1"
-    },
+    "default_multipliers": {},
     "side_by_side": [
       {
         "id": "gas",
@@ -22,7 +20,7 @@
         "id": "power_water",
         "title": "백운대 전력, 급수 사용량",
         "meters": [
-          {"id": "power", "label": "전력(KWH)", "unit": "KWH", "multiplier_key": "power_bdae"},
+          {"id": "power", "label": "전력(KWH)", "unit": "KWH", "multiplier": 900},
           {"id": "water", "label": "급수(m³)", "unit": "m³", "multiplier": 1}
         ]
       }
@@ -32,7 +30,7 @@
       {"id": "gas_2", "label": "임원 2호 가스", "unit": "", "multiplier": 1, "cat": "가스", "building": "임원숙소"},
       {"id": "gas_3", "label": "임원 3호 가스", "unit": "", "multiplier": 1, "cat": "가스", "building": "임원숙소"},
       {"id": "gas_5", "label": "임원 5호 가스", "unit": "", "multiplier": 1, "cat": "가스", "building": "임원숙소"},
-      {"id": "power", "label": "전력(KWH)", "unit": "KWH", "multiplier_key": "power_bdae", "cat": "전력", "building": "백운대"},
+      {"id": "power", "label": "전력(KWH)", "unit": "KWH", "multiplier": 900, "cat": "전력", "building": "백운대"},
       {"id": "water", "label": "급수(m³)", "unit": "m³", "multiplier": 1, "cat": "급수", "building": "백운대"}
     ],
     "blocks": [
@@ -68,8 +66,8 @@
         "cat": "전력",
         "building": "백운대",
         "item": "전력(KWH)",
-        "multiplier_key": "power_bdae",
-        "rows": [{"id": "power", "label": "전력(KWH)", "unit": "KWH"}]
+        "multiplier_key": null,
+        "rows": [{"id": "power", "label": "전력(KWH)", "unit": "KWH", "multiplier": 900}]
       },
       {
         "cat": "급수",
