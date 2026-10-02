@@ -471,24 +471,6 @@
       ],
       "input_columns": [
         {
-          "col": "F",
-          "group": "No.1,2 MAIN",
-          "metric": "전압",
-          "unit": "kV",
-          "range": "21.0~23.9",
-          "multiplier": 1,
-          "is_cumulative": false
-        },
-        {
-          "col": "G",
-          "group": "No.1,2 MAIN",
-          "metric": "전류",
-          "unit": "A",
-          "range": "0~105",
-          "multiplier": null,
-          "is_cumulative": false
-        },
-        {
           "col": "H",
           "group": "No.1 6.6KV INCOMMING",
           "metric": "전압",
