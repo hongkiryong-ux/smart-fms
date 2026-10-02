@@ -14528,6 +14528,36 @@ async def baegun_shopping_qr_save(
     )
 
 
+@app.post("/admin/ilog2-page-excel")
+async def ilog2_page_excel(
+    request: Request,
+    user: User = Depends(require_login),
+):
+    """점검일지 1일 화면을 표 양식 그대로 엑셀로 내려받는다."""
+    import re
+    from urllib.parse import quote
+
+    from ilog2_page_excel import build_page_workbook
+
+    raw = await request.body()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(413, "내용이 너무 큽니다.")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(400, "잘못된 요청")
+    if not isinstance(payload, dict):
+        raise HTTPException(400, "잘못된 요청")
+    xbytes = build_page_workbook(payload)
+    name = re.sub(r'[\\/:*?"<>|\r\n\t]+', "_", str(payload.get("filename") or "점검일지_1일")).strip()
+    fname = quote(f"{name[:120] or '점검일지_1일'}.xlsx")
+    return StreamingResponse(
+        BytesIO(xbytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
+    )
+
+
 @app.get("/admin/inspection-logs2/{building_id}/rist/qr.png")
 async def rist_qr_png(
     building_id: int,

@@ -353,7 +353,8 @@ th.gg-time-col {
 @media(max-width:900px){.gg-ahu-grid,.gg-split{grid-template-columns:1fr}}
 .gg-eq-prev{background:#fff8c6}
 
-.gg-pre { white-space: pre-line; }
+.gg-pre,
+.gg-excel .gg-pre { white-space: pre-line !important; }
 .gg-std { color: #1d4ed8; font-style: italic; font-size: .72rem; line-height: 1.35; text-align: center; background: #f8fafc; }
 .gg-slot { min-width: 9rem; padding: 0 .35rem !important; white-space: nowrap; }
 .gg-slot-label { font-size: .78rem; color: #333; margin-right: .2rem; }
