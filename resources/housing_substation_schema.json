@@ -922,8 +922,7 @@
             {"id": "voltage", "metric": "전압", "unit": "V", "range": "6300~7200"},
             {"id": "power", "metric": "전력", "unit": "kW", "range": "0~2400"},
             {"id": "current", "metric": "전류", "unit": "A", "range": "0~200"}
-          ],
-          "prev": {"id": "reading", "multiplier": 1800, "label": "적산량×1800"}
+          ]
         },
         {
           "id": "baekun_gl",
