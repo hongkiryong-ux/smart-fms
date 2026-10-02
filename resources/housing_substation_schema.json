@@ -975,6 +975,10 @@
     "transformer": {
       "title": "변압기온도",
       "subtitle": "(오일/권선)",
+      "subs": [
+        {"id": "w", "label": "권선"},
+        {"id": "o", "label": "절연유"}
+      ],
       "fields": [
         {"id": "no1", "name": "NO.1", "col": "N", "range": "0~55℃"},
         {"id": "no2", "name": "NO.2", "col": "O", "range": "0~55℃"},

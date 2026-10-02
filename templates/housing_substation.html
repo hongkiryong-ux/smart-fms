@@ -269,15 +269,17 @@
             <tr>
               <th class="hs-corner" rowspan="5">구분</th>
               <th class="hs-group-head" colspan="6">{{ daily_footer.main.title }}</th>
+              {% set tf_subs = daily_footer.transformer.subs or [{'id': '', 'label': ''}] %}
+              {% set tf_span = daily_footer.transformer.fields|length * tf_subs|length %}
               <th class="hs-corner" rowspan="5">구분</th>
-              <th class="hs-group-head" colspan="5">{{ daily_footer.transformer.title }}</th>
+              <th class="hs-group-head" colspan="{{ tf_span }}">{{ daily_footer.transformer.title }}</th>
               <th class="hs-group-head hs-notes-head" rowspan="5">{{ daily_footer.notes.title }}</th>
             </tr>
             <tr>
               {% for grp in daily_footer.main.groups %}
               <th class="hs-group-head" colspan="{{ grp.columns|length }}">{{ grp.name }}</th>
               {% endfor %}
-              <th class="hs-metric" colspan="5">{{ daily_footer.transformer.subtitle }}</th>
+              <th class="hs-metric" colspan="{{ tf_span }}">{{ daily_footer.transformer.subtitle }}</th>
             </tr>
             <tr>
               {% for grp in daily_footer.main.groups %}
@@ -286,7 +288,7 @@
               {% endfor %}
               {% endfor %}
               {% for field in daily_footer.transformer.fields %}
-              <th class="hs-metric">{{ field.name }}</th>
+              <th class="hs-metric" colspan="{{ tf_subs|length }}">{{ field.name }}</th>
               {% endfor %}
             </tr>
             <tr>
@@ -296,7 +298,7 @@
               {% endfor %}
               {% endfor %}
               {% for field in daily_footer.transformer.fields %}
-              <td class="hs-range">{{ field.range }}</td>
+              <td class="hs-range" colspan="{{ tf_subs|length }}">{{ field.range }}</td>
               {% endfor %}
             </tr>
             <tr>
@@ -306,7 +308,9 @@
               {% endfor %}
               {% endfor %}
               {% for field in daily_footer.transformer.fields %}
-              <td class="hs-range"></td>
+              {% for sub in tf_subs %}
+              <th class="hs-unit hs-tf-sub">{{ sub.label }}</th>
+              {% endfor %}
               {% endfor %}
             </tr>
           </thead>
@@ -329,13 +333,16 @@
               {% endfor %}
               <th class="hs-time-label">{{ t }}</th>
               {% for field in daily_footer.transformer.fields %}
+              {% for sub in tf_subs %}
+              {% set tf_key = field.col ~ ('_' ~ sub.id if sub.id else '') %}
               <td class="hs-data-cell">
                 <input type="text"
-                       name="footer__transformer__{{ t }}__{{ field.col }}"
-                       value="{{ tf_cells.get(field.col, '') }}"
+                       name="footer__transformer__{{ t }}__{{ tf_key }}"
+                       value="{{ tf_cells.get(tf_key, '') }}"
                        inputmode="decimal"
                        class="hs-cell" />
               </td>
+              {% endfor %}
               {% endfor %}
               <td class="hs-data-cell hs-notes-cell">
                 <input type="text"
@@ -456,32 +463,40 @@
     <div class="hs-table-wrap">
       <table class="hs-excel hs-month-grid">
         <thead>
+          {% set mtf = monthly.transformer %}
           <tr>
-            <th class="hs-corner" rowspan="2">구분</th>
-            {% for field in monthly.transformer.fields %}
-            <th class="hs-group-head">{{ field.name }}</th>
+            <th class="hs-corner" rowspan="{{ 3 if mtf.has_subs else 2 }}">구분</th>
+            {% for field in mtf.fields %}
+            <th class="hs-group-head" colspan="{{ mtf.subs|length }}">{{ field.name }}</th>
             {% endfor %}
           </tr>
           <tr>
-            {% for field in monthly.transformer.fields %}
-            <th class="hs-range">{{ field.range }}</th>
+            {% for field in mtf.fields %}
+            <th class="hs-range" colspan="{{ mtf.subs|length }}">{{ field.range }}</th>
             {% endfor %}
           </tr>
+          {% if mtf.has_subs %}
+          <tr>
+            {% for field in mtf.fields %}{% for sub in mtf.subs %}
+            <th class="hs-unit hs-tf-sub">{{ sub.label }}</th>
+            {% endfor %}{% endfor %}
+          </tr>
+          {% endif %}
         </thead>
         <tbody>
-          {% for day in monthly.transformer.days %}
+          {% for day in mtf.days %}
           <tr>
             <th class="hs-time-label">{{ day.day }}일</th>
-            {% for field in monthly.transformer.fields %}
-            <td class="hs-data-cell">{{ day['values'].get(field.col, '') }}</td>
-            {% endfor %}
+            {% for field in mtf.fields %}{% for sub in mtf.subs %}
+            <td class="hs-data-cell">{{ day['values'].get(field.col ~ ('_' ~ sub.id if sub.id else ''), '') }}</td>
+            {% endfor %}{% endfor %}
           </tr>
           {% endfor %}
           <tr class="hs-total-row">
             <th class="hs-time-label">계(최대)</th>
-            {% for field in monthly.transformer.fields %}
-            <td class="hs-green-cell">{{ monthly.transformer.totals.get(field.col, '') }}</td>
-            {% endfor %}
+            {% for field in mtf.fields %}{% for sub in mtf.subs %}
+            <td class="hs-green-cell">{{ mtf.totals.get(field.col ~ ('_' ~ sub.id if sub.id else ''), '') }}</td>
+            {% endfor %}{% endfor %}
           </tr>
         </tbody>
       </table>
@@ -573,32 +588,40 @@
     <div class="hs-table-wrap">
       <table class="hs-excel hs-month-grid">
         <thead>
+          {% set ytf = yearly.transformer %}
           <tr>
-            <th class="hs-corner" rowspan="2">구분</th>
-            {% for field in yearly.transformer.fields %}
-            <th class="hs-group-head">{{ field.name }}</th>
+            <th class="hs-corner" rowspan="{{ 3 if ytf.has_subs else 2 }}">구분</th>
+            {% for field in ytf.fields %}
+            <th class="hs-group-head" colspan="{{ ytf.subs|length }}">{{ field.name }}</th>
             {% endfor %}
           </tr>
           <tr>
-            {% for field in yearly.transformer.fields %}
-            <th class="hs-range">{{ field.range }}</th>
+            {% for field in ytf.fields %}
+            <th class="hs-range" colspan="{{ ytf.subs|length }}">{{ field.range }}</th>
             {% endfor %}
           </tr>
+          {% if ytf.has_subs %}
+          <tr>
+            {% for field in ytf.fields %}{% for sub in ytf.subs %}
+            <th class="hs-unit hs-tf-sub">{{ sub.label }}</th>
+            {% endfor %}{% endfor %}
+          </tr>
+          {% endif %}
         </thead>
         <tbody>
-          {% for mon in yearly.transformer.months %}
+          {% for mon in ytf.months %}
           <tr>
             <th class="hs-time-label">{{ mon.month }}월</th>
-            {% for field in yearly.transformer.fields %}
-            <td class="hs-data-cell">{{ mon['values'].get(field.col, '') }}</td>
-            {% endfor %}
+            {% for field in ytf.fields %}{% for sub in ytf.subs %}
+            <td class="hs-data-cell">{{ mon['values'].get(field.col ~ ('_' ~ sub.id if sub.id else ''), '') }}</td>
+            {% endfor %}{% endfor %}
           </tr>
           {% endfor %}
           <tr class="hs-total-row">
             <th class="hs-time-label">계(최대)</th>
-            {% for field in yearly.transformer.fields %}
-            <td class="hs-green-cell">{{ yearly.transformer.totals.get(field.col, '') }}</td>
-            {% endfor %}
+            {% for field in ytf.fields %}{% for sub in ytf.subs %}
+            <td class="hs-green-cell">{{ ytf.totals.get(field.col ~ ('_' ~ sub.id if sub.id else ''), '') }}</td>
+            {% endfor %}{% endfor %}
           </tr>
         </tbody>
       </table>

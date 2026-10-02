@@ -174,6 +174,52 @@ def _footer_transformer_fields(footer_schema: dict) -> list[dict]:
     return (footer_schema.get("transformer") or {}).get("fields") or []
 
 
+def transformer_subs(footer_schema: dict | None = None) -> list[dict]:
+    """변압기온도 항목별 하위 칸 (권선/절연유). 없으면 항목당 한 칸."""
+    footer_schema = footer_schema if footer_schema is not None else get_daily_footer_schema()
+    return (footer_schema.get("transformer") or {}).get("subs") or [{"id": "", "label": ""}]
+
+
+def transformer_key(col: str, sub_id: str) -> str:
+    return f"{col}_{sub_id}" if sub_id else col
+
+
+def transformer_keys(footer_schema: dict | None = None) -> list[str]:
+    footer_schema = footer_schema if footer_schema is not None else get_daily_footer_schema()
+    subs = transformer_subs(footer_schema)
+    return [
+        transformer_key(f["col"], s["id"])
+        for f in _footer_transformer_fields(footer_schema)
+        for s in subs
+    ]
+
+
+def _split_legacy_temp(raw: Any) -> list[str]:
+    import re
+
+    return [p for p in re.split(r"[/|,\s]+", str(raw or "").strip()) if p]
+
+
+def migrate_transformer_cells(cells: dict, footer_schema: dict | None = None) -> bool:
+    """항목당 한 칸에 '33/34'처럼 적던 값을 권선/절연유 칸으로 옮긴다 (앞=권선, 뒤=절연유)."""
+    footer_schema = footer_schema if footer_schema is not None else get_daily_footer_schema()
+    subs = [s["id"] for s in transformer_subs(footer_schema) if s.get("id")]
+    if not subs or not isinstance(cells, dict):
+        return False
+    changed = False
+    for field in _footer_transformer_fields(footer_schema):
+        col = field["col"]
+        if col not in cells:
+            continue
+        legacy = cells.pop(col)
+        changed = True
+        if any(str(cells.get(transformer_key(col, s)) or "").strip() for s in subs):
+            continue
+        for sub_id, part in zip(subs, _split_legacy_temp(legacy)):
+            cells[transformer_key(col, sub_id)] = part
+    return changed
+
+
 def _max_numeric(values: list[Any]) -> Any:
     nums = [_parse_num(v) for v in values]
     nums = [n for n in nums if n is not None]
@@ -182,14 +228,29 @@ def _max_numeric(values: list[Any]) -> Any:
 
 def _transformer_values_for_day(day_data: dict, footer_schema: dict) -> dict[str, Any]:
     times = _footer_times(footer_schema)
-    fields = _footer_transformer_fields(footer_schema)
-    tf_times = (day_data.get("footer") or {}).get("transformer", {}).get("times") or {}
-    out: dict[str, Any] = {}
-    for field in fields:
-        col = field["col"]
-        vals = [(tf_times.get(t) or {}).get(col, "") for t in times]
-        out[col] = _max_numeric(vals)
-    return out
+    footer = _as_dict((day_data or {}).get("footer"))
+    tf_times = _as_dict(_as_dict(footer.get("transformer")).get("times"))
+    cells_by_time = {}
+    for t in times:
+        cells = dict(_as_dict(tf_times.get(t)))
+        migrate_transformer_cells(cells, footer_schema)
+        cells_by_time[t] = cells
+    return {
+        key: _max_numeric([cells_by_time[t].get(key, "") for t in times])
+        for key in transformer_keys(footer_schema)
+    }
+
+
+def _transformer_report_meta(footer_schema: dict) -> dict[str, Any]:
+    tf = footer_schema.get("transformer") or {}
+    subs = transformer_subs(footer_schema)
+    return {
+        "title": tf.get("title", "변압기온도"),
+        "subtitle": tf.get("subtitle", ""),
+        "fields": _footer_transformer_fields(footer_schema),
+        "subs": subs,
+        "has_subs": any(s.get("id") for s in subs),
+    }
 
 
 def compute_transformer_monthly_report(
@@ -198,10 +259,10 @@ def compute_transformer_monthly_report(
     daily_rows: list[HousingSubstationDaily],
 ) -> dict[str, Any]:
     footer_schema = get_daily_footer_schema()
-    fields = _footer_transformer_fields(footer_schema)
+    keys = transformer_keys(footer_schema)
     by_date = {r.log_date: r.data or {} for r in daily_rows}
     days = []
-    peaks: dict[str, float | None] = {f["col"]: None for f in fields}
+    peaks: dict[str, float | None] = {k: None for k in keys}
     for day in range(1, 32):
         try:
             d = date(year, month, day)
@@ -209,21 +270,14 @@ def compute_transformer_monthly_report(
             break
         values = _transformer_values_for_day(by_date.get(d, {}), footer_schema)
         days.append({"day": day, "date": d.isoformat(), "values": values})
-        for field in fields:
-            col = field["col"]
-            val = _parse_num(values.get(col))
+        for key in keys:
+            val = _parse_num(values.get(key))
             if val is None:
                 continue
-            cur = peaks[col]
-            peaks[col] = val if cur is None else max(cur, val)
-    totals = {col: (round(peaks[col], 1) if peaks[col] is not None else "") for col in peaks}
-    return {
-        "title": (footer_schema.get("transformer") or {}).get("title", "변압기온도"),
-        "subtitle": (footer_schema.get("transformer") or {}).get("subtitle", ""),
-        "fields": fields,
-        "days": days,
-        "totals": totals,
-    }
+            cur = peaks[key]
+            peaks[key] = val if cur is None else max(cur, val)
+    totals = {k: (round(peaks[k], 1) if peaks[k] is not None else "") for k in peaks}
+    return {**_transformer_report_meta(footer_schema), "days": days, "totals": totals}
 
 
 def compute_transformer_yearly_report(
@@ -231,33 +285,25 @@ def compute_transformer_yearly_report(
     daily_rows: list[HousingSubstationDaily],
 ) -> dict[str, Any]:
     footer_schema = get_daily_footer_schema()
-    fields = _footer_transformer_fields(footer_schema)
-    rows_by_date = {r.log_date: r for r in daily_rows}
+    keys = transformer_keys(footer_schema)
     months = []
-    year_peaks: dict[str, float | None] = {f["col"]: None for f in fields}
+    year_peaks: dict[str, float | None] = {k: None for k in keys}
     for month in range(1, 13):
         month_rows = [r for r in daily_rows if r.log_date.year == year and r.log_date.month == month]
         monthly = compute_transformer_monthly_report(year, month, month_rows)
         values = monthly.get("totals") or {}
         months.append({"month": month, "values": values})
-        for field in fields:
-            col = field["col"]
-            val = _parse_num(values.get(col))
+        for key in keys:
+            val = _parse_num(values.get(key))
             if val is None:
                 continue
-            cur = year_peaks[col]
-            year_peaks[col] = val if cur is None else max(cur, val)
+            cur = year_peaks[key]
+            year_peaks[key] = val if cur is None else max(cur, val)
     totals = {
-        col: (round(year_peaks[col], 1) if year_peaks[col] is not None else "")
-        for col in year_peaks
+        k: (round(year_peaks[k], 1) if year_peaks[k] is not None else "")
+        for k in year_peaks
     }
-    return {
-        "title": (footer_schema.get("transformer") or {}).get("title", "변압기온도"),
-        "subtitle": (footer_schema.get("transformer") or {}).get("subtitle", ""),
-        "fields": fields,
-        "months": months,
-        "totals": totals,
-    }
+    return {**_transformer_report_meta(footer_schema), "months": months, "totals": totals}
 
 
 async def fetch_notes_list(
@@ -501,11 +547,12 @@ async def sync_daily_prev(
     session: AsyncSession, building_id: int, log_date: date, data: dict
 ) -> tuple[dict, bool]:
     """스키마 키 보정 후 전일 22:00 지침으로 prev 동기화."""
+    migrated = _has_legacy_transformer(data)
     merged = merge_daily_save(empty_daily_payload(), data)
     prev_vals = await _prev_day_readings(session, building_id, log_date)
     changed = apply_prev_readings(merged, prev_vals)
     merged, footer_changed = await sync_footer_prev(session, building_id, log_date, merged)
-    return merged, changed or footer_changed
+    return merged, changed or footer_changed or migrated
 
 
 async def propagate_prev_to_next_day(
@@ -576,8 +623,19 @@ def _normalize_daily_shape(data: dict) -> dict:
             }
             footer[sec] = part
         footer["notes"] = _as_dict(footer.get("notes")) or base["notes"]
+        for cells in footer["transformer"]["times"].values():
+            migrate_transformer_cells(cells)
         data["footer"] = footer
     return data
+
+
+def _has_legacy_transformer(data: dict) -> bool:
+    if not any(s.get("id") for s in transformer_subs()):
+        return False
+    cols = {f["col"] for f in _footer_transformer_fields(get_daily_footer_schema())}
+    footer = _as_dict((data or {}).get("footer"))
+    times = _as_dict(_as_dict(footer.get("transformer")).get("times"))
+    return any(col in _as_dict(cells) for cells in times.values() for col in cols)
 
 
 def merge_daily_save(existing: dict, posted: dict) -> dict:
@@ -622,6 +680,8 @@ def merge_daily_save(existing: dict, posted: dict) -> dict:
                 data["footer"][sec]["times"].setdefault(t, {})
                 data["footer"][sec]["times"][t].update(_as_dict(cells))
         data["footer"]["notes"].update(footer_post["notes"])
+        for cells in data["footer"]["transformer"]["times"].values():
+            migrate_transformer_cells(cells)
     return data
 
 
@@ -1349,6 +1409,14 @@ def export_daily_to_excel(data: dict, log_date: date) -> bytes:
         for col in grp.get("columns") or []:
             main_cols.append(col["id"])
     tf_cols = [f["col"] for f in (footer_schema.get("transformer") or {}).get("fields") or []]
+    tf_sub_ids = [s["id"] for s in transformer_subs(footer_schema)]
+    tf_times = {t: dict(_as_dict(c)) for t, c in _as_dict(tf_times).items()}
+    for cells in tf_times.values():
+        migrate_transformer_cells(cells, footer_schema)
+        for col in tf_cols:
+            parts = [str(cells.get(transformer_key(col, s)) or "").strip() for s in tf_sub_ids]
+            if any(parts):
+                cells[col] = "/".join(p or "-" for p in parts) if len(parts) > 1 else parts[0]
     for t in footer_times:
         row = footer_row_map.get(t)
         if not row:
