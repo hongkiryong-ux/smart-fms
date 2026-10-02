@@ -234,19 +234,56 @@ async def _monthly_base(session: AsyncSession, building_id: int, log_date: date)
     )
 
 
+PREV_LOOKBACK_DAYS = 62
+
+
+def _is_prev_manual(row: dict) -> bool:
+    return bool(row.get("prev_manual")) and bool(str(row.get("prev") or "").strip())
+
+
+async def _latest_today_values(
+    session: AsyncSession, building_id: int, log_date: date
+) -> dict[str, str]:
+    """항목별로 log_date 이전 가장 최근에 기록된 금일지침 (빠진 날이 있어도 이월)."""
+    rows = (
+        await session.execute(
+            select(RistDaily)
+            .where(
+                RistDaily.building_id == building_id,
+                RistDaily.log_date < log_date,
+                RistDaily.log_date >= log_date - timedelta(days=PREV_LOOKBACK_DAYS),
+            )
+            .order_by(RistDaily.log_date.desc())
+        )
+    ).scalars().all()
+    uids = [row["id"] for row in _utility_rows()]
+    found: dict[str, str] = {}
+    for row in rows:
+        utility = (row.data or {}).get("utility") or {}
+        for uid in uids:
+            if uid in found:
+                continue
+            value = str((utility.get(uid) or {}).get("today") or "").strip()
+            if value:
+                found[uid] = value
+        if len(found) == len(uids):
+            break
+    return found
+
+
 async def sync_prev_values(
     session: AsyncSession, building_id: int, log_date: date, data: dict
 ) -> tuple[dict, bool]:
-    previous_row = await get_daily_row(session, building_id, log_date - timedelta(days=1))
-    previous = previous_row.data if previous_row else {}
+    carried = await _latest_today_values(session, building_id, log_date)
     monthly = await _monthly_base(session, building_id, log_date)
     out = merge_daily_save(empty_daily_payload(), data, monthly)
     before = deepcopy(data or {})
-    if previous:
-        previous_utility = recompute_daily(previous).get("utility") or {}
-        for uid, row in out["utility"].items():
-            if not row.get("prev_manual"):
-                row["prev"] = (previous_utility.get(uid) or {}).get("today", "")
+    for uid, row in out["utility"].items():
+        if _is_prev_manual(row):
+            row["prev_manual"] = True
+        else:
+            row["prev_manual"] = False
+            row["prev"] = carried.get(uid, "")
     out = recompute_daily(out, monthly)
     return out, out != before
 
@@ -258,16 +295,15 @@ async def finalize_daily_save(
     existing: dict,
     posted: dict,
 ) -> dict:
+    """전일지침은 화면의 수기 플래그(prev_manual)가 있을 때만 수기값으로 유지한다.
+    플래그 없이 넘어온 값(이월 전 열어 둔 화면의 빈 값 등)은 버리고 다시 이월한다."""
     monthly = await _monthly_base(session, building_id, log_date)
     posted = deepcopy(posted or {})
-    existing_utility = (existing or {}).get("utility") or {}
-    for uid, values in (posted.get("utility") or {}).items():
-        if "prev" not in values:
-            continue
-        old_value = str((existing_utility.get(uid) or {}).get("prev") or "")
-        if str(values.get("prev") or "") != old_value:
-            values["prev_manual"] = True
-    return merge_daily_save(existing, posted, monthly)
+    for values in (posted.get("utility") or {}).values():
+        values["prev_manual"] = _is_prev_manual(values)
+    merged = merge_daily_save(existing, posted, monthly)
+    synced, _ = await sync_prev_values(session, building_id, log_date, merged)
+    return synced
 
 
 async def get_or_create_daily(
@@ -290,19 +326,23 @@ async def get_or_create_daily(
 async def propagate_to_next_day(
     session: AsyncSession, building_id: int, log_date: date, saved_data: dict
 ) -> None:
-    next_row = await get_daily_row(session, building_id, log_date + timedelta(days=1))
-    if not next_row:
+    await session.flush()
+    next_row = (
+        await session.execute(
+            select(RistDaily)
+            .where(RistDaily.building_id == building_id, RistDaily.log_date > log_date)
+            .order_by(RistDaily.log_date)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if not next_row or (next_row.log_date - log_date).days > PREV_LOOKBACK_DAYS:
         return
-    next_data = merge_daily_save(empty_daily_payload(), next_row.data or {})
-    source = recompute_daily(saved_data).get("utility") or {}
-    for uid, row in next_data["utility"].items():
-        if not row.get("prev_manual"):
-            row["prev"] = (source.get(uid) or {}).get("today", "")
-    synced, _ = await sync_prev_values(
-        session, building_id, log_date + timedelta(days=1), next_data
+    synced, changed = await sync_prev_values(
+        session, building_id, next_row.log_date, next_row.data or {}
     )
-    next_row.data = synced
-    next_row.updated_at = datetime.utcnow()
+    if changed:
+        next_row.data = synced
+        next_row.updated_at = datetime.utcnow()
 
 
 def compute_monthly_report(

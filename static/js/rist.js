@@ -69,6 +69,12 @@
     if (!data || !data.utility) return;
     Object.keys(data.utility).forEach(function (id) {
       const values = data.utility[id] || {};
+      const prevEl = field(id, "prev");
+      const flag = field(id, "prev_manual");
+      if (prevEl && !values.prev_manual && document.activeElement !== prevEl) {
+        prevEl.value = values.prev || "";
+        if (flag) flag.value = "";
+      }
       const dailyEl = field(id, "daily");
       const monthlyEl = field(id, "monthly");
       if (dailyEl) dailyEl.value = values.daily || "";
