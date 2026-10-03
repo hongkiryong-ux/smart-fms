@@ -73,6 +73,9 @@ _STOPWORDS = {
     "가장", "많은", "적은", "높은", "낮은", "개수", "합계", "평균", "gpt", "ai", "운영일보",
     "점검일지", "설비관리", "정비관리", "자재관리", "정비의뢰", "작성", "등록", "확인", "어떻게",
     "전부", "다", "각", "별", "및", "중", "총", "수", "정비이력", "점검결과", "점검내용", "정비내용",
+    "그래프", "그려줘", "그려", "차트", "시각화", "나눠서", "나눠", "다시", "자세히", "상세히", "상세",
+    "좀", "더", "표", "만들어줘", "만들어", "비교해줘", "추이", "설명", "설명해줘", "이유", "왜", "그럼",
+    "그러면", "그거", "그걸", "이거", "이걸", "방금", "답변", "이어서", "추가로", "계속", "기준으로",
     "조치내용", "특이사항", "특이", "재고", "작업", "위험요인", "위험", "유해위험요인", "안전대책", "사용량", "소모품", "입출고", "일별", "월별", "건물별", "설비별",
 }
 
@@ -195,6 +198,87 @@ def _json_s(v: Any, n: int) -> str:
     if not v:
         return ""
     return _clip(v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str), n)
+
+
+_PERIOD_PATTERNS = (
+    r"(20\d{2})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일",
+    r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})",
+    r"최근\s*\d{1,3}\s*(일|주|개월|달|년)",
+    r"(20\d{2})\s*년",
+    r"(?<!\d)\d{1,2}\s*월(\s*\d{1,2}\s*일)?",
+    r"(?<![\d/.])\d{1,2}/\d{1,2}(?![\d/])",
+    r"오늘|어제|그제|그저께|이번\s*주|금주|지난\s*주|저번\s*주|이번\s*달|금월|당월|지난\s*달|저번\s*달|전월"
+    r"|올해|금년|작년|전년|지난해",
+)
+_RESET_SCOPE_WORDS = ("전체", "모든", "모두", "전 건물", "전건물", "다른 건물")
+_TOPIC_TERMS = (
+    "설비", "장비", "점검", "정비", "pm", "일지", "운영일보", "자재", "재고", "소모품", "위험성", "위험",
+    "월보", "사용량", "전력", "특이사항", "협력사", "d-1", "d1", "공지", "일정", "가로등", "고장", "누수",
+)
+
+
+def _strip_periods(text: str) -> str:
+    out = text or ""
+    for p in _PERIOD_PATTERNS:
+        out = re.sub(p, " ", out)
+    return re.sub(r"\s+", " ", out).strip()
+
+
+def _period_text(rng: tuple[date, date]) -> str:
+    a, b = rng
+    return f"{a.year}년 {a.month}월 {a.day}일 ~ {b.year}년 {b.month}월 {b.day}일"
+
+
+def build_effective_question(
+    question: str,
+    prior_questions: list[str],
+    buildings: list[dict],
+    today: date,
+) -> str:
+    """대화형 후속 질문의 조회 범위 — 이번 질문을 우선하고 빠진 기간·건물·주제만 직전 질문에서 잇는다.
+
+    prior_questions는 오래된 것 → 최근 순서.
+    """
+    from ai_analysis import _match_buildings_in_question
+
+    q = (question or "").strip()
+    recent = [p for p in reversed(prior_questions or []) if (p or "").strip()]
+    if not recent:
+        return q
+    parts = [q]
+
+    def without_buildings(text: str) -> str:
+        for b in _match_buildings_in_question(text, buildings):
+            for v in (b.get("name"), b.get("code")):
+                if v:
+                    text = text.replace(v, " ")
+        return text
+
+    def topic_of(text: str) -> str:
+        core = _strip_periods(without_buildings(text))
+        has = bool(question_keywords(core)) or any(t in core.lower() for t in _TOPIC_TERMS)
+        return core if has else ""
+
+    reset = any(w in q for w in _RESET_SCOPE_WORDS)
+    if not topic_of(q) and not reset:
+        prior_topic = next((t for t in (topic_of(p) for p in recent) if t), "")
+        if prior_topic:
+            parts.append(prior_topic)
+
+    if question_date_range(q, today) is None:
+        for p in recent:
+            rng = question_date_range(p, today)
+            if rng:
+                parts.append(_period_text(rng))
+                break
+
+    if not _match_buildings_in_question(q, buildings) and not reset:
+        for p in recent:
+            names = [b.get("name") for b in _match_buildings_in_question(p, buildings) if b.get("name")]
+            if names:
+                parts.append(" ".join(names))
+                break
+    return " ".join(x for x in parts if x)
 
 
 def _table(columns: list[str], rows: list[list[Any]]) -> dict[str, Any]:

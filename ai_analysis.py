@@ -13,7 +13,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ai_context_full import fit_json, gather_focus_data, gather_monthly_reports
+from ai_context_full import (
+    build_effective_question,
+    fit_json,
+    gather_focus_data,
+    gather_monthly_reports,
+)
 from models import (
     Building,
     CentralControlRoomDaily,
@@ -2011,6 +2016,20 @@ def call_openai_conversation(
     return _openai_chat_completion(api_key=api_key, model=model, messages=messages)
 
 
+async def _effective_question(db: AsyncSession, q: str, history: list[dict[str, str]]) -> str:
+    """DB 조회 범위용 질문 — 이번 질문 우선, 빠진 기간·건물·주제만 이전 질문에서 보충."""
+    prior = [str(m.get("content") or "") for m in history if m.get("role") == "user"]
+    if not prior:
+        return q
+    rows = (
+        await db.execute(
+            select(Building.id, Building.name, Building.code).where(Building.is_active == True)  # noqa: E712
+        )
+    ).all()
+    buildings = [{"id": i, "name": n, "code": c} for i, n, c in rows]
+    return build_effective_question(q, prior, buildings, _today())
+
+
 async def run_chat_turn(
     db: AsyncSession,
     question: str,
@@ -2092,12 +2111,7 @@ async def run_chat_turn(
                     "intent": "overview",
                     "error": "OpenAI API 키가 필요합니다.",
                 }
-            combined_q = " ".join(
-                m["content"] for m in history if m.get("role") == "user"
-            )
-            if combined_q:
-                combined_q += " "
-            combined_q += q
+            combined_q = await _effective_question(db, q, history)
             intent = classify_intent(combined_q)
             context = (
                 {}
@@ -2156,10 +2170,7 @@ async def run_chat_turn(
             "error": "OpenAI API 키가 필요합니다.",
         }
 
-    combined_q = " ".join(m["content"] for m in history if m.get("role") == "user")
-    if combined_q:
-        combined_q += " "
-    combined_q += q
+    combined_q = await _effective_question(db, q, history)
     intent = classify_intent(combined_q)
     context = await gather_context(db, intent, combined_q)
     evidence = format_aggregate_answer(context, include_footer=False) if not history else ""
