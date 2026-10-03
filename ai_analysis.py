@@ -49,6 +49,8 @@ except Exception:  # pragma: no cover
 
 _CONTEXT_MAX_CHARS = 72000
 _CONTENT_EXTRACT_MAX_CHARS = 28000
+_CONTEXT_MAX_CHARS_LARGE = 200000
+_CONTENT_EXTRACT_MAX_CHARS_LARGE = 60000
 
 
 def classify_intent(question: str) -> str:
@@ -383,7 +385,7 @@ def call_openai_excel_payload(
     else:
         ctx = context or {}
         system = (
-            _build_gpt_system_message(ctx)
+            _build_gpt_system_message(ctx, model)
             + "\n\n사용자가 엑셀 정리를 요청했습니다. "
             + _EXCEL_JSON_RULES
         )
@@ -1789,7 +1791,22 @@ def _gpt_system_base() -> str:
     )
 
 
-def _build_gpt_system_message(context: dict[str, Any]) -> str:
+_SAMPLING_MODEL_PREFIXES = ("gpt-4", "gpt-3.5", "chatgpt-4o")
+
+
+def _uses_sampling_params(model: str) -> bool:
+    """gpt-4o/4.1 계열만 temperature 지원 — GPT-5·6, o-시리즈 추론 모델은 거부한다."""
+    return (model or "").strip().lower().startswith(_SAMPLING_MODEL_PREFIXES)
+
+
+def _context_limits(model: str) -> tuple[int, int]:
+    if _uses_sampling_params(model):
+        return _CONTEXT_MAX_CHARS, _CONTENT_EXTRACT_MAX_CHARS
+    return _CONTEXT_MAX_CHARS_LARGE, _CONTENT_EXTRACT_MAX_CHARS_LARGE
+
+
+def _build_gpt_system_message(context: dict[str, Any], model: str = "") -> str:
+    ctx_max, extract_max = _context_limits(model)
     sec = context.get("sections") or {}
     priority: dict[str, Any] = {}
     if sec.get("content_extracts"):
@@ -1813,8 +1830,8 @@ def _build_gpt_system_message(context: dict[str, Any]) -> str:
     priority_json = ""
     if priority:
         priority_json = json.dumps(priority, ensure_ascii=False, default=str, separators=(",", ":"))
-        if len(priority_json) > _CONTENT_EXTRACT_MAX_CHARS:
-            priority_json = priority_json[:_CONTENT_EXTRACT_MAX_CHARS] + "..."
+        if len(priority_json) > extract_max:
+            priority_json = priority_json[:extract_max] + "..."
 
     # 우선 섹션은 전체 스냅샷에서 중복 제거해 토큰 절약
     slim_ctx = dict(context)
@@ -1823,8 +1840,8 @@ def _build_gpt_system_message(context: dict[str, Any]) -> str:
         slim_sec.pop(key, None)
     slim_ctx["sections"] = slim_sec
     payload_ctx = json.dumps(slim_ctx, ensure_ascii=False, default=str, separators=(",", ":"))
-    if len(payload_ctx) > _CONTEXT_MAX_CHARS:
-        payload_ctx = payload_ctx[:_CONTEXT_MAX_CHARS] + "..."
+    if len(payload_ctx) > ctx_max:
+        payload_ctx = payload_ctx[:ctx_max] + "..."
 
     parts = [
         _gpt_system_base(),
@@ -1850,15 +1867,14 @@ def _openai_chat_completion(*, api_key: str, model: str, messages: list[dict[str
     except UnicodeEncodeError:
         model_name = "gpt-4o-mini"
 
-    body_obj = {
+    body_obj: dict[str, Any] = {
         "model": model_name,
-        "temperature": 0.2,
         "messages": messages,
     }
+    if _uses_sampling_params(model_name):
+        body_obj["temperature"] = 0.2
 
-    def _post(use_model: str) -> dict:
-        payload = dict(body_obj)
-        payload["model"] = use_model
+    def _post(payload: dict) -> dict:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
             "https://api.openai.com/v1/chat/completions",
@@ -1872,16 +1888,21 @@ def _openai_chat_completion(*, api_key: str, model: str, messages: list[dict[str
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=300) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
                 return json.loads(raw)
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")[:400]
-            if e.code == 404 and use_model != "gpt-4o-mini":
-                return _post("gpt-4o-mini")
+            if e.code == 400 and "temperature" in payload and "temperature" in err_body:
+                return _post({k: v for k, v in payload.items() if k != "temperature"})
+            if e.code == 404 or "model_not_found" in err_body:
+                raise RuntimeError(
+                    f"선택한 모델({model_name})을 이 API 키로 사용할 수 없습니다. "
+                    "AI 분석 화면의 「OpenAI API 키」에서 다른 모델을 선택해 주세요."
+                ) from e
             raise RuntimeError(f"OpenAI 오류 ({e.code}): {err_body}") from e
 
-    data = _post(model_name)
+    data = _post(body_obj)
     text = (
         data.get("choices", [{}])[0]
         .get("message", {})
@@ -1902,7 +1923,7 @@ def call_openai_conversation(
 ) -> str:
     """대화형 GPT — 세션 메시지 + FMS 컨텍스트."""
     messages: list[dict[str, str]] = [
-        {"role": "system", "content": _build_gpt_system_message(context)}
+        {"role": "system", "content": _build_gpt_system_message(context, model)}
     ]
     messages.extend(chat_messages[-20:])
     return _openai_chat_completion(api_key=api_key, model=model, messages=messages)

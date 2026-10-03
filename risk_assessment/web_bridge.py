@@ -381,17 +381,18 @@ def _assess_ai(
     except Exception:
         user_msg = f"작업명: {job}\n5M1E: {five_m}"
 
-    body = json.dumps(
-        {
-            "model": (model or "gpt-4o-mini").strip() or "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_msg},
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"},
-        }
-    ).encode("utf-8")
+    model_name = (model or "gpt-4o-mini").strip() or "gpt-4o-mini"
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
+        ],
+        "response_format": {"type": "json_object"},
+    }
+    if model_name.lower().startswith(("gpt-4", "gpt-3.5", "chatgpt-4o")):
+        payload["temperature"] = 0.2
+    body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         "https://api.openai.com/v1/chat/completions",
         data=body,
@@ -401,7 +402,7 @@ def _assess_ai(
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urllib.request.urlopen(req, timeout=300) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     raw = data["choices"][0]["message"]["content"]
     rows = parse_ai_rows(raw)

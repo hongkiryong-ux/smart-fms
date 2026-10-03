@@ -174,9 +174,20 @@
     <div>
       <label for="openai_model">모델</label><br>
       <select id="openai_model" name="openai_model">
-        <option value="gpt-4o-mini" {% if ai_model == 'gpt-4o-mini' %}selected{% endif %}>gpt-4o-mini</option>
-        <option value="gpt-4o" {% if ai_model == 'gpt-4o' %}selected{% endif %}>gpt-4o</option>
-        <option value="gpt-4.1-mini" {% if ai_model == 'gpt-4.1-mini' %}selected{% endif %}>gpt-4.1-mini</option>
+        {% set model_options = [
+          ('gpt-6.1-sol', 'GPT-6.1 Sol · 최신 권장(성능·비용 균형)'),
+          ('gpt-6-astra', 'GPT-6 Astra · 최고 성능(복잡한 분석)'),
+          ('gpt-6-luna', 'GPT-6 Luna · 빠르고 저렴'),
+          ('gpt-4.1-mini', 'gpt-4.1-mini · 이전 세대'),
+          ('gpt-4o', 'gpt-4o · 이전 세대'),
+          ('gpt-4o-mini', 'gpt-4o-mini · 이전 세대'),
+        ] %}
+        {% for value, label in model_options %}
+        <option value="{{ value }}" {% if ai_model == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+        {% if ai_model not in model_options|map('first')|list %}
+        <option value="{{ ai_model }}" selected>{{ ai_model }}</option>
+        {% endif %}
       </select>
     </div>
     <button type="submit" class="btn btn-primary">키 저장</button>
