@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ai_context_full import fit_json, gather_focus_data
+from ai_context_full import fit_json, gather_focus_data, gather_monthly_reports
 from models import (
     Building,
     CentralControlRoomDaily,
@@ -1545,6 +1545,19 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
         sec["content_extracts"] = content_extracts
 
     try:
+        log_monthly = await gather_monthly_reports(
+            db,
+            question,
+            list(building_rows),
+            {b["id"] for b in sec["question_buildings"]},
+            _today(),
+        )
+        if log_monthly:
+            sec["log_monthly_reports"] = log_monthly
+    except Exception as e:  # noqa: BLE001
+        sec["log_monthly_reports"] = [{"error": f"점검일지 월보 추출 중 오류: {_clip(e, 300)}"}]
+
+    try:
         sec["focus_data"] = await gather_focus_data(
             db,
             question,
@@ -1804,6 +1817,10 @@ def _gpt_system_base() -> str:
         "'해당 기간/조건에 등록된 데이터가 없습니다'라고 답하세요. "
         "content_extracts에는 DB에서 추출한 일지 특이사항·정비/점검 본문이 들어 있습니다. "
         "housing_monthly_reports의 special_notes는 주택변전소 일지 특이사항입니다. "
+        "log_monthly_reports는 점검일지 화면의 월보 탭과 같은 계산 결과입니다(중앙관제실 전기·설비, "
+        "제철소본부, 휴먼센터 등). days는 '날짜: 항목=값' 형식, totals는 월 합계·최대값이며, "
+        "월보·월 사용량 질문에는 이 데이터를 최우선 근거로 답하세요. "
+        "daily_rows_in_month가 0이면 그 달 일지가 입력되지 않은 것입니다. "
         "본문·특이사항 질문에는 content_extracts와 special_notes를 최우선으로 사용하세요. "
         "JSON에 있는 수치·목록·본문만 근거로 질문에 한국어로 답하세요. "
         "없는 정보는 추측하지 말고 '데이터에 없음'이라고 하세요. "
@@ -1863,6 +1880,10 @@ def _build_gpt_system_message(context: dict[str, Any], model: str = "") -> str:
             }
             for r in sec["housing_monthly_reports"]
         ]
+    if sec.get("log_monthly_reports"):
+        priority["log_monthly_reports"] = sec["log_monthly_reports"]
+        extract_max += focus_max // 2
+        focus_max -= focus_max // 2
     if sec.get("question_buildings"):
         priority["question_buildings"] = sec["question_buildings"]
 
@@ -1872,7 +1893,7 @@ def _build_gpt_system_message(context: dict[str, Any], model: str = "") -> str:
     # 우선 섹션은 전체 스냅샷에서 중복 제거해 토큰 절약
     slim_ctx = dict(context)
     slim_sec = dict(sec)
-    for key in ("content_extracts", "focus_data"):
+    for key in ("content_extracts", "focus_data", "log_monthly_reports"):
         slim_sec.pop(key, None)
     if focus and not focus.get("error"):
         slim_sec.pop("partners", None)
@@ -1891,7 +1912,7 @@ def _build_gpt_system_message(context: dict[str, Any], model: str = "") -> str:
         parts.append("메뉴별 DB 추출 데이터(focus_data — 질문 기간·건물·키워드 기준 원본, 최우선 근거):")
         parts.append(focus_json)
     if priority_json:
-        parts.append("우선 참고(본문·특이사항 추출 JSON):")
+        parts.append("우선 참고(본문·특이사항·월보 추출 JSON):")
         parts.append(priority_json)
     parts.append("Smart FMS 전체 데이터(JSON):")
     parts.append(payload_ctx)

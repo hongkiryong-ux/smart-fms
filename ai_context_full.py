@@ -279,6 +279,17 @@ def _path_segments(pairs: list[str]) -> set[str]:
     return segs
 
 
+def _question_log_modules(question: str) -> set[str]:
+    """질문에 이름이 나온 일지 모듈. 중앙관제실은 전기·설비 일지가 같은 건물이라 함께 본다."""
+    from ai_analysis import _LOG_NOTES_MODULES
+
+    q = (question or "").lower()
+    mods = {mod for _label, keys, mod, _fn in _LOG_NOTES_MODULES if any(k.lower() in q for k in keys)}
+    if "중앙관제" in q:
+        mods |= {"central_control_room", "ccr_facility"}
+    return mods
+
+
 async def _gather_daily_logs(
     db: AsyncSession,
     question: str,
@@ -289,10 +300,7 @@ async def _gather_daily_logs(
 ) -> list[dict[str, Any]]:
     from ai_analysis import _LOG_NOTES_MODULES
 
-    q = (question or "").lower()
-    specific = {
-        mod for _label, keys, mod, _fn in _LOG_NOTES_MODULES if any(k.lower() in q for k in keys)
-    }
+    specific = _question_log_modules(question)
     focused = bool(specific or matched_ids)
     if rng:
         d_from, d_to = rng
@@ -369,6 +377,206 @@ async def _gather_daily_logs(
             if total > len(rows):
                 item["days_total"] = total
             out.append(item)
+    return out
+
+
+# ── 점검일지 월보 ────────────────────────────────────────────────
+
+_MONTHLY_KEYWORDS = ("월보", "월간", "월별", "월 사용량", "월사용량", "사용량", "누계", "월합계", "월 합계")
+_MONTHLY_DEF_KEYS = ("schema", "breakers", "meters", "fields", "prev_day")
+_MONTHLY_SKIP_LEAF = ("multiplier", "reading", "meter_id", "id", "name", "unit")
+
+
+def monthly_report_requested(question: str) -> bool:
+    q = question or ""
+    return any(k in q for k in _MONTHLY_KEYWORDS)
+
+
+def _report_months(rng: tuple[date, date] | None, today: date) -> list[tuple[int, int]]:
+    if not rng:
+        prev = today.replace(day=1) - timedelta(days=1)
+        return [(today.year, today.month), (prev.year, prev.month)]
+    months: list[tuple[int, int]] = []
+    y, m = rng[1].year, rng[1].month
+    while (y, m) >= (rng[0].year, rng[0].month) and len(months) < 3:
+        months.append((y, m))
+        y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+    return months
+
+
+def _report_glossary(report: Any) -> dict[str, str]:
+    out: dict[str, str] = {}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            key = node.get("meter_id") or node.get("id") or node.get("col")
+            name = node.get("name") or node.get("label") or node.get("metric") or node.get("item")
+            if isinstance(key, str) and isinstance(name, str) and name.strip():
+                unit = node.get("unit")
+                out.setdefault(key, name.strip() + (f"({unit})" if isinstance(unit, str) and unit else ""))
+            for v in node.values():
+                if isinstance(v, (dict, list)):
+                    walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(report)
+    return out
+
+
+def _flatten_report(obj: Any, prefix: str, out: list[str], gloss: dict[str, str]) -> None:
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            ks = str(k)
+            if ks in _MONTHLY_SKIP_LEAF or ks.startswith("_"):
+                continue
+            label = gloss.get(ks, ks)
+            _flatten_report(v, f"{prefix}.{label}" if prefix else label, out, gloss)
+    elif isinstance(obj, list):
+        parent = prefix.rsplit(".", 1)[0] if "." in prefix else ""
+        for i, v in enumerate(obj):
+            key = v.get("meter_id") or v.get("id") if isinstance(v, dict) else None
+            name = (v.get("name") or gloss.get(str(key), key)) if isinstance(v, dict) else None
+            if name:
+                _flatten_report(v, f"{parent}.{name}" if parent else str(name), out, gloss)
+            else:
+                _flatten_report(v, f"{prefix}[{i}]", out, gloss)
+    else:
+        if obj is None or obj is False:
+            return
+        s = str(obj).strip()
+        if s:
+            out.append(f"{prefix}={_clip(s, 120)}")
+
+
+def _compact_report(node: Any, gloss: dict[str, str]) -> Any:
+    """월보 dict → 정의 목록 제거, days는 '날짜: 항목=값; …' 한 줄씩."""
+    if isinstance(node, dict):
+        out: dict[str, Any] = {}
+        for k, v in node.items():
+            if k in _MONTHLY_DEF_KEYS:
+                continue
+            if k == "days" and isinstance(v, list):
+                lines = []
+                for d in v:
+                    if not isinstance(d, dict):
+                        continue
+                    pairs: list[str] = []
+                    _flatten_report({kk: vv for kk, vv in d.items() if kk not in ("day", "date")}, "", pairs, gloss)
+                    if pairs:
+                        lines.append(f"{d.get('date') or d.get('day')}: " + "; ".join(pairs))
+                out["days"] = lines
+            elif k in ("totals", "monthly_totals", "summary"):
+                pairs = []
+                _flatten_report(v, "", pairs, gloss)
+                if pairs:
+                    out[k] = "; ".join(pairs)
+            elif isinstance(v, (dict, list)):
+                r = _compact_report(v, gloss)
+                if r:
+                    out[k] = r
+            elif v not in (None, ""):
+                out[k] = v
+        return out
+    if isinstance(node, list):
+        return [r for r in (_compact_report(x, gloss) for x in node) if r]
+    return node
+
+
+async def gather_monthly_reports(
+    db: AsyncSession,
+    question: str,
+    building_rows: list[Building],
+    matched_ids: set[int],
+    today: date,
+) -> list[dict[str, Any]]:
+    """점검일지 월보(화면의 월보 탭과 같은 계산) — 질문에 월보·월·사용량이 있을 때."""
+    import calendar
+    import inspect
+
+    from ai_analysis import _LOG_NOTES_MODULES
+
+    rng = question_date_range(question, today)
+    specific = _question_log_modules(question)
+    if not (monthly_report_requested(question) or (rng and (specific or matched_ids))):
+        return []
+    months = _report_months(rng, today)
+
+    out: list[dict[str, Any]] = []
+    for label, _keys, module_name, checker_name in _LOG_NOTES_MODULES:
+        if module_name == "housing_substation":
+            continue  # housing_monthly_reports 섹션에서 별도 제공
+        if specific and module_name not in specific:
+            continue
+        model = getattr(models, _LOG_DAILY_MODELS.get(module_name, ""), None)
+        try:
+            module = importlib.import_module(module_name)
+            is_building = getattr(module, checker_name)
+            compute = getattr(module, "compute_monthly_report")
+        except Exception:
+            continue
+        if model is None:
+            continue
+        params = inspect.signature(compute).parameters
+        extra = getattr(module, "compute_transformer_monthly_report", None)
+        for b in building_rows:
+            if matched_ids and not specific and b.id not in matched_ids:
+                continue
+            try:
+                if not is_building(b):
+                    continue
+            except Exception:
+                continue
+            for year, month in months:
+                d_from = date(year, month, 1)
+                d_to = date(year, month, calendar.monthrange(year, month)[1])
+                rows = (
+                    await db.execute(
+                        select(model).where(
+                            model.building_id == b.id,
+                            model.log_date >= d_from,
+                            model.log_date <= d_to,
+                        )
+                    )
+                ).scalars().all()
+                item: dict[str, Any] = {
+                    "log": label,
+                    "building": b.name,
+                    "year": year,
+                    "month": month,
+                    "daily_rows_in_month": len(rows),
+                }
+                if not rows:
+                    out.append(item)
+                    continue
+                prev_row = (
+                    await db.execute(
+                        select(model).where(
+                            model.building_id == b.id, model.log_date == d_from - timedelta(days=1)
+                        )
+                    )
+                ).scalar_one_or_none()
+                args = {
+                    "building_id": b.id,
+                    "year": year,
+                    "month": month,
+                    "daily_rows": list(rows),
+                    "prev_month_last_row": prev_row,
+                }
+                try:
+                    report = compute(**{k: v for k, v in args.items() if k in params})
+                    if callable(extra):
+                        report["transformer"] = extra(year, month, list(rows))
+                except Exception as e:  # noqa: BLE001
+                    item["error"] = f"월보 계산 오류: {_clip(e, 200)}"
+                    out.append(item)
+                    continue
+                gloss = _report_glossary(report)
+                item["report"] = _compact_report(
+                    {k: v for k, v in report.items() if k not in ("year", "month")}, gloss
+                )
+                out.append(item)
     return out
 
 
