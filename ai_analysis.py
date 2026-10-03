@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ai_context_full import fit_json, gather_focus_data
 from models import (
     Building,
     CentralControlRoomDaily,
@@ -47,10 +48,12 @@ except Exception:  # pragma: no cover
     Lamp = None
     LampRequest = None
 
-_CONTEXT_MAX_CHARS = 72000
-_CONTENT_EXTRACT_MAX_CHARS = 28000
-_CONTEXT_MAX_CHARS_LARGE = 200000
-_CONTENT_EXTRACT_MAX_CHARS_LARGE = 60000
+_CONTEXT_MAX_CHARS = 30000
+_CONTENT_EXTRACT_MAX_CHARS = 25000
+_FOCUS_MAX_CHARS = 45000
+_CONTEXT_MAX_CHARS_LARGE = 60000
+_CONTENT_EXTRACT_MAX_CHARS_LARGE = 50000
+_FOCUS_MAX_CHARS_LARGE = 160000
 
 
 def classify_intent(question: str) -> str:
@@ -1541,6 +1544,17 @@ async def gather_context(db: AsyncSession, intent: str, question: str) -> dict[s
     if content_extracts:
         sec["content_extracts"] = content_extracts
 
+    try:
+        sec["focus_data"] = await gather_focus_data(
+            db,
+            question,
+            list(building_rows),
+            {b["id"] for b in sec["question_buildings"]},
+            today=_today(),
+        )
+    except Exception as e:  # noqa: BLE001
+        sec["focus_data"] = {"error": f"메뉴별 데이터 추출 중 오류: {_clip(e, 300)}"}
+
     return ctx
 
 
@@ -1777,6 +1791,17 @@ def _gpt_system_base() -> str:
         "당신은 POSCO WIDE Smart FMS 시설관리 분석 도우미입니다. "
         "제공된 JSON은 Smart FMS에 등록된 전체 운영 데이터의 최신 스냅샷입니다 "
         "(사업장·건물·설비·정비의뢰·PM·D-1·협력사·점검일지·점검일지2·자재·공지·일정·가로등 등). "
+        "focus_data는 질문의 기간·건물·키워드 기준으로 DB에서 직접 추출한 메뉴별 원본 데이터입니다: "
+        "sites_buildings(사업장/건물·층·구역·설비수), equipment(설비관리 목록·키워드 일치 설비의 "
+        "PM·소모품·정비이력·정비의뢰), pm(점검 PM 일정·지연·점검결과), inspection_logs(점검일지·운영일보 "
+        "16종의 일별 입력값), work_orders·maintenance_records(정비관리), risk_assessment(위험성평가 "
+        "프리셋·5M1E·평가표, 협력사·정비의뢰·D-1 JSA 위험정보), d1_plans, materials(자재 재고·입출고·소모품). "
+        "표는 columns/rows 형식이며, 'X_total' 키가 있으면 전체 X_total건 중 일부만 실린 것이므로 "
+        "전체 건수는 X_total로 말하고 상세가 더 필요하면 기간·건물·설비명을 좁혀 다시 질문하도록 안내하세요. "
+        "inspection_logs의 values는 '경로=값; ...' 형식이며 glossary(항목ID=항목명)로 항목명을 해석하세요. "
+        "당신은 위 모든 메뉴 데이터의 조회·검색·분석·추출 권한을 가지고 있습니다. "
+        "'접근 권한이 없다', '조회할 수 없다'고 답하지 말고, 해당 조건의 데이터가 비어 있으면 "
+        "'해당 기간/조건에 등록된 데이터가 없습니다'라고 답하세요. "
         "content_extracts에는 DB에서 추출한 일지 특이사항·정비/점검 본문이 들어 있습니다. "
         "housing_monthly_reports의 special_notes는 주택변전소 일지 특이사항입니다. "
         "본문·특이사항 질문에는 content_extracts와 special_notes를 최우선으로 사용하세요. "
@@ -1799,15 +1824,29 @@ def _uses_sampling_params(model: str) -> bool:
     return (model or "").strip().lower().startswith(_SAMPLING_MODEL_PREFIXES)
 
 
-def _context_limits(model: str) -> tuple[int, int]:
+def _context_limits(model: str) -> tuple[int, int, int]:
+    """(전체 스냅샷, 본문 추출, 메뉴별 focus_data) 글자 한도."""
     if _uses_sampling_params(model):
-        return _CONTEXT_MAX_CHARS, _CONTENT_EXTRACT_MAX_CHARS
-    return _CONTEXT_MAX_CHARS_LARGE, _CONTENT_EXTRACT_MAX_CHARS_LARGE
+        return _CONTEXT_MAX_CHARS, _CONTENT_EXTRACT_MAX_CHARS, _FOCUS_MAX_CHARS
+    return _CONTEXT_MAX_CHARS_LARGE, _CONTENT_EXTRACT_MAX_CHARS_LARGE, _FOCUS_MAX_CHARS_LARGE
+
+
+# focus_data에 원본이 있으면 스냅샷에서 빼는 상세 목록 (섹션, 키)
+_SNAPSHOT_DUP_KEYS: tuple[tuple[str, str], ...] = (
+    ("equipment", "recent"),
+    ("work_orders", "recent"),
+    ("pm", "recent_inspections"),
+    ("d1_plans", "recent"),
+    ("materials", "items"),
+    ("materials", "low_stock"),
+    ("maintenance_records", "recent"),
+)
 
 
 def _build_gpt_system_message(context: dict[str, Any], model: str = "") -> str:
-    ctx_max, extract_max = _context_limits(model)
+    ctx_max, extract_max, focus_max = _context_limits(model)
     sec = context.get("sections") or {}
+    focus = sec.get("focus_data") or {}
     priority: dict[str, Any] = {}
     if sec.get("content_extracts"):
         priority["content_extracts"] = sec["content_extracts"]
@@ -1827,27 +1866,30 @@ def _build_gpt_system_message(context: dict[str, Any], model: str = "") -> str:
     if sec.get("question_buildings"):
         priority["question_buildings"] = sec["question_buildings"]
 
-    priority_json = ""
-    if priority:
-        priority_json = json.dumps(priority, ensure_ascii=False, default=str, separators=(",", ":"))
-        if len(priority_json) > extract_max:
-            priority_json = priority_json[:extract_max] + "..."
+    priority_json = fit_json(priority, extract_max) if priority else ""
+    focus_json = fit_json(focus, focus_max) if focus else ""
 
     # 우선 섹션은 전체 스냅샷에서 중복 제거해 토큰 절약
     slim_ctx = dict(context)
     slim_sec = dict(sec)
-    for key in ("content_extracts",):
+    for key in ("content_extracts", "focus_data"):
         slim_sec.pop(key, None)
+    if focus and not focus.get("error"):
+        slim_sec.pop("partners", None)
+        for name, key in _SNAPSHOT_DUP_KEYS:
+            if isinstance(slim_sec.get(name), dict) and key in slim_sec[name]:
+                slim_sec[name] = {k: v for k, v in slim_sec[name].items() if k != key}
     slim_ctx["sections"] = slim_sec
-    payload_ctx = json.dumps(slim_ctx, ensure_ascii=False, default=str, separators=(",", ":"))
-    if len(payload_ctx) > ctx_max:
-        payload_ctx = payload_ctx[:ctx_max] + "..."
+    payload_ctx = fit_json(slim_ctx, ctx_max)
 
     parts = [
         _gpt_system_base(),
         "",
         f"데이터 기준 시각: {context.get('as_of', '')}",
     ]
+    if focus_json:
+        parts.append("메뉴별 DB 추출 데이터(focus_data — 질문 기간·건물·키워드 기준 원본, 최우선 근거):")
+        parts.append(focus_json)
     if priority_json:
         parts.append("우선 참고(본문·특이사항 추출 JSON):")
         parts.append(priority_json)
