@@ -1799,6 +1799,23 @@ def _sanitize_openai_api_key(api_key: str) -> str:
     return key
 
 
+_CHART_RULES = (
+    "그래프·차트·추이·시각화를 요청받거나 수치 비교·추이를 보여주는 것이 도움이 되면, "
+    "답변 안에 아래 형식의 chart 코드블록을 넣으세요. 화면이 이를 그래프로 그립니다. "
+    "```chart\n"
+    '{"type":"bar","title":"제목","labels":["1월","2월"],'
+    '"datasets":[{"label":"계열명","data":[10,20]}],"x_label":"X축","y_label":"Y축"}\n'
+    "``` "
+    "type은 bar·line·pie·doughnut·radar·scatter 중 하나이고, 선택 항목으로 "
+    '"stacked":true(누적 막대), "horizontal":true(가로 막대), datasets 항목별 "type"(막대+선 혼합), '
+    '"y_axis":"right"(보조축)을 쓸 수 있습니다. '
+    "블록 안은 주석 없는 올바른 JSON이어야 하고, data는 labels와 같은 길이의 숫자 배열(값 없으면 null)입니다. "
+    "값은 반드시 제공된 JSON 데이터에서 계산하고 지어내지 마세요. 그래프는 여러 개 넣어도 되며, "
+    "그래프 앞뒤에 핵심 수치와 해석을 글로 함께 설명하세요. "
+    "월별 추이·건수 그래프에는 focus_data.statistics 집계를 우선 사용하세요. "
+)
+
+
 def _gpt_system_base() -> str:
     return (
         "당신은 POSCO WIDE Smart FMS 시설관리 분석 도우미입니다. "
@@ -1826,6 +1843,8 @@ def _gpt_system_base() -> str:
         "없는 정보는 추측하지 말고 '데이터에 없음'이라고 하세요. "
         "이전 대화 맥락을 유지하며 후속 질문·추가 설명 요청에도 답하세요. "
         "목록·비교·집계는 가능하면 마크다운 표로 정리하세요. "
+        + _CHART_RULES
+        + "데이터를 분석할 때는 수치 근거와 함께 추이·비교·이상치·원인 추정·개선 제안을 제시하세요. "
         "사용자가 엑셀 정리를 요청하면 시스템이 표 데이터를 파일로 만들어 주므로, "
         "표·목록을 명확히 제시하면 됩니다. "
         "비밀번호·API키·개인 연락처는 언급하지 마세요. "

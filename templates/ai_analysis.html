@@ -67,9 +67,10 @@
   }
   .ai-chat-panel { min-height: 420px; }
   .ai-chat-messages {
+    position: relative;
     flex: 1;
-    min-height: 220px;
-    max-height: 420px;
+    min-height: 260px;
+    max-height: 70vh;
     overflow-y: auto;
     border: 1px solid var(--border, #ccd3dc);
     border-radius: 8px;
@@ -109,6 +110,32 @@
     border: 1px solid #c5daf5;
     border-bottom-left-radius: 2px;
   }
+  .ai-chat-msg.assistant .ai-chat-bubble.ai-md { white-space: normal; }
+  .ai-chat-bubble.has-chart { width: 92%; box-sizing: border-box; }
+  .ai-md-text { white-space: pre-wrap; margin: 0.15rem 0; }
+  .ai-md-h { display: inline-block; font-weight: 700; color: #003876; margin-top: 0.3rem; }
+  .ai-md code { background: #e3ebf5; padding: 0 0.25rem; border-radius: 3px; font-size: 0.88em; }
+  .ai-md-code {
+    background: #f4f6f9; border: 1px solid #dde3ea; border-radius: 6px;
+    padding: 0.5rem 0.65rem; font-size: 0.82rem; overflow-x: auto; white-space: pre;
+  }
+  .ai-md-table-wrap { overflow-x: auto; margin: 0.45rem 0; }
+  .ai-md-table { border-collapse: collapse; font-size: 0.84rem; background: #fff; min-width: 50%; }
+  .ai-md-table th, .ai-md-table td { border: 1px solid #c9d6e6; padding: 0.3rem 0.55rem; text-align: left; vertical-align: top; }
+  .ai-md-table th { background: #e3eefc; font-weight: 700; white-space: nowrap; }
+  .ai-md-table tr:nth-child(even) td { background: #f7faff; }
+  .ai-chart-box {
+    background: #fff; border: 1px solid #c9d6e6; border-radius: 8px;
+    padding: 0.6rem 0.7rem 0.4rem; margin: 0.55rem 0;
+  }
+  .ai-chart-area { position: relative; height: 340px; width: 100%; }
+  .ai-chart-tools { display: flex; justify-content: flex-end; margin-top: 0.3rem; }
+  .ai-chart-btn {
+    border: 1px solid #c9d6e6; background: #f5f8fc; color: #003876; border-radius: 5px;
+    font-size: 0.76rem; padding: 0.15rem 0.5rem; cursor: pointer;
+  }
+  .ai-chart-btn:hover { background: #e3eefc; }
+  .ai-chart-error { color: #c0392b; font-size: 0.85rem; margin-bottom: 0.3rem; }
   .ai-chat-role {
     font-size: 0.75rem;
     color: var(--muted, #666);
@@ -260,7 +287,7 @@
       <h2 style="margin:0">AI 질문 (GPT)</h2>
       <button type="button" class="btn btn-sm btn-secondary" id="ai-chat-new-btn">새 대화</button>
     </div>
-    <p class="ai-panel-desc">대화는 계정별로 자동 저장됩니다. 「대화 기록」에서 지난 대화를 열어 다시 보고 이어서 질문할 수 있습니다. 「답변을 엑셀로 정리해줘」라고 하면 표로 내려받을 수 있습니다.</p>
+    <p class="ai-panel-desc">대화는 계정별로 자동 저장됩니다. 「대화 기록」에서 지난 대화를 열어 다시 보고 이어서 질문할 수 있습니다. 「답변을 엑셀로 정리해줘」라고 하면 표로 내려받을 수 있고, 「~를 그래프로 보여줘」라고 하면 막대·선·원형 그래프를 그려 줍니다(이미지 저장 가능).</p>
 
     <details class="ai-history" id="ai-history" {% if gpt_conversations %}open{% endif %}>
       <summary>대화 기록 (<span id="ai-history-count">{{ gpt_conversations|length }}</span>)</summary>
@@ -310,9 +337,12 @@
 </div>
 </div>
 
+<script src="/static/vendor/chart.umd.min.js?v=4.4.4"></script>
+<script src="/static/js/ai_chat_render.js?v=1"></script>
 <script>
 (function () {
   var initialMessages = {{ gpt_chat_messages | tojson }};
+  var renderer = window.AiChatRender || null;
   var conversations = {{ gpt_conversations | tojson }};
   var currentConvId = {{ gpt_conversation_id | tojson }};
   var aiReady = {{ 'true' if ai_ready else 'false' }};
@@ -366,6 +396,7 @@
 
   function renderMessages(messages) {
     if (!messagesEl) return;
+    if (renderer) renderer.destroyCharts();
     messagesEl.querySelectorAll('.ai-chat-msg').forEach(function (n) { n.remove(); });
     if (!messages || !messages.length) {
       if (emptyEl) emptyEl.style.display = '';
@@ -380,12 +411,22 @@
       role.textContent = m.role === 'user' ? '나' : 'GPT';
       var bubble = document.createElement('div');
       bubble.className = 'ai-chat-bubble';
-      bubble.textContent = m.content || '';
+      if (m.role !== 'user' && renderer) {
+        bubble.classList.add('ai-md');
+        if (renderer.render(bubble, m.content || '')) bubble.classList.add('has-chart');
+      } else {
+        bubble.textContent = m.content || '';
+      }
       wrap.appendChild(role);
       wrap.appendChild(bubble);
       messagesEl.appendChild(wrap);
     });
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    var lastMsg = messagesEl.querySelector('.ai-chat-msg:last-of-type');
+    if (lastMsg && lastMsg.classList.contains('assistant') && lastMsg.previousElementSibling) {
+      messagesEl.scrollTop = Math.max(0, lastMsg.previousElementSibling.offsetTop - 8);
+    } else {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
   }
 
   var historyEl = document.getElementById('ai-history');

@@ -1134,12 +1134,103 @@ async def gather_focus_data(
         ),
     }
 
+    focus["statistics"] = await _gather_statistics(db, today, eq_bid, bname, in_scope)
+
     focus["partners"] = _table(
         ["id", "협력사", "코드", "담당자", "계약만료", "활성"],
         [[p.id, p.name, p.code or "", p.contact_name or "", _d(p.contract_end), "Y" if p.is_active else ""]
          for p in partners],
     )
     return focus
+
+
+# ── 그래프용 집계 (목록이 잘려도 정확한 건수) ─────────────────────
+
+_OPEN_STATUSES = {"received", "assigned", "in_progress"}
+
+
+async def _gather_statistics(db: AsyncSession, today: date, eq_bid, bname: dict, in_scope) -> dict[str, Any]:
+    first = today.replace(day=1)
+    months: list[str] = []
+    y, mo = first.year, first.month
+    for _ in range(24):
+        months.append(f"{y:04d}-{mo:02d}")
+        y, mo = (y, mo - 1) if mo > 1 else (y - 1, 12)
+    months.reverse()
+    since = datetime(int(months[0][:4]), int(months[0][5:]), 1)
+
+    def ym(v: Any) -> str:
+        return v.strftime("%Y-%m") if v else ""
+
+    wo = (
+        await db.execute(
+            select(WorkOrder.created_at, WorkOrder.completed_at, WorkOrder.status, WorkOrder.equipment_id).where(
+                WorkOrder.is_active == True  # noqa: E712
+            )
+        )
+    ).all()
+    created = {m: 0 for m in months}
+    completed = {m: 0 for m in months}
+    by_building: dict[str, list[int]] = {}
+    for c_at, done_at, status, eid in wo:
+        bid = eq_bid(eid)
+        if not in_scope(bid):
+            continue
+        if ym(c_at) in created:
+            created[ym(c_at)] += 1
+        if ym(done_at) in completed:
+            completed[ym(done_at)] += 1
+        name = bname.get(bid, "") if bid else "(설비 미지정)"
+        row = by_building.setdefault(name, [0, 0])
+        row[0] += 1
+        row[1] += int(_enum_val(status) in _OPEN_STATUSES)
+
+    pm = (
+        await db.execute(
+            select(PMInspection.inspected_at, PMInspection.result, PMInspection.equipment_id).where(
+                PMInspection.inspected_at >= since
+            )
+        )
+    ).all()
+    pm_month: dict[str, dict[str, int]] = {m: {} for m in months}
+    for at, result, eid in pm:
+        if not in_scope(eq_bid(eid)) or ym(at) not in pm_month:
+            continue
+        r = _enum_val(result)
+        pm_month[ym(at)][r] = pm_month[ym(at)].get(r, 0) + 1
+
+    maint = (
+        await db.execute(
+            select(MaintenanceRecord.work_date, MaintenanceRecord.cost, MaintenanceRecord.equipment_id).where(
+                MaintenanceRecord.work_date >= since.date()
+            )
+        )
+    ).all()
+    m_count = {m: 0 for m in months}
+    m_cost = {m: 0.0 for m in months}
+    for wd, cost, eid in maint:
+        if not in_scope(eq_bid(eid)) or ym(wd) not in m_count:
+            continue
+        m_count[ym(wd)] += 1
+        m_cost[ym(wd)] += float(cost or 0)
+
+    return {
+        "note": "최근 24개월 전체 건수 집계(목록 잘림과 무관). 그래프·추이 질문에 사용",
+        "monthly": _table(
+            ["월", "정비의뢰_접수", "정비의뢰_완료", "정비이력_건수", "정비이력_비용", "PM점검_결과별"],
+            [
+                [
+                    m, created[m], completed[m], m_count[m], round(m_cost[m], 1),
+                    ", ".join(f"{k}:{v}" for k, v in pm_month[m].items()),
+                ]
+                for m in months
+            ],
+        ),
+        "work_orders_by_building": _table(
+            ["건물", "정비의뢰_전체", "정비의뢰_미완료"],
+            sorted(([k, v[0], v[1]] for k, v in by_building.items()), key=lambda r: -r[1]),
+        ),
+    }
 
 
 # ── 컨텍스트 한도 맞춤 ──────────────────────────────────────────
