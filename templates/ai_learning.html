@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}AI 공유 학습 노트{% endblock %}
+{% block head_extra %}
+<style>
+  .al-page { max-width: 1200px; }
+  .al-lesson { border: 1px solid var(--border, #ccd3dc); border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 0.7rem; background: #fff; }
+  .al-lesson.off { background: #f4f5f7; opacity: 0.75; }
+  .al-lesson textarea, .al-lesson input[type=text] {
+    width: 100%; box-sizing: border-box; border: 1px solid var(--border, #ccd3dc);
+    border-radius: 6px; padding: 0.4rem 0.55rem; font-size: 0.9rem;
+  }
+  .al-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.45rem; }
+  .al-meta { font-size: 0.78rem; color: var(--muted, #666); margin-top: 0.35rem; }
+  .al-actions { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap; }
+  .al-tag { display: inline-block; background: #e3eefc; color: #003876; border-radius: 10px; padding: 0 0.5rem; font-size: 0.78rem; margin: 0 0.2rem 0.2rem 0; }
+  .al-rule { white-space: pre-wrap; font-size: 0.92rem; }
+  .al-fb td { font-size: 0.84rem; vertical-align: top; }
+  .al-bad { color: #c0392b; font-weight: 700; }
+  .al-good { color: #1e8449; font-weight: 700; }
+  @media (max-width: 800px) { .al-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="al-page">
+<header class="page-header">
+  <h1>AI 공유 학습 노트</h1>
+  <p>
+    AI 답변에 👎를 누르거나 「그게 아니라…」처럼 정정 질문을 하면, 그 사례를 일반화한 지침이 여기에 쌓입니다.
+    지침과 용어 별칭은 <strong>모든 계정</strong>의 AI 질문에 자동 반영됩니다.
+    <a href="/admin/ai-analysis">← AI 분석으로</a>
+  </p>
+</header>
+{% if info %}<div class="alert alert-success">{{ info }}</div>{% endif %}
+
+{% if can_manage %}
+<section class="card" style="margin-bottom:1rem">
+  <h2>지침 직접 추가</h2>
+  <form method="post" action="/admin/ai-analysis/learning/save" class="al-lesson">
+    <label>지침 (AI가 지켜야 할 내용)</label>
+    <textarea name="rule" rows="2" placeholder="예: '관제실'은 중앙관제실을 뜻하며 전기·설비 일지를 모두 확인해 답할 것" required></textarea>
+    <div class="al-grid">
+      <div>
+        <label>적용 키워드 (쉼표 구분, 비우면 모든 질문에 적용)</label>
+        <input type="text" name="keywords" placeholder="중앙관제실, 월보">
+      </div>
+      <div>
+        <label>용어 별칭 (한 줄에 하나: 별칭=정식명칭)</label>
+        <textarea name="synonyms" rows="2" placeholder="관제실=중앙관제실"></textarea>
+      </div>
+    </div>
+    <div class="al-actions"><button class="btn btn-primary btn-sm" type="submit">추가</button></div>
+  </form>
+</section>
+{% endif %}
+
+<section class="card" style="margin-bottom:1rem">
+  <h2>학습 노트 ({{ lessons|selectattr('is_active')|list|length }}건 사용 중 / 전체 {{ lessons|length }}건)</h2>
+  {% if not lessons %}
+  <p class="text-muted">아직 학습된 지침이 없습니다. AI 답변 아래 👎 버튼으로 문제를 알려 주세요.</p>
+  {% endif %}
+  {% for l in lessons %}
+  {% if can_manage %}
+  <form method="post" action="/admin/ai-analysis/learning/save" class="al-lesson {% if not l.is_active %}off{% endif %}">
+    <input type="hidden" name="lesson_id" value="{{ l.id }}">
+    <textarea name="rule" rows="2">{{ l.rule }}</textarea>
+    <div class="al-grid">
+      <div>
+        <label>적용 키워드</label>
+        <input type="text" name="keywords" value="{{ l.keywords|join(', ') }}">
+      </div>
+      <div>
+        <label>용어 별칭 (별칭=정식명칭)</label>
+        <textarea name="synonyms" rows="2">{% for a, c in l.synonyms.items() %}{{ a }}={{ c }}
+{% endfor %}</textarea>
+      </div>
+    </div>
+    <div class="al-actions">
+      <label style="margin:0"><input type="checkbox" name="is_active" value="1" {% if l.is_active %}checked{% endif %}> 사용</label>
+      <button class="btn btn-primary btn-sm" type="submit">저장</button>
+      <button class="btn btn-secondary btn-sm" type="submit" formaction="/admin/ai-analysis/learning/{{ l.id }}/delete"
+              onclick="return confirm('이 지침을 삭제할까요?')">삭제</button>
+      <span class="al-meta">#{{ l.id }} · 생성 {{ l.created_at }} · 수정 {{ l.updated_at }} · 답변에 반영 {{ l.hit_count }}회</span>
+    </div>
+  </form>
+  {% else %}
+  <div class="al-lesson {% if not l.is_active %}off{% endif %}">
+    <div class="al-rule">{{ l.rule }}</div>
+    <div class="al-meta">
+      {% for k in l.keywords %}<span class="al-tag">{{ k }}</span>{% endfor %}
+      {% for a, c in l.synonyms.items() %}<span class="al-tag">{{ a }} → {{ c }}</span>{% endfor %}
+      · 답변에 반영 {{ l.hit_count }}회{% if not l.is_active %} · 사용 중지{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</section>
+
+<section class="card">
+  <h2>최근 피드백 (최대 200건)</h2>
+  {% if not feedback %}
+  <p class="text-muted">피드백이 없습니다.</p>
+  {% else %}
+  <div class="table-wrap">
+  <table class="data-table al-fb">
+    <thead><tr><th>일시</th><th>평가</th><th>방식</th><th>질문</th><th>지적·정정 내용</th><th>학습 노트</th>{% if can_manage %}<th>계정</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for f in feedback %}
+      <tr>
+        <td style="white-space:nowrap">{{ f.created_at }}</td>
+        <td>{% if f.rating > 0 %}<span class="al-good">👍</span>{% else %}<span class="al-bad">👎</span>{% endif %}</td>
+        <td style="white-space:nowrap">{{ f.source }}</td>
+        <td>{{ f.question[:200] }}</td>
+        <td>{{ f.comment[:300] }}</td>
+        <td>{% if f.lesson_id %}#{{ f.lesson_id }}{% endif %}</td>
+        {% if can_manage %}<td style="white-space:nowrap">{{ f.user }}</td>{% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+</div>
+{% endblock %}

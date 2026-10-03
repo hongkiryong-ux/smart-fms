@@ -8269,7 +8269,32 @@ async def _ai_chat_state(request: Request, db: AsyncSession, user_id: int, conv_
         "gpt_chat_messages": conversation_messages(row),
         "gpt_conversation_id": row.id if row else None,
         "gpt_conversations": await list_conversations(db, user_id),
+        "ai_lesson_count": await _count_active_ai_lessons(db),
     }
+
+
+async def _count_active_ai_lessons(db: AsyncSession) -> int:
+    from models import AiLesson
+
+    try:
+        return int(
+            (
+                await db.execute(
+                    select(func.count(AiLesson.id)).where(AiLesson.is_active == True)  # noqa: E712
+                )
+            ).scalar()
+            or 0
+        )
+    except Exception:  # noqa: BLE001
+        await db.rollback()
+        return 0
+
+
+def _can_manage_ai_learning(user: User) -> bool:
+    return user.role in (UserRole.system_admin, UserRole.site_admin)
+
+
+_AI_BACKGROUND_TASKS: set = set()
 
 
 @app.get("/admin/ai-analysis")
@@ -8348,6 +8373,207 @@ async def ai_analysis_export_excel(
     )
 
 
+def _schedule_correction_learning(
+    user_id: int,
+    conversation_id: int,
+    history: list[dict[str, str]],
+    question: str,
+    api_key: str,
+    model: str,
+) -> None:
+    """'그게 아니라'처럼 직전 답변을 정정하는 질문이면 직전 문답을 문제 사례로 백그라운드 학습."""
+    import asyncio
+
+    from ai_learning import is_correction, learn_from_correction_background
+
+    if not is_correction(question):
+        return
+    a_idx = next((i for i in range(len(history) - 1, -1, -1) if history[i]["role"] == "assistant"), None)
+    if a_idx is None:
+        return
+    q_idx = next((i for i in range(a_idx - 1, -1, -1) if history[i]["role"] == "user"), None)
+    task = asyncio.create_task(
+        learn_from_correction_background(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            message_index=a_idx,
+            question=history[q_idx]["content"] if q_idx is not None else "",
+            answer=history[a_idx]["content"],
+            correction=question,
+            api_key=api_key,
+            model=model,
+        )
+    )
+    _AI_BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_AI_BACKGROUND_TASKS.discard)
+
+
+@app.post("/admin/ai-analysis/feedback")
+async def ai_analysis_feedback(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """답변 👍/👎 — 👎는 지적 내용을 GPT로 일반화해 모든 계정 공유 학습 노트에 추가."""
+    from ai_chat_store import conversation_messages, get_conversation
+    from ai_learning import create_lesson_from_feedback, record_feedback
+    from risk_assessment import user_openai_credentials
+    from starlette.responses import JSONResponse
+
+    if not can_access_menu(user, "ai_analysis"):
+        return JSONResponse({"ok": False, "error": "권한이 없습니다."}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    conv = await get_conversation(db, user.id, body.get("conversation_id"))
+    if conv is None:
+        return JSONResponse({"ok": False, "error": "대화를 찾을 수 없습니다."}, status_code=404)
+    messages = conversation_messages(conv)
+    try:
+        idx = int(body.get("message_index"))
+    except (TypeError, ValueError):
+        idx = -1
+    if not (0 <= idx < len(messages)) or messages[idx]["role"] != "assistant":
+        return JSONResponse({"ok": False, "error": "평가할 답변을 찾을 수 없습니다."}, status_code=400)
+    question = next(
+        (messages[i]["content"] for i in range(idx - 1, -1, -1) if messages[i]["role"] == "user"), ""
+    )
+    rating = 1 if int(body.get("rating") or 0) > 0 else -1
+    comment = str(body.get("comment") or "").strip()
+    fb = await record_feedback(
+        db,
+        user_id=user.id,
+        conversation_id=conv.id,
+        message_index=idx,
+        rating=rating,
+        question=question,
+        answer=messages[idx]["content"],
+        comment=comment,
+    )
+    lesson = None
+    if rating < 0:
+        db_user = await db.get(User, user.id) or user
+        key, model = user_openai_credentials(db_user)
+        lesson = await create_lesson_from_feedback(db, fb, api_key=key, model=model)
+    await db.commit()
+    return JSONResponse(
+        {
+            "ok": True,
+            "rating": rating,
+            "lesson": {"id": lesson.id, "rule": lesson.rule} if lesson else None,
+        }
+    )
+
+
+@app.get("/admin/ai-analysis/learning")
+async def ai_learning_page(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_learning import lesson_dict
+    from models import AiFeedback, AiLesson
+
+    if not can_access_menu(user, "ai_analysis"):
+        return RedirectResponse("/admin/account", status_code=303)
+    lessons = (
+        await db.execute(select(AiLesson).order_by(AiLesson.is_active.desc(), AiLesson.updated_at.desc()))
+    ).scalars().all()
+    feedback_rows = (
+        await db.execute(
+            select(AiFeedback, User.name)
+            .join(User, User.id == AiFeedback.user_id, isouter=True)
+            .order_by(AiFeedback.created_at.desc())
+            .limit(200)
+        )
+    ).all()
+    feedback = [
+        {
+            "id": fb.id,
+            "user": name or "",
+            "rating": fb.rating,
+            "source": "자동 감지" if fb.source == "auto" else "버튼",
+            "question": fb.question,
+            "comment": fb.comment,
+            "lesson_id": fb.lesson_id,
+            "created_at": fb.created_at.strftime("%Y-%m-%d %H:%M") if fb.created_at else "",
+        }
+        for fb, name in feedback_rows
+    ]
+    return templates.TemplateResponse(
+        request,
+        "ai_learning.html",
+        {
+            "user": user,
+            "lessons": [lesson_dict(r) for r in lessons],
+            "feedback": feedback,
+            "can_manage": _can_manage_ai_learning(user),
+            "info": request.query_params.get("info") or "",
+        },
+    )
+
+
+def _parse_lesson_form(keywords: str, synonyms: str) -> tuple[str, str]:
+    kws = [k.strip().lower() for k in re.split(r"[,\n]", keywords or "") if k.strip()][:12]
+    syn: dict[str, str] = {}
+    for line in (synonyms or "").splitlines():
+        if "=" in line:
+            a, c = line.split("=", 1)
+            if a.strip() and c.strip():
+                syn[a.strip()] = c.strip()
+    return json.dumps(kws, ensure_ascii=False), json.dumps(syn, ensure_ascii=False)
+
+
+@app.post("/admin/ai-analysis/learning/save")
+async def ai_learning_save(
+    lesson_id: str = Form(""),
+    rule: str = Form(...),
+    keywords: str = Form(""),
+    synonyms: str = Form(""),
+    is_active: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from models import AiLesson
+
+    if not _can_manage_ai_learning(user):
+        return RedirectResponse("/admin/ai-analysis/learning", status_code=303)
+    rule = rule.strip()
+    if not rule:
+        return RedirectResponse("/admin/ai-analysis/learning?info=" + quote("지침 내용을 입력하세요."), status_code=303)
+    kws, syn = _parse_lesson_form(keywords, synonyms)
+    now = datetime.utcnow()
+    row = await db.get(AiLesson, int(lesson_id)) if lesson_id.strip().isdigit() else None
+    if row is None:
+        row = AiLesson(rule=rule, created_by=user.id, created_at=now, is_active=True)
+        db.add(row)
+    else:
+        row.is_active = bool(is_active)
+    row.rule = rule[:800]
+    row.keywords = kws
+    row.synonyms = syn
+    row.updated_at = now
+    await db.commit()
+    return RedirectResponse("/admin/ai-analysis/learning?info=" + quote("학습 노트를 저장했습니다."), status_code=303)
+
+
+@app.post("/admin/ai-analysis/learning/{lesson_id}/delete")
+async def ai_learning_delete(
+    lesson_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from models import AiLesson
+
+    if _can_manage_ai_learning(user):
+        row = await db.get(AiLesson, lesson_id)
+        if row:
+            await db.delete(row)
+            await db.commit()
+    return RedirectResponse("/admin/ai-analysis/learning?info=" + quote("삭제했습니다."), status_code=303)
+
+
 @app.post("/admin/ai-analysis/chat")
 async def ai_analysis_chat(
     request: Request,
@@ -8412,6 +8638,7 @@ async def ai_analysis_chat(
             conv = await create_conversation(db, user.id, question, model)
         append_messages(conv, new_pair, model)
         await db.commit()
+        _schedule_correction_learning(user.id, conv.id, history, question, key, model)
         request.session[_AI_SESSION_CONV] = conv.id
         messages = conversation_messages(conv)
         summary = conversation_summary(conv)

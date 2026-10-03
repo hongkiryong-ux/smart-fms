@@ -1414,6 +1414,41 @@ class AiChatConversation(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class AiFeedback(Base):
+    """AI 답변 평가·정정 — 👍/👎 버튼 또는 '그게 아니라' 같은 후속 정정 질문."""
+
+    __tablename__ = "ai_feedback"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    conversation_id = Column(Integer, nullable=True, index=True)
+    message_index = Column(Integer, nullable=True)
+    rating = Column(Integer, nullable=False, default=0)  # 1 좋음, -1 문제
+    source = Column(String(20), nullable=False, default="button")  # button / auto
+    question = Column(Text, nullable=False, default="")
+    answer = Column(Text, nullable=False, default="")
+    comment = Column(Text, nullable=False, default="")
+    lesson_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class AiLesson(Base):
+    """모든 계정이 공유하는 AI 학습 노트 — 문제 사례에서 일반화한 답변 지침·용어 별칭."""
+
+    __tablename__ = "ai_lessons"
+
+    id = Column(Integer, primary_key=True)
+    rule = Column(Text, nullable=False)
+    keywords = Column(Text, nullable=False, default="[]")
+    synonyms = Column(Text, nullable=False, default="{}")
+    source_feedback_id = Column(Integer, nullable=True)
+    created_by = Column(Integer, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    hit_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class ScheduleEvent(Base):
     """주요설비 일정 (캘린더)."""
 

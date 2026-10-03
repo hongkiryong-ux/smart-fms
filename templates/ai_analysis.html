@@ -136,6 +136,20 @@
   }
   .ai-chart-btn:hover { background: #e3eefc; }
   .ai-chart-error { color: #c0392b; font-size: 0.85rem; margin-bottom: 0.3rem; }
+  .ai-fb { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; margin-top: 0.3rem; max-width: 92%; }
+  .ai-fb-btn {
+    border: 1px solid #c9d6e6; background: #fff; color: #44546a; border-radius: 12px;
+    font-size: 0.76rem; padding: 0.1rem 0.55rem; cursor: pointer;
+  }
+  .ai-fb-btn:hover { background: #eef4fb; }
+  .ai-fb-btn.primary { background: #003876; color: #fff; border-color: #003876; }
+  .ai-fb-form { display: flex; flex-wrap: wrap; gap: 0.3rem; width: 100%; margin-top: 0.2rem; }
+  .ai-fb-form textarea {
+    flex: 1 1 100%; min-height: 54px; border: 1px solid #c9d6e6; border-radius: 6px;
+    padding: 0.35rem 0.5rem; font-size: 0.85rem;
+  }
+  .ai-fb-done { font-size: 0.78rem; color: #1e5aa8; }
+  .ai-learn-link { font-size: 0.82rem; margin-left: auto; margin-right: 0.5rem; }
   .ai-chat-role {
     font-size: 0.75rem;
     color: var(--muted, #666);
@@ -285,9 +299,10 @@
   <section class="card ai-ask-panel ai-chat-panel" id="ai-chat-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap">
       <h2 style="margin:0">AI 질문 (GPT)</h2>
+      <a class="ai-learn-link" href="/admin/ai-analysis/learning">공유 학습 노트 {{ ai_lesson_count or 0 }}건</a>
       <button type="button" class="btn btn-sm btn-secondary" id="ai-chat-new-btn">새 대화</button>
     </div>
-    <p class="ai-panel-desc">대화는 계정별로 자동 저장됩니다. 「대화 기록」에서 지난 대화를 열어 다시 보고 이어서 질문할 수 있습니다. 「답변을 엑셀로 정리해줘」라고 하면 표로 내려받을 수 있고, 「~를 그래프로 보여줘」라고 하면 막대·선·원형 그래프를 그려 줍니다(이미지 저장 가능).</p>
+    <p class="ai-panel-desc">대화는 계정별로 자동 저장됩니다. 「대화 기록」에서 지난 대화를 열어 다시 보고 이어서 질문할 수 있습니다. 「답변을 엑셀로 정리해줘」라고 하면 표로 내려받을 수 있고, 「~를 그래프로 보여줘」라고 하면 막대·선·원형 그래프를 그려 줍니다(이미지 저장 가능). 답변이 틀리면 👎로 알려 주세요 — 모든 계정이 공유하는 학습 노트에 반영되어 다음 질문부터 고쳐집니다.</p>
 
     <details class="ai-history" id="ai-history" {% if gpt_conversations %}open{% endif %}>
       <summary>대화 기록 (<span id="ai-history-count">{{ gpt_conversations|length }}</span>)</summary>
@@ -394,6 +409,79 @@
       .replace(/>/g, '&gt;');
   }
 
+  function fbButton(label) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ai-fb-btn';
+    b.textContent = label;
+    return b;
+  }
+
+  async function sendFeedback(idx, rating, comment) {
+    if (!currentConvId) throw new Error('저장된 대화에서만 평가할 수 있습니다.');
+    return jsonFetch('/admin/ai-analysis/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: currentConvId, message_index: idx, rating: rating, comment: comment }),
+    });
+  }
+
+  function buildFeedback(idx) {
+    var box = document.createElement('div');
+    box.className = 'ai-fb';
+    var up = fbButton('👍 도움됨');
+    var down = fbButton('👎 문제 있음');
+    var form = document.createElement('div');
+    form.className = 'ai-fb-form';
+    form.style.display = 'none';
+    var ta = document.createElement('textarea');
+    ta.rows = 2;
+    ta.placeholder = '무엇이 틀렸나요? 원하던 답이나 올바른 정보를 적어 주세요. (예: 관제실은 중앙관제실이고, 9월 월보 데이터가 있습니다)';
+    var send = fbButton('AI에 학습시키기');
+    send.classList.add('primary');
+    var cancel = fbButton('취소');
+    form.appendChild(ta);
+    form.appendChild(send);
+    form.appendChild(cancel);
+    box.appendChild(up);
+    box.appendChild(down);
+    box.appendChild(form);
+
+    function done(text) {
+      box.innerHTML = '';
+      var s = document.createElement('span');
+      s.className = 'ai-fb-done';
+      s.textContent = text;
+      box.appendChild(s);
+    }
+    up.addEventListener('click', async function () {
+      try {
+        await sendFeedback(idx, 1, '');
+        done('👍 평가했습니다. 비슷한 질문에 좋은 답변 예시로 참고됩니다.');
+      } catch (e) { setStatus(e.message, 'error'); }
+    });
+    down.addEventListener('click', function () {
+      form.style.display = '';
+      ta.focus();
+    });
+    cancel.addEventListener('click', function () { form.style.display = 'none'; });
+    send.addEventListener('click', async function () {
+      send.disabled = true;
+      send.textContent = '학습 중…';
+      try {
+        var data = await sendFeedback(idx, -1, (ta.value || '').trim());
+        done(data.lesson
+          ? '👎 공유 학습 노트에 반영했습니다 → ' + data.lesson.rule
+          : '👎 피드백을 기록했습니다. (내용을 적어 주시면 지침으로 학습됩니다)');
+      } catch (e) {
+        setStatus(e.message, 'error');
+        send.disabled = false;
+        send.textContent = 'AI에 학습시키기';
+      }
+    });
+    return box;
+  }
+
   function renderMessages(messages) {
     if (!messagesEl) return;
     if (renderer) renderer.destroyCharts();
@@ -403,7 +491,7 @@
       return;
     }
     if (emptyEl) emptyEl.style.display = 'none';
-    messages.forEach(function (m) {
+    messages.forEach(function (m, idx) {
       var wrap = document.createElement('div');
       wrap.className = 'ai-chat-msg ' + (m.role === 'user' ? 'user' : 'assistant');
       var role = document.createElement('div');
@@ -419,6 +507,7 @@
       }
       wrap.appendChild(role);
       wrap.appendChild(bubble);
+      if (m.role !== 'user') wrap.appendChild(buildFeedback(idx));
       messagesEl.appendChild(wrap);
     });
     var lastMsg = messagesEl.querySelector('.ai-chat-msg:last-of-type');

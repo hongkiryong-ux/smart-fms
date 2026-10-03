@@ -1932,6 +1932,22 @@ def _build_gpt_system_message(context: dict[str, Any], model: str = "") -> str:
         "",
         f"데이터 기준 시각: {context.get('as_of', '')}",
     ]
+    learned = context.get("learned") or {}
+    if learned.get("rules"):
+        parts.append(
+            "공유 학습 노트(여러 사용자의 답변 피드백에서 학습한 지침 — 질문 의도 해석과 답변에 반드시 반영):"
+        )
+        parts.extend(f"{i}. {r}" for i, r in enumerate(learned["rules"], 1))
+    if learned.get("synonyms"):
+        parts.append(
+            "용어 별칭(사용자 표현 → FMS 정식 명칭): "
+            + ", ".join(f"{a} → {c}" for a, c in learned["synonyms"].items())
+        )
+    if learned.get("good_examples"):
+        parts.append(
+            "좋은 평가를 받은 유사 질문의 답변 예시(의도 해석·형식 참고용 — 수치는 반드시 아래 현재 데이터로 다시 계산):"
+        )
+        parts.append(json.dumps(learned["good_examples"], ensure_ascii=False))
     if focus_json:
         parts.append("메뉴별 DB 추출 데이터(focus_data — 질문 기간·건물·키워드 기준 원본, 최우선 근거):")
         parts.append(focus_json)
@@ -2170,9 +2186,14 @@ async def run_chat_turn(
             "error": "OpenAI API 키가 필요합니다.",
         }
 
+    from ai_learning import learned_context
+
     combined_q = await _effective_question(db, q, history)
+    learned, combined_q = await learned_context(db, combined_q)
     intent = classify_intent(combined_q)
     context = await gather_context(db, intent, combined_q)
+    if learned:
+        context["learned"] = learned
     evidence = format_aggregate_answer(context, include_footer=False) if not history else ""
 
     history.append({"role": "user", "content": q})
