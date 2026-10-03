@@ -8222,14 +8222,6 @@ _AI_INTENT_LABELS = {
     "schedules": "일정",
 }
 
-_AI_EXAMPLES = [
-    "전체 시설·설비·정비 현황 요약해줘",
-    "제철소본부 운영일보 최근 데이터는?",
-    "점검일지 등록 건물과 일지 현황",
-    "자재 재고 부족 품목 알려줘",
-    "정비의뢰·작업허가 대기 건수는?",
-]
-
 _AI_EXAMPLES_DETAIL = [
     "정비의뢰 내용에 대한 정비완료건을 정리해서 엑셀로 만들어줘",
     "정비·PM 지연 원인을 분석하고 우선 조치 순서를 제안해줘",
@@ -8296,18 +8288,10 @@ async def ai_analysis_page(
         "ai_analysis.html",
         {
             "user": user,
-            "question_general": "",
-            "question_ai": "",
-            "answer": "",
-            "evidence": "",
-            "result_mode": "",
-            "intent": "",
-            "intent_label": "",
             **chat_state,
             "ai_ready": bool(key),
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",
-            "examples": _AI_EXAMPLES,
             "examples_ai": _AI_EXAMPLES_DETAIL,
             "error": "",
             "info": "",
@@ -8358,77 +8342,6 @@ async def ai_analysis_export_excel(
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
-    )
-
-
-@app.post("/admin/ai-analysis/ask")
-async def ai_analysis_ask(
-    request: Request,
-    question: str = Form(""),
-    mode: str = Form("aggregate"),
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    from ai_analysis import completed_work_order_excel_requested, run_analysis
-    from risk_assessment import mask_api_key, user_openai_credentials
-
-    if not can_access_menu(user, "ai_analysis"):
-        return RedirectResponse("/admin/account", status_code=303)
-    if completed_work_order_excel_requested(question):
-        return RedirectResponse(
-            "/admin/ai-analysis/work-orders/completed.xlsx", status_code=303
-        )
-
-    # 세션 캐시가 아닌 DB 최신 키 사용
-    db_user = await db.get(User, user.id) or user
-    key, model = user_openai_credentials(db_user)
-    mode_val = (mode or "aggregate").strip().lower()
-    if mode_val not in ("aggregate", "detail"):
-        mode_val = "aggregate"
-
-    result = await run_analysis(
-        db,
-        question,
-        mode=mode_val,
-        api_key=key,
-        model=model,
-    )
-    intent = result.get("intent") or ""
-    info = ""
-    err = ""
-    if result.get("needs_api_key"):
-        info = "AI 질문에는 OpenAI API 키가 필요합니다. 아래에서 키를 등록하세요."
-    elif result.get("mode") == "detail":
-        info = "GPT 분석 완료입니다."
-    elif result.get("mode") == "aggregate":
-        info = "일반질문(집계) 답변 완료입니다."
-    elif result.get("mode") == "detail_error":
-        err = result.get("error") or result.get("answer") or "GPT 호출 실패"
-        info = "GPT 호출에 실패했습니다. 아래 오류와 집계 근거를 확인하세요."
-
-    q_general = question if mode_val == "aggregate" else ""
-
-    return templates.TemplateResponse(
-        request,
-        "ai_analysis.html",
-        {
-            "user": user,
-            "question_general": q_general,
-            "question_ai": "",
-            "answer": result.get("answer") or "",
-            "evidence": result.get("evidence") or "",
-            "result_mode": result.get("mode") or "",
-            "intent": intent,
-            "intent_label": _AI_INTENT_LABELS.get(intent, intent),
-            **(await _ai_chat_state(request, db, user.id)),
-            "ai_ready": bool(key),
-            "ai_key_masked": mask_api_key(key),
-            "ai_model": model or "gpt-4o-mini",
-            "examples": _AI_EXAMPLES,
-            "examples_ai": _AI_EXAMPLES_DETAIL,
-            "error": err,
-            "info": info,
-        },
     )
 
 
@@ -8668,18 +8581,10 @@ async def ai_analysis_ai_settings(
         "ai_analysis.html",
         {
             "user": user,
-            "question_general": "",
-            "question_ai": "",
-            "answer": "",
-            "evidence": "",
-            "result_mode": "",
-            "intent": "",
-            "intent_label": "",
             **(await _ai_chat_state(request, db, user.id)),
             "ai_ready": bool(key),
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",
-            "examples": _AI_EXAMPLES,
             "examples_ai": _AI_EXAMPLES_DETAIL,
             "error": err,
             "info": info,

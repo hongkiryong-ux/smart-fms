@@ -227,9 +227,8 @@ SLIDES: list[SlideSpec] = [
         "08  AI 분석 · GPT 대화",
         left=[
             "【AI 분석 /admin/ai-analysis】",
-            "질의 POST /admin/ai-analysis/ask",
-            "  · 집계모드: DB스냅샷 즉시답(API키 불필요)",
-            "  · GPT상세(mode=detail): 전체컨텍스트+GPT",
+            "GPT 대화 전용(일반질문 집계모드 삭제)",
+            "대화 기록 계정별 저장·다시보기·이어서 대화",
             "【데이터범위 gather_context】",
             "사업장·건물·설비·정비·PM·D-1·협력사·점검일지1/2",
             "자재·공지·일정·가로등·주택변전소 월보전력 등",
@@ -237,7 +236,7 @@ SLIDES: list[SlideSpec] = [
         ],
         right=[
             "【GPT 대화 /admin/ai-analysis/chat】",
-            "세션 최대 20턴 · 의도별 DB섹션 강화조회",
+            "DB 저장(ai_chat_conversations) · 최근 20개 메시지 맥락 · 의도별 DB섹션 강화조회",
             "GPT응답 + evidence(집계근거) 병행",
             "API키 미설정: 버튼활성+안내박스(비활성 아님)",
             "【설정 POST /admin/ai-analysis/ai-settings】",

@@ -5,7 +5,7 @@
   .ai-page { max-width: none; width: 100%; }
   .ai-ask-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 1rem;
     width: 100%;
     align-items: start;
@@ -202,7 +202,7 @@
 <header class="page-header">
   <h1>AI 분석</h1>
   <p>
-    <strong>일반질문</strong>·<strong>AI 질문(GPT)</strong> 모두 Smart FMS 전체 DB
+    <strong>AI 질문(GPT)</strong>이 Smart FMS 전체 DB
     (사업장·건물·설비·정비·PM·D-1·점검일지·자재·공지·일정 등)를 조회해 답합니다.
   </p>
 </header>
@@ -255,28 +255,6 @@
 </section>
 
 <div class="ai-ask-grid">
-  <section class="card ai-ask-panel">
-    <h2>일반질문</h2>
-    <p class="ai-panel-desc">API 키 없이 FMS 전체 데이터를 조회해 질문에 답합니다.</p>
-    <form method="post" action="/admin/ai-analysis/ask" class="form-stack">
-      <input type="hidden" name="mode" value="aggregate" />
-      <label for="question_general">질문</label>
-      <textarea id="question_general" name="question" rows="7" required
-                placeholder="예: 전체 설비·정비 현황 요약해줘">{{ question_general or '' }}</textarea>
-      <div class="ai-ask-actions">
-        <button type="submit" class="btn btn-primary">질문하기</button>
-      </div>
-    </form>
-    <div class="ai-examples">
-      <p class="text-muted" style="margin-bottom:0.4rem;font-size:0.85rem">예시</p>
-      <div class="ai-ex-list">
-        {% for ex in examples %}
-        <button type="button" class="btn btn-sm btn-secondary ai-ex-btn" data-target="question_general" data-q="{{ ex }}">{{ ex }}</button>
-        {% endfor %}
-      </div>
-    </div>
-  </section>
-
   <section class="card ai-ask-panel ai-chat-panel" id="ai-chat-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap">
       <h2 style="margin:0">AI 질문 (GPT)</h2>
@@ -330,27 +308,6 @@
     </div>
   </section>
 </div>
-
-{% if answer and result_mode != 'detail' %}
-<section class="card" style="margin-top:1rem">
-  <h2>
-    {% if result_mode == 'needs_key' %}키 필요
-    {% elif result_mode == 'detail_error' %}GPT 오류
-    {% else %}일반질문 답변 (집계){% endif %}
-  </h2>
-  {% if intent %}
-  <p class="text-muted" style="margin-bottom:0.5rem">인식된 주제: {{ intent_label }}</p>
-  {% endif %}
-  <pre class="ai-answer-box">{{ answer }}</pre>
-</section>
-{% endif %}
-
-{% if evidence and result_mode != 'detail' %}
-<section class="card" style="margin-top:1rem">
-  <h2>분석에 사용한 집계 근거</h2>
-  <pre class="ai-answer-box">{{ evidence }}</pre>
-</section>
-{% endif %}
 </div>
 
 <script>
