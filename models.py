@@ -1399,6 +1399,21 @@ class AppSetting(Base):
     value = Column(Text, nullable=True)
 
 
+class AiChatConversation(Base):
+    """AI 분석 GPT 대화 — 계정별 저장·다시보기·이어서 대화."""
+
+    __tablename__ = "ai_chat_conversations"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False, default="새 대화")
+    model = Column(String(64), nullable=True)
+    messages = Column(Text, nullable=False, default="[]")
+    message_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class ScheduleEvent(Base):
     """주요설비 일정 (캘린더)."""
 

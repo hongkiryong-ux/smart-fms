@@ -8240,11 +8240,47 @@ _AI_EXAMPLES_DETAIL = [
 ]
 
 _AI_SESSION_CHAT = "ai_gpt_chat"
+_AI_SESSION_CONV = "ai_gpt_conv_id"
+
+
+async def _ai_chat_state(request: Request, db: AsyncSession, user_id: int, conv_param: str | None = None) -> dict:
+    """현재 이어갈 대화(쿼리 conv → 세션) 와 계정별 대화 목록."""
+    from ai_chat_store import (
+        append_messages,
+        conversation_messages,
+        create_conversation,
+        get_conversation,
+        list_conversations,
+    )
+
+    legacy = (request.session.pop(_AI_SESSION_CHAT, None) or {}).get("messages") or []
+    if legacy:
+        first_q = next((m.get("content") for m in legacy if m.get("role") == "user"), "")
+        row = await create_conversation(db, user_id, first_q or "이전 대화")
+        append_messages(row, legacy)
+        await db.commit()
+        request.session[_AI_SESSION_CONV] = row.id
+
+    row = None
+    if conv_param not in (None, ""):
+        row = await get_conversation(db, user_id, conv_param)
+    elif request.session.get(_AI_SESSION_CONV):
+        row = await get_conversation(db, user_id, request.session.get(_AI_SESSION_CONV))
+    if row:
+        request.session[_AI_SESSION_CONV] = row.id
+    else:
+        request.session.pop(_AI_SESSION_CONV, None)
+    return {
+        "gpt_chat_messages": conversation_messages(row),
+        "gpt_conversation_id": row.id if row else None,
+        "gpt_conversations": await list_conversations(db, user_id),
+    }
 
 
 @app.get("/admin/ai-analysis")
 async def ai_analysis_page(
     request: Request,
+    conv: str = Query(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -8254,7 +8290,7 @@ async def ai_analysis_page(
         return RedirectResponse("/admin/account", status_code=303)
     db_user = await db.get(User, user.id) or user
     key, model = user_openai_credentials(db_user)
-    chat_state = request.session.get(_AI_SESSION_CHAT) or {}
+    chat_state = await _ai_chat_state(request, db, user.id, conv or None)
     return templates.TemplateResponse(
         request,
         "ai_analysis.html",
@@ -8267,7 +8303,7 @@ async def ai_analysis_page(
             "result_mode": "",
             "intent": "",
             "intent_label": "",
-            "gpt_chat_messages": chat_state.get("messages") or [],
+            **chat_state,
             "ai_ready": bool(key),
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",
@@ -8384,7 +8420,7 @@ async def ai_analysis_ask(
             "result_mode": result.get("mode") or "",
             "intent": intent,
             "intent_label": _AI_INTENT_LABELS.get(intent, intent),
-            "gpt_chat_messages": (request.session.get(_AI_SESSION_CHAT) or {}).get("messages") or [],
+            **(await _ai_chat_state(request, db, user.id)),
             "ai_ready": bool(key),
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",
@@ -8414,28 +8450,55 @@ async def ai_analysis_chat(
     except Exception:
         body = {}
 
+    from ai_chat_store import (
+        GPT_HISTORY_MESSAGES,
+        append_messages,
+        conversation_messages,
+        conversation_summary,
+        create_conversation,
+        get_conversation,
+    )
+
     reset = bool(body.get("reset"))
     if reset:
         from ai_analysis import clear_ai_excel_export
 
         request.session.pop(_AI_SESSION_CHAT, None)
+        request.session.pop(_AI_SESSION_CONV, None)
         await clear_ai_excel_export(db, user.id)
-        return JSONResponse({"ok": True, "reset": True, "messages": []})
+        return JSONResponse({"ok": True, "reset": True, "messages": [], "conversation_id": None})
 
     question = str(body.get("question") or "").strip()
-    chat_state = request.session.get(_AI_SESSION_CHAT) or {}
+    conv = None
+    if body.get("conversation_id") not in (None, ""):
+        conv = await get_conversation(db, user.id, body.get("conversation_id"))
+        if conv is None:
+            return JSONResponse(
+                {"ok": False, "error": "대화를 찾을 수 없습니다. 목록에서 다시 선택하거나 「새 대화」를 누르세요."},
+                status_code=404,
+            )
+    history = conversation_messages(conv)
     db_user = await db.get(User, user.id) or user
     key, model = user_openai_credentials(db_user)
 
     result = await run_chat_turn(
         db,
         question,
-        chat_messages=chat_state.get("messages") or [],
+        chat_messages=history[-GPT_HISTORY_MESSAGES:],
         api_key=key,
         model=model,
     )
+    messages = history
+    summary = conversation_summary(conv) if conv else None
     if result.get("ok"):
-        request.session[_AI_SESSION_CHAT] = {"messages": result.get("messages") or []}
+        new_pair = (result.get("messages") or [])[-2:]
+        if conv is None:
+            conv = await create_conversation(db, user.id, question, model)
+        append_messages(conv, new_pair, model)
+        await db.commit()
+        request.session[_AI_SESSION_CONV] = conv.id
+        messages = conversation_messages(conv)
+        summary = conversation_summary(conv)
         excel_export = result.get("excel_export")
         if excel_export:
             from ai_analysis import save_ai_excel_export
@@ -8446,7 +8509,9 @@ async def ai_analysis_chat(
         {
             "ok": bool(result.get("ok")),
             "needs_api_key": bool(result.get("needs_api_key")),
-            "messages": result.get("messages") or [],
+            "messages": messages,
+            "conversation_id": conv.id if conv else None,
+            "conversation": summary,
             "answer": result.get("answer") or "",
             "evidence": result.get("evidence") or "",
             "intent": result.get("intent") or "",
@@ -8455,6 +8520,93 @@ async def ai_analysis_chat(
             "download_url": result.get("download_url") or "",
         }
     )
+
+
+@app.get("/admin/ai-analysis/conversations")
+async def ai_analysis_conversations(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_chat_store import list_conversations
+    from starlette.responses import JSONResponse
+
+    if not can_access_menu(user, "ai_analysis"):
+        return JSONResponse({"ok": False, "error": "권한이 없습니다."}, status_code=403)
+    return JSONResponse({"ok": True, "conversations": await list_conversations(db, user.id)})
+
+
+@app.get("/admin/ai-analysis/conversations/{conversation_id}")
+async def ai_analysis_conversation_detail(
+    conversation_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_chat_store import conversation_messages, conversation_summary, get_conversation
+    from starlette.responses import JSONResponse
+
+    if not can_access_menu(user, "ai_analysis"):
+        return JSONResponse({"ok": False, "error": "권한이 없습니다."}, status_code=403)
+    row = await get_conversation(db, user.id, conversation_id)
+    if not row:
+        return JSONResponse({"ok": False, "error": "대화를 찾을 수 없습니다."}, status_code=404)
+    request.session[_AI_SESSION_CONV] = row.id
+    return JSONResponse(
+        {
+            "ok": True,
+            "conversation": conversation_summary(row),
+            "messages": conversation_messages(row),
+        }
+    )
+
+
+@app.post("/admin/ai-analysis/conversations/{conversation_id}/rename")
+async def ai_analysis_conversation_rename(
+    conversation_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_chat_store import conversation_summary, get_conversation, make_title
+    from starlette.responses import JSONResponse
+
+    if not can_access_menu(user, "ai_analysis"):
+        return JSONResponse({"ok": False, "error": "권한이 없습니다."}, status_code=403)
+    row = await get_conversation(db, user.id, conversation_id)
+    if not row:
+        return JSONResponse({"ok": False, "error": "대화를 찾을 수 없습니다."}, status_code=404)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    title = str(body.get("title") or "").strip()
+    if not title:
+        return JSONResponse({"ok": False, "error": "제목을 입력해 주세요."}, status_code=400)
+    row.title = make_title(title)
+    await db.commit()
+    return JSONResponse({"ok": True, "conversation": conversation_summary(row)})
+
+
+@app.post("/admin/ai-analysis/conversations/{conversation_id}/delete")
+async def ai_analysis_conversation_delete(
+    conversation_id: int,
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from ai_chat_store import get_conversation
+    from starlette.responses import JSONResponse
+
+    if not can_access_menu(user, "ai_analysis"):
+        return JSONResponse({"ok": False, "error": "권한이 없습니다."}, status_code=403)
+    row = await get_conversation(db, user.id, conversation_id)
+    if not row:
+        return JSONResponse({"ok": False, "error": "대화를 찾을 수 없습니다."}, status_code=404)
+    await db.delete(row)
+    await db.commit()
+    if request.session.get(_AI_SESSION_CONV) == conversation_id:
+        request.session.pop(_AI_SESSION_CONV, None)
+    return JSONResponse({"ok": True, "deleted": conversation_id})
 
 
 @app.post("/admin/ai-analysis/ai-settings")
@@ -8523,7 +8675,7 @@ async def ai_analysis_ai_settings(
             "result_mode": "",
             "intent": "",
             "intent_label": "",
-            "gpt_chat_messages": (request.session.get(_AI_SESSION_CHAT) or {}).get("messages") or [],
+            **(await _ai_chat_state(request, db, user.id)),
             "ai_ready": bool(key),
             "ai_key_masked": mask_api_key(key),
             "ai_model": model or "gpt-4o-mini",

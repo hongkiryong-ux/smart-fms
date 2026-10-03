@@ -135,6 +135,63 @@
   .ai-chat-input-row textarea {
     min-height: 72px;
   }
+  .ai-history {
+    border: 1px solid var(--border, #ccd3dc);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    background: #fff;
+  }
+  .ai-history > summary {
+    cursor: pointer;
+    padding: 0.5rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .ai-history-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0.4rem 0.4rem;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .ai-history-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .ai-history-item:hover { background: #f1f5fb; }
+  .ai-history-item.active { background: #e3eefc; border-left: 3px solid #003876; }
+  .ai-history-main { flex: 1; min-width: 0; }
+  .ai-history-title {
+    font-size: 0.88rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ai-history-meta { font-size: 0.75rem; color: var(--muted, #666); }
+  .ai-history-btn {
+    border: 0;
+    background: transparent;
+    color: var(--muted, #666);
+    font-size: 0.78rem;
+    padding: 0.15rem 0.3rem;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .ai-history-btn:hover { background: #dde6f2; color: #003876; }
+  .ai-history-empty { font-size: 0.85rem; color: var(--muted, #666); padding: 0.4rem 0.6rem 0.6rem; }
+  .ai-chat-current {
+    font-size: 0.85rem;
+    color: #003876;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   @media (max-width: 900px) {
     .ai-ask-grid { grid-template-columns: 1fr; }
   }
@@ -225,7 +282,15 @@
       <h2 style="margin:0">AI 질문 (GPT)</h2>
       <button type="button" class="btn btn-sm btn-secondary" id="ai-chat-new-btn">새 대화</button>
     </div>
-    <p class="ai-panel-desc">대화형으로 이어서 질문할 수 있습니다. 「답변을 엑셀로 정리해줘」라고 하면 표로 내려받을 수 있습니다. 완료 후 「새 대화」로 다시 시작하세요.</p>
+    <p class="ai-panel-desc">대화는 계정별로 자동 저장됩니다. 「대화 기록」에서 지난 대화를 열어 다시 보고 이어서 질문할 수 있습니다. 「답변을 엑셀로 정리해줘」라고 하면 표로 내려받을 수 있습니다.</p>
+
+    <details class="ai-history" id="ai-history" {% if gpt_conversations %}open{% endif %}>
+      <summary>대화 기록 (<span id="ai-history-count">{{ gpt_conversations|length }}</span>)</summary>
+      <ul class="ai-history-list" id="ai-history-list"></ul>
+      <div class="ai-history-empty" id="ai-history-empty" {% if gpt_conversations %}style="display:none"{% endif %}>저장된 대화가 없습니다. 질문을 보내면 자동 저장됩니다.</div>
+    </details>
+
+    <div class="ai-chat-current" id="ai-chat-current">새 대화</div>
 
     {% if not ai_ready %}
     <div class="ai-chat-key-alert" id="ai-chat-key-alert" role="alert">
@@ -291,6 +356,8 @@
 <script>
 (function () {
   var initialMessages = {{ gpt_chat_messages | tojson }};
+  var conversations = {{ gpt_conversations | tojson }};
+  var currentConvId = {{ gpt_conversation_id | tojson }};
   var aiReady = {{ 'true' if ai_ready else 'false' }};
 
   document.querySelectorAll('.ai-ex-btn').forEach(function (btn) {
@@ -364,6 +431,144 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
+  var historyEl = document.getElementById('ai-history');
+  var historyListEl = document.getElementById('ai-history-list');
+  var historyEmptyEl = document.getElementById('ai-history-empty');
+  var historyCountEl = document.getElementById('ai-history-count');
+  var currentEl = document.getElementById('ai-chat-current');
+
+  function currentConversation() {
+    for (var i = 0; i < conversations.length; i++) {
+      if (conversations[i].id === currentConvId) return conversations[i];
+    }
+    return null;
+  }
+
+  function setCurrent(id) {
+    currentConvId = id || null;
+    var conv = currentConversation();
+    if (currentEl) currentEl.textContent = conv ? '현재 대화: ' + conv.title : '새 대화';
+    var url = new URL(window.location.href);
+    if (currentConvId) url.searchParams.set('conv', currentConvId);
+    else url.searchParams.delete('conv');
+    window.history.replaceState(null, '', url.pathname + url.search);
+    renderHistory();
+  }
+
+  function upsertConversation(conv) {
+    if (!conv) return;
+    conversations = conversations.filter(function (c) { return c.id !== conv.id; });
+    conversations.unshift(conv);
+  }
+
+  function renderHistory() {
+    if (!historyListEl) return;
+    historyListEl.innerHTML = '';
+    if (historyCountEl) historyCountEl.textContent = conversations.length;
+    if (historyEmptyEl) historyEmptyEl.style.display = conversations.length ? 'none' : '';
+    conversations.forEach(function (c) {
+      var li = document.createElement('li');
+      li.className = 'ai-history-item' + (c.id === currentConvId ? ' active' : '');
+      li.setAttribute('data-id', c.id);
+      li.title = c.title;
+      var main = document.createElement('div');
+      main.className = 'ai-history-main';
+      var title = document.createElement('div');
+      title.className = 'ai-history-title';
+      title.textContent = c.title;
+      var meta = document.createElement('div');
+      meta.className = 'ai-history-meta';
+      meta.textContent = c.updated_at + ' · 메시지 ' + c.count + '개' + (c.model ? ' · ' + c.model : '');
+      main.appendChild(title);
+      main.appendChild(meta);
+      var rename = document.createElement('button');
+      rename.type = 'button';
+      rename.className = 'ai-history-btn';
+      rename.setAttribute('data-act', 'rename');
+      rename.textContent = '이름';
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'ai-history-btn';
+      del.setAttribute('data-act', 'delete');
+      del.textContent = '삭제';
+      li.appendChild(main);
+      li.appendChild(rename);
+      li.appendChild(del);
+      historyListEl.appendChild(li);
+    });
+  }
+
+  async function jsonFetch(url, options) {
+    var res = await fetch(url, Object.assign({ credentials: 'same-origin' }, options || {}));
+    var data = {};
+    try { data = await res.json(); } catch (_e) { data = {}; }
+    if (!res.ok || data.ok === false) throw new Error(data.error || '요청 실패');
+    return data;
+  }
+
+  async function openConversation(id) {
+    if (sending || id === currentConvId) return;
+    setStatus('대화를 불러오는 중…', 'saving');
+    try {
+      var data = await jsonFetch('/admin/ai-analysis/conversations/' + id);
+      upsertConversation(data.conversation);
+      conversations.sort(function (a, b) { return a.updated_at < b.updated_at ? 1 : -1; });
+      renderMessages(data.messages || []);
+      if (evidenceWrap) evidenceWrap.style.display = 'none';
+      setCurrent(data.conversation.id);
+      setStatus('이전 대화를 불러왔습니다. 이어서 질문하면 이 대화에 계속 저장됩니다.');
+      if (inputEl) inputEl.focus();
+    } catch (e) {
+      setStatus(e.message || '대화를 불러오지 못했습니다.', 'error');
+    }
+  }
+
+  async function renameConversation(id) {
+    var conv = conversations.filter(function (c) { return c.id === id; })[0];
+    var title = window.prompt('대화 제목', conv ? conv.title : '');
+    if (title === null || !title.trim()) return;
+    try {
+      var data = await jsonFetch('/admin/ai-analysis/conversations/' + id + '/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim() }),
+      });
+      conversations = conversations.map(function (c) { return c.id === id ? data.conversation : c; });
+      setCurrent(currentConvId);
+    } catch (e) {
+      setStatus(e.message || '이름 변경에 실패했습니다.', 'error');
+    }
+  }
+
+  async function deleteConversation(id) {
+    if (!window.confirm('이 대화를 삭제할까요? 삭제하면 되돌릴 수 없습니다.')) return;
+    try {
+      await jsonFetch('/admin/ai-analysis/conversations/' + id + '/delete', { method: 'POST' });
+      conversations = conversations.filter(function (c) { return c.id !== id; });
+      if (id === currentConvId) {
+        renderMessages([]);
+        setCurrent(null);
+      } else {
+        renderHistory();
+      }
+      setStatus('대화를 삭제했습니다.');
+    } catch (e) {
+      setStatus(e.message || '삭제에 실패했습니다.', 'error');
+    }
+  }
+
+  if (historyListEl) {
+    historyListEl.addEventListener('click', function (e) {
+      var item = e.target.closest('.ai-history-item');
+      if (!item) return;
+      var id = Number(item.getAttribute('data-id'));
+      var act = e.target.getAttribute('data-act');
+      if (act === 'rename') renameConversation(id);
+      else if (act === 'delete') deleteConversation(id);
+      else openConversation(id);
+    });
+  }
+
   async function chatRequest(payload) {
     var res = await fetch('/admin/ai-analysis/chat', {
       method: 'POST',
@@ -387,7 +592,7 @@
     if (sendBtn) sendBtn.disabled = true;
     setStatus('데이터 분석 중…', 'saving');
     try {
-      var data = await chatRequest({ question: q });
+      var data = await chatRequest({ question: q, conversation_id: currentConvId });
       if (data.needs_api_key) {
         showKeyRequired();
         return;
@@ -397,6 +602,9 @@
         return;
       }
       renderMessages(data.messages || []);
+      upsertConversation(data.conversation);
+      setCurrent(data.conversation_id);
+      if (historyEl) historyEl.open = true;
       inputEl.value = '';
       if (data.evidence && evidenceWrap && evidenceEl) {
         evidenceWrap.style.display = '';
@@ -433,10 +641,11 @@
     try {
       await chatRequest({ reset: true });
       renderMessages([]);
+      setCurrent(null);
       if (inputEl) inputEl.value = '';
       if (evidenceWrap) evidenceWrap.style.display = 'none';
       if (evidenceEl) evidenceEl.textContent = '';
-      setStatus('새 대화를 시작할 수 있습니다.');
+      setStatus('새 대화를 시작할 수 있습니다. 이전 대화는 「대화 기록」에 저장돼 있습니다.');
     } catch (_e) {
       setStatus('초기화에 실패했습니다.', 'error');
     } finally {
@@ -457,6 +666,7 @@
   }
 
   renderMessages(initialMessages || []);
+  setCurrent(currentConvId);
 })();
 </script>
 {% endblock %}
