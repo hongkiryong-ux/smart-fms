@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20261006wophoto2" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20261006lib1" />
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -88,6 +88,8 @@
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 6.2h14v3.2H5V6.2Zm1.5 1.4v.4h11v-.4h-11ZM4.4 10.8h15.2v8.5H4.4v-8.5Zm1.6 1.6v5.3h12v-5.3H6Zm5.1 1.2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 1.3a.7.7 0 1 0 0 1.4.7.7 0 0 0 0-1.4Z"/></svg>
       {%- elif name == 'materials' -%}
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.4 5.2h15.2v5.1H4.4V5.2Zm1.6 1.6v1.9h12V6.8H6Zm-1.6 5.1h15.2v7.5H4.4v-7.5Zm1.6 1.6v4.3h12v-4.3H6Zm4.2 1.2h3.6v1.5h-3.6v-1.5Z"/></svg>
+      {%- elif name == 'library' -%}
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 6.2A1.8 1.8 0 0 1 5.2 4.4h4.6l2 2.1h7a1.8 1.8 0 0 1 1.8 1.8v10a1.8 1.8 0 0 1-1.8 1.8H5.2a1.8 1.8 0 0 1-1.8-1.8V6.2Zm1.7 0v12.1h13.8V8.3h-7.8l-2-2.1H5.1Zm2.6 5h8.6v1.6H7.7v-1.6Zm0 3.2h5.8V16H7.7v-1.6Z"/></svg>
       {%- elif name == 'partners' -%}
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.6a3.6 3.6 0 1 1 0 7.2 3.6 3.6 0 0 1 0-7.2Zm0 1.6a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM6.5 19.8v-1.1c0-2.7 2.6-4.6 5.5-4.6.6 0 1.2.1 1.7.2a3.3 3.3 0 0 0-.3 1.5c-.4-.1-.9-.2-1.4-.2-2.1 0-3.8 1.2-3.8 2.9v.3H6.5Zm10.2-5.1a2.4 2.4 0 1 1-1.4 4.3l-1.2 1.2-.9-.9 1.2-1.2a2.4 2.4 0 0 1 2.3-3.4Zm0 1.5a.9.9 0 1 0 .1 1.8.9.9 0 0 0-.1-1.8Z"/></svg>
       {%- elif name == 'users' -%}
@@ -365,6 +367,38 @@
            onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;">{{ nav_ico('materials') }}<span class="nav-label">자재관리</span></a>
       </li>
       {% endif %}
+      {% if user_can_access_menu(user, 'library') %}
+      {% set lib_path = request.url.path.startswith('/admin/library') %}
+      {% set lib_parts = request.url.path.split('/') %}
+      {% set lib_cid = lib_parts[4] if lib_path and lib_parts|length > 4 and lib_parts[3] == 'category' else none %}
+      <li class="nav-expandable{% if lib_path %} is-open{% endif %}" id="nav-library">
+        <div class="nav-parent-row">
+          <a href="/admin/library"
+             class="nav-parent-link{% if lib_path and not lib_cid %} active{% endif %}">{{ nav_ico('library') }}<span class="nav-label">자료실</span></a>
+          <button type="button"
+                  class="nav-toggle"
+                  aria-expanded="{% if lib_path %}true{% else %}false{% endif %}"
+                  aria-controls="nav-library-sub"
+                  title="자료실 하위 메뉴 펼치기">
+            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <ul class="nav-sub" id="nav-library-sub">
+          {% for c in request.state.nav_library_categories or [] %}
+          <li>
+            <a href="/admin/library/category/{{ c.id }}"
+               class="{% if lib_cid == c.id|string %}active{% endif %}"
+               title="{{ c.name }}">{{ c.name }}</a>
+          </li>
+          {% else %}
+          <li class="nav-sub-empty">등록된 하위메뉴 없음</li>
+          {% endfor %}
+          {% if user.role.value == 'system_admin' %}
+          <li><a href="/admin/library#lib-manage" class="nav-sub-manage">+ 하위메뉴 관리</a></li>
+          {% endif %}
+        </ul>
+      </li>
+      {% endif %}
       {% if user_can_access_menu(user, 'partners') %}
       <li><a href="/admin/partners" class="{% if '/partners' in request.url.path %}active{% endif %}">{{ nav_ico('partners') }}<span class="nav-label">협력사</span></a></li>
       {% endif %}
@@ -389,7 +423,7 @@
   </nav>
   <script>
   (function () {
-    var topLevelNavIds = ['nav-sites', 'nav-equipment', 'nav-inspection-logs2', 'nav-maintenance'];
+    var topLevelNavIds = ['nav-sites', 'nav-equipment', 'nav-inspection-logs2', 'nav-maintenance', 'nav-library'];
     var nestedNavIds = ['nav-d1', 'nav-streetlamp'];
     var siteNavIds = Array.prototype.map.call(
       document.querySelectorAll('#nav-sites-sub > .nav-expandable.nav-nested[id]'),
@@ -528,6 +562,7 @@
       accordionGroup: topLevelNavIds,
     });
     bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open', { accordionGroup: topLevelNavIds });
+    bindNavExpandable('nav-library', 'nav-library-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-maintenance', 'nav-maint-open', {
       mobileToggleOnly: true,
       accordionGroup: topLevelNavIds,

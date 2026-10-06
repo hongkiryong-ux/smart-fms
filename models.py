@@ -20,7 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     TypeDecorator,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import deferred, relationship
 
 from database import Base
 
@@ -1423,6 +1423,49 @@ class AppSetting(Base):
 
     key = Column(String(64), primary_key=True)
     value = Column(Text, nullable=True)
+
+
+class LibraryCategory(Base):
+    """자료실 하위메뉴 (시스템관리자가 추가)."""
+
+    __tablename__ = "library_categories"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LibraryFolder(Base):
+    """자료실 폴더 — 하위메뉴 안에 만들고, 폴더 안에 폴더를 둘 수 있다."""
+
+    __tablename__ = "library_folders"
+
+    id = Column(Integer, primary_key=True)
+    category_id = Column(Integer, ForeignKey("library_categories.id"), nullable=False, index=True)
+    parent_id = Column(Integer, ForeignKey("library_folders.id"), nullable=True, index=True)
+    name = Column(String(200), nullable=False)
+    created_by = Column(String(100), nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LibraryFile(Base):
+    """자료실 파일 (Render 디스크는 휘발되므로 DB 저장)."""
+
+    __tablename__ = "library_files"
+
+    id = Column(Integer, primary_key=True)
+    folder_id = Column(Integer, ForeignKey("library_folders.id"), nullable=False, index=True)
+    original_name = Column(String(300), nullable=False)
+    content_type = Column(String(150), nullable=True)
+    file_data = deferred(Column(LargeBinary, nullable=False))
+    file_size = Column(Integer, default=0, nullable=False)
+    note = Column(String(500), nullable=True)
+    uploaded_by = Column(String(100), nullable=True)
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class AiChatConversation(Base):

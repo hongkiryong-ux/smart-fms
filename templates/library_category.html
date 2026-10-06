@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}{{ category.name }} · 자료실{% endblock %}
+{% block content %}
+<header class="page-header">
+  <h1>{{ category.name }}</h1>
+  <nav class="lib-breadcrumb" aria-label="폴더 경로">
+    <a href="/admin/library">자료실</a>
+    <span aria-hidden="true">›</span>
+    {% if breadcrumb %}
+    <a href="/admin/library/category/{{ category.id }}">{{ category.name }}</a>
+    {% for b in breadcrumb %}
+    <span aria-hidden="true">›</span>
+    {% if loop.last %}<strong>{{ b.name }}</strong>{% else %}<a href="/admin/library/category/{{ category.id }}?folder={{ b.id }}">{{ b.name }}</a>{% endif %}
+    {% endfor %}
+    {% else %}
+    <strong>{{ category.name }}</strong>
+    {% endif %}
+  </nav>
+</header>
+
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
+
+<form method="get" action="/admin/library/category/{{ category.id }}" class="lib-search">
+  {% if current %}<input type="hidden" name="folder" value="{{ current.id }}" />{% endif %}
+  <input type="search" name="q" value="{{ query }}" placeholder="「{{ category.name }}」 전체에서 자료 이름·메모 검색" />
+  <button type="submit" class="btn btn-secondary">검색</button>
+  {% if query %}<a class="link-action" href="/admin/library/category/{{ category.id }}{% if current %}?folder={{ current.id }}{% endif %}">검색 해제</a>{% endif %}
+</form>
+
+{% if query %}
+<section class="card">
+  <h2>검색 결과 <small class="text-muted">{{ search_results|length }}건</small></h2>
+  <table class="data-table lib-file-table">
+    <thead><tr><th>자료</th><th>폴더</th><th>크기</th><th>등록</th></tr></thead>
+    <tbody>
+      {% for f, fd in search_results %}
+      <tr>
+        <td><a href="/admin/library/file/{{ f.id }}?inline=1" target="_blank" rel="noopener">{{ f.original_name }}</a>{% if f.note %}<div class="text-muted lib-note">{{ f.note }}</div>{% endif %}</td>
+        <td><a href="/admin/library/category/{{ category.id }}?folder={{ fd.id }}">📁 {{ fd.name }}</a></td>
+        <td>{{ f.file_size|lib_size }}</td>
+        <td>{{ f.uploaded_by or '-' }}<div class="text-muted">{{ fmt_kst_date(f.created_at) }}</div></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">검색된 자료가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="lib-section-head">
+    <h2>{% if current %}📂 {{ current.name }}{% else %}폴더{% endif %}</h2>
+    {% if current %}
+    <a class="link-action" href="/admin/library/category/{{ category.id }}{% if current.parent_id %}?folder={{ current.parent_id }}{% endif %}">← 상위 폴더</a>
+    {% endif %}
+  </div>
+
+  {% if subfolders %}
+  <ul class="lib-folder-grid">
+    {% for fd in subfolders %}
+    {% set st = folder_stats.get(fd.id, {}) %}
+    <li class="lib-folder">
+      <a class="lib-folder-link" href="/admin/library/category/{{ category.id }}?folder={{ fd.id }}">
+        <span class="lib-folder-ico" aria-hidden="true">📁</span>
+        <span class="lib-folder-name">{{ fd.name }}</span>
+        <span class="lib-folder-meta">{% if st.folders %}폴더 {{ st.folders }} · {% endif %}자료 {{ st.files or 0 }}</span>
+      </a>
+      {% if can_manage_folder(fd) %}
+      <details class="lib-folder-tools">
+        <summary title="폴더 관리">⋯</summary>
+        <form method="post" action="/admin/library/folder/{{ fd.id }}/rename" class="lib-inline-form">
+          <input type="text" name="name" value="{{ fd.name }}" maxlength="200" required />
+          <button type="submit" class="btn btn-sm btn-secondary">이름 변경</button>
+        </form>
+        <form method="post" action="/admin/library/folder/{{ fd.id }}/delete" class="inline-form"
+              onsubmit="return confirm('「{{ fd.name }}」 폴더를 삭제할까요?\n폴더 안의 하위 폴더와 자료도 모두 삭제됩니다.');">
+          <button type="submit" class="link-action link-danger">폴더 삭제</button>
+        </form>
+      </details>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif not current %}
+  <p class="text-muted">아직 폴더가 없습니다.{% if can_create %} 아래에서 폴더를 만든 뒤 자료를 등록하세요.{% endif %}</p>
+  {% endif %}
+
+  {% if can_create %}
+  <form method="post" action="/admin/library/category/{{ category.id }}/folders" class="lib-inline-form lib-new-folder">
+    <input type="hidden" name="parent_id" value="{{ current.id if current else 0 }}" />
+    <input type="text" name="name" maxlength="200" placeholder="{% if current %}「{{ current.name }}」 안에 새 폴더{% else %}새 폴더 이름{% endif %}" required />
+    <button type="submit" class="btn btn-secondary">＋ 폴더 만들기</button>
+  </form>
+  {% endif %}
+</section>
+
+{% if current %}
+<section class="card">
+  <h2>자료 <small class="text-muted">{{ files|length }}개</small></h2>
+  {% if can_create %}
+  <form method="post" action="/admin/library/folder/{{ current.id }}/files" enctype="multipart/form-data" class="lib-upload">
+    <input type="file" name="files" multiple required />
+    <input type="text" name="note" maxlength="500" placeholder="메모 (선택)" />
+    <button type="submit" class="btn btn-primary">자료 등록</button>
+    <p class="text-muted lib-upload-hint">여러 파일을 한 번에 선택할 수 있습니다 · 파일당 최대 {{ max_file_mb }}MB · 한 번에 {{ max_files }}개까지</p>
+  </form>
+  {% endif %}
+  <table class="data-table lib-file-table">
+    <thead><tr><th>자료</th><th style="width:6rem;">크기</th><th style="width:9rem;">등록</th><th style="width:9rem;">관리</th></tr></thead>
+    <tbody>
+      {% for f in files %}
+      <tr>
+        <td>
+          <a href="/admin/library/file/{{ f.id }}?inline=1" target="_blank" rel="noopener">{{ f.original_name }}</a>
+          {% if f.note %}<div class="text-muted lib-note">{{ f.note }}</div>{% endif %}
+        </td>
+        <td>{{ f.file_size|lib_size }}</td>
+        <td>{{ f.uploaded_by or '-' }}<div class="text-muted">{{ fmt_kst_date(f.created_at) }}</div></td>
+        <td class="row-actions">
+          <a class="link-action" href="/admin/library/file/{{ f.id }}">다운로드</a>
+          {% if can_delete_file(f) %}
+          <form method="post" action="/admin/library/file/{{ f.id }}/delete" class="inline-form"
+                onsubmit="return confirm('「{{ f.original_name }}」 자료를 삭제할까요?');">
+            <button type="submit" class="link-action link-danger">삭제</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">이 폴더에 등록된 자료가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

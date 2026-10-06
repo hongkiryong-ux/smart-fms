@@ -5311,6 +5311,165 @@ body.wo-col-resizing {
     max-height: 55vh;
   }
 }
+/* 자료실 */
+.nav-sub a.nav-sub-manage {
+  opacity: 0.75;
+  font-size: 0.8rem;
+}
+.lib-cat-grid,
+.lib-folder-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+.lib-cat-card,
+.lib-folder-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.lib-cat-card:hover,
+.lib-folder-link:hover {
+  border-color: #93a5c8;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+.lib-cat-ico,
+.lib-folder-ico {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.lib-cat-name,
+.lib-folder-name {
+  font-weight: 600;
+  word-break: break-all;
+}
+.lib-cat-meta,
+.lib-folder-meta {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+.lib-folder {
+  position: relative;
+}
+.lib-folder-tools {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
+}
+.lib-folder-tools summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0 0.35rem;
+  border-radius: 6px;
+  color: #64748b;
+  font-weight: 700;
+}
+.lib-folder-tools summary::-webkit-details-marker {
+  display: none;
+}
+.lib-folder-tools[open] {
+  z-index: 5;
+  background: #fff;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.15);
+  min-width: 15rem;
+}
+.lib-folder-tools[open] form {
+  margin-top: 0.4rem;
+}
+.lib-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.lib-inline-form input[type="text"] {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.lib-new-folder {
+  margin-top: 1rem;
+  max-width: 34rem;
+}
+#lib-manage .lib-inline-form {
+  margin-bottom: 0.9rem;
+  max-width: 34rem;
+}
+.lib-cat-table .lib-inline-form {
+  margin: 0;
+}
+.lib-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+.lib-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.lib-search input[type="search"] {
+  flex: 0 1 26rem;
+  min-width: 0;
+}
+.lib-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.lib-section-head h2 {
+  margin: 0;
+}
+.lib-upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem;
+  margin-bottom: 0.9rem;
+  border: 1px dashed #b6c2d6;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.lib-upload input[type="text"] {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.lib-upload-hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+}
+.lib-file-table td {
+  vertical-align: top;
+}
+.lib-file-table a {
+  word-break: break-all;
+}
+.lib-note {
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+  white-space: pre-wrap;
+}
 .wo-photo-flag {
   display: inline-block;
   margin-left: 0.25rem;

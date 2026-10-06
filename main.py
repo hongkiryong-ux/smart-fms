@@ -1171,6 +1171,12 @@ async def _startup_db_init() -> None:
             except Exception as e:
                 print(f"[startup] ilog2 label overrides skipped: {e}", flush=True)
             try:
+                from library import backfill_library_menu_access
+
+                await backfill_library_menu_access()
+            except Exception as e:
+                print(f"[startup] library menu backfill skipped: {e}", flush=True)
+            try:
                 from streetlamp.import_lamps_from_csv import import_lamps_if_needed
 
                 await import_lamps_if_needed()
@@ -1579,6 +1585,10 @@ app.include_router(streetlamp_router)
 from board_ops import router as board_ops_router
 
 app.include_router(board_ops_router)
+
+from library import router as library_router
+
+app.include_router(library_router)
 
 
 @app.exception_handler(HTTPException)

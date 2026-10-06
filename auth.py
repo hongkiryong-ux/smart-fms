@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import AsyncSessionLocal
-from models import Building, InspectionLogBuilding, InspectionLogBuilding2, Partner, Site, User, UserRole, AppRole, RoleValue
+from models import Building, InspectionLogBuilding, InspectionLogBuilding2, LibraryCategory, Partner, Site, User, UserRole, AppRole, RoleValue
 
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PW = os.environ.get("ADMIN_PW", "password123")
@@ -237,6 +237,7 @@ MENU_ITEMS: tuple[tuple[str, str], ...] = (
     ("server", "서버관리"),
     ("risk_assessment", "위험성평가"),
     ("materials", "자재관리"),
+    ("library", "자료실"),
     ("partners", "협력사"),
     ("users", "계정관리"),
 )
@@ -270,6 +271,7 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/d1", "d1"),
     ("/admin/risk-assessment", "risk_assessment"),
     ("/admin/materials", "materials"),
+    ("/admin/library", "library"),
     ("/admin/partners", "partners"),
 )
 
@@ -290,6 +292,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("server", "/admin/server"),
     ("risk_assessment", "/admin/risk-assessment"),
     ("materials", "/admin/materials?popup=1"),
+    ("library", "/admin/library"),
     ("partners", "/admin/partners"),
     ("users", "/admin/users"),
 )
@@ -310,7 +313,7 @@ def default_menu_access(role) -> list[str]:
     if code in (UserRole.partner.value, UserRole.external.value):
         denied |= {
             "equipment", "pm", "inspection_logs2", "facility_section",
-            "maintenance_performance", "streetlamp",
+            "maintenance_performance", "streetlamp", "library",
         }
     return [k for k in MENU_KEYS if k not in denied]
 
@@ -539,6 +542,7 @@ _nav_cache: dict = {
     "inspection_log_buildings": [],
     "inspection_log2_buildings": [],
     "partners": [],
+    "library_categories": [],
 }
 
 
@@ -637,6 +641,16 @@ async def _load_nav_state(db: AsyncSession) -> dict:
         ]
     except Exception:
         pass
+    library_categories: list[dict] = []
+    try:
+        cat_rows = (
+            await db.execute(
+                select(LibraryCategory).order_by(LibraryCategory.sort_order, LibraryCategory.id)
+            )
+        ).scalars().all()
+        library_categories = [{"id": c.id, "name": c.name or ""} for c in cat_rows]
+    except Exception:
+        pass
     _nav_cache.update(
         {
             "at": now,
@@ -645,6 +659,7 @@ async def _load_nav_state(db: AsyncSession) -> dict:
             "inspection_log_buildings": inspection_log_buildings,
             "inspection_log2_buildings": inspection_log2_buildings,
             "partners": partners,
+            "library_categories": library_categories,
         }
     )
     return _nav_cache
@@ -703,6 +718,7 @@ def apply_nav_state(request: Request, nav: dict) -> None:
     request.state.nav_inspection_log_buildings = nav.get("inspection_log_buildings") or []
     request.state.nav_inspection_log2_buildings = nav.get("inspection_log2_buildings") or []
     request.state.nav_partners = nav.get("partners") or []
+    request.state.nav_library_categories = nav.get("library_categories") or []
 
 
 async def apply_maint_nav_badges(request: Request, session: AsyncSession, user: User | None) -> None:
