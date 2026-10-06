@@ -5103,6 +5103,150 @@ body.wo-col-resizing {
   line-height: 1.45;
   white-space: pre-wrap;
 }
+/* 정비의뢰 사진 */
+.wo-photo-field input[type="file"] {
+  font-size: 0.85rem;
+}
+.wo-photo-preview {
+  margin-top: 0.35rem;
+}
+.wo-photo-status {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  color: #475569;
+}
+.wo-photo-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.wo-photo-preview-list figure {
+  margin: 0;
+  width: 4.6rem;
+  text-align: center;
+}
+.wo-photo-preview-list img {
+  width: 4.6rem;
+  height: 4.6rem;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #d8dee8;
+}
+.wo-photo-preview-list figcaption {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+.wo-photo-card {
+  margin: 1rem 0;
+}
+.wo-photo-head h2 {
+  margin-bottom: 0.2rem;
+}
+.wo-photo-count {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.wo-photo-lead {
+  margin: 0 0 0.8rem;
+  font-size: 0.85rem;
+}
+.wo-photo-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+.wo-photo-item {
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  padding: 0.45rem;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.wo-photo-thumb {
+  padding: 0;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 8px;
+  cursor: zoom-in;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+}
+.wo-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.wo-photo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+.wo-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.wo-photo-actions .link-danger {
+  color: #dc2626;
+}
+.wo-photo-add {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.wo-photo-add-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.wo-photo-add .wo-photo-preview {
+  flex-basis: 100%;
+}
+.wo-photo-viewer {
+  max-width: min(96vw, 1100px);
+  padding: 0.6rem;
+  border: none;
+  border-radius: 10px;
+}
+.wo-photo-viewer::backdrop {
+  background: rgba(15, 23, 42, 0.75);
+}
+.wo-photo-viewer-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.wo-photo-viewer img {
+  display: block;
+  max-width: 100%;
+  max-height: 80vh;
+  margin: 0 auto;
+}
+.wo-photo-badge {
+  margin-left: 0.25rem;
+  font-size: 0.8rem;
+}
+.wo-photo-flag {
+  display: inline-block;
+  margin-left: 0.25rem;
+  font-size: 0.78rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
 .user-notify-dialog {
   max-width: 420px;
 }

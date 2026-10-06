@@ -147,6 +147,7 @@
         </td>
         <td>
           <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
+          {% if photo_counts and photo_counts.get(wo.id) %}<a class="wo-photo-flag" href="/admin/work-orders/{{ wo.id }}#wo-photos" title="사진 {{ photo_counts.get(wo.id) }}장">📷{{ photo_counts.get(wo.id) }}</a>{% endif %}
         </td>
         <td class="wo-eq-cell">
           {% if wo.equipment %}
@@ -316,7 +317,7 @@
     {% elif request.query_params.get('error') == 'desc' %}
     <div class="alert alert-error">정비의뢰 내용을 입력하세요.</div>
     {% endif %}
-    <form method="post" action="/admin/work-orders" class="form-stack" id="wo-create-form">
+    <form method="post" action="/admin/work-orders" enctype="multipart/form-data" class="form-stack" id="wo-create-form">
       <label>건물</label>
       <select id="wo-building" required>
         <option value="">건물 선택</option>
@@ -332,6 +333,8 @@
 
       <label>정비의뢰 내용</label>
       <textarea name="description" rows="3" required placeholder="의뢰 내용을 입력하세요"></textarea>
+
+      {% include "partials/wo_photo_input.html" %}
 
       <label>정비 예정일</label>
       <input type="date" name="scheduled_date" />

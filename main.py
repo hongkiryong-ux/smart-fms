@@ -158,10 +158,13 @@ from models import (
     UserRole,
     AppRole,
     WorkOrder,
+    WorkOrderPhoto,
     WorkOrderStatus,
     Zone,
     AppSetting,
 )
+from work_order_photos import photo_counts as wo_photo_counts
+from work_order_photos import save_uploads as save_wo_photos
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -729,6 +732,23 @@ def _wo_person_label(user: User) -> str:
     return (uname or f"user-{user.id}")[:100]
 
 
+def _wo_photo_skip_message(skipped: int) -> str:
+    from work_order_photos import MAX_PHOTOS_PER_ORDER
+
+    return (
+        f"사진 {skipped}장은 첨부하지 못했습니다 "
+        f"(이미지 파일이 아니거나 손상됨 · 최대 {MAX_PHOTOS_PER_ORDER}장)."
+    )
+
+
+def _can_manage_wo_photo(user: User, wo: WorkOrder, photo: WorkOrderPhoto | None = None) -> bool:
+    if can_edit(user):
+        return True
+    if wo.requester_user_id and wo.requester_user_id == user.id:
+        return True
+    return bool(photo and photo.uploaded_by_user_id == user.id)
+
+
 _PARTNER_RISK_CACHE: dict[str, dict[str, str]] | None = None
 _PARTNER_RISK_MTIME: float | None = None
 
@@ -1261,6 +1281,9 @@ async def lifespan(app: FastAPI):
             from ground_gwangyang import register_scheduler as register_ggy_scheduler
 
             register_ggy_scheduler(scheduler, AsyncSessionLocal, KST)
+            from work_order_photos import register_scheduler as register_wo_photo_scheduler
+
+            register_wo_photo_scheduler(scheduler, AsyncSessionLocal, KST)
             scheduler.start()
         except Exception as e:
             print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
@@ -6295,6 +6318,7 @@ async def equipment_maintenance_request(
     safety_measures: str = Form(""),
     risk_grade: str = Form(""),
     assignee_name: str = Form(""),
+    photos: list[UploadFile] = File(default=[]),
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
@@ -6356,9 +6380,14 @@ async def equipment_maintenance_request(
         else:
             _wo_apply_partner_risk_from_excel(wo)
     db.add(wo)
+    await db.flush()
+    _saved, skipped = await save_wo_photos(
+        db, wo.id, photos, uploader_name=person, uploader_id=user.id
+    )
     await db.commit()
     await db.refresh(wo)
-    return RedirectResponse(f"/admin/work-orders/{wo.id}", status_code=303)
+    suffix = f"?error={quote(_wo_photo_skip_message(skipped))}" if skipped else ""
+    return RedirectResponse(f"/admin/work-orders/{wo.id}{suffix}", status_code=303)
 
 
 @app.post("/admin/equipment/{eq_id}/history")
@@ -6784,12 +6813,14 @@ async def work_orders_list(
 
     await mark_maint_seen(db, user.id, "work_orders")
     await db.commit()
+    photo_counts = await wo_photo_counts(db, [wo.id for wo in orders])
     return templates.TemplateResponse(
         request,
         "work_orders.html",
         {
             "user": user,
             "orders": orders,
+            "photo_counts": photo_counts,
             "pager": pager,
             "partners": partners,
             "buildings": buildings,
@@ -6903,6 +6934,7 @@ async def work_order_create(
     assignee_name: str = Form(""),
     scheduled_date: str = Form(""),
     partner_id: int = Form(0),
+    photos: list[UploadFile] = File(default=[]),
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
 ):
@@ -6961,7 +6993,16 @@ async def work_order_create(
         work_type="정비",
     )
     db.add(wo)
+    await db.flush()
+    _saved, skipped = await save_wo_photos(
+        db, wo.id, photos, uploader_name=person, uploader_id=user.id
+    )
     await db.commit()
+    if skipped:
+        return RedirectResponse(
+            f"/admin/work-orders/{wo.id}?error={quote(_wo_photo_skip_message(skipped))}",
+            status_code=303,
+        )
     return RedirectResponse("/admin/work-orders", status_code=303)
 
 
@@ -6986,6 +7027,9 @@ async def work_order_detail(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
         )
     ).scalars().all()
+    from work_order_photos import MAX_PHOTOS_PER_ORDER, list_photos
+
+    photos = await list_photos(db, wo.id)
     return templates.TemplateResponse(
         request,
         "work_order_detail.html",
@@ -6993,10 +7037,108 @@ async def work_order_detail(
             "user": user,
             "wo": wo,
             "partners": partners,
+            "photos": photos,
+            "photo_max": MAX_PHOTOS_PER_ORDER,
+            "can_manage_photos": _can_manage_wo_photo(user, wo),
+            "can_add_photos": can_create(user) or _can_manage_wo_photo(user, wo),
             "process_step": _wo_process_step(wo.status),
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
         },
+    )
+
+
+async def _wo_and_photo(
+    db: AsyncSession, wo_id: int, photo_id: int
+) -> tuple[WorkOrder, WorkOrderPhoto]:
+    wo = await db.get(WorkOrder, wo_id)
+    photo = await db.get(WorkOrderPhoto, photo_id)
+    if not wo or not photo or photo.work_order_id != wo_id:
+        raise HTTPException(404)
+    return wo, photo
+
+
+@app.get("/admin/work-orders/{wo_id}/photos/{photo_id}")
+async def work_order_photo_file(
+    wo_id: int,
+    photo_id: int,
+    download: int = 0,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    _wo, photo = await _wo_and_photo(db, wo_id, photo_id)
+    name = photo.original_name or f"photo_{photo.id}.jpg"
+    if download and photo.content_type == "image/jpeg" and not name.lower().endswith((".jpg", ".jpeg")):
+        name = name.rsplit(".", 1)[0] + ".jpg"
+    disposition = "attachment" if download else "inline"
+    return Response(
+        content=photo.file_data,
+        media_type=photo.content_type or "image/jpeg",
+        headers={
+            "Content-Disposition": f"{disposition}; filename*=UTF-8''{quote(name)}",
+            "Cache-Control": "private, max-age=86400",
+        },
+    )
+
+
+@app.post("/admin/work-orders/{wo_id}/photos")
+async def work_order_photo_add(
+    wo_id: int,
+    photos: list[UploadFile] = File(default=[]),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+    if not (can_create(user) or _can_manage_wo_photo(user, wo)):
+        raise HTTPException(403, detail="사진 첨부 권한이 없습니다.")
+    saved, skipped = await save_wo_photos(
+        db, wo.id, photos, uploader_name=_wo_person_label(user), uploader_id=user.id
+    )
+    await db.commit()
+    if skipped:
+        return RedirectResponse(
+            f"/admin/work-orders/{wo_id}?error={quote(_wo_photo_skip_message(skipped))}#wo-photos",
+            status_code=303,
+        )
+    msg = f"사진 {saved}장을 첨부했습니다." if saved else "선택한 사진이 없습니다."
+    return RedirectResponse(f"/admin/work-orders/{wo_id}?message={quote(msg)}#wo-photos", status_code=303)
+
+
+@app.post("/admin/work-orders/{wo_id}/photos/{photo_id}/keep")
+async def work_order_photo_keep(
+    wo_id: int,
+    photo_id: int,
+    keep: int = Form(1),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from work_order_photos import set_permanent
+
+    wo, photo = await _wo_and_photo(db, wo_id, photo_id)
+    if not _can_manage_wo_photo(user, wo, photo):
+        raise HTTPException(403, detail="사진 보관 설정 권한이 없습니다.")
+    set_permanent(photo, bool(keep), _wo_person_label(user))
+    await db.commit()
+    msg = "사진을 영구 보관으로 설정했습니다." if keep else "영구 보관을 해제했습니다 (1년 보관)."
+    return RedirectResponse(f"/admin/work-orders/{wo_id}?message={quote(msg)}#wo-photos", status_code=303)
+
+
+@app.post("/admin/work-orders/{wo_id}/photos/{photo_id}/delete")
+async def work_order_photo_delete(
+    wo_id: int,
+    photo_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    wo, photo = await _wo_and_photo(db, wo_id, photo_id)
+    if not _can_manage_wo_photo(user, wo, photo):
+        raise HTTPException(403, detail="사진 삭제 권한이 없습니다.")
+    await db.delete(photo)
+    await db.commit()
+    return RedirectResponse(
+        f"/admin/work-orders/{wo_id}?message={quote('사진을 삭제했습니다.')}#wo-photos", status_code=303
     )
 
 

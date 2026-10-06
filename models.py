@@ -1325,6 +1325,32 @@ class WorkOrder(Base):
     partner = relationship("Partner")
 
 
+class WorkOrderPhoto(Base):
+    """정비의뢰 첨부 사진 (500KB 이하로 축소 저장 · 기본 1년 보관, 영구 보관 선택)."""
+
+    __tablename__ = "work_order_photos"
+
+    id = Column(Integer, primary_key=True)
+    work_order_id = Column(Integer, ForeignKey("work_orders.id"), nullable=False, index=True)
+    original_name = Column(String(300), nullable=True)
+    content_type = Column(String(100), nullable=True)
+    file_data = Column(LargeBinary, nullable=False)
+    file_size = Column(Integer, nullable=True)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    uploaded_by = Column(String(100), nullable=True)
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_permanent = Column(Boolean, default=False, nullable=False)
+    permanent_by = Column(String(100), nullable=True)
+    permanent_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    @property
+    def url(self) -> str:
+        return f"/admin/work-orders/{self.work_order_id}/photos/{self.id}"
+
+
 class D1Plan(Base):
     __tablename__ = "d1_plans"
 

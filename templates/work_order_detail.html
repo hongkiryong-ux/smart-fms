@@ -169,6 +169,67 @@
   </section>
 </div>
 
+<section class="card wo-photo-card" id="wo-photos">
+  <div class="wo-photo-head">
+    <h2>첨부 사진 <span class="text-muted wo-photo-count">{{ photos|length }}장</span></h2>
+    <p class="text-muted wo-photo-lead">사진은 500KB 이하로 자동 축소되어 저장됩니다. 기본 보관기간은 1년이며, 「영구 보관」을 누르면 기간 없이 보관됩니다.</p>
+  </div>
+  {% if photos %}
+  <ul class="wo-photo-grid">
+    {% for p in photos %}
+    <li class="wo-photo-item">
+      <button type="button" class="wo-photo-thumb" data-wo-photo-src="{{ p.url }}" data-wo-photo-title="{{ p.original_name or ('사진 ' ~ loop.index) }}" aria-label="사진 크게 보기">
+        <img src="{{ p.url }}" alt="{{ p.original_name or '정비의뢰 사진' }}" loading="lazy" />
+      </button>
+      <div class="wo-photo-meta">
+        <span class="wo-photo-size">{{ ((p.file_size or 0) / 1024)|round(0)|int }}KB{% if p.width %} · {{ p.width }}×{{ p.height }}{% endif %}</span>
+        {% if p.is_permanent %}
+        <span class="badge badge-wo" title="{{ p.permanent_by or '' }} {{ fmt_kst(p.permanent_at) if p.permanent_at else '' }}">영구 보관</span>
+        {% else %}
+        <span class="wo-photo-expiry">보관 ~ {{ fmt_kst_date(p.expires_at) if p.expires_at else '-' }}</span>
+        {% endif %}
+      </div>
+      <div class="wo-photo-actions">
+        <a class="link-action" href="{{ p.url }}?download=1">다운로드</a>
+        {% if can_manage_photos or p.uploaded_by_user_id == user.id %}
+        <form method="post" action="{{ p.url }}/keep" class="inline-form">
+          {% if p.is_permanent %}
+          <input type="hidden" name="keep" value="0" />
+          <button type="submit" class="link-action" onclick="return confirm('영구 보관을 해제할까요? 등록일로부터 1년이 지나면 자동 삭제됩니다.');">영구 보관 해제</button>
+          {% else %}
+          <input type="hidden" name="keep" value="1" />
+          <button type="submit" class="btn btn-sm btn-primary">영구 보관</button>
+          {% endif %}
+        </form>
+        <form method="post" action="{{ p.url }}/delete" class="inline-form" onsubmit="return confirm('이 사진을 삭제할까요?');">
+          <button type="submit" class="link-action link-danger">삭제</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-muted">첨부된 사진이 없습니다.</p>
+  {% endif %}
+
+  {% if can_add_photos and photos|length < photo_max %}
+  <form method="post" action="/admin/work-orders/{{ wo.id }}/photos" enctype="multipart/form-data" class="wo-photo-add">
+    <label class="wo-photo-add-label">사진 추가 (최대 {{ photo_max }}장)</label>
+    <input type="file" name="photos" accept="image/*" multiple data-wo-photo />
+    <button type="submit" class="btn btn-sm btn-secondary">사진 첨부</button>
+  </form>
+  {% endif %}
+</section>
+
+<dialog id="wo-photo-viewer" class="wo-photo-viewer">
+  <div class="wo-photo-viewer-top">
+    <strong class="wo-photo-viewer-title"></strong>
+    <button type="button" class="btn btn-sm btn-secondary" data-wo-photo-close>닫기</button>
+  </div>
+  <img alt="정비의뢰 사진 원본" />
+</dialog>
+
 <p>
   <a href="/admin/work-orders">&larr; 정비 목록</a>
   {% if wo.equipment %}
@@ -232,6 +293,21 @@
       if (rejectDialog && typeof rejectDialog.close === 'function') rejectDialog.close();
     });
   });
+  var viewer = document.getElementById('wo-photo-viewer');
+  if (viewer) {
+    var viewerImg = viewer.querySelector('img');
+    var viewerTitle = viewer.querySelector('.wo-photo-viewer-title');
+    document.querySelectorAll('[data-wo-photo-src]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        viewerImg.src = btn.dataset.woPhotoSrc;
+        viewerTitle.textContent = btn.dataset.woPhotoTitle || '';
+        viewer.showModal();
+      });
+    });
+    viewer.addEventListener('click', function (e) {
+      if (e.target === viewer || e.target.hasAttribute('data-wo-photo-close')) viewer.close();
+    });
+  }
 })();
 </script>
 {% endblock %}
