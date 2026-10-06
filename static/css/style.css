@@ -7468,6 +7468,17 @@ tr.wo-row-selected {
 .ops-stat-label { display: block; font-size: 0.8rem; color: #64748b; }
 .ops-stat strong { display: block; font-size: 1.45rem; color: #0f172a; margin: 0.15rem 0; }
 .ops-stat em { font-style: normal; font-size: 0.78rem; color: #94a3b8; }
+.ops-card.ops-maint { padding: 0.75rem 1rem 0.85rem; }
+.ops-maint .ops-card-head { margin: -0.1rem -0.1rem 0.5rem; padding: 0 0.1rem 0.4rem; }
+.ops-maint .ops-card-head h2 { font-size: 0.98rem; }
+.ops-maint .ops-settings-btn { padding: 0.15rem 0.55rem; font-size: 0.78rem; }
+.ops-maint .ops-maint-grid { gap: 0.6rem; }
+.ops-maint .ops-stat { align-items: center; gap: 0.55rem; padding: 0.5rem 0.75rem; border-radius: 10px; }
+.ops-maint .ops-stat-ico { font-size: 1rem; width: 1.75rem; height: 1.75rem; border-radius: 8px; flex: 0 0 auto; }
+.ops-maint .ops-stat > div { min-width: 0; line-height: 1.25; }
+.ops-maint .ops-stat-label { font-size: 0.74rem; }
+.ops-maint .ops-stat strong { display: inline; font-size: 1.15rem; margin: 0 0.35rem 0 0; }
+.ops-maint .ops-stat em { font-size: 0.72rem; }
 .ops-live-body { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.9fr); gap: 1.15rem; align-items: start; }
 .ops-live-body-single { grid-template-columns: 1fr; }
 .ops-live-main, .ops-live-side { display: flex; flex-direction: column; gap: 1.15rem; min-width: 0; }
