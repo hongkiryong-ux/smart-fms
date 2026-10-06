@@ -5240,6 +5240,77 @@ body.wo-col-resizing {
   margin-left: 0.25rem;
   font-size: 0.8rem;
 }
+.wo-info-wrap.has-photo {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 1.5fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+.wo-info-photo {
+  margin: 0;
+  position: sticky;
+  top: 1rem;
+}
+.wo-info-photo-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #f1f5f9;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+.wo-info-photo-main img {
+  display: block;
+  max-width: 100%;
+  max-height: min(62vh, 560px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.wo-info-photo figcaption {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+}
+.wo-info-photo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+.wo-info-photo-pick {
+  width: 3.4rem;
+  height: 3.4rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: #f1f5f9;
+  cursor: pointer;
+  overflow: hidden;
+}
+.wo-info-photo-pick.is-on {
+  border-color: var(--primary, #1e3a8a);
+}
+.wo-info-photo-pick img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+@media (max-width: 900px) {
+  .wo-info-wrap.has-photo {
+    grid-template-columns: 1fr;
+  }
+  .wo-info-photo {
+    position: static;
+  }
+  .wo-info-photo-main img {
+    max-height: 55vh;
+  }
+}
 .wo-photo-flag {
   display: inline-block;
   margin-left: 0.25rem;

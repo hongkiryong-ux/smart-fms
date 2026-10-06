@@ -66,6 +66,7 @@
 <div class="grid-2">
   <section class="card">
     <h2>작업 정보</h2>
+    <div class="wo-info-wrap{% if photos %} has-photo{% endif %}">
     <dl class="info-dl">
       <dt>설비</dt>
       <dd>
@@ -106,6 +107,32 @@
       </dd>
       {% endif %}
     </dl>
+    {% if photos %}
+    {% set first_photo = photos[0] %}
+    <figure class="wo-info-photo">
+      <button type="button" class="wo-info-photo-main" id="wo-info-photo-main"
+              data-wo-photo-src="{{ first_photo.url }}"
+              data-wo-photo-title="{{ first_photo.original_name or '사진 1' }}"
+              aria-label="사진 원본 크게 보기">
+        <img src="{{ first_photo.url }}" alt="{{ first_photo.original_name or '정비의뢰 사진' }}" />
+      </button>
+      <figcaption class="text-muted">
+        <span id="wo-info-photo-idx">1</span> / {{ photos|length }}장 · 사진을 누르면 원본 크기로 볼 수 있습니다.
+      </figcaption>
+      {% if photos|length > 1 %}
+      <div class="wo-info-photo-strip">
+        {% for p in photos %}
+        <button type="button" class="wo-info-photo-pick{% if loop.first %} is-on{% endif %}"
+                data-src="{{ p.url }}" data-title="{{ p.original_name or ('사진 ' ~ loop.index) }}"
+                data-idx="{{ loop.index }}" aria-label="사진 {{ loop.index }} 보기">
+          <img src="{{ p.url }}" alt="" loading="lazy" />
+        </button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </figure>
+    {% endif %}
+    </div>
   </section>
 
   <section class="card">
@@ -308,6 +335,20 @@
       if (e.target === viewer || e.target.hasAttribute('data-wo-photo-close')) viewer.close();
     });
   }
+  var infoMain = document.getElementById('wo-info-photo-main');
+  var infoIdx = document.getElementById('wo-info-photo-idx');
+  document.querySelectorAll('.wo-info-photo-pick').forEach(function (pick) {
+    pick.addEventListener('click', function () {
+      if (!infoMain) return;
+      infoMain.dataset.woPhotoSrc = pick.dataset.src;
+      infoMain.dataset.woPhotoTitle = pick.dataset.title || '';
+      infoMain.querySelector('img').src = pick.dataset.src;
+      if (infoIdx) infoIdx.textContent = pick.dataset.idx;
+      document.querySelectorAll('.wo-info-photo-pick').forEach(function (p) {
+        p.classList.toggle('is-on', p === pick);
+      });
+    });
+  });
 })();
 </script>
 {% endblock %}
