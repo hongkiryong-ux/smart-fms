@@ -2,114 +2,153 @@
 {% block title %}AI 분석{% endblock %}
 {% block head_extra %}
 <style>
-  .ai-page { max-width: none; width: 100%; }
-  .ai-ask-grid {
+  .ai-app {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    width: 100%;
-    align-items: start;
+    grid-template-columns: 272px minmax(0, 1fr);
+    height: calc(100vh - 3rem);
+    min-height: 560px;
+    background: #fff;
+    border: 1px solid #dbe3ee;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+    position: relative;
   }
-  .ai-ask-panel {
+  .ai-app.side-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+  .ai-app.side-collapsed .ai-side { visibility: hidden; border-right: 0; }
+
+  /* ── 왼쪽: 메뉴 + 채팅 목록 ── */
+  .ai-side {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
+    background: #f8fafc;
+    border-right: 1px solid #e5eaf1;
   }
-  .ai-ask-panel h2 { margin-bottom: 0.35rem; }
-  .ai-ask-panel .ai-panel-desc {
-    color: var(--muted, #666);
-    font-size: 0.88rem;
-    margin: 0 0 0.75rem;
-  }
-  .ai-ask-panel textarea {
-    width: 100%;
-    min-height: 120px;
-    box-sizing: border-box;
-    padding: 0.75rem 0.9rem;
-    border: 1px solid var(--border, #ccd3dc);
-    border-radius: 8px;
-    font-size: 0.95rem;
-    line-height: 1.45;
-    resize: vertical;
-  }
-  .ai-ask-panel .ai-ask-actions {
+  .ai-side-top {
     display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
     align-items: center;
-    margin-top: 0.75rem;
+    justify-content: space-between;
+    padding: 0.85rem 0.85rem 0.5rem 1rem;
   }
-  .ai-examples { margin-top: 0.85rem; }
-  .ai-examples .ai-ex-list { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-  .ai-answer-box {
-    white-space: pre-wrap;
-    word-break: break-word;
-    background: #f5f7fa;
-    padding: 1rem 1.1rem;
-    border-radius: 8px;
-    line-height: 1.55;
-    font-family: inherit;
-    font-size: 0.95rem;
-    margin: 0;
+  .ai-side-brand { display: flex; align-items: center; gap: 0.45rem; font-weight: 800; font-size: 1.02rem; color: #0f172a; }
+  .ai-side-brand-ico {
+    width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+    color: #fff; font-size: 0.8rem;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
   }
-  .ai-key-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: end;
+  .ai-icon-btn {
+    border: 0; background: transparent; color: #64748b; cursor: pointer;
+    width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
   }
-  .ai-key-row label { margin: 0; font-size: 0.85rem; font-weight: 600; }
-  .ai-key-row input, .ai-key-row select {
-    padding: 0.45rem 0.65rem;
-    border: 1px solid var(--border, #ccd3dc);
-    border-radius: 6px;
-    min-width: 14rem;
+  .ai-icon-btn:hover { background: #e8eef6; color: #0f172a; }
+  .ai-icon-btn svg { width: 18px; height: 18px; }
+  .ai-side-menu { display: flex; flex-direction: column; gap: 2px; padding: 0.25rem 0.6rem 0.6rem; }
+  .ai-side-item {
+    display: flex; align-items: center; gap: 0.6rem; width: 100%;
+    border: 0; background: transparent; text-align: left; cursor: pointer;
+    padding: 0.5rem 0.6rem; border-radius: 8px;
+    font-size: 0.9rem; color: #1e293b; text-decoration: none;
   }
-  .ai-chat-panel { min-height: 420px; }
+  .ai-side-item:hover { background: #e8eef6; }
+  .ai-side-item svg { width: 17px; height: 17px; flex: 0 0 auto; color: #475569; }
+  .ai-side-item .ai-side-badge {
+    margin-left: auto; font-size: 0.72rem; color: #475569; background: #e2e8f0;
+    border-radius: 999px; padding: 0.05rem 0.5rem;
+  }
+  .ai-side-search { padding: 0 0.85rem 0.5rem; display: none; }
+  .ai-side-search.open { display: block; }
+  .ai-side-search input {
+    width: 100%; box-sizing: border-box; padding: 0.45rem 0.65rem; font-size: 0.86rem;
+    border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+  }
+  .ai-side-label {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.55rem 1rem 0.3rem; font-size: 0.78rem; font-weight: 700; color: #64748b;
+    border-top: 1px solid #e5eaf1;
+  }
+  .ai-side-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0.6rem 0.75rem; }
+  .ai-history-group { font-size: 0.72rem; color: #94a3b8; font-weight: 700; padding: 0.7rem 0.6rem 0.25rem; }
+  .ai-history-list { list-style: none; margin: 0; padding: 0; }
+  .ai-history-item {
+    display: flex; align-items: center; gap: 0.2rem;
+    padding: 0.42rem 0.4rem 0.42rem 0.6rem; border-radius: 8px; cursor: pointer;
+  }
+  .ai-history-item:hover { background: #e8eef6; }
+  .ai-history-item.active { background: #dbe7fb; }
+  .ai-history-main { flex: 1; min-width: 0; }
+  .ai-history-title { font-size: 0.87rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-history-item.active .ai-history-title { font-weight: 700; color: #0b2f66; }
+  .ai-history-meta { font-size: 0.7rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-history-btn {
+    border: 0; background: transparent; color: #64748b; cursor: pointer;
+    width: 26px; height: 26px; border-radius: 6px; display: none; place-items: center; flex: 0 0 auto;
+  }
+  .ai-history-btn svg { width: 14px; height: 14px; pointer-events: none; }
+  .ai-history-item:hover .ai-history-btn, .ai-history-item.active .ai-history-btn { display: grid; }
+  .ai-history-btn:hover { background: #cfdcf0; color: #0f172a; }
+  .ai-history-btn.danger:hover { background: #fee2e2; color: #b91c1c; }
+  .ai-history-empty { font-size: 0.84rem; color: #94a3b8; padding: 0.6rem; line-height: 1.5; }
+  .ai-side-foot {
+    border-top: 1px solid #e5eaf1; padding: 0.6rem 1rem; font-size: 0.76rem; color: #64748b;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex: 0 0 auto; }
+  .ai-dot.ok { background: #10b981; }
+  .ai-dot.off { background: #f59e0b; }
+
+  /* ── 오른쪽: 질문·답변 ── */
+  .ai-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .ai-main-head {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 1rem; border-bottom: 1px solid #eef2f7; min-height: 52px; box-sizing: border-box;
+  }
+  .ai-chat-current { flex: 1; min-width: 0; font-weight: 700; font-size: 0.95rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-model-chip {
+    font-size: 0.74rem; color: #3730a3; background: #eef2ff; border: 1px solid #c7d2fe;
+    border-radius: 999px; padding: 0.15rem 0.6rem; white-space: nowrap; cursor: pointer;
+  }
+  .ai-main-alerts { padding: 0.6rem 1rem 0; }
+  .ai-main-alerts .alert { margin: 0 0 0.5rem; }
+  .ai-chat-key-alert {
+    display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+    background: #fff8e6; border: 1px solid #f0c040; border-radius: 10px;
+    padding: 0.6rem 0.85rem; font-size: 0.87rem; line-height: 1.45; margin-bottom: 0.5rem;
+  }
   .ai-chat-messages {
-    position: relative;
-    flex: 1;
-    min-height: 260px;
-    max-height: 70vh;
-    overflow-y: auto;
-    border: 1px solid var(--border, #ccd3dc);
-    border-radius: 8px;
-    padding: 0.75rem;
-    background: #fafbfc;
-    margin-bottom: 0.75rem;
+    position: relative; flex: 1; min-height: 0; overflow-y: auto;
+    padding: 1.25rem 1.25rem 0.5rem;
   }
-  .ai-chat-empty {
-    color: var(--muted, #666);
-    font-size: 0.9rem;
-    text-align: center;
-    padding: 2rem 1rem;
+  .ai-chat-empty { max-width: 820px; margin: 0 auto; padding: 6vh 0 1rem; text-align: center; }
+  .ai-welcome-ico {
+    width: 52px; height: 52px; margin: 0 auto 0.85rem; border-radius: 16px; display: grid; place-items: center;
+    color: #fff; font-size: 1.4rem; background: linear-gradient(135deg, #2563eb, #7c3aed 60%, #ec4899);
+    box-shadow: 0 8px 22px rgba(124, 58, 237, 0.25);
   }
-  .ai-chat-msg {
-    margin-bottom: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+  .ai-welcome-title { margin: 0 0 0.4rem; font-size: 1.45rem; font-weight: 800; color: #0f172a; }
+  .ai-welcome-desc { margin: 0 auto 1.25rem; max-width: 640px; color: #64748b; font-size: 0.88rem; line-height: 1.6; }
+  .ai-ex-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.55rem; text-align: left; }
+  .ai-ex-btn {
+    border: 1px solid #e2e8f0; background: #fff; border-radius: 12px; cursor: pointer;
+    padding: 0.7rem 0.85rem; font-size: 0.85rem; color: #334155; line-height: 1.45; text-align: left;
+    transition: border-color .12s ease, background .12s ease;
   }
+  .ai-ex-btn:hover { border-color: #a5b4fc; background: #f5f7ff; }
+
+  .ai-chat-msg { max-width: 860px; margin: 0 auto 1.1rem; display: flex; flex-direction: column; align-items: flex-start; }
   .ai-chat-msg.user { align-items: flex-end; }
+  .ai-chat-role { font-size: 0.74rem; color: #94a3b8; margin-bottom: 0.25rem; font-weight: 600; }
+  .ai-chat-msg.assistant .ai-chat-role::before {
+    content: "✦"; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 0.35rem;
+    border-radius: 6px; color: #fff; font-size: 0.6rem; background: linear-gradient(135deg, #2563eb, #7c3aed);
+  }
   .ai-chat-bubble {
-    max-width: 92%;
-    padding: 0.65rem 0.85rem;
-    border-radius: 10px;
-    font-size: 0.92rem;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-word;
+    max-width: 92%; padding: 0.65rem 0.9rem; border-radius: 14px;
+    font-size: 0.92rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
   }
-  .ai-chat-msg.user .ai-chat-bubble {
-    background: #003876;
-    color: #fff;
-    border-bottom-right-radius: 2px;
-  }
-  .ai-chat-msg.assistant .ai-chat-bubble {
-    background: #eef6ff;
-    border: 1px solid #c5daf5;
-    border-bottom-left-radius: 2px;
-  }
+  .ai-chat-msg.user .ai-chat-bubble { background: #eef2f7; color: #0f172a; border-bottom-right-radius: 4px; }
+  .ai-chat-msg.assistant .ai-chat-bubble { background: #fff; border: 1px solid #e5eaf1; border-bottom-left-radius: 4px; }
   .ai-chat-msg.assistant .ai-chat-bubble.ai-md { white-space: normal; }
   .ai-chat-bubble.has-chart { width: 92%; box-sizing: border-box; }
   .ai-md-text { white-space: pre-wrap; margin: 0.15rem 0; }
@@ -136,9 +175,9 @@
   }
   .ai-chart-btn:hover { background: #e3eefc; }
   .ai-chart-error { color: #c0392b; font-size: 0.85rem; margin-bottom: 0.3rem; }
-  .ai-fb { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; margin-top: 0.3rem; max-width: 92%; }
+  .ai-fb { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; margin-top: 0.35rem; max-width: 92%; }
   .ai-fb-btn {
-    border: 1px solid #c9d6e6; background: #fff; color: #44546a; border-radius: 12px;
+    border: 1px solid #dbe3ee; background: #fff; color: #44546a; border-radius: 12px;
     font-size: 0.76rem; padding: 0.1rem 0.55rem; cursor: pointer;
   }
   .ai-fb-btn:hover { background: #eef4fb; }
@@ -149,18 +188,38 @@
     padding: 0.35rem 0.5rem; font-size: 0.85rem;
   }
   .ai-fb-done { font-size: 0.78rem; color: #1e5aa8; }
-  .ai-learn-link { font-size: 0.82rem; margin-left: auto; margin-right: 0.5rem; }
-  .ai-chat-role {
-    font-size: 0.75rem;
-    color: var(--muted, #666);
-    margin-bottom: 0.2rem;
+  .ai-answer-box {
+    white-space: pre-wrap; word-break: break-word; background: #f5f7fa;
+    padding: 0.75rem 0.9rem; border-radius: 8px; line-height: 1.55; font-family: inherit; font-size: 0.85rem; margin: 0;
   }
-  .ai-chat-status {
-    font-size: 0.85rem;
-    color: var(--muted, #666);
-    min-height: 1.2rem;
-    margin-top: 0.35rem;
+  .ai-evidence { max-width: 860px; margin: 0 auto 0.5rem; padding: 0 1.25rem; box-sizing: content-box; }
+
+  .ai-composer-wrap { padding: 0.5rem 1.25rem 0.85rem; }
+  .ai-composer {
+    max-width: 860px; margin: 0 auto; display: flex; align-items: flex-end; gap: 0.5rem;
+    border: 1px solid #cbd5e1; border-radius: 18px; background: #fff;
+    padding: 0.45rem 0.45rem 0.45rem 0.95rem;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
   }
+  .ai-composer:focus-within { border-color: #818cf8; box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.18); }
+  .ai-composer textarea {
+    flex: 1; border: 0; outline: none; resize: none; background: transparent;
+    font: inherit; font-size: 0.95rem; line-height: 1.5; padding: 0.35rem 0; max-height: 200px; min-height: 1.5em;
+  }
+  .ai-send-btn {
+    width: 38px; height: 38px; border-radius: 50%; border: 0; cursor: pointer; flex: 0 0 auto;
+    display: grid; place-items: center; color: #fff; background: #0f172a;
+  }
+  .ai-send-btn:hover { background: #1e3a8a; }
+  .ai-send-btn:disabled { background: #cbd5e1; cursor: default; }
+  .ai-send-btn svg { width: 18px; height: 18px; }
+  .ai-composer-foot {
+    max-width: 860px; margin: 0.35rem auto 0; display: flex; justify-content: space-between; gap: 0.75rem;
+    align-items: center; min-height: 1.4rem;
+  }
+  .ai-composer-hint { font-size: 0.72rem; color: #94a3b8; white-space: nowrap; }
+
+  .ai-chat-status { font-size: 0.82rem; color: #64748b; min-height: 1.2rem; }
   .ai-chat-status.error { color: #c0392b; }
   .ai-chat-status.saving { color: #003876; }
   .ai-chat-status.analyzing { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; }
@@ -177,194 +236,200 @@
     .ai-spin svg { animation-duration: 2.4s; }
     .ai-spin-core { animation: none; }
   }
-  .ai-chat-key-alert {
-    background: #fff8e6;
-    border: 1px solid #f0c040;
-    border-radius: 8px;
-    padding: 0.65rem 0.85rem;
-    font-size: 0.88rem;
-    margin-bottom: 0.75rem;
-    line-height: 1.45;
+
+  /* ── API 키 설정 대화상자 ── */
+  .ai-dlg { border: 0; border-radius: 16px; padding: 0; width: min(520px, 92vw); box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25); }
+  .ai-dlg::backdrop { background: rgba(15, 23, 42, 0.45); }
+  .ai-dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 0.9rem 1.1rem; border-bottom: 1px solid #eef2f7; }
+  .ai-dlg-head h2 { margin: 0; font-size: 1.02rem; }
+  .ai-dlg-body { padding: 1rem 1.1rem 1.1rem; }
+  .ai-dlg-body p { margin: 0 0 0.85rem; font-size: 0.87rem; color: #64748b; line-height: 1.5; }
+  .ai-key-row { display: grid; gap: 0.7rem; }
+  .ai-key-row label { display: block; margin: 0 0 0.25rem; font-size: 0.82rem; font-weight: 700; color: #334155; }
+  .ai-key-row input, .ai-key-row select {
+    width: 100%; box-sizing: border-box; padding: 0.5rem 0.65rem;
+    border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;
   }
-  .ai-chat-key-alert a { font-weight: 600; }
-  .ai-chat-input-row textarea {
-    min-height: 72px;
-  }
-  .ai-history {
-    border: 1px solid var(--border, #ccd3dc);
-    border-radius: 8px;
-    margin-bottom: 0.75rem;
-    background: #fff;
-  }
-  .ai-history > summary {
-    cursor: pointer;
-    padding: 0.5rem 0.75rem;
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-  .ai-history-list {
-    list-style: none;
-    margin: 0;
-    padding: 0 0.4rem 0.4rem;
-    max-height: 240px;
-    overflow-y: auto;
-  }
-  .ai-history-item {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.5rem;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  .ai-history-item:hover { background: #f1f5fb; }
-  .ai-history-item.active { background: #e3eefc; border-left: 3px solid #003876; }
-  .ai-history-main { flex: 1; min-width: 0; }
-  .ai-history-title {
-    font-size: 0.88rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .ai-history-meta { font-size: 0.75rem; color: var(--muted, #666); }
-  .ai-history-btn {
-    border: 0;
-    background: transparent;
-    color: var(--muted, #666);
-    font-size: 0.78rem;
-    padding: 0.15rem 0.3rem;
-    cursor: pointer;
-    border-radius: 4px;
-  }
-  .ai-history-btn:hover { background: #dde6f2; color: #003876; }
-  .ai-history-empty { font-size: 0.85rem; color: var(--muted, #666); padding: 0.4rem 0.6rem 0.6rem; }
-  .ai-chat-current {
-    font-size: 0.85rem;
-    color: #003876;
-    font-weight: 600;
-    margin-bottom: 0.4rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  .ai-key-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.25rem; }
+
+  .ai-side-backdrop { display: none; }
   @media (max-width: 900px) {
-    .ai-ask-grid { grid-template-columns: 1fr; }
+    .ai-app, .ai-app.side-collapsed {
+      grid-template-columns: minmax(0, 1fr);
+      height: calc(100vh - 6rem);
+      height: calc(100dvh - 6rem);
+      min-height: 480px;
+    }
+    .ai-side {
+      position: absolute; inset: 0 auto 0 0; width: min(290px, 86%); z-index: 5;
+      transform: translateX(-100%); transition: transform .2s ease; box-shadow: 8px 0 24px rgba(15, 23, 42, 0.15);
+    }
+    .ai-app.side-collapsed .ai-side { visibility: visible; }
+    .ai-app.side-open .ai-side { transform: none; }
+    .ai-app.side-open .ai-side-backdrop { display: block; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.3); z-index: 4; }
+    .ai-composer-hint { display: none; }
   }
 </style>
 {% endblock %}
 {% block content %}
-<div class="ai-page">
-<header class="page-header">
-  <h1>AI 분석</h1>
-  <p>
-    <strong>AI 질문(GPT)</strong>이 Smart FMS 전체 DB
-    (사업장·건물·설비·정비·PM·D-1·점검일지·자재·공지·일정 등)를 조회해 답합니다.
-  </p>
-</header>
-
-{% if error %}
-<div class="alert alert-error">{{ error }}</div>
-{% endif %}
-{% if info %}
-<div class="alert alert-success">{{ info }}</div>
-{% endif %}
-
-<section class="card" style="margin-bottom:1rem">
-  <h2>OpenAI API 키</h2>
-  <p class="text-muted" style="margin-bottom:0.75rem">
-    AI 질문은 계정에 저장된 키로 GPT를 호출합니다.
-    {% if ai_ready %}현재 키: {{ ai_key_masked }} · 모델 {{ ai_model }}
-    {% else %}<strong>키가 없습니다. 아래에서 등록하세요.</strong>{% endif %}
-  </p>
-  <form method="post" action="/admin/ai-analysis/ai-settings" class="ai-key-row">
-    <div>
-      <label for="openai_api_key">API 키</label><br>
-      <input id="openai_api_key" type="password" name="openai_api_key"
-             placeholder="{% if ai_ready %}새 키 입력 시 교체{% else %}sk-...{% endif %}"
-             autocomplete="off" />
+{% set model_options = [
+  ('gpt-6.1-sol', 'GPT-6.1 Sol · 최신 권장(성능·비용 균형)'),
+  ('gpt-6-astra', 'GPT-6 Astra · 최고 성능(복잡한 분석)'),
+  ('gpt-6-luna', 'GPT-6 Luna · 빠르고 저렴'),
+  ('gpt-4.1-mini', 'gpt-4.1-mini · 이전 세대'),
+  ('gpt-4o', 'gpt-4o · 이전 세대'),
+  ('gpt-4o-mini', 'gpt-4o-mini · 이전 세대'),
+] %}
+<div class="ai-app" id="ai-app">
+  <aside class="ai-side" aria-label="AI 분석 메뉴">
+    <div class="ai-side-top">
+      <div class="ai-side-brand"><span class="ai-side-brand-ico">✦</span>AI 분석</div>
+      <button type="button" class="ai-icon-btn" data-side-toggle title="사이드바 닫기" aria-label="사이드바 닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
+      </button>
     </div>
-    <div>
-      <label for="openai_model">모델</label><br>
-      <select id="openai_model" name="openai_model">
-        {% set model_options = [
-          ('gpt-6.1-sol', 'GPT-6.1 Sol · 최신 권장(성능·비용 균형)'),
-          ('gpt-6-astra', 'GPT-6 Astra · 최고 성능(복잡한 분석)'),
-          ('gpt-6-luna', 'GPT-6 Luna · 빠르고 저렴'),
-          ('gpt-4.1-mini', 'gpt-4.1-mini · 이전 세대'),
-          ('gpt-4o', 'gpt-4o · 이전 세대'),
-          ('gpt-4o-mini', 'gpt-4o-mini · 이전 세대'),
-        ] %}
-        {% for value, label in model_options %}
-        <option value="{{ value }}" {% if ai_model == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-        {% if ai_model not in model_options|map('first')|list %}
-        <option value="{{ ai_model }}" selected>{{ ai_model }}</option>
-        {% endif %}
-      </select>
+    <nav class="ai-side-menu">
+      <button type="button" class="ai-side-item" id="ai-chat-new-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        새 채팅
+      </button>
+      <button type="button" class="ai-side-item" id="ai-search-toggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        채팅 검색
+      </button>
+      <a class="ai-side-item" href="/admin/ai-analysis/learning">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z"/><path d="M4 19V5"/><path d="M9 7h6"/></svg>
+        공유 학습 노트
+        <span class="ai-side-badge">{{ ai_lesson_count or 0 }}</span>
+      </a>
+      <button type="button" class="ai-side-item" data-open-settings>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/><path d="m14 9 2 2"/></svg>
+        API 키·모델 설정
+      </button>
+    </nav>
+    <div class="ai-side-search" id="ai-side-search">
+      <input type="search" id="ai-history-search" placeholder="채팅 제목 검색" autocomplete="off" />
     </div>
-    <button type="submit" class="btn btn-primary">키 저장</button>
-    {% if ai_ready %}
-    <button type="submit" name="clear_key" value="1" class="btn btn-secondary">키 삭제</button>
-    {% endif %}
-  </form>
-</section>
-
-<div class="ai-ask-grid">
-  <section class="card ai-ask-panel ai-chat-panel" id="ai-chat-panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap">
-      <h2 style="margin:0">AI 질문 (GPT)</h2>
-      <a class="ai-learn-link" href="/admin/ai-analysis/learning">공유 학습 노트 {{ ai_lesson_count or 0 }}건</a>
-      <button type="button" class="btn btn-sm btn-secondary" id="ai-chat-new-btn">새 대화</button>
+    <div class="ai-side-label">
+      <span>채팅 목록</span>
+      <span id="ai-history-count">{{ gpt_conversations|length }}</span>
     </div>
-    <p class="ai-panel-desc">대화는 계정별로 자동 저장됩니다. 「대화 기록」에서 지난 대화를 열어 다시 보고 이어서 질문할 수 있습니다. 「답변을 엑셀로 정리해줘」라고 하면 표로 내려받을 수 있고, 「~를 그래프로 보여줘」라고 하면 막대·선·원형 그래프를 그려 줍니다(이미지 저장 가능). 답변이 틀리면 👎로 알려 주세요 — 모든 계정이 공유하는 학습 노트에 반영되어 다음 질문부터 고쳐집니다.</p>
+    <div class="ai-side-list" id="ai-history">
+      <div id="ai-history-list"></div>
+      <div class="ai-history-empty" id="ai-history-empty" {% if gpt_conversations %}style="display:none"{% endif %}>저장된 채팅이 없습니다.<br>질문을 보내면 자동으로 저장됩니다.</div>
+    </div>
+    <div class="ai-side-foot">
+      {% if ai_ready %}
+      <span class="ai-dot ok"></span><span>키 연결됨 · {{ ai_model }}</span>
+      {% else %}
+      <span class="ai-dot off"></span><span>API 키 미등록</span>
+      {% endif %}
+    </div>
+  </aside>
+  <div class="ai-side-backdrop" data-side-toggle></div>
 
-    <details class="ai-history" id="ai-history" {% if gpt_conversations %}open{% endif %}>
-      <summary>대화 기록 (<span id="ai-history-count">{{ gpt_conversations|length }}</span>)</summary>
-      <ul class="ai-history-list" id="ai-history-list"></ul>
-      <div class="ai-history-empty" id="ai-history-empty" {% if gpt_conversations %}style="display:none"{% endif %}>저장된 대화가 없습니다. 질문을 보내면 자동 저장됩니다.</div>
-    </details>
+  <section class="ai-main">
+    <header class="ai-main-head">
+      <button type="button" class="ai-icon-btn" data-side-toggle title="채팅 목록" aria-label="채팅 목록 열기/닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="ai-chat-current" id="ai-chat-current">새 채팅</div>
+      <button type="button" class="ai-model-chip" data-open-settings title="모델 변경">{{ ai_model }}</button>
+    </header>
 
-    <div class="ai-chat-current" id="ai-chat-current">새 대화</div>
-
-    {% if not ai_ready %}
-    <div class="ai-chat-key-alert" id="ai-chat-key-alert" role="alert">
-      OpenAI API 키가 없어 GPT 대화를 사용할 수 없습니다.
-      위 <strong>OpenAI API 키</strong> 섹션에서 키를 등록한 뒤 「보내기」를 눌러 주세요.
+    {% if error or info or not ai_ready %}
+    <div class="ai-main-alerts">
+      {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+      {% if info %}<div class="alert alert-success">{{ info }}</div>{% endif %}
+      {% if not ai_ready %}
+      <div class="ai-chat-key-alert" id="ai-chat-key-alert" role="alert">
+        <span>OpenAI API 키가 없어 GPT 대화를 사용할 수 없습니다. 키를 등록한 뒤 질문해 주세요.</span>
+        <button type="button" class="btn btn-sm btn-primary" data-open-settings>API 키 등록</button>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
 
     <div class="ai-chat-messages" id="ai-chat-messages" aria-live="polite">
-      <div class="ai-chat-empty" id="ai-chat-empty">질문을 입력하면 대화가 시작됩니다.</div>
+      <div class="ai-chat-empty" id="ai-chat-empty">
+        <div class="ai-welcome-ico">✦</div>
+        <h1 class="ai-welcome-title">무엇을 분석해 드릴까요?</h1>
+        <p class="ai-welcome-desc">
+          Smart FMS 전체 DB(사업장·건물·설비·정비·PM·D-1·점검일지·자재·공지·일정 등)를 조회해 답합니다.
+          「엑셀로 정리해줘」라고 하면 표로 내려받고, 「그래프로 보여줘」라고 하면 막대·선·원형 그래프를 그려 줍니다.
+          답변이 틀리면 👎로 알려 주세요 — 공유 학습 노트에 반영되어 다음 질문부터 고쳐집니다.
+        </p>
+        <div class="ai-ex-list">
+          {% for ex in examples_ai %}
+          <button type="button" class="ai-ex-btn" data-target="question_ai" data-q="{{ ex }}">{{ ex }}</button>
+          {% endfor %}
+        </div>
+      </div>
     </div>
 
-    <div id="ai-chat-evidence-wrap" style="display:none;margin-bottom:0.75rem">
+    <div class="ai-evidence" id="ai-chat-evidence-wrap" style="display:none">
       <details>
-        <summary class="text-muted" style="cursor:pointer;font-size:0.88rem">첫 답변에 사용한 집계 근거</summary>
-        <pre class="ai-answer-box" id="ai-chat-evidence" style="margin-top:0.5rem;max-height:200px;overflow:auto"></pre>
+        <summary class="text-muted" style="cursor:pointer;font-size:0.84rem">첫 답변에 사용한 집계 근거</summary>
+        <pre class="ai-answer-box" id="ai-chat-evidence" style="margin-top:0.5rem;max-height:180px;overflow:auto"></pre>
       </details>
     </div>
 
-    <div class="ai-chat-input-row">
-      <label for="question_ai">메시지</label>
-      <textarea id="question_ai" rows="3"
-                placeholder="예: 2026년 주택변전소 8월 전력사용량 알려줘"></textarea>
-      <div class="ai-ask-actions">
-        <button type="button" class="btn btn-primary" id="ai-chat-send-btn">보내기</button>
+    <div class="ai-composer-wrap">
+      <div class="ai-composer">
+        <label for="question_ai" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">메시지</label>
+        <textarea id="question_ai" rows="1" placeholder="무엇이든 물어보세요 (예: 2026년 주택변전소 8월 전력사용량 알려줘)"></textarea>
+        <button type="button" class="ai-send-btn" id="ai-chat-send-btn" title="보내기" aria-label="보내기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+        </button>
       </div>
-      <div class="ai-chat-status" id="ai-chat-status"></div>
-    </div>
-
-    <div class="ai-examples">
-      <p class="text-muted" style="margin-bottom:0.4rem;font-size:0.85rem">예시</p>
-      <div class="ai-ex-list">
-        {% for ex in examples_ai %}
-        <button type="button" class="btn btn-sm btn-secondary ai-ex-btn" data-target="question_ai" data-q="{{ ex }}">{{ ex }}</button>
-        {% endfor %}
+      <div class="ai-composer-foot">
+        <div class="ai-chat-status" id="ai-chat-status"></div>
+        <span class="ai-composer-hint">Enter 보내기 · Shift+Enter 줄바꿈</span>
       </div>
     </div>
   </section>
 </div>
-</div>
+
+<dialog class="ai-dlg" id="ai-settings-dlg">
+  <div class="ai-dlg-head">
+    <h2>OpenAI API 키 · 모델</h2>
+    <button type="button" class="ai-icon-btn" data-close-settings aria-label="닫기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="ai-dlg-body">
+    <p>
+      AI 질문은 계정에 저장된 키로 GPT를 호출합니다.
+      {% if ai_ready %}현재 키: {{ ai_key_masked }} · 모델 {{ ai_model }}
+      {% else %}<strong>키가 없습니다. 아래에서 등록하세요.</strong>{% endif %}
+    </p>
+    <form method="post" action="/admin/ai-analysis/ai-settings" class="ai-key-row">
+      <div>
+        <label for="openai_api_key">API 키</label>
+        <input id="openai_api_key" type="password" name="openai_api_key"
+               placeholder="{% if ai_ready %}새 키 입력 시 교체{% else %}sk-...{% endif %}"
+               autocomplete="off" />
+      </div>
+      <div>
+        <label for="openai_model">모델</label>
+        <select id="openai_model" name="openai_model">
+          {% for value, label in model_options %}
+          <option value="{{ value }}" {% if ai_model == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+          {% if ai_model not in model_options|map('first')|list %}
+          <option value="{{ ai_model }}" selected>{{ ai_model }}</option>
+          {% endif %}
+        </select>
+      </div>
+      <div class="ai-key-actions">
+        {% if ai_ready %}
+        <button type="submit" name="clear_key" value="1" class="btn btn-secondary">키 삭제</button>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</dialog>
 
 <script src="/static/vendor/chart.umd.min.js?v=4.4.4"></script>
 <script src="/static/js/ai_chat_render.js?v=1"></script>
@@ -376,16 +441,40 @@
   var currentConvId = {{ gpt_conversation_id | tojson }};
   var aiReady = {{ 'true' if ai_ready else 'false' }};
 
-  document.querySelectorAll('.ai-ex-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var id = btn.getAttribute('data-target');
-      var ta = id ? document.getElementById(id) : null;
-      if (ta) {
-        ta.value = btn.getAttribute('data-q') || '';
-        ta.focus();
-      }
-    });
+  var appEl = document.getElementById('ai-app');
+  var settingsDlg = document.getElementById('ai-settings-dlg');
+  var narrowMq = window.matchMedia('(max-width: 900px)');
+
+  function toggleSide(force) {
+    if (!appEl) return;
+    if (narrowMq.matches) {
+      appEl.classList.toggle('side-open', force);
+    } else {
+      var collapsed = appEl.classList.toggle('side-collapsed', force === undefined ? undefined : !force);
+      try { localStorage.setItem('ai.sideCollapsed', collapsed ? '1' : '0'); } catch (_e) {}
+    }
+  }
+  try { if (localStorage.getItem('ai.sideCollapsed') === '1' && !narrowMq.matches) appEl.classList.add('side-collapsed'); } catch (_e) {}
+  document.querySelectorAll('[data-side-toggle]').forEach(function (b) {
+    b.addEventListener('click', function () { toggleSide(); });
   });
+
+  function openSettings() {
+    if (!settingsDlg) return;
+    if (typeof settingsDlg.showModal === 'function') settingsDlg.showModal();
+    else settingsDlg.setAttribute('open', '');
+    var keyInput = document.getElementById('openai_api_key');
+    if (keyInput) keyInput.focus();
+  }
+  document.querySelectorAll('[data-open-settings]').forEach(function (b) {
+    b.addEventListener('click', openSettings);
+  });
+  document.querySelectorAll('[data-close-settings]').forEach(function (b) {
+    b.addEventListener('click', function () { settingsDlg.close(); });
+  });
+  if (settingsDlg) {
+    settingsDlg.addEventListener('click', function (e) { if (e.target === settingsDlg) settingsDlg.close(); });
+  }
 
   var messagesEl = document.getElementById('ai-chat-messages');
   var emptyEl = document.getElementById('ai-chat-empty');
@@ -397,17 +486,26 @@
   var evidenceEl = document.getElementById('ai-chat-evidence');
   var sending = false;
   var keyAlertEl = document.getElementById('ai-chat-key-alert');
-  var keySectionEl = document.querySelector('.ai-key-row');
+
+  function autoGrow() {
+    if (!inputEl) return;
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+  }
+
+  document.querySelectorAll('.ai-ex-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!inputEl) return;
+      inputEl.value = btn.getAttribute('data-q') || '';
+      autoGrow();
+      inputEl.focus();
+    });
+  });
 
   function showKeyRequired() {
-    var msg = 'OpenAI API 키가 없습니다. 페이지 상단 「OpenAI API 키」에서 sk-... 키를 등록한 뒤 다시 시도하세요.';
-    setStatus(msg, 'error');
-    if (keyAlertEl) {
-      keyAlertEl.style.display = '';
-      keyAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } else if (keySectionEl) {
-      keySectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    setStatus('OpenAI API 키가 없습니다. 「API 키·모델 설정」에서 sk-... 키를 등록한 뒤 다시 시도하세요.', 'error');
+    if (keyAlertEl) keyAlertEl.style.display = '';
+    openSettings();
   }
 
   function setStatus(text, cls) {
@@ -429,13 +527,6 @@
       statusEl.appendChild(spin);
     }
     statusEl.appendChild(document.createTextNode(text || ''));
-  }
-
-  function escapeHtml(s) {
-    return String(s || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
   }
 
   function fbButton(label) {
@@ -547,11 +638,14 @@
     }
   }
 
-  var historyEl = document.getElementById('ai-history');
   var historyListEl = document.getElementById('ai-history-list');
   var historyEmptyEl = document.getElementById('ai-history-empty');
   var historyCountEl = document.getElementById('ai-history-count');
   var currentEl = document.getElementById('ai-chat-current');
+  var searchWrap = document.getElementById('ai-side-search');
+  var searchInput = document.getElementById('ai-history-search');
+  var searchToggle = document.getElementById('ai-search-toggle');
+  var searchText = '';
 
   function currentConversation() {
     for (var i = 0; i < conversations.length; i++) {
@@ -563,7 +657,7 @@
   function setCurrent(id) {
     currentConvId = id || null;
     var conv = currentConversation();
-    if (currentEl) currentEl.textContent = conv ? '현재 대화: ' + conv.title : '새 대화';
+    if (currentEl) currentEl.textContent = conv ? conv.title : '새 채팅';
     var url = new URL(window.location.href);
     if (currentConvId) url.searchParams.set('conv', currentConvId);
     else url.searchParams.delete('conv');
@@ -577,12 +671,51 @@
     conversations.unshift(conv);
   }
 
+  function dateGroup(text) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(text || '');
+    if (!m) return '이전';
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var diff = Math.round((today - d) / 86400000);
+    if (diff <= 0) return '오늘';
+    if (diff === 1) return '어제';
+    if (diff <= 7) return '지난 7일';
+    if (diff <= 30) return '지난 30일';
+    return '이전';
+  }
+
+  var ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  var ICON_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg>';
+
   function renderHistory() {
     if (!historyListEl) return;
     historyListEl.innerHTML = '';
     if (historyCountEl) historyCountEl.textContent = conversations.length;
-    if (historyEmptyEl) historyEmptyEl.style.display = conversations.length ? 'none' : '';
-    conversations.forEach(function (c) {
+    var q = searchText.toLowerCase();
+    var shown = conversations.filter(function (c) {
+      return !q || String(c.title || '').toLowerCase().indexOf(q) !== -1;
+    });
+    if (historyEmptyEl) {
+      historyEmptyEl.style.display = shown.length ? 'none' : '';
+      historyEmptyEl.innerHTML = conversations.length
+        ? '검색 결과가 없습니다.'
+        : '저장된 채팅이 없습니다.<br>질문을 보내면 자동으로 저장됩니다.';
+    }
+    var lastGroup = null;
+    var ul = null;
+    shown.forEach(function (c) {
+      var group = dateGroup(c.updated_at);
+      if (group !== lastGroup) {
+        var gh = document.createElement('div');
+        gh.className = 'ai-history-group';
+        gh.textContent = group;
+        historyListEl.appendChild(gh);
+        ul = document.createElement('ul');
+        ul.className = 'ai-history-list';
+        historyListEl.appendChild(ul);
+        lastGroup = group;
+      }
       var li = document.createElement('li');
       li.className = 'ai-history-item' + (c.id === currentConvId ? ' active' : '');
       li.setAttribute('data-id', c.id);
@@ -594,23 +727,43 @@
       title.textContent = c.title;
       var meta = document.createElement('div');
       meta.className = 'ai-history-meta';
-      meta.textContent = c.updated_at + ' · 메시지 ' + c.count + '개' + (c.model ? ' · ' + c.model : '');
+      meta.textContent = c.updated_at + ' · ' + c.count + '개';
       main.appendChild(title);
       main.appendChild(meta);
       var rename = document.createElement('button');
       rename.type = 'button';
       rename.className = 'ai-history-btn';
       rename.setAttribute('data-act', 'rename');
-      rename.textContent = '이름';
+      rename.title = '이름 변경';
+      rename.innerHTML = ICON_EDIT;
       var del = document.createElement('button');
       del.type = 'button';
-      del.className = 'ai-history-btn';
+      del.className = 'ai-history-btn danger';
       del.setAttribute('data-act', 'delete');
-      del.textContent = '삭제';
+      del.title = '삭제';
+      del.innerHTML = ICON_DEL;
       li.appendChild(main);
       li.appendChild(rename);
       li.appendChild(del);
-      historyListEl.appendChild(li);
+      ul.appendChild(li);
+    });
+  }
+
+  if (searchToggle && searchWrap) {
+    searchToggle.addEventListener('click', function () {
+      var open = searchWrap.classList.toggle('open');
+      if (open && searchInput) searchInput.focus();
+      if (!open && searchInput && searchInput.value) {
+        searchInput.value = '';
+        searchText = '';
+        renderHistory();
+      }
+    });
+  }
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      searchText = (searchInput.value || '').trim();
+      renderHistory();
     });
   }
 
@@ -633,6 +786,7 @@
       if (evidenceWrap) evidenceWrap.style.display = 'none';
       setCurrent(data.conversation.id);
       setStatus('이전 대화를 불러왔습니다. 이어서 질문하면 이 대화에 계속 저장됩니다.');
+      if (narrowMq.matches) toggleSide(false);
       if (inputEl) inputEl.focus();
     } catch (e) {
       setStatus(e.message || '대화를 불러오지 못했습니다.', 'error');
@@ -678,7 +832,8 @@
       var item = e.target.closest('.ai-history-item');
       if (!item) return;
       var id = Number(item.getAttribute('data-id'));
-      var act = e.target.getAttribute('data-act');
+      var btn = e.target.closest('[data-act]');
+      var act = btn ? btn.getAttribute('data-act') : null;
       if (act === 'rename') renameConversation(id);
       else if (act === 'delete') deleteConversation(id);
       else openConversation(id);
@@ -720,8 +875,8 @@
       renderMessages(data.messages || []);
       upsertConversation(data.conversation);
       setCurrent(data.conversation_id);
-      if (historyEl) historyEl.open = true;
       inputEl.value = '';
+      autoGrow();
       if (data.evidence && evidenceWrap && evidenceEl) {
         evidenceWrap.style.display = '';
         evidenceEl.textContent = data.evidence;
@@ -735,7 +890,7 @@
         download.remove();
         setStatus('엑셀 파일 다운로드를 시작했습니다.');
       } else {
-        setStatus('답변 완료. 이어서 질문하거나 「새 대화」를 누르세요.');
+        setStatus('답변 완료. 이어서 질문하거나 「새 채팅」을 누르세요.');
       }
     } catch (_e) {
       setStatus('통신 오류가 발생했습니다.', 'error');
@@ -753,15 +908,17 @@
     }
     sending = true;
     if (sendBtn) sendBtn.disabled = true;
-    setStatus('새 대화를 시작합니다…', 'saving');
+    setStatus('새 채팅을 시작합니다…', 'saving');
     try {
       await chatRequest({ reset: true });
       renderMessages([]);
       setCurrent(null);
-      if (inputEl) inputEl.value = '';
+      if (inputEl) { inputEl.value = ''; autoGrow(); }
       if (evidenceWrap) evidenceWrap.style.display = 'none';
       if (evidenceEl) evidenceEl.textContent = '';
-      setStatus('새 대화를 시작할 수 있습니다. 이전 대화는 「대화 기록」에 저장돼 있습니다.');
+      setStatus('');
+      if (narrowMq.matches) toggleSide(false);
+      if (inputEl) inputEl.focus();
     } catch (_e) {
       setStatus('초기화에 실패했습니다.', 'error');
     } finally {
@@ -773,8 +930,9 @@
   if (sendBtn) sendBtn.addEventListener('click', sendMessage);
   if (newBtn) newBtn.addEventListener('click', newConversation);
   if (inputEl) {
+    inputEl.addEventListener('input', autoGrow);
     inputEl.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         sendMessage();
       }
