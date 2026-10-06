@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/steelworks_hq.css?v=2" />
+<link rel="stylesheet" href="/static/css/steelworks_hq.css?v=3" />
 {% endblock %}
 {% block content %}
 {% set label_module = 'steelworks_hq' %}{% include "_ilog2_label_edit.html" %}
@@ -567,10 +567,10 @@
               <tr>
                 <th class="sw-time-label">내용</th>
                 <td class="sw-data-cell sw-notes-cell">
-                  <input type="text"
-                         name="f__notes__text"
-                         value="{{ fac_data.get('notes', '') }}"
-                         class="sw-cell sw-note sw-facility-notes" />
+                  <textarea name="f__notes__text"
+                            rows="4"
+                            class="sw-facility-notes"
+                            placeholder="특이사항 입력 (Enter로 줄바꿈 · 내용이 길어지면 칸이 아래로 늘어납니다)">{{ fac_data.get('notes', '') }}</textarea>
                 </td>
               </tr>
             </tbody>
@@ -597,7 +597,7 @@
 </section>
 {% if can_write %}
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-<script src="/static/js/steelworks_hq.js?v=2"></script>
+<script src="/static/js/steelworks_hq.js?v=3"></script>
 {% endif %}
 
 {% elif tab == 'monthly' %}

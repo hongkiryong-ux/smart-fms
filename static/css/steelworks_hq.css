@@ -204,6 +204,28 @@
   text-align: left;
 }
 
+.sw-notes-cell .sw-facility-notes {
+  display: block;
+  width: 100%;
+  min-height: 6.2em;
+  border: none;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-wrap;
+  padding: 0.3rem 0.4rem;
+  color: #000;
+}
+
+.sw-notes-cell .sw-facility-notes:focus {
+  outline: 2px solid #003876;
+  background: #f0f8ff;
+}
+
 .sw-notes-list {
   display: flex;
   flex-direction: column;

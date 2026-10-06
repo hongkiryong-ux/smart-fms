@@ -8206,4 +8206,5 @@ tr.wo-row-selected {
 .ilog-notes-text {
   width: 100%;
   word-break: break-word;
+  white-space: pre-wrap;
 }

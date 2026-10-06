@@ -173,6 +173,23 @@
     el.addEventListener("blur", scheduleSave);
   });
 
+  function autoGrow(ta) {
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + 2 + "px";
+  }
+
+  form.querySelectorAll("textarea.sw-facility-notes").forEach(function (ta) {
+    autoGrow(ta);
+    ta.addEventListener("input", function () {
+      autoGrow(ta);
+      notifyDirty();
+    });
+    ta.addEventListener("blur", scheduleSave);
+  });
+  window.addEventListener("resize", function () {
+    form.querySelectorAll("textarea.sw-facility-notes").forEach(autoGrow);
+  });
+
   function setupDragSelect(table) {
     const grid = [];
     const cellMap = new Map();
@@ -337,6 +354,7 @@
   }
 
   form.addEventListener("paste", function (e) {
+    if (e.target && e.target.tagName === "TEXTAREA") return;
     const text = e.clipboardData && e.clipboardData.getData("text/plain");
     if (!isGridPasteText(text)) return;
     const sel = findSelectorForTarget(e.target);
@@ -345,7 +363,7 @@
 
   document.addEventListener("keydown", function (e) {
     if (e.key === "Delete" || e.key === "Backspace") {
-      if (e.target && e.target.matches && e.target.matches("input:not(.sw-cell)")) return;
+      if (e.target && e.target.matches && e.target.matches("input:not(.sw-cell), textarea")) return;
       let total = 0;
       selectors.forEach(function (sel) {
         total += sel.selected.size;

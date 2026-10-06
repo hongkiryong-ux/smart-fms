@@ -816,7 +816,7 @@ def parse_daily_form(form) -> dict:
                 uid, slot, field = parts[2], parts[3], parts[4]
                 data["facility"]["chiller"].setdefault(uid, {}).setdefault(slot, {})[field] = raw
             elif sec == "notes":
-                data["facility"]["notes"] = raw
+                data["facility"]["notes"] = raw.replace("\r\n", "\n").replace("\r", "\n")
     return data
 
 
@@ -1403,6 +1403,13 @@ def _write_facility_sheet(ws, data: dict) -> None:
 
     notes = fac.get("notes")
     _write_cell(ws, "D48", notes)
+    if notes:
+        from openpyxl.styles import Alignment
+
+        cell = _safe_cell(ws, "D48")
+        cell.alignment = Alignment(wrap_text=True, vertical="top", horizontal="left")
+        lines = str(notes).count("\n") + 1
+        ws.row_dimensions[cell.row].height = max(ws.row_dimensions[cell.row].height or 15, 15 * max(4, lines))
 
 
 def export_daily_to_excel(data: dict, log_date: date) -> bytes:
