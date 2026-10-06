@@ -291,7 +291,7 @@ async def library_category_view(
         await db.execute(
             select(LibraryFolder)
             .where(LibraryFolder.category_id == cat.id, parent_cond)
-            .order_by(LibraryFolder.name, LibraryFolder.id)
+            .order_by(LibraryFolder.id)
         )
     ).scalars().all()
     stats = await _folder_stats(db, [f.id for f in subfolders])

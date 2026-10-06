@@ -57,8 +57,16 @@
     {% endif %}
   </div>
 
+  {% if can_create %}
+  <form method="post" action="/admin/library/category/{{ category.id }}/folders" class="lib-inline-form lib-new-folder">
+    <input type="hidden" name="parent_id" value="{{ current.id if current else 0 }}" />
+    <input type="text" name="name" maxlength="200" placeholder="{% if current %}「{{ current.name }}」 안에 새 폴더{% else %}새 폴더 이름{% endif %}" required />
+    <button type="submit" class="btn btn-secondary">＋ 폴더 만들기</button>
+  </form>
+  {% endif %}
+
   {% if subfolders %}
-  <ul class="lib-folder-grid">
+  <ul class="lib-folder-list">
     {% for fd in subfolders %}
     {% set st = folder_stats.get(fd.id, {}) %}
     <li class="lib-folder">
@@ -66,6 +74,7 @@
         <span class="lib-folder-ico" aria-hidden="true">📁</span>
         <span class="lib-folder-name">{{ fd.name }}</span>
         <span class="lib-folder-meta">{% if st.folders %}폴더 {{ st.folders }} · {% endif %}자료 {{ st.files or 0 }}</span>
+        <span class="lib-folder-by">{{ fd.created_by or '-' }} · {{ fmt_kst_date(fd.created_at) }}</span>
       </a>
       {% if can_manage_folder(fd) %}
       <details class="lib-folder-tools">
@@ -84,15 +93,7 @@
     {% endfor %}
   </ul>
   {% elif not current %}
-  <p class="text-muted">아직 폴더가 없습니다.{% if can_create %} 아래에서 폴더를 만든 뒤 자료를 등록하세요.{% endif %}</p>
-  {% endif %}
-
-  {% if can_create %}
-  <form method="post" action="/admin/library/category/{{ category.id }}/folders" class="lib-inline-form lib-new-folder">
-    <input type="hidden" name="parent_id" value="{{ current.id if current else 0 }}" />
-    <input type="text" name="name" maxlength="200" placeholder="{% if current %}「{{ current.name }}」 안에 새 폴더{% else %}새 폴더 이름{% endif %}" required />
-    <button type="submit" class="btn btn-secondary">＋ 폴더 만들기</button>
-  </form>
+  <p class="text-muted">아직 폴더가 없습니다.{% if can_create %} 위에서 폴더를 만든 뒤 자료를 등록하세요.{% endif %}</p>
   {% endif %}
 </section>
 

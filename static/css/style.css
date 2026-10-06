@@ -5400,8 +5400,71 @@ body.wo-col-resizing {
   min-width: 0;
 }
 .lib-new-folder {
-  margin-top: 1rem;
+  margin-bottom: 0.9rem;
   max-width: 34rem;
+}
+.lib-folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+}
+.lib-folder-list .lib-folder + .lib-folder {
+  border-top: 1px solid #e5e9f0;
+}
+.lib-folder-list .lib-folder-link {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 2.6rem 0.6rem 0.9rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.lib-folder-list .lib-folder-link:hover {
+  background: #f1f5fb;
+  box-shadow: none;
+}
+.lib-folder-list .lib-folder:first-child .lib-folder-link {
+  border-radius: 10px 10px 0 0;
+}
+.lib-folder-list .lib-folder:last-child .lib-folder-link {
+  border-radius: 0 0 10px 10px;
+}
+.lib-folder-list .lib-folder:only-child .lib-folder-link {
+  border-radius: 10px;
+}
+.lib-folder-list .lib-folder-ico {
+  font-size: 1.2rem;
+}
+.lib-folder-list .lib-folder-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.lib-folder-list .lib-folder-meta,
+.lib-folder-list .lib-folder-by {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+.lib-folder-list .lib-folder-by {
+  min-width: 9rem;
+  text-align: right;
+}
+.lib-folder-list .lib-folder-tools {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.lib-folder-list .lib-folder-tools[open] {
+  transform: none;
+  top: 0.3rem;
+}
+@media (max-width: 700px) {
+  .lib-folder-list .lib-folder-by {
+    display: none;
+  }
 }
 #lib-manage .lib-inline-form {
   margin-bottom: 0.9rem;
