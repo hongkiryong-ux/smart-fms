@@ -108,32 +108,31 @@
     <p class="text-muted lib-upload-hint">여러 파일을 한 번에 선택할 수 있습니다 · 파일당 최대 {{ max_file_mb }}MB · 한 번에 {{ max_files }}개까지</p>
   </form>
   {% endif %}
-  <table class="data-table lib-file-table">
-    <thead><tr><th>자료</th><th style="width:6rem;">크기</th><th style="width:9rem;">등록</th><th style="width:9rem;">관리</th></tr></thead>
-    <tbody>
-      {% for f in files %}
-      <tr>
-        <td>
-          <a href="/admin/library/file/{{ f.id }}?inline=1" target="_blank" rel="noopener">{{ f.original_name }}</a>
-          {% if f.note %}<div class="text-muted lib-note">{{ f.note }}</div>{% endif %}
-        </td>
-        <td>{{ f.file_size|lib_size }}</td>
-        <td>{{ f.uploaded_by or '-' }}<div class="text-muted">{{ fmt_kst_date(f.created_at) }}</div></td>
-        <td class="row-actions">
-          <a class="link-action" href="/admin/library/file/{{ f.id }}">다운로드</a>
-          {% if can_delete_file(f) %}
-          <form method="post" action="/admin/library/file/{{ f.id }}/delete" class="inline-form"
-                onsubmit="return confirm('「{{ f.original_name }}」 자료를 삭제할까요?');">
-            <button type="submit" class="link-action link-danger">삭제</button>
-          </form>
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="4" class="empty">이 폴더에 등록된 자료가 없습니다.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if files %}
+  <ul class="lib-file-list">
+    {% for f in files %}
+    {% set ext = (f.original_name.rsplit('.', 1)[-1] if '.' in f.original_name else '')|lower %}
+    <li class="lib-file">
+      <span class="lib-file-ico" aria-hidden="true">{% if ext in ('jpg','jpeg','png','gif','webp','bmp') %}🖼️{% elif ext == 'pdf' %}📕{% elif ext in ('xls','xlsx','csv') %}📊{% elif ext in ('doc','docx','hwp','hwpx','txt') %}📝{% elif ext in ('ppt','pptx') %}📙{% elif ext in ('dwg','dxf') %}📐{% elif ext in ('zip','7z','rar') %}🗜️{% else %}📄{% endif %}</span>
+      <a class="lib-file-name" href="/admin/library/file/{{ f.id }}?inline=1" target="_blank" rel="noopener" title="{{ f.original_name }}">{{ f.original_name }}</a>
+      <span class="lib-file-note" title="{{ f.note or '' }}">{{ f.note or '' }}</span>
+      <span class="lib-file-size">{{ f.file_size|lib_size }}</span>
+      <span class="lib-file-by">{{ f.uploaded_by or '-' }} · {{ fmt_kst_date(f.created_at) }}</span>
+      <span class="lib-file-actions">
+        <a class="link-action" href="/admin/library/file/{{ f.id }}">다운로드</a>
+        {% if can_delete_file(f) %}
+        <form method="post" action="/admin/library/file/{{ f.id }}/delete" class="inline-form"
+              onsubmit="return confirm('「{{ f.original_name }}」 자료를 삭제할까요?');">
+          <button type="submit" class="link-action link-danger">삭제</button>
+        </form>
+        {% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-muted">이 폴더에 등록된 자료가 없습니다.</p>
+  {% endif %}
 </section>
 {% endif %}
 {% endblock %}
