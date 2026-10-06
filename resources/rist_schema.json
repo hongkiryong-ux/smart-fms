@@ -47,7 +47,7 @@
     ],
     "buildings": [
       {"id": "lab", "label": "연구동", "times": ["t1", "t2"], "meter": true, "tr": true},
-      {"id": "exp", "label": "실험동", "times": ["t1", "t2"], "meter": false, "tr": false}
+      {"id": "exp", "label": "실험동", "times": ["t1", "t2"], "meter": false, "tr": "single"}
     ]
   },
   "solar": {

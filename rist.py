@@ -605,11 +605,14 @@ def _extra_sheets(schema: dict, data: dict) -> list[tuple[str, list[str], list[l
     for b in elec.get("buildings") or []:
         allowed = set(_elec_field_ids(schema, b))
         block = (data.get("elec") or {}).get(b["id"]) or {}
-        for t in b.get("times") or []:
+        for idx, t in enumerate(b.get("times") or []):
             cell = block.get(t) or {}
+            row_allowed = allowed
+            if b.get("tr") == "single" and idx > 0:
+                row_allowed = allowed - {f["id"] for f in tr_fields}
             rows.append(
                 [_label(b), cell.get("time", "")]
-                + [cell.get(f["id"], "") if f["id"] in allowed else "-" for f in elec_fields]
+                + [cell.get(f["id"], "") if f["id"] in row_allowed else "-" for f in elec_fields]
             )
     sheets.append((_label(elec, "title") or "전기", headers, rows))
 

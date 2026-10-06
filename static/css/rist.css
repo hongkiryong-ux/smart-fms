@@ -241,6 +241,15 @@ th.rs-time-col {
   background: #f3f4f6;
 }
 
+.rs-tr-single {
+  vertical-align: middle;
+}
+
+.rs-tr-single .rs-cell {
+  min-height: 3.6rem;
+  font-weight: 600;
+}
+
 .rs-standard {
   color: #555;
   font-size: .72rem;
