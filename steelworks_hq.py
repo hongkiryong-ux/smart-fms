@@ -45,7 +45,10 @@ _FAC_UTILITY_ROWS = {
     "water_main": 11,
 }
 _FAC_HEATING_ROWS = {"b1": 17, "b3": 18}
+_FAC_TANK_ROWS = {"b1": 18, "health": 20}
 _FAC_FIRE_ROWS = {"b1": 20, "b3": 21}
+_FAC_OUTDOOR_TEMP_CELLS = {"09:50": ("C26", "C29"), "13:30": ("C27", "C30")}
+_CHILLER_STD_ROW = 37
 _FAC_AHU_ROWS = {"09:50": 23, "13:30": 24}
 _FAC_AHU_COLS = {
     "AHU-1": ("E", "F"),
@@ -168,25 +171,27 @@ def _empty_facility_payload(fac: dict | None = None) -> dict[str, Any]:
             "today": "",
             "daily": "",
             "monthly": "",
+            "peak": "",
             "prev_manual": False,
         }
         for row in (fac.get("utility") or {}).get("rows") or []
     }
     heating = {
         row["id"]: {
+            "time": "",
             "supply_temp": "",
             "return_temp": "",
             "supply_pressure": "",
             "return_pressure": "",
-            "location": "",
-            "location_temp": "",
-            "location_pressure": "",
         }
         for row in (fac.get("heating") or {}).get("rows") or []
     }
-    heating["_tank"] = {"tank": "", "level": ""}
+    tank = {
+        row["id"]: {"temp": "", "pressure": ""}
+        for row in (fac.get("tank") or {}).get("rows") or []
+    }
     fire = {
-        row["id"]: {"time": "", "pressure": ""}
+        row["id"]: {"time": row.get("time", ""), "pressure": "", "reservoir": ""}
         for row in (fac.get("fire") or {}).get("rows") or []
     }
     ahu_times = (fac.get("ahu") or {}).get("times") or []
@@ -197,7 +202,10 @@ def _empty_facility_payload(fac: dict | None = None) -> dict[str, Any]:
     outdoor_times = (fac.get("outdoor") or {}).get("times") or []
     outdoor_groups = (fac.get("outdoor") or {}).get("groups") or []
     outdoor = {
-        t: {g["id"]: {f: "" for f in g.get("fields") or []} for g in outdoor_groups}
+        t: {
+            "_out": {"temp": ""},
+            **{g["id"]: {f: "" for f in g.get("fields") or []} for g in outdoor_groups},
+        }
         for t in outdoor_times
     }
     chiller: dict[str, Any] = {}
@@ -212,6 +220,7 @@ def _empty_facility_payload(fac: dict | None = None) -> dict[str, Any]:
     return {
         "utility": utility,
         "heating": heating,
+        "tank": tank,
         "fire": fire,
         "ahu": ahu,
         "outdoor": outdoor,
@@ -380,6 +389,17 @@ def _incoming_meter_today(data: dict, meter_id: str) -> str:
     return ""
 
 
+def _incoming_current_peak(data: dict, current_col: str) -> str:
+    """수전 블록 전 시간대 전류 중 최대값 → 설비 utility Peak[A]."""
+    times = (((data.get("electrical") or {}).get("incoming") or {}).get("times") or {})
+    vals = [
+        v
+        for v in (_parse_num((cells or {}).get(current_col)) for cells in times.values())
+        if v is not None
+    ]
+    return _fmt_num(max(vals)) if vals else ""
+
+
 def compute_dashboard_incoming_power(
     daily_rows: list[SteelworksHqDaily],
     target_date: date,
@@ -491,8 +511,15 @@ def recompute_daily(
     fac = data.setdefault("facility", _empty_facility_payload())
     utility = fac.setdefault("utility", {})
     prev_monthly = prev_utility_monthly or {}
+    peak_cols = {
+        r["id"]: r["peak_col"]
+        for r in (_facility_schema().get("utility") or {}).get("rows") or []
+        if r.get("peak_col")
+    }
 
     for uid, row in utility.items():
+        if uid in peak_cols:
+            row["peak"] = _incoming_current_peak(data, peak_cols[uid])
         if uid in ("pwr1", "pwr2"):
             mid = "m_J" if uid == "pwr1" else "m_S"
             auto = _incoming_meter_today(data, mid)
@@ -597,6 +624,12 @@ async def sync_prev_values(
                     row["prev"] = pt
                     changed = True
 
+        prev_std = ((prev_row.data.get("facility") or {}).get("chiller") or {}).get("_std")
+        chiller = merged.setdefault("facility", {}).setdefault("chiller", {})
+        if prev_std and "_std" not in chiller:
+            chiller["_std"] = deepcopy(prev_std)
+            changed = True
+
     recomputed = recompute_daily(merged, prev_monthly_map)
     if recomputed != merged:
         changed = True
@@ -648,7 +681,7 @@ def merge_daily_save(
                     row[k] = bool(v) if isinstance(v, bool) else v == "1"
                 else:
                     row[k] = v
-        for sec in ("heating", "fire", "ahu", "outdoor", "chiller"):
+        for sec in ("heating", "tank", "fire", "ahu", "outdoor", "chiller"):
             sec_post = fac_post.get(sec)
             if not sec_post:
                 continue
@@ -763,6 +796,9 @@ def parse_daily_form(form) -> dict:
             elif sec == "heating" and len(parts) >= 4:
                 rid, field = parts[2], parts[3]
                 data["facility"]["heating"].setdefault(rid, {})[field] = raw
+            elif sec == "tank" and len(parts) >= 4:
+                rid, field = parts[2], parts[3]
+                data["facility"]["tank"].setdefault(rid, {})[field] = raw
             elif sec == "fire" and len(parts) >= 4:
                 rid, field = parts[2], parts[3]
                 data["facility"]["fire"].setdefault(rid, {})[field] = raw
@@ -1277,26 +1313,31 @@ def _write_facility_sheet(ws, data: dict) -> None:
         _write_cell(ws, f"H{row_idx}", row.get("today"))
         _write_cell(ws, f"J{row_idx}", row.get("daily"))
         _write_cell(ws, f"L{row_idx}", row.get("monthly"))
+        _write_cell(ws, f"N{row_idx}", row.get("peak"))
+        _write_cell(ws, f"P{row_idx}", row.get("notes"))
 
     heating = fac.get("heating") or {}
-    tank = heating.get("_tank") or {}
-    _write_cell(ws, "E19", tank.get("tank"))
-    _write_cell(ws, "H19", tank.get("level"))
     for rid, row_idx in _FAC_HEATING_ROWS.items():
         h = heating.get(rid) or {}
+        _write_cell(ws, f"D{row_idx}", h.get("time"))
         _write_cell(ws, f"E{row_idx}", h.get("supply_temp"))
         _write_cell(ws, f"F{row_idx}", h.get("return_temp"))
         _write_cell(ws, f"H{row_idx}", h.get("supply_pressure"))
         _write_cell(ws, f"J{row_idx}", h.get("return_pressure"))
-        _write_cell(ws, f"L{row_idx}", h.get("location"))
-        _write_cell(ws, f"N{row_idx}", h.get("location_temp"))
-        _write_cell(ws, f"O{row_idx}", h.get("location_pressure"))
 
+    tank = fac.get("tank") or {}
+    for rid, row_idx in _FAC_TANK_ROWS.items():
+        t = tank.get(rid) or {}
+        _write_cell(ws, f"N{row_idx}", t.get("temp"))
+        _write_cell(ws, f"O{row_idx}", t.get("pressure"))
+
+    fire_rows = {r["id"]: r for r in (_facility_schema().get("fire") or {}).get("rows") or []}
     fire = fac.get("fire") or {}
     for rid, row_idx in _FAC_FIRE_ROWS.items():
         f = fire.get(rid) or {}
-        _write_cell(ws, f"D{row_idx}", f.get("time"))
-        _write_cell(ws, f"H{row_idx}", f.get("pressure"))
+        _write_cell(ws, f"D{row_idx}", f.get("time") or (fire_rows.get(rid) or {}).get("time"))
+        _write_cell(ws, f"E{row_idx}", f.get("pressure"))
+        _safe_cell(ws, f"H{row_idx}").value = f.get("reservoir") or None
 
     ahu = fac.get("ahu") or {}
     for t, row_idx in _FAC_AHU_ROWS.items():
@@ -1328,30 +1369,36 @@ def _write_facility_sheet(ws, data: dict) -> None:
     for (t, gid, fld), addr in _OUTDOOR_CELLS.items():
         val = ((outdoor.get(t) or {}).get(gid) or {}).get(fld)
         _write_cell(ws, addr, val)
+    for t, addrs in _FAC_OUTDOOR_TEMP_CELLS.items():
+        temp = ((outdoor.get(t) or {}).get("_out") or {}).get("temp")
+        for addr in addrs:
+            _safe_cell(ws, addr).value = temp or None
 
+    ch_schema = _facility_schema().get("chiller") or {}
     chiller = fac.get("chiller") or {}
     fields_260 = _chiller_fields("c260_1")
-    _CHILLER_260_ROWS = {"c260_1": (38, 39), "c260_2": (40, 41)}
     col_letters = ["E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"]
-    for uid, (r1, r2) in _CHILLER_260_ROWS.items():
-        unit = chiller.get(uid) or {}
-        for slot, row in (("t1", r1), ("t2", r2)):
-            cells = unit.get(slot) or {}
-            for i, fld in enumerate(fields_260):
-                if i < len(col_letters):
-                    _write_cell(ws, f"{col_letters[i]}{row}", cells.get(fld))
-    c80 = chiller.get("c80") or {}
-    for t, row in (("09:50", 42), ("13:30", 43)):
-        cells = c80.get(t) or {}
-        for i, fld in enumerate(fields_260):
-            if i < len(col_letters):
-                _write_cell(ws, f"{col_letters[i]}{row}", cells.get(fld))
-    fields_300 = _chiller_fields("c300")
-    c300 = chiller.get("c300") or {}
-    for t, row in (("09:00", 45), ("13:10", 46)):
-        cells = c300.get(t) or {}
-        for i, fld in enumerate(fields_300):
-            if i < len(col_letters):
+    std = (chiller.get("_std") or {}).get("v")
+    if std is None:
+        std = ch_schema.get("std_260") or {}
+    for i, fld in enumerate(fields_260[: len(col_letters)]):
+        _safe_cell(ws, f"{col_letters[i]}{_CHILLER_STD_ROW}").value = std.get(fld) or None
+
+    unit_rows = {"c260_1": (38, 39), "c260_2": (40, 41), "c80": (42, 43), "c300": (45, 46)}
+    for unit in ch_schema.get("units") or []:
+        uid = unit["id"]
+        rows = unit_rows.get(uid)
+        if not rows:
+            continue
+        times = unit.get("times")
+        keys = [f"t{i}" for i in range(1, times + 1)] if isinstance(times, int) else list(times or [])
+        labels = unit.get("labels") or keys
+        fields = _chiller_fields(uid)
+        unit_data = chiller.get(uid) or {}
+        for key, label, row in zip(keys, labels, rows):
+            _write_cell(ws, f"D{row}", label)
+            cells = unit_data.get(key) or {}
+            for i, fld in enumerate(fields[: len(col_letters)]):
                 _write_cell(ws, f"{col_letters[i]}{row}", cells.get(fld))
 
     notes = fac.get("notes")

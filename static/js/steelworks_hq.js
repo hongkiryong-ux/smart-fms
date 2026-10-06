@@ -43,6 +43,31 @@
         monthlyIn.value = fmtNum((monthBase != null ? monthBase : 0) + daily);
       }
     });
+    calcPeaks();
+    syncOutdoorMirrors();
+  }
+
+  function calcPeaks() {
+    form.querySelectorAll(".sw-peak").forEach(function (peakIn) {
+      const suffix = "__" + peakIn.dataset.peakCol;
+      let max = null;
+      form.querySelectorAll('input[name^="e__incoming__"]').forEach(function (el) {
+        if (!el.name.endsWith(suffix)) return;
+        const v = parseNum(el.value);
+        if (v != null && (max == null || v > max)) max = v;
+      });
+      peakIn.value = fmtNum(max);
+    });
+  }
+
+  function syncOutdoorMirrors() {
+    form.querySelectorAll(".sw-outdoor-temp").forEach(function (src) {
+      form
+        .querySelectorAll('.sw-outdoor-mirror[data-outdoor-time="' + src.dataset.outdoorTime + '"]')
+        .forEach(function (m) {
+          m.value = src.value;
+        });
+    });
   }
 
   function syncMonthBase(row) {
@@ -65,6 +90,8 @@
       const mIn = row.querySelector('[name="f__utility__' + uid + '__monthly"]');
       if (dIn) dIn.value = u.daily || "";
       if (mIn) mIn.value = u.monthly || "";
+      const pIn = row.querySelector('[name="f__utility__' + uid + '__peak"]');
+      if (pIn) pIn.value = u.peak || "";
       syncMonthBase(row);
     });
     calcUtility();

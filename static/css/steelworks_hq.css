@@ -354,3 +354,24 @@
     font-size: 0.72rem;
   }
 }
+
+/* 운영일보 — 엑셀 양식 맞춤 */
+.sw-subhead th {
+  background: #f3f3f3;
+  font-weight: 700;
+}
+
+.sw-chiller-std th,
+.sw-chiller-std td {
+  background: #eef6ff;
+}
+
+.sw-tank-head {
+  border-left: 2px solid #000 !important;
+}
+
+.sw-peak,
+.sw-outdoor-mirror {
+  color: #1d4ed8;
+  font-weight: 600;
+}
