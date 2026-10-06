@@ -60,14 +60,14 @@
                 "unit": "Mwh",
                 "range": "",
                 "is_cumulative": true,
-                "multiplier": 1000
+                "multiplier": 12000
               }
             ],
             "meter": {
               "id": "m_J",
               "name": "NO.1 Incomming",
               "reading_col": "J",
-              "multiplier": 1000
+              "multiplier": 12000
             }
           },
           {
@@ -115,14 +115,14 @@
                 "unit": "Mwh",
                 "range": "",
                 "is_cumulative": true,
-                "multiplier": 1000
+                "multiplier": 12000
               }
             ],
             "meter": {
               "id": "m_S",
               "name": "NO.2 Incomming",
               "reading_col": "S",
-              "multiplier": 1000
+              "multiplier": 12000
             }
           }
         ]
