@@ -1351,6 +1351,29 @@ class WorkOrderPhoto(Base):
         return f"/admin/work-orders/{self.work_order_id}/photos/{self.id}"
 
 
+class EquipmentPhoto(Base):
+    """설비 사진 (500KB 이하로 축소 저장). sort_order가 가장 작은 사진이 대표 사진."""
+
+    __tablename__ = "equipment_photos"
+
+    id = Column(Integer, primary_key=True)
+    equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False, index=True)
+    original_name = Column(String(300), nullable=True)
+    content_type = Column(String(100), nullable=True)
+    file_data = deferred(Column(LargeBinary, nullable=False))
+    file_size = Column(Integer, nullable=True)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    sort_order = Column(Integer, default=0, nullable=False)
+    uploaded_by = Column(String(100), nullable=True)
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    @property
+    def url(self) -> str:
+        return f"/admin/equipment/{self.equipment_id}/photos/{self.id}"
+
+
 class D1Plan(Base):
     __tablename__ = "d1_plans"
 

@@ -5311,6 +5311,77 @@ body.wo-col-resizing {
     max-height: 55vh;
   }
 }
+/* 설비 사진 (설비 상세 우측) */
+.wo-info-wrap.eq-sheet-wrap.has-photo {
+  grid-template-columns: minmax(260px, 1.2fr) minmax(220px, 1fr);
+}
+@media (max-width: 900px) {
+  .wo-info-wrap.eq-sheet-wrap.has-photo {
+    grid-template-columns: 1fr;
+  }
+}
+.eq-photo-alert {
+  margin-bottom: 0.5rem;
+  font-size: 0.82rem;
+}
+.eq-photo-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+.eq-photo-thumb-actions {
+  display: flex;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+.eq-photo-thumb-actions .link-action {
+  font-size: 0.7rem;
+}
+.eq-photo-main-badge {
+  color: #1e3a8a;
+  font-weight: 700;
+}
+.eq-photo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 12rem;
+  border: 1px dashed #b6c2d6;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+}
+.eq-photo-empty span {
+  font-size: 2rem;
+}
+.eq-photo-empty p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.eq-photo-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+.eq-photo-add input[type="file"] {
+  flex: 1 1 10rem;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+.eq-photo-add .wo-photo-preview {
+  flex-basis: 100%;
+}
+.eq-photo-hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.75rem;
+}
 /* 자료실 */
 .nav-sub a.nav-sub-manage {
   opacity: 0.75;

@@ -75,6 +75,7 @@
 <div class="grid-2">
   <section class="card card-wide">
     <h2>{{ eq.category }} 상세 (엑셀 양식)</h2>
+    <div class="wo-info-wrap has-photo eq-sheet-wrap">
     <dl class="info-dl sheet-info-dl">
       <dt>코드</dt><dd><code>{{ eq.code }}</code></dd>
       <dt>상태</dt><dd><span class="status-dot status-{{ eq.status }}">{{ eq.status }}</span></dd>
@@ -85,6 +86,60 @@
       <dt>{{ field }}</dt><dd>{{ field_value(eq, field) or '-' }}</dd>
       {% endfor %}
     </dl>
+    <figure class="wo-info-photo eq-photo-pane" id="eq-photos">
+      {% if photo_error %}<div class="alert alert-error eq-photo-alert">{{ photo_error }}</div>{% endif %}
+      {% if photo_message %}<div class="alert alert-ok eq-photo-alert">{{ photo_message }}</div>{% endif %}
+      {% if eq_photos %}
+      {% set main_photo = eq_photos[0] %}
+      <button type="button" class="wo-info-photo-main" id="wo-info-photo-main"
+              data-wo-photo-src="{{ main_photo.url }}"
+              data-wo-photo-title="{{ eq.name }} 사진 1"
+              aria-label="설비 사진 원본 크게 보기">
+        <img src="{{ main_photo.url }}" alt="{{ eq.name }} 사진" />
+      </button>
+      <figcaption class="text-muted">
+        <span id="wo-info-photo-idx">1</span> / {{ eq_photos|length }}장 · 사진을 누르면 원본 크기로 볼 수 있습니다.
+      </figcaption>
+      <div class="wo-info-photo-strip">
+        {% for p in eq_photos %}
+        <div class="eq-photo-thumb">
+          <button type="button" class="wo-info-photo-pick{% if loop.first %} is-on{% endif %}"
+                  data-src="{{ p.url }}" data-title="{{ eq.name }} 사진 {{ loop.index }}"
+                  data-idx="{{ loop.index }}" aria-label="사진 {{ loop.index }} 보기">
+            <img src="{{ p.url }}" alt="" loading="lazy" />
+          </button>
+          <div class="eq-photo-thumb-actions">
+            {% if loop.first %}
+            <span class="eq-photo-main-badge" title="대표 사진">대표</span>
+            {% elif can_add_eq_photo %}
+            <form method="post" action="{{ p.url }}/main" class="inline-form">
+              <button type="submit" class="link-action" title="대표 사진으로 지정">대표로</button>
+            </form>
+            {% endif %}
+            {% if can_remove_eq_photo(p) %}
+            <form method="post" action="{{ p.url }}/delete" class="inline-form" onsubmit="return confirm('이 사진을 삭제할까요?');">
+              <button type="submit" class="link-action link-danger" title="사진 삭제">삭제</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="eq-photo-empty">
+        <span aria-hidden="true">📷</span>
+        <p>등록된 설비 사진이 없습니다.</p>
+      </div>
+      {% endif %}
+      {% if can_add_eq_photo and eq_photos|length < eq_photo_max %}
+      <form method="post" action="/admin/equipment/{{ eq.id }}/photos" enctype="multipart/form-data" class="eq-photo-add">
+        <input type="file" name="photos" accept="image/*" multiple required data-wo-photo />
+        <button type="submit" class="btn btn-sm btn-primary">사진 추가</button>
+        <p class="text-muted eq-photo-hint">500KB 초과 사진은 자동 축소 · 최대 {{ eq_photo_max }}장</p>
+      </form>
+      {% endif %}
+    </figure>
+    </div>
   </section>
 
   <section class="card">
@@ -242,6 +297,14 @@
   {% endif %}
 </p>
 
+<dialog id="wo-photo-viewer" class="wo-photo-viewer">
+  <div class="wo-photo-viewer-top">
+    <strong class="wo-photo-viewer-title"></strong>
+    <button type="button" class="btn btn-sm btn-secondary" data-wo-photo-close>닫기</button>
+  </div>
+  <img alt="설비 사진 원본" />
+</dialog>
+
 <script type="application/json" id="eq-pm-inspections-data">{{ pm_inspections_json | safe }}</script>
 <script>
 (function () {
@@ -392,6 +455,34 @@
     var sel = e.target && e.target.closest ? e.target.closest('.eq-wo-partner-select') : null;
     if (!sel) return;
     fillEqWoRisk(sel.closest('.eq-wo-request-form'), sel.value);
+  });
+
+  var viewer = document.getElementById('wo-photo-viewer');
+  var infoMain = document.getElementById('wo-info-photo-main');
+  if (viewer && infoMain) {
+    var viewerImg = viewer.querySelector('img');
+    var viewerTitle = viewer.querySelector('.wo-photo-viewer-title');
+    infoMain.addEventListener('click', function () {
+      viewerImg.src = infoMain.dataset.woPhotoSrc;
+      viewerTitle.textContent = infoMain.dataset.woPhotoTitle || '';
+      viewer.showModal();
+    });
+    viewer.addEventListener('click', function (e) {
+      if (e.target === viewer || e.target.hasAttribute('data-wo-photo-close')) viewer.close();
+    });
+  }
+  var infoIdx = document.getElementById('wo-info-photo-idx');
+  document.querySelectorAll('.wo-info-photo-pick').forEach(function (pick) {
+    pick.addEventListener('click', function () {
+      if (!infoMain) return;
+      infoMain.dataset.woPhotoSrc = pick.dataset.src;
+      infoMain.dataset.woPhotoTitle = pick.dataset.title || '';
+      infoMain.querySelector('img').src = pick.dataset.src;
+      if (infoIdx) infoIdx.textContent = pick.dataset.idx;
+      document.querySelectorAll('.wo-info-photo-pick').forEach(function (p) {
+        p.classList.toggle('is-on', p === pick);
+      });
+    });
   });
 })();
 </script>

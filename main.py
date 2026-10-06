@@ -1590,6 +1590,10 @@ from library import router as library_router
 
 app.include_router(library_router)
 
+from equipment_photos import router as equipment_photos_router
+
+app.include_router(equipment_photos_router)
+
 
 @app.exception_handler(HTTPException)
 async def _http_exception_handler(request: Request, exc: HTTPException):
@@ -6244,12 +6248,26 @@ async def equipment_detail(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)  # noqa: E712
         )
     ).scalars().all()
+    from equipment_photos import (
+        MAX_PHOTOS_PER_EQUIPMENT,
+        can_add_equipment_photo,
+        can_remove_equipment_photo,
+        list_equipment_photos,
+    )
+
+    eq_photos = await list_equipment_photos(db, eq.id)
     return templates.TemplateResponse(
         request,
         "equipment_detail.html",
         {
             "user": user,
             "eq": eq,
+            "eq_photos": eq_photos,
+            "eq_photo_max": MAX_PHOTOS_PER_EQUIPMENT,
+            "can_add_eq_photo": can_add_equipment_photo(user),
+            "can_remove_eq_photo": (lambda p: can_remove_equipment_photo(user, p)),
+            "photo_message": request.query_params.get("photo_message", ""),
+            "photo_error": request.query_params.get("photo_error", ""),
             "qr_url": f"{base_url}/eq/{eq.code}",
             "sheet_fields": sheet_fields,
             "history": history,
