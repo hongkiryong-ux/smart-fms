@@ -201,7 +201,7 @@
           "name": "압연 / 수전 LINE INCOMING",
           "reading_col": "H",
           "current_col": "C",
-          "multiplier": 1000
+          "multiplier": 9600
         },
         {
           "id": "main_K",
@@ -261,7 +261,7 @@
       "breakers": [
         {
           "name": "압연 / 수전 LINE INCOMING",
-          "multiplier": 1000,
+          "multiplier": 9600,
           "cols": {
             "reading": "B",
             "usage": "C",

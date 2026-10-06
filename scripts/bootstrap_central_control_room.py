@@ -23,7 +23,7 @@ def build_schema() -> dict:
             ],
             "H",
             "C",
-            1000,
+            9600,
         ),
         (
             "baegun_life",
