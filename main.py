@@ -20408,6 +20408,7 @@ async def materials_page(
             "groups": groups,
             "q": q_val,
             "selected_group": group_val,
+            "today_kst": datetime.now(KST).strftime("%Y-%m-%d"),
             "popup": bool(popup),
             "message": request.query_params.get("message") or "",
             "error": request.query_params.get("error") or "",

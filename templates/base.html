@@ -362,9 +362,8 @@
       {% endif %}
       {% if user_can_access_menu(user, 'materials') %}
       <li>
-        <a href="/admin/materials?popup=1"
-           class="{% if '/materials' in request.url.path %}active{% endif %}"
-           onclick="window.open(this.href,'materialsApp','width=1200,height=800,scrollbars=yes,resizable=yes'); return false;">{{ nav_ico('materials') }}<span class="nav-label">자재관리</span></a>
+        <a href="/admin/materials"
+           class="{% if '/materials' in request.url.path %}active{% endif %}">{{ nav_ico('materials') }}<span class="nav-label">자재관리</span></a>
       </li>
       {% endif %}
       {% if user_can_access_menu(user, 'library') %}

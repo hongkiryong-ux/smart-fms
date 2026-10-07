@@ -291,7 +291,7 @@ _MENU_HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("ai_analysis", "/admin/ai-analysis"),
     ("server", "/admin/server"),
     ("risk_assessment", "/admin/risk-assessment"),
-    ("materials", "/admin/materials?popup=1"),
+    ("materials", "/admin/materials"),
     ("library", "/admin/library"),
     ("partners", "/admin/partners"),
     ("users", "/admin/users"),
