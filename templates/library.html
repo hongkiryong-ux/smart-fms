@@ -12,13 +12,14 @@
 <section class="card">
   <h2>하위메뉴</h2>
   {% if categories %}
-  <ul class="lib-cat-grid">
+  <ul class="lib-cat-list">
     {% for c in categories %}
     <li>
-      <a class="lib-cat-card" href="/admin/library/category/{{ c.id }}">
+      <a class="lib-cat-row" href="/admin/library/category/{{ c.id }}">
         <span class="lib-cat-ico" aria-hidden="true">📁</span>
         <span class="lib-cat-name">{{ c.name }}</span>
         <span class="lib-cat-meta">폴더 {{ folder_counts.get(c.id, 0) }} · 자료 {{ file_counts.get(c.id, 0) }}</span>
+        <span class="lib-cat-go" aria-hidden="true">›</span>
       </a>
     </li>
     {% endfor %}
