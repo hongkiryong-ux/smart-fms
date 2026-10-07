@@ -78,7 +78,7 @@
   </div>
   {% endif %}
 
-  <p class="text-muted rs-hint">원본 양식 · 전일지침 자동이월(수기 가능) · 일사용량 = (금일−전일)×배율 · 드래그 선택 · 엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+  <p class="text-muted rs-hint">원본 양식 · 전일지침 자동이월(수기 가능) · 일사용량 = (금일−전일)×배율 · 전력 금일지침 → 전기 연구동 1행(중간·최대·경부하·시간) 자동기록(수기 가능) · 드래그 선택 · 엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
 
   <form method="post" action="{{ save_url }}" id="rs-daily-form" class="rs-daily-form">
     <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
@@ -310,7 +310,7 @@
   </form>
 </section>
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-{% if can_write %}<script src="/static/js/rist.js?v=2"></script>{% endif %}
+{% if can_write %}<script src="/static/js/rist.js?v=3"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">

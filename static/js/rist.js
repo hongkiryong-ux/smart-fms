@@ -113,7 +113,62 @@
     }
   }
 
+  const LAB_POWER_LINKS = [
+    ["power_mid", "mid"],
+    ["power_peak", "peak"],
+    ["power_off", "off"],
+  ];
+
+  function labCell(fid) {
+    return form.querySelector('[name="el__lab__t1__' + fid + '"]');
+  }
+
+  function isAutoLinked(el) {
+    const value = String(el.value || "").trim();
+    return value === "" || value === el.dataset.autoVal;
+  }
+
+  function nowHHMM() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
+  function initLabPowerLinks() {
+    LAB_POWER_LINKS.forEach(function (pair) {
+      const src = field(pair[0], "today");
+      const dst = labCell(pair[1]);
+      if (!src || !dst) return;
+      const value = String(dst.value || "").trim();
+      if (value === "" || value === String(src.value || "").trim()) dst.dataset.autoVal = value;
+    });
+  }
+
+  function syncLabPower() {
+    let changed = false;
+    let anyValue = false;
+    LAB_POWER_LINKS.forEach(function (pair) {
+      const src = field(pair[0], "today");
+      const dst = labCell(pair[1]);
+      if (!src || !dst) return;
+      const value = String(src.value || "").trim();
+      if (!isAutoLinked(dst)) return;
+      if (value) anyValue = true;
+      if (dst.value !== value) {
+        dst.value = value;
+        changed = true;
+      }
+      dst.dataset.autoVal = value;
+    });
+    const timeEl = labCell("time");
+    if (changed && timeEl && isAutoLinked(timeEl)) {
+      const next = anyValue ? nowHHMM() : "";
+      timeEl.value = next;
+      timeEl.dataset.autoVal = next;
+    }
+  }
+
   function scheduleSave() {
+    syncLabPower();
     calcUtility();
     clearTimeout(timer);
     timer = setTimeout(save, DEBOUNCE_MS);
@@ -149,6 +204,7 @@
   }
 
   utilityIds().forEach(syncMonthBase);
+  initLabPowerLinks();
 
   form.querySelectorAll(".rs-cell").forEach(function (el) {
     if (el.readOnly) return;
