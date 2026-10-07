@@ -1,0 +1,432 @@
+/* 정비관리 하위 화면 공통 스킨 — body.mui 일 때만 적용 (기존 화면으로 전환 시 클래스 제거) */
+
+body.mui {
+  --mui-line: #e5ebf3;
+  --mui-line-soft: #eef2f7;
+  --mui-head: #f5f8fc;
+  --mui-text: #0f172a;
+  --mui-sub: #64748b;
+  --mui-focus: rgba(59, 130, 246, .16);
+}
+
+/* 페이지 헤더 */
+body.mui .page-header {
+  position: relative;
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem 1rem 1.45rem;
+  background: #fff;
+  border: 1px solid var(--mui-line);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  overflow: hidden;
+}
+body.mui .page-header::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 5px;
+  background: linear-gradient(180deg, #13539f, #3b82f6);
+}
+body.mui .page-header h1 {
+  margin: 0;
+  font-size: 1.32rem;
+  letter-spacing: -.01em;
+  color: var(--mui-text);
+}
+body.mui .page-header p {
+  margin: .3rem 0 0;
+  font-size: .84rem;
+  line-height: 1.5;
+  color: var(--mui-sub);
+}
+body.mui .page-header.item-head { align-items: center; }
+
+/* 카드 */
+body.mui .card {
+  border: 1px solid var(--mui-line);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  padding: 1.1rem 1.25rem;
+}
+body.mui .card h2 {
+  font-size: 1.02rem;
+  color: var(--mui-text);
+  letter-spacing: -.01em;
+}
+body.mui .card h2 small,
+body.mui .wo-list-head h2 small {
+  display: inline-flex;
+  align-items: center;
+  padding: .1rem .5rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  font-size: .74rem;
+  font-weight: 700;
+}
+body.mui .wo-list-head { margin-bottom: .85rem; flex-wrap: wrap; }
+body.mui .wo-list-head h2 { font-size: 1.05rem; }
+body.mui .d1-hint,
+body.mui .card > .text-muted { color: var(--mui-sub); font-size: .82rem; }
+
+/* 알림 */
+body.mui .alert { border-radius: 10px; font-size: .88rem; }
+
+/* 버튼 */
+body.mui .btn { border-radius: 9px; font-weight: 700; transition: background .15s, box-shadow .15s, color .15s; }
+body.mui .btn-sm { padding: .36rem .8rem; font-size: .8rem; }
+body.mui .btn-primary { box-shadow: 0 1px 2px rgba(0, 56, 118, .25); }
+body.mui .btn-secondary { background: #fff; color: #334155; border: 1px solid #dbe3ee; }
+body.mui .btn-secondary:hover { background: #f1f5f9; border-color: #cbd5e1; }
+body.mui .btn-danger { box-shadow: 0 1px 2px rgba(185, 28, 28, .25); }
+body.mui .wo-add-icon { padding: .38rem .85rem; box-shadow: 0 1px 2px rgba(29, 78, 216, .12); }
+body.mui .wo-add-plus { background: #1d4ed8; color: #fff; }
+body.mui .wo-add-icon:hover .wo-add-plus { background: #fff; color: #003876; }
+
+/* 검색·필터 바 */
+body.mui .wo-filter-bar,
+body.mui .d1-filter-bar {
+  gap: .5rem;
+  padding: .7rem .75rem;
+  background: #f8fafc;
+  border: 1px solid var(--mui-line-soft);
+  border-radius: 12px;
+}
+body.mui .d1-filter-bar { padding: .55rem .65rem; }
+body.mui .wo-filter-q,
+body.mui .wo-filter-select,
+body.mui .wo-filter-date,
+body.mui .mperf-filter select,
+body.mui .mperf-filter input,
+body.mui .ilog2-search {
+  height: 2.3rem;
+  padding: 0 .7rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 9px;
+  background: #fff;
+  font-size: .86rem;
+  box-sizing: border-box;
+}
+body.mui .wo-filter-q { padding-left: 2.1rem; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2394a3b8' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat .7rem center; }
+body.mui .wo-filter-q:focus,
+body.mui .wo-filter-select:focus,
+body.mui .wo-filter-date:focus,
+body.mui .wo-partner-select:focus,
+body.mui .wo-sched-input:focus,
+body.mui .wo-action-input:focus,
+body.mui .mperf-filter select:focus,
+body.mui .ilog2-search:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px var(--mui-focus);
+}
+body.mui .wo-status-checks {
+  padding: 3px;
+  gap: 2px;
+  background: #e9eef5;
+  border: 0;
+  border-radius: 10px;
+}
+body.mui .wo-check {
+  padding: .32rem .7rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  font-size: .82rem;
+}
+body.mui .wo-check:hover { background: rgba(255, 255, 255, .6); }
+body.mui .wo-check.is-on {
+  background: #fff;
+  color: #13539f;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+}
+body.mui .wo-site-filter-chip { border-radius: 999px; }
+body.mui .d1-status-btns {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: #e9eef5;
+  border-radius: 10px;
+}
+body.mui .d1-status-btn {
+  padding: .32rem .75rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  font-size: .82rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+body.mui .d1-status-btn:hover { background: rgba(255, 255, 255, .6); }
+body.mui .d1-status-btn.is-on {
+  background: #fff;
+  color: #13539f;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+}
+
+/* 보드 탭 (D-1, 시설섹션) */
+body.mui .d1-board-btns { gap: .4rem; margin-bottom: .85rem; }
+body.mui .d1-board-btn {
+  padding: .42rem .9rem;
+  border-color: #dbe3ee;
+  font-size: .84rem;
+  transition: all .15s;
+}
+body.mui .d1-board-btn small {
+  margin-left: .1rem;
+  padding: 0 .4rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+}
+body.mui .d1-board-btn.is-on {
+  background: #13539f;
+  border-color: #13539f;
+  box-shadow: 0 2px 6px rgba(19, 83, 159, .25);
+}
+body.mui .d1-board-btn.is-on small { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* 일괄 처리 바: 선택 항목이 있을 때만 */
+body.mui .wo-bulk-bar[hidden],
+body.mui .ilog2-bulk-bar[hidden] { display: none !important; }
+body.mui .wo-bulk-bar {
+  position: sticky;
+  top: .5rem;
+  z-index: 5;
+  padding: .6rem .85rem;
+  background: #13539f;
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(19, 83, 159, .25);
+}
+body.mui .wo-bulk-bar .wo-bulk-count,
+body.mui .wo-bulk-bar .wo-bulk-count strong { color: #fff; }
+body.mui .wo-bulk-bar .wo-bulk-hint { color: rgba(255, 255, 255, .78); }
+body.mui .wo-bulk-bar .btn-primary { background: #fff; color: #13539f; box-shadow: none; }
+body.mui .wo-bulk-bar .btn-primary:hover { background: #e8f0fb; }
+body.mui .wo-bulk-bar .btn-secondary { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .45); }
+body.mui .wo-bulk-bar .btn-secondary:hover { background: rgba(255, 255, 255, .12); }
+
+/* 표 */
+body.mui .table-scroll {
+  border: 1px solid var(--mui-line);
+  border-radius: 12px;
+  background: #fff;
+  max-height: 72vh;
+}
+body.mui .data-table { font-size: .84rem; }
+body.mui .data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--mui-head);
+  color: #475569;
+  font-size: .76rem;
+  font-weight: 800;
+  padding: .6rem .5rem;
+  border-bottom: 1px solid #dbe3ee;
+}
+body.mui .data-table td {
+  padding: .55rem .5rem;
+  border-bottom: 1px solid #f0f3f8;
+  color: #1e293b;
+}
+body.mui .data-table tbody tr:last-child td { border-bottom: 0; }
+body.mui .data-table tbody tr:hover td { background: #f6f9fe; }
+body.mui .data-table td.empty {
+  padding: 2.4rem 1rem;
+  text-align: center;
+  font-style: normal;
+  color: #94a3b8;
+}
+body.mui .wo-list-compact td { padding: .5rem .45rem; }
+body.mui .wo-list-table tr.wo-d1-approved td { background: #f6fbf8; }
+body.mui .wo-list-table tr.wo-row-selected td { background: #eef5ff; }
+body.mui .wo-eq-cell code {
+  padding: .1rem .4rem;
+  border-radius: 6px;
+  background: #eef2f7;
+  color: #13539f;
+  font-size: .76rem;
+  font-weight: 700;
+}
+body.mui .wo-date { color: #475569; font-size: .8rem; }
+body.mui .wo-sel-done { color: #10b981; font-weight: 800; }
+
+/* 표 안 입력 */
+body.mui .wo-partner-select,
+body.mui .wo-sched-input,
+body.mui .wo-action-input {
+  height: 2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fbfcfe;
+  font-size: .8rem;
+  transition: border-color .15s, box-shadow .15s;
+}
+body.mui .wo-partner-select:hover,
+body.mui .wo-sched-input:hover,
+body.mui .wo-action-input:hover { border-color: #cbd5e1; background: #fff; }
+
+/* 진행 단계 세그먼트 */
+body.mui .wo-step-btns {
+  padding: 2px;
+  gap: 2px;
+  background: #eef2f7;
+  border-radius: 8px;
+}
+body.mui .wo-step-btn {
+  position: relative;
+  padding: .22rem .5rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+}
+body.mui .wo-step-btn:hover { background: rgba(255, 255, 255, .7); }
+body.mui .wo-step-btn.is-on {
+  background: #13539f;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(19, 83, 159, .35);
+}
+body.mui .wo-step-btns-lg { padding: 3px; border-radius: 10px; }
+body.mui .wo-step-btns-lg .wo-step-btn { padding: .45rem .9rem; border-radius: 8px; }
+
+/* 링크·배지 */
+body.mui .data-table .link-action:not(.link-danger) {
+  display: inline-flex;
+  align-items: center;
+  padding: .16rem .55rem;
+  border-radius: 999px;
+  background: #eef4fc;
+  color: #13539f;
+  font-weight: 700;
+  font-size: .76rem;
+}
+body.mui .data-table .link-action:not(.link-danger):hover { background: #dbe8f8; text-decoration: none; }
+body.mui .link-danger { font-weight: 700; font-size: .78rem; }
+body.mui .badge { font-weight: 700; letter-spacing: -.01em; }
+body.mui .badge-urgent { background: #fee2e2; color: #b91c1c; }
+body.mui .badge-wo { background: #e0e7ff; color: #3730a3; }
+
+/* 상세 화면 */
+body.mui .process-steps li { border-radius: 12px; }
+body.mui .info-dl dt { font-size: .74rem; font-weight: 700; color: #94a3b8; margin-top: .75rem; }
+body.mui .info-dl dd { font-size: .92rem; color: var(--mui-text); }
+body.mui .form-stack input,
+body.mui .form-stack select,
+body.mui .form-stack textarea {
+  border-radius: 9px;
+  border-color: #dbe3ee;
+}
+body.mui .form-stack input:focus,
+body.mui .form-stack select:focus,
+body.mui .form-stack textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px var(--mui-focus);
+}
+
+/* 대화상자 */
+body.mui .eq-dialog {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .28);
+}
+body.mui .eq-dialog::backdrop { background: rgba(15, 23, 42, .45); }
+
+/* 정비실적 업로드 */
+body.mui .ilog2-dropzone {
+  border-radius: 14px;
+  border: 2px dashed #c7d6ea;
+  background: #f8fbff;
+  transition: border-color .15s, background .15s;
+}
+body.mui .ilog2-dropzone:hover { border-color: #3b82f6; background: #f1f7ff; }
+body.mui .ilog2-upload-fields input,
+body.mui .ilog2-upload-fields select {
+  border: 1px solid #dbe3ee;
+  border-radius: 9px;
+  background: #fff;
+}
+
+/* 가로등 관리 */
+body.mui .streetlamp-admin .admin-filter-form .filter-fieldset {
+  margin: 0 0 .7rem;
+  padding: .75rem .9rem .85rem;
+  border: 1px solid var(--mui-line-soft);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+body.mui .streetlamp-admin .admin-filter-form legend {
+  padding: 0 .4rem;
+  font-size: .8rem;
+  font-weight: 800;
+  color: #13539f;
+}
+body.mui .streetlamp-admin .admin-filter-form input,
+body.mui .streetlamp-admin .admin-filter-form select,
+body.mui .streetlamp-admin .admin-filter-form textarea {
+  border: 1px solid #dbe3ee;
+  border-radius: 9px;
+  font-size: .88rem;
+  background: #fff;
+}
+body.mui .streetlamp-admin .admin-filter-form input:focus,
+body.mui .streetlamp-admin .admin-filter-form select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px var(--mui-focus);
+}
+body.mui .streetlamp-admin .btn-primary,
+body.mui .streetlamp-admin .btn-secondary,
+body.mui .streetlamp-admin .btn-danger { border-radius: 9px; font-weight: 700; }
+body.mui .streetlamp-admin .btn-secondary {
+  background: #fff;
+  border: 1px solid #dbe3ee;
+  color: #334155;
+}
+body.mui .streetlamp-admin .admin-table-wrap {
+  border: 1px solid var(--mui-line);
+  border-radius: 12px;
+  overflow: auto;
+}
+body.mui .streetlamp-admin table th {
+  background: var(--mui-head);
+  color: #475569;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  body.mui .page-header { padding: .85rem 1rem .85rem 1.2rem; }
+  body.mui .page-header h1 { font-size: 1.15rem; }
+  body.mui .card { padding: .9rem; }
+  body.mui .table-scroll { max-height: none; }
+}
+
+/* 새 화면 ⇄ 기존 화면 전환 버튼 (클래스와 무관하게 표시) */
+.mui-toggle {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .42rem .8rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .94);
+  color: #475569;
+  font-size: .76rem;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .12);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.mui-toggle:hover { color: #13539f; border-color: #93c5fd; }
+@media print { .mui-toggle { display: none !important; } }
