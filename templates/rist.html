@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ schema.title }} · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/rist.css?v=2" />
+<link rel="stylesheet" href="/static/css/rist.css?v=3" />
 {% endblock %}
 {% block content %}
 {% set label_module = 'rist' %}{% include "_ilog2_label_edit.html" %}
@@ -200,11 +200,8 @@
               <td><input class="rs-cell" name="el__{{ b.id }}__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" inputmode="decimal" /></td>
               {% endfor %}
               {% if b.tr == 'single' %}
-              {% if loop.first %}
-              {% for f in elec.tr_fields %}
-              <td class="rs-tr-single" rowspan="{{ b.times|length }}"><input class="rs-cell" name="el__{{ b.id }}__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" inputmode="decimal" title="{{ b.label }} {{ elec.tr.title }} {{ f.label }}" /></td>
-              {% endfor %}
-              {% endif %}
+              {% set f0 = elec.tr_fields[0] %}
+              <td class="rs-tr-single" colspan="{{ elec.tr_fields|length }}"><input class="rs-cell" name="el__{{ b.id }}__{{ t }}__{{ f0.id }}" value="{{ row.get(f0.id,'') }}" inputmode="decimal" title="{{ b.label }} {{ elec.tr.title }}" /></td>
               {% elif b.tr %}
               {% for f in elec.tr_fields %}
               <td><input class="rs-cell" name="el__{{ b.id }}__{{ t }}__{{ f.id }}" value="{{ row.get(f.id,'') }}" inputmode="decimal" /></td>
