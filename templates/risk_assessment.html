@@ -1,12 +1,223 @@
 {% extends "base.html" %}
 {% block title %}위험성평가{% endblock %}
+{% block head_extra %}
+<style>
+.rk-page { max-width: 1480px; margin: 0 auto; }
+.rk-hero {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  padding: 1.1rem 1.35rem; margin-bottom: 1rem; border-radius: 16px;
+  background: linear-gradient(120deg, #0b3a75 0%, #13539f 55%, #1f6fc4 100%);
+  color: #fff; box-shadow: 0 10px 28px rgba(11, 58, 117, .18);
+}
+.rk-eyebrow { display: inline-block; font-size: .7rem; font-weight: 800; letter-spacing: .14em; opacity: .75; margin-bottom: .2rem; }
+.rk-hero h1 { margin: 0; font-size: 1.45rem; color: #fff; letter-spacing: -.01em; }
+.rk-hero p { margin: .25rem 0 0; font-size: .86rem; opacity: .85; }
+.rk-hero-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.rk-hero-btn {
+  display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .85rem; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.12); color: #fff;
+  font-size: .84rem; font-weight: 700; cursor: pointer; transition: background .15s; white-space: nowrap;
+}
+.rk-hero-btn:hover { background: rgba(255,255,255,.22); }
+.rk-hero-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.rk-dot { width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
+.rk-dot.is-ok { background: #34d399; }
+
+.rk-form { padding: 0 !important; overflow: hidden; margin-bottom: 1rem; }
+.rk-sec-row { display: grid; grid-template-columns: 1.35fr 1fr; }
+.rk-sec { padding: 1.05rem 1.25rem; }
+.rk-sec-row .rk-sec + .rk-sec { border-left: 1px solid #eef2f7; }
+.rk-sec-5m { border-top: 1px solid #eef2f7; background: #fbfcfe; }
+.rk-sec-head { display: flex; align-items: center; gap: .55rem; margin-bottom: .8rem; flex-wrap: wrap; }
+.rk-sec-head h2 { margin: 0; font-size: .98rem; color: #0f172a; }
+.rk-sec-head small { color: #64748b; font-size: .78rem; }
+.rk-step {
+  width: 24px; height: 24px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  background: #e8f0fb; color: #13539f; font-size: .8rem; font-weight: 800;
+}
+.rk-sec-head .rk-seg { margin-left: auto; }
+.rk-grid { display: grid; gap: .7rem .8rem; }
+.rk-grid-job { grid-template-columns: 1fr 1.4fr; }
+.rk-grid-job .rk-span2 { grid-column: 1 / -1; }
+.rk-grid-meta { grid-template-columns: 1fr 1fr; }
+.rk-f { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.rk-f > label { font-size: .76rem; font-weight: 700; color: #475569; margin: 0; }
+.rk-f input, .rk-f select, .rk-5m textarea {
+  width: 100%; box-sizing: border-box; padding: .52rem .65rem; border: 1px solid #dbe3ee; border-radius: 9px;
+  background: #fff; font-size: .88rem; font-family: inherit; color: #0f172a; transition: border-color .15s, box-shadow .15s;
+}
+.rk-f input:focus, .rk-f select:focus, .rk-5m textarea:focus {
+  outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+}
+.rk-seg { display: inline-flex; padding: 3px; border-radius: 10px; background: #eef2f7; gap: 2px; }
+.rk-seg .risk-mode-opt {
+  position: relative; border: 0; background: transparent; border-radius: 8px; padding: .32rem .75rem; font-size: .8rem; color: #475569;
+}
+.rk-seg .risk-mode-opt.is-on { background: #fff; color: #13539f; box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+.rk-seg .risk-mode-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.rk-seg .risk-mode-opt small { font-size: .7rem; padding: .05rem .35rem; border-radius: 999px; background: #fef3c7; color: #92400e; }
+.rk-seg .risk-mode-opt small.is-ok { background: #d1fae5; color: #065f46; }
+
+.rk-5m-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; }
+.rk-5m { background: #fff; border: 1px solid #e5ebf3; border-radius: 12px; padding: .6rem .7rem .7rem; }
+.rk-5m label { display: flex; align-items: center; gap: .45rem; margin: 0 0 .4rem; font-size: .8rem; font-weight: 700; color: #1e293b; }
+.rk-5m label em { font-style: normal; font-weight: 500; color: #94a3b8; font-size: .74rem; }
+.rk-5m-ico {
+  width: 22px; height: 22px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: .72rem; font-weight: 800; color: #fff; background: #13539f;
+}
+.rk-5m:nth-child(2) .rk-5m-ico { background: #0e7490; }
+.rk-5m:nth-child(3) .rk-5m-ico { background: #7c3aed; }
+.rk-5m:nth-child(4) .rk-5m-ico { background: #c2410c; }
+.rk-5m:nth-child(5) .rk-5m-ico { background: #047857; }
+.rk-5m:nth-child(6) .rk-5m-ico { background: #b45309; }
+.rk-5m textarea { min-height: 3.6rem; resize: vertical; font-size: .84rem; border-color: #edf1f6; background: #fbfcfe; }
+.rk-form-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap;
+  padding: .8rem 1.25rem; border-top: 1px solid #eef2f7; background: #fff;
+}
+.rk-form-foot p { margin: 0; color: #64748b; font-size: .8rem; }
+.rk-submit { padding: .62rem 1.4rem; border-radius: 10px; font-weight: 800; font-size: .92rem; display: inline-flex; align-items: center; gap: .4rem; }
+.rk-submit svg { width: 16px; height: 16px; }
+
+.rk-result { padding: 1.15rem 1.25rem !important; }
+.rk-result-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-bottom: .9rem; }
+.rk-result-head h2 { margin: 0; font-size: 1.12rem; color: #0f172a; }
+.rk-result-head h2 span { color: #13539f; }
+.rk-tags { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .4rem; }
+.rk-tag { font-size: .74rem; font-weight: 700; padding: .18rem .55rem; border-radius: 999px; background: #eef2f7; color: #475569; }
+.rk-tag.is-ai { background: #ede9fe; color: #6d28d9; }
+.rk-tag.is-local { background: #e0f2fe; color: #0369a1; }
+.rk-result-head .row-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.rk-result-head .row-actions .btn { border-radius: 9px; }
+
+.rk-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; margin-bottom: .9rem; }
+.rk-kpi { border: 1px solid #e5ebf3; border-radius: 12px; padding: .7rem .85rem; background: #fff; }
+.rk-kpi > span { display: block; font-size: .74rem; font-weight: 700; color: #64748b; }
+.rk-kpi b { display: block; margin-top: .2rem; font-size: 1.35rem; color: #0f172a; letter-spacing: -.01em; }
+.rk-kpi b small { font-size: .78rem; font-weight: 600; color: #94a3b8; margin-left: .15rem; }
+.rk-kpi.is-bad b { color: #b91c1c; }
+.rk-kpi.is-good b { color: #047857; }
+.rk-kpi .rk-arrow { color: #94a3b8; font-weight: 500; margin: 0 .25rem; font-size: 1rem; }
+
+.rk-meta {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin-bottom: .9rem;
+  border: 1px solid #e5ebf3; border-radius: 12px; overflow: hidden; background: #f8fafc;
+}
+.rk-meta > div { padding: .55rem .85rem; font-size: .86rem; color: #0f172a; font-weight: 600; min-width: 0; }
+.rk-meta > div + div { border-left: 1px solid #e5ebf3; }
+.rk-meta > div span { display: block; font-size: .72rem; font-weight: 700; color: #64748b; margin-bottom: .1rem; }
+
+.rk-table-wrap { border: 1px solid #e5ebf3; border-radius: 12px; overflow: auto; max-height: 70vh; }
+.rk-table-wrap .risk-form-table { margin: 0; border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1180px; }
+.rk-table-wrap .risk-form-table thead th {
+  position: sticky; top: 0; z-index: 2; background: #f1f5fb; color: #334155; font-size: .76rem; font-weight: 800;
+  text-align: center; padding: .5rem .45rem; border-bottom: 1px solid #dbe3ee; white-space: nowrap;
+}
+.rk-table-wrap .risk-form-table thead tr + tr th { top: 33px; background: #f7f9fc; }
+.rk-table-wrap .risk-form-table thead th.rk-grp-before { background: #fff4ed; color: #9a3412; }
+.rk-table-wrap .risk-form-table thead th.rk-grp-after { background: #ecfdf5; color: #065f46; }
+.rk-table-wrap .risk-form-table td {
+  font-size: .8rem; line-height: 1.45; padding: .5rem .5rem; border-bottom: 1px solid #f0f3f8; vertical-align: top; color: #1e293b;
+}
+.rk-table-wrap .risk-form-table tbody tr:nth-child(even) td { background: #fbfcfe; }
+.rk-table-wrap .risk-form-table tbody tr:hover td { background: #f3f7fd; }
+.rk-table-wrap .risk-form-table td.rk-num { text-align: center; white-space: nowrap; color: #475569; }
+.rk-table-wrap .risk-form-table td.rk-r { text-align: center; font-weight: 800; color: #0f172a; }
+.rk-table-wrap .risk-form-table td.rk-split { border-left: 2px solid #e5ebf3; }
+.rk-table-wrap .risk-form-table td.rk-seq { font-weight: 700; color: #13539f; white-space: nowrap; }
+.rk-table-wrap .risk-form-table td a { color: #1d4ed8; text-decoration: none; }
+.rk-table-wrap .risk-form-table td a:hover { text-decoration: underline; }
+.badge.risk-grade { border-radius: 999px; padding: .18rem .55rem; font-size: .72rem; font-weight: 700; }
+.badge.risk-grade.rk-gA { background: #fee2e2; color: #b91c1c; }
+.badge.risk-grade.rk-gB { background: #ffedd5; color: #c2410c; }
+.badge.risk-grade.rk-gC { background: #fef3c7; color: #a16207; }
+.badge.risk-grade.rk-gD { background: #fef9c3; color: #854d0e; }
+.badge.risk-grade.rk-gE { background: #e0f2fe; color: #0369a1; }
+.badge.risk-grade.rk-gF { background: #dcfce7; color: #15803d; }
+.rk-formula { margin: .55rem 0 0; font-size: .78rem; color: #64748b; }
+
+.rk-cmd { margin-top: 1.1rem; padding: .95rem 1rem; border-radius: 12px; background: #f8fafc; border: 1px solid #e5ebf3; }
+.rk-cmd h3 { margin: 0 0 .6rem; font-size: .92rem; color: #0f172a; }
+.rk-cmd h3 small { color: #64748b; font-weight: 500; margin-left: .35rem; }
+.rk-cmd .risk-cmd-bar { margin: 0; gap: .4rem; }
+.rk-chip {
+  border: 1px solid #dbe3ee; background: #fff; color: #334155; border-radius: 999px; padding: .36rem .8rem;
+  font-size: .8rem; font-weight: 700; cursor: pointer; transition: all .15s;
+}
+.rk-chip b { color: #13539f; margin-right: .2rem; }
+.rk-chip:hover { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
+.rk-cmd .risk-q { border-radius: 999px; padding: .4rem .85rem; border-color: #dbe3ee; }
+.rk-cmd .risk-cmd-result { margin-top: .75rem; border-radius: 10px; }
+
+.rk-dlg { border: 0; border-radius: 16px; padding: 0; width: min(560px, calc(100vw - 2rem)); box-shadow: 0 24px 60px rgba(15,23,42,.28); }
+.rk-dlg::backdrop { background: rgba(15,23,42,.45); }
+.rk-dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.2rem .4rem; }
+.rk-dlg-head h3 { margin: 0; font-size: 1.02rem; }
+.rk-dlg-x { border: 0; background: transparent; font-size: 1.35rem; line-height: 1; color: #64748b; cursor: pointer; }
+.rk-dlg-body { padding: .2rem 1.2rem 1.2rem; }
+.rk-dlg-body > p { margin: 0 0 .9rem; color: #64748b; font-size: .82rem; line-height: 1.5; }
+.rk-dlg-body .rk-f { margin-bottom: .75rem; }
+.rk-dlg-body .rk-f small { color: #047857; font-weight: 600; }
+.rk-dlg-actions { display: flex; justify-content: flex-end; gap: .45rem; margin-top: .4rem; }
+.rk-dlg-matrix { width: min(760px, calc(100vw - 2rem)); }
+.rk-dlg-matrix img { width: 100%; height: auto; border-radius: 10px; border: 1px solid #e5ebf3; }
+.rk-check { display: inline-flex; align-items: center; gap: .4rem; font-size: .84rem; color: #334155; margin-bottom: .5rem; }
+
+@media (max-width: 1100px) {
+  .rk-sec-row { grid-template-columns: 1fr; }
+  .rk-sec-row .rk-sec + .rk-sec { border-left: 0; border-top: 1px solid #eef2f7; }
+  .rk-grid-meta { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rk-kpis { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+  .rk-hero { padding: 1rem; }
+  .rk-hero-actions { width: 100%; }
+  .rk-hero-btn { flex: 1; justify-content: center; padding: .5rem .45rem; font-size: .78rem; gap: .3rem; }
+  .rk-grid-job, .rk-grid-meta { grid-template-columns: 1fr 1fr; }
+  .rk-5m-grid { grid-template-columns: 1fr; }
+  .rk-meta { grid-template-columns: 1fr 1fr; }
+  .rk-meta > div:nth-child(3) { border-left: 0; }
+  .rk-meta > div:nth-child(n+3) { border-top: 1px solid #e5ebf3; }
+  .rk-sec-head .rk-seg { margin-left: 0; width: 100%; }
+  .rk-form-foot .rk-submit { width: 100%; justify-content: center; }
+}
+@media print {
+  .rk-hero, .rk-kpis, .rk-cmd, .rk-dlg, .rk-formula { display: none !important; }
+  .rk-result-head { margin: 0 0 3mm !important; }
+  .rk-tags { display: none !important; }
+  .rk-meta { border: 0 !important; background: transparent !important; }
+  .rk-meta > div { border: 0 !important; padding: 0 !important; font-size: 9pt !important; }
+  .rk-meta > div span { display: inline !important; font-size: 9pt !important; color: #000 !important; }
+  .rk-meta > div span::after { content: ": "; }
+  .rk-table-wrap { border: 0 !important; overflow: visible !important; max-height: none !important; }
+  .rk-table-wrap .risk-form-table { min-width: 0 !important; }
+  .rk-table-wrap .risk-form-table thead th { position: static !important; }
+}
+</style>
+{% endblock %}
 {% block content %}
-<header class="page-header risk-page-header">
-  <div>
+<div class="rk-page">
+<header class="rk-hero">
+  <div class="rk-hero-text">
+    <span class="rk-eyebrow">SAFETY · JSA</span>
     <h1>P-WIDE 위험성평가</h1>
-    <p>작업선택 · 5M1E · JSA 평가표</p>
+    <p>작업 선택 → 5M1E 위험요인 입력 → JSA 평가표 자동 작성</p>
   </div>
-  <img src="/static/risk/risk_grade_matrix.png" alt="위험등급" class="risk-matrix-thumb" title="R = F × S" />
+  <div class="rk-hero-actions">
+    <button type="button" class="rk-hero-btn" data-rk-open="rk-matrix-dlg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      위험등급표
+    </button>
+    <button type="button" class="rk-hero-btn" data-rk-open="rk-ai-dlg">
+      <span class="rk-dot{% if ai_ready %} is-ok{% endif %}"></span>
+      AI 키 설정
+    </button>
+    <button type="button" class="rk-hero-btn" data-rk-open="rk-learn-dlg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 12v6M9 15l3-3 3 3"/></svg>
+      문서 학습
+    </button>
+  </div>
 </header>
 
 {% if error_msg %}
@@ -16,206 +227,200 @@
 <div class="alert alert-ok">{{ info_msg }}</div>
 {% endif %}
 
-<section class="card risk-input-card">
+<section class="card risk-input-card rk-form">
   <form method="post" action="/admin/risk-assessment/assess" id="risk-form">
-    <div class="risk-top-row">
-      <div class="risk-field">
-        <label>모드</label>
-        <div class="risk-mode-switch">
-          <label class="risk-mode-opt{% if not use_ai %} is-on{% endif %}">
-            <input type="radio" name="use_ai" value="0" {% if not use_ai %}checked{% endif %} />
-            로컬
-          </label>
-          <label class="risk-mode-opt{% if use_ai %} is-on{% endif %}{% if not ai_ready %} is-warn{% endif %}">
-            <input type="radio" name="use_ai" value="1" {% if use_ai %}checked{% endif %} />
-            AI{% if not ai_ready %} <small>키 필요</small>{% else %} <small>준비됨</small>{% endif %}
-          </label>
+    <div class="rk-sec-row">
+      <div class="rk-sec">
+        <div class="rk-sec-head">
+          <span class="rk-step">1</span><h2>작업 선택</h2>
+          <div class="rk-seg risk-mode-switch" role="radiogroup" aria-label="평가 모드">
+            <label class="risk-mode-opt{% if not use_ai %} is-on{% endif %}">
+              <input type="radio" name="use_ai" value="0" {% if not use_ai %}checked{% endif %} />
+              로컬
+            </label>
+            <label class="risk-mode-opt{% if use_ai %} is-on{% endif %}{% if not ai_ready %} is-warn{% endif %}">
+              <input type="radio" name="use_ai" value="1" {% if use_ai %}checked{% endif %} />
+              AI {% if ai_ready %}<small class="is-ok">준비됨</small>{% else %}<small>키 필요</small>{% endif %}
+            </label>
+          </div>
+        </div>
+        <div class="rk-grid rk-grid-job">
+          <div class="rk-f">
+            <label for="risk-major">대분류</label>
+            <select id="risk-major" name="major_name">
+              <option value="">전체</option>
+              {% for m in majors %}
+              <option value="{{ m.name }}" {% if selected_major == m.name %}selected{% endif %}>{{ m.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="rk-f">
+            <label for="risk-preset">소분류(작업유형)</label>
+            <select id="risk-preset" name="preset_name">
+              <option value="">직접 입력</option>
+            </select>
+          </div>
+          <div class="rk-f rk-span2">
+            <label for="risk-work-name">작업/설비명</label>
+            <input type="text" name="work_name" id="risk-work-name" required
+                   value="{{ work_name or '' }}"
+                   placeholder="예: 중량물 취급" />
+          </div>
         </div>
       </div>
-      <div class="risk-field">
-        <label>대분류</label>
-        <select id="risk-major" name="major_name">
-          <option value="">전체</option>
-          {% for m in majors %}
-          <option value="{{ m.name }}" {% if selected_major == m.name %}selected{% endif %}>{{ m.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="risk-field risk-field-grow">
-        <label>소분류(작업유형)</label>
-        <select id="risk-preset" name="preset_name">
-          <option value="">직접 입력</option>
-        </select>
-      </div>
-      <div class="risk-field risk-field-grow">
-        <label>작업/설비명</label>
-        <input type="text" name="work_name" id="risk-work-name" required
-               value="{{ work_name or '' }}"
-               placeholder="예: 중량물 취급" />
-      </div>
-      <div class="risk-field">
-        <label>부서</label>
-        <input type="text" name="department" value="{{ meta.department if meta else '' }}" />
-      </div>
-      <div class="risk-field">
-        <label>평가담당</label>
-        <input type="text" name="evaluator" value="{{ meta.evaluator if meta else user.name }}" />
-      </div>
-      <div class="risk-field">
-        <label>평가서 NO</label>
-        <input type="text" name="assessment_no" value="{{ meta.assessment_no if meta else '' }}" />
-      </div>
-      <div class="risk-field">
-        <label>적용구분</label>
-        <select name="apply_type">
-          {% set at = meta.apply_type if meta else '정기평가' %}
-          <option value="정기평가" {% if at == '정기평가' %}selected{% endif %}>정기평가</option>
-          <option value="수시평가" {% if at == '수시평가' %}selected{% endif %}>수시평가</option>
-          <option value="최초평가" {% if at == '최초평가' %}selected{% endif %}>최초평가</option>
-        </select>
-      </div>
-      <div class="risk-field risk-field-action">
-        <label>&nbsp;</label>
-        <button type="submit" class="btn btn-primary">위험성평가 시작</button>
+      <div class="rk-sec">
+        <div class="rk-sec-head"><span class="rk-step">2</span><h2>평가 정보</h2></div>
+        <div class="rk-grid rk-grid-meta">
+          <div class="rk-f">
+            <label>부서</label>
+            <input type="text" name="department" value="{{ meta.department if meta else '' }}" placeholder="예: 시설섹션" />
+          </div>
+          <div class="rk-f">
+            <label>평가담당</label>
+            <input type="text" name="evaluator" value="{{ meta.evaluator if meta else user.name }}" />
+          </div>
+          <div class="rk-f">
+            <label>평가서 NO</label>
+            <input type="text" name="assessment_no" value="{{ meta.assessment_no if meta else '' }}" placeholder="예: RA-001" />
+          </div>
+          <div class="rk-f">
+            <label>적용구분</label>
+            <select name="apply_type">
+              {% set at = meta.apply_type if meta else '정기평가' %}
+              <option value="정기평가" {% if at == '정기평가' %}selected{% endif %}>정기평가</option>
+              <option value="수시평가" {% if at == '수시평가' %}selected{% endif %}>수시평가</option>
+              <option value="최초평가" {% if at == '최초평가' %}selected{% endif %}>최초평가</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="risk-5m-grid">
-      <div class="risk-5m-item">
-        <label>Man (사람)</label>
-        <textarea name="Man" id="risk-man" rows="2">{{ five_m.Man if five_m else '' }}</textarea>
+    <div class="rk-sec rk-sec-5m">
+      <div class="rk-sec-head"><span class="rk-step">3</span><h2>5M1E 위험요인</h2><small>소분류를 고르면 자동으로 채워지며 수정할 수 있습니다</small></div>
+      <div class="rk-5m-grid">
+        <div class="rk-5m">
+          <label for="risk-man"><span class="rk-5m-ico">M</span>Man <em>사람</em></label>
+          <textarea name="Man" id="risk-man" rows="2" placeholder="작업 인원, 숙련도, 보호구 등">{{ five_m.Man if five_m else '' }}</textarea>
+        </div>
+        <div class="rk-5m">
+          <label for="risk-machine"><span class="rk-5m-ico">M</span>Machine <em>설비</em></label>
+          <textarea name="Machine" id="risk-machine" rows="2" placeholder="사용 장비, 공구, 방호장치 등">{{ five_m.Machine if five_m else '' }}</textarea>
+        </div>
+        <div class="rk-5m">
+          <label for="risk-material"><span class="rk-5m-ico">M</span>Material <em>물질</em></label>
+          <textarea name="Material" id="risk-material" rows="2" placeholder="취급 자재, 화학물질 등">{{ five_m.Material if five_m else '' }}</textarea>
+        </div>
+        <div class="rk-5m">
+          <label for="risk-method"><span class="rk-5m-ico">M</span>Method <em>방법</em></label>
+          <textarea name="Method" id="risk-method" rows="2" placeholder="작업 절차, 순서 등">{{ five_m.Method if five_m else '' }}</textarea>
+        </div>
+        <div class="rk-5m">
+          <label for="risk-management"><span class="rk-5m-ico">M</span>Management <em>관리</em></label>
+          <textarea name="Management" id="risk-management" rows="2" placeholder="허가, 감독, 교육 등">{{ five_m.Management if five_m else '' }}</textarea>
+        </div>
+        <div class="rk-5m">
+          <label for="risk-environment"><span class="rk-5m-ico">E</span>Environment <em>환경</em></label>
+          <textarea name="Environment" id="risk-environment" rows="2" placeholder="장소, 기상, 조도, 소음 등">{{ five_m.Environment if five_m else '' }}</textarea>
+        </div>
       </div>
-      <div class="risk-5m-item">
-        <label>Machine (설비)</label>
-        <textarea name="Machine" id="risk-machine" rows="2">{{ five_m.Machine if five_m else '' }}</textarea>
-      </div>
-      <div class="risk-5m-item">
-        <label>Material (물질)</label>
-        <textarea name="Material" id="risk-material" rows="2">{{ five_m.Material if five_m else '' }}</textarea>
-      </div>
-      <div class="risk-5m-item">
-        <label>Method (방법)</label>
-        <textarea name="Method" id="risk-method" rows="2">{{ five_m.Method if five_m else '' }}</textarea>
-      </div>
-      <div class="risk-5m-item">
-        <label>Management (관리)</label>
-        <textarea name="Management" id="risk-management" rows="2">{{ five_m.Management if five_m else '' }}</textarea>
-      </div>
-      <div class="risk-5m-item">
-        <label>Environment (환경)</label>
-        <textarea name="Environment" id="risk-environment" rows="2">{{ five_m.Environment if five_m else '' }}</textarea>
-      </div>
+    </div>
+
+    <div class="rk-form-foot">
+      <p>R = F(빈도) × S(강도) · AI 모드는 내 계정에 저장한 OpenAI 키를 사용합니다</p>
+      <button type="submit" class="btn btn-primary rk-submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        위험성평가 시작
+      </button>
     </div>
   </form>
 </section>
 
-<section class="card risk-tools-card">
-  <div class="risk-tools-grid">
-    <div class="risk-tool-block">
-      <h3>OpenAI 키 설정 (내 계정 전용)</h3>
-      <p class="d1-hint">OpenAI API 키는 로그인한 본인 계정에만 저장되며, 다른 사용자와 공유되지 않습니다. AI 작성 시 내 키만 사용합니다.</p>
-      <form method="post" action="/admin/risk-assessment/ai-settings" class="risk-ai-key-form">
-        <div class="risk-field">
-          <label>내 OpenAI API Key{% if ai_key_masked %} <small>(저장됨: {{ ai_key_masked }})</small>{% endif %}</label>
-          <input type="password" name="openai_api_key" placeholder="sk-..." autocomplete="off" />
-        </div>
-        <div class="risk-field">
-          <label>모델</label>
-          <input type="text" name="openai_model" value="{{ ai_model or 'gpt-4o-mini' }}" />
-        </div>
-        <button type="submit" class="btn btn-sm btn-primary">내 계정에 저장</button>
-        <button type="submit" name="clear_key" value="1" class="btn btn-sm btn-secondary"
-                onclick="return confirm('내 계정의 OpenAI 키를 삭제할까요?');">키 삭제</button>
-      </form>
-    </div>
-    <div class="risk-tool-block">
-      <h3>문서 업로드 학습</h3>
-      <p class="d1-hint">기존 위험성평가 자료(xlsx, docx, pptx, pdf)를 올려 소분류로 학습시킵니다.</p>
-      <form method="post" action="/admin/risk-assessment/learn" enctype="multipart/form-data" class="risk-learn-form">
-        <div class="risk-field">
-          <label>대분류</label>
-          <select name="major_name" required>
-            <option value="">선택</option>
-            {% for m in majors %}
-            <option value="{{ m.name }}" {% if selected_major == m.name %}selected{% endif %}>{{ m.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="risk-field">
-          <label>문서 파일</label>
-          <input type="file" name="files" multiple
-                 accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.pdf" />
-        </div>
-        <label class="risk-check">
-          <input type="checkbox" name="allow_update" value="1" />
-          기존 작업 업데이트 허용
-        </label>
-        <button type="submit" class="btn btn-sm btn-primary">문서에서 학습</button>
-      </form>
-    </div>
-  </div>
-</section>
-
 {% if form_rows is defined %}
-<section class="card risk-result-card" id="risk-result">
-  <div class="wo-list-head">
-    <h2>평가 결과 — {{ work_name }}
-      <small class="text-muted">({{ mode_label }} · {{ form_rows|length }}건)</small>
-    </h2>
-    {% if register_msg %}
-    <p class="alert alert-ok" style="margin:0.5rem 0">{{ register_msg }}</p>
-    {% endif %}
+{% set ns = namespace(hb=0, ha=0, sb=0, sa=0) %}
+{% for r in form_rows %}
+  {% set gb = (r.result_before or '')[-3:-2] %}
+  {% set ga = (r.result_after or '')[-3:-2] %}
+  {% if gb in ['A', 'B', 'C'] %}{% set ns.hb = ns.hb + 1 %}{% endif %}
+  {% if ga in ['A', 'B', 'C'] %}{% set ns.ha = ns.ha + 1 %}{% endif %}
+  {% set ns.sb = ns.sb + (r.r_before|int) %}
+  {% set ns.sa = ns.sa + (r.r_after|int) %}
+{% endfor %}
+{% set total = form_rows|length %}
+<section class="card risk-result-card rk-result" id="risk-result">
+  <div class="wo-list-head rk-result-head">
+    <div>
+      <h2>평가 결과 <span>— {{ work_name }}</span></h2>
+      <div class="rk-tags">
+        <span class="rk-tag {% if use_ai %}is-ai{% else %}is-local{% endif %}">{{ mode_label }}</span>
+        <span class="rk-tag">{{ total }}건</span>
+        {% if meta and meta.apply_type %}<span class="rk-tag">{{ meta.apply_type }}</span>{% endif %}
+      </div>
+    </div>
     <div class="row-actions">
       <button type="button" class="btn btn-sm btn-secondary" id="risk-print-btn">인쇄/PDF</button>
-      <button type="button" class="btn btn-sm btn-primary" id="risk-html-btn">HTML 저장</button>
+      <button type="button" class="btn btn-sm btn-secondary" id="risk-html-btn">HTML 저장</button>
       <button type="button" class="btn btn-sm btn-primary" id="risk-excel-btn">Excel 저장</button>
     </div>
-  <textarea id="risk-export-report" hidden readonly>{{ report_text }}</textarea>
-  <script type="application/json" id="risk-rows-json">{{ rows_json | safe }}</script>
+    <textarea id="risk-export-report" hidden readonly>{{ report_text }}</textarea>
+    <script type="application/json" id="risk-rows-json">{{ rows_json | safe }}</script>
   </div>
 
-  <div class="risk-meta-block">
-    <div>부서명: {{ meta.department or '-' }}</div>
-    <div>평가서NO: {{ meta.assessment_no or '-' }}</div>
-    <div>작업명: {{ work_name }}</div>
-    <div>평가담당: {{ meta.evaluator or '-' }}</div>
+  <div class="rk-kpis">
+    <div class="rk-kpi"><span>유해위험요인</span><b>{{ total }}<small>건</small></b></div>
+    <div class="rk-kpi{% if ns.hb %} is-bad{% endif %}"><span>개선 전 C급 이상</span><b>{{ ns.hb }}<small>건</small></b></div>
+    <div class="rk-kpi{% if ns.ha == 0 %} is-good{% else %} is-bad{% endif %}"><span>개선 후 C급 이상</span><b>{{ ns.ha }}<small>건</small></b></div>
+    <div class="rk-kpi is-good"><span>평균 위험도(R)</span><b>{% if total %}{{ '%.1f'|format(ns.sb / total) }}<span class="rk-arrow">→</span>{{ '%.1f'|format(ns.sa / total) }}{% else %}-{% endif %}</b></div>
   </div>
 
-  <div class="table-scroll">
+  <div class="risk-meta-block rk-meta">
+    <div><span>부서명</span>{{ meta.department or '-' }}</div>
+    <div><span>평가서NO</span>{{ meta.assessment_no or '-' }}</div>
+    <div><span>작업명</span>{{ work_name }}</div>
+    <div><span>평가담당</span>{{ meta.evaluator or '-' }}</div>
+  </div>
+
+  <div class="table-scroll rk-table-wrap">
     <table class="data-table risk-form-table">
       <thead>
         <tr>
-          <th>작업순서</th>
-          <th>작업공정</th>
-          <th>재해형태</th>
-          <th>유해위험요인</th>
+          <th rowspan="2">작업순서</th>
+          <th rowspan="2">작업공정</th>
+          <th rowspan="2">재해형태</th>
+          <th rowspan="2">유해위험요인</th>
+          <th colspan="5" class="rk-grp-before">개선 전</th>
+          <th colspan="5" class="rk-grp-after">개선 후</th>
+          <th rowspan="2">법적근거</th>
+        </tr>
+        <tr>
           <th>F</th><th>S</th><th>R</th>
           <th>현재안전조치(전)</th>
           <th>결과(전)</th>
           <th>F</th><th>S</th><th>R</th>
           <th>현재안전조치(후)</th>
           <th>결과(후)</th>
-          <th>법적근거</th>
         </tr>
       </thead>
       <tbody>
         {% for r in form_rows %}
+        {% set gb = (r.result_before or '')[-3:-2] %}
+        {% set ga = (r.result_after or '')[-3:-2] %}
         <tr>
-          <td>{{ r.work_sequence }}</td>
+          <td class="rk-seq">{{ r.work_sequence }}</td>
           <td>{{ r.work_process }}</td>
           <td>{{ r.disaster_type }}</td>
           <td>{{ r.hazard_factor }}</td>
-          <td>{{ r.f_before }}</td>
-          <td>{{ r.s_before }}</td>
-          <td>{{ r.r_before }}</td>
+          <td class="rk-num rk-split">{{ r.f_before }}</td>
+          <td class="rk-num">{{ r.s_before }}</td>
+          <td class="rk-num rk-r">{{ r.r_before }}</td>
           <td>{{ r.measures_before }}</td>
-          <td><span class="badge risk-grade">{{ r.result_before }}</span></td>
-          <td>{{ r.f_after }}</td>
-          <td>{{ r.s_after }}</td>
-          <td>{{ r.r_after }}</td>
+          <td><span class="badge risk-grade rk-g{{ gb }}">{{ r.result_before }}</span></td>
+          <td class="rk-num rk-split">{{ r.f_after }}</td>
+          <td class="rk-num">{{ r.s_after }}</td>
+          <td class="rk-num rk-r">{{ r.r_after }}</td>
           <td class="risk-improve">{{ r.measures_after }}</td>
-          <td><span class="badge risk-grade">{{ r.result_after }}</span></td>
-          <td>
+          <td><span class="badge risk-grade rk-g{{ ga }}">{{ r.result_after }}</span></td>
+          <td class="rk-split">
             {% if r.law_url %}
             <a href="{{ r.law_url }}" target="_blank" rel="noopener">{{ r.law }}</a>
             {% else %}{{ r.law or '-' }}{% endif %}
@@ -225,39 +430,114 @@
       </tbody>
     </table>
   </div>
-  <p class="d1-hint">※ R = F × S</p>
+  <p class="d1-hint rk-formula">※ R = F × S · 등급 A(허용불가) · B(중대) · C(상당) · D(경미) · E(미미) · F(무시)</p>
 
-  <h3>추가 명령 (1~7)</h3>
-  <form method="post" action="/admin/risk-assessment/command" class="risk-cmd-bar">
-    <input type="hidden" name="work_name" value="{{ work_name }}" />
-    <input type="hidden" name="major_name" value="{{ selected_major }}" />
-    <input type="hidden" name="Man" value="{{ five_m.Man if five_m else '' }}" />
-    <input type="hidden" name="Machine" value="{{ five_m.Machine if five_m else '' }}" />
-    <input type="hidden" name="Material" value="{{ five_m.Material if five_m else '' }}" />
-    <input type="hidden" name="Method" value="{{ five_m.Method if five_m else '' }}" />
-    <input type="hidden" name="Management" value="{{ five_m.Management if five_m else '' }}" />
-    <input type="hidden" name="Environment" value="{{ five_m.Environment if five_m else '' }}" />
-    <input type="hidden" name="report_text" value="{{ report_text }}" />
-    <button type="submit" name="command_num" value="1" class="btn btn-sm btn-secondary">1 작업표준</button>
-    <button type="submit" name="command_num" value="2" class="btn btn-sm btn-secondary">2 기술자료</button>
-    <button type="submit" name="command_num" value="3" class="btn btn-sm btn-secondary">3 사고사례</button>
-    <button type="submit" name="command_num" value="4" class="btn btn-sm btn-secondary">4 진행단계</button>
-    <button type="submit" name="command_num" value="5" class="btn btn-sm btn-secondary">5 법령조항</button>
-    <button type="submit" name="command_num" value="6" class="btn btn-sm btn-secondary">6 교육자료</button>
-    <button type="submit" name="command_num" value="7" class="btn btn-sm btn-secondary">7 기타</button>
-    <input type="text" name="user_question" placeholder="7번 기타 질문 입력" class="risk-q" />
-  </form>
-  {% if command_result %}
-  <div class="risk-cmd-result">
-    <pre>{{ command_result }}</pre>
+  <div class="rk-cmd">
+    <h3>추가 자료 요청<small>평가 결과를 바탕으로 관련 자료를 생성합니다</small></h3>
+    <form method="post" action="/admin/risk-assessment/command" class="risk-cmd-bar">
+      <input type="hidden" name="work_name" value="{{ work_name }}" />
+      <input type="hidden" name="major_name" value="{{ selected_major }}" />
+      <input type="hidden" name="Man" value="{{ five_m.Man if five_m else '' }}" />
+      <input type="hidden" name="Machine" value="{{ five_m.Machine if five_m else '' }}" />
+      <input type="hidden" name="Material" value="{{ five_m.Material if five_m else '' }}" />
+      <input type="hidden" name="Method" value="{{ five_m.Method if five_m else '' }}" />
+      <input type="hidden" name="Management" value="{{ five_m.Management if five_m else '' }}" />
+      <input type="hidden" name="Environment" value="{{ five_m.Environment if five_m else '' }}" />
+      <input type="hidden" name="report_text" value="{{ report_text }}" />
+      <button type="submit" name="command_num" value="1" class="rk-chip"><b>1</b>작업표준</button>
+      <button type="submit" name="command_num" value="2" class="rk-chip"><b>2</b>기술자료</button>
+      <button type="submit" name="command_num" value="3" class="rk-chip"><b>3</b>사고사례</button>
+      <button type="submit" name="command_num" value="4" class="rk-chip"><b>4</b>진행단계</button>
+      <button type="submit" name="command_num" value="5" class="rk-chip"><b>5</b>법령조항</button>
+      <button type="submit" name="command_num" value="6" class="rk-chip"><b>6</b>교육자료</button>
+      <button type="submit" name="command_num" value="7" class="rk-chip"><b>7</b>기타</button>
+      <input type="text" name="user_question" placeholder="7번 기타 질문 입력" class="risk-q" />
+    </form>
+    {% if command_result %}
+    <div class="risk-cmd-result">
+      <pre>{{ command_result }}</pre>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
 </section>
 {% endif %}
+</div>
+
+<dialog class="rk-dlg rk-dlg-matrix" id="rk-matrix-dlg">
+  <div class="rk-dlg-head"><h3>위험등급 기준 (R = F × S)</h3><button type="button" class="rk-dlg-x" data-rk-close aria-label="닫기">×</button></div>
+  <div class="rk-dlg-body">
+    <img src="/static/risk/risk_grade_matrix.png" alt="위험등급 매트릭스" />
+  </div>
+</dialog>
+
+<dialog class="rk-dlg" id="rk-ai-dlg">
+  <div class="rk-dlg-head"><h3>OpenAI 키 설정 (내 계정 전용)</h3><button type="button" class="rk-dlg-x" data-rk-close aria-label="닫기">×</button></div>
+  <div class="rk-dlg-body">
+    <p>OpenAI API 키는 로그인한 본인 계정에만 저장되며, 다른 사용자와 공유되지 않습니다. AI 작성 시 내 키만 사용합니다.</p>
+    <form method="post" action="/admin/risk-assessment/ai-settings" class="risk-ai-key-form-dlg">
+      <div class="rk-f">
+        <label>내 OpenAI API Key{% if ai_key_masked %} <small>(저장됨: {{ ai_key_masked }})</small>{% endif %}</label>
+        <input type="password" name="openai_api_key" placeholder="sk-..." autocomplete="off" />
+      </div>
+      <div class="rk-f">
+        <label>모델</label>
+        <input type="text" name="openai_model" value="{{ ai_model or 'gpt-4o-mini' }}" />
+      </div>
+      <div class="rk-dlg-actions">
+        <button type="submit" name="clear_key" value="1" class="btn btn-sm btn-secondary"
+                onclick="return confirm('내 계정의 OpenAI 키를 삭제할까요?');">키 삭제</button>
+        <button type="submit" class="btn btn-sm btn-primary">내 계정에 저장</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="rk-dlg" id="rk-learn-dlg">
+  <div class="rk-dlg-head"><h3>문서 업로드 학습</h3><button type="button" class="rk-dlg-x" data-rk-close aria-label="닫기">×</button></div>
+  <div class="rk-dlg-body">
+    <p>기존 위험성평가 자료(xlsx, docx, pptx, pdf)를 올려 소분류로 학습시킵니다.</p>
+    <form method="post" action="/admin/risk-assessment/learn" enctype="multipart/form-data">
+      <div class="rk-f">
+        <label>대분류</label>
+        <select name="major_name" required>
+          <option value="">선택</option>
+          {% for m in majors %}
+          <option value="{{ m.name }}" {% if selected_major == m.name %}selected{% endif %}>{{ m.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="rk-f">
+        <label>문서 파일</label>
+        <input type="file" name="files" multiple
+               accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.pdf" />
+      </div>
+      <label class="rk-check">
+        <input type="checkbox" name="allow_update" value="1" />
+        기존 작업 업데이트 허용
+      </label>
+      <div class="rk-dlg-actions">
+        <button type="button" class="btn btn-sm btn-secondary" data-rk-close>취소</button>
+        <button type="submit" class="btn btn-sm btn-primary">문서에서 학습</button>
+      </div>
+    </form>
+  </div>
+</dialog>
 
 <script type="application/json" id="risk-presets-data">{{ presets_json | safe }}</script>
 <script>
 (function () {
+  document.querySelectorAll('[data-rk-open]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var dlg = document.getElementById(btn.getAttribute('data-rk-open'));
+      if (dlg && dlg.showModal) dlg.showModal();
+    });
+  });
+  document.querySelectorAll('.rk-dlg').forEach(function (dlg) {
+    dlg.addEventListener('click', function (e) {
+      if (e.target === dlg || e.target.closest('[data-rk-close]')) dlg.close();
+    });
+  });
+
   var major = document.getElementById('risk-major');
   var preset = document.getElementById('risk-preset');
   var dataEl = document.getElementById('risk-presets-data');
