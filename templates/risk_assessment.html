@@ -79,6 +79,8 @@
 .rk-form-foot p { margin: 0; color: #64748b; font-size: .8rem; }
 .rk-submit { padding: .62rem 1.4rem; border-radius: 10px; font-weight: 800; font-size: .92rem; display: inline-flex; align-items: center; gap: .4rem; }
 .rk-submit svg { width: 16px; height: 16px; }
+.rk-ai-status { margin: 0; padding: .45rem .8rem; border-radius: 9px; background: #eef5ff; color: #13539f; font-weight: 700; font-size: .84rem; }
+.rk-ai-status.is-error { background: #fff1f2; color: #b42318; }
 
 .rk-result { padding: 1.15rem 1.25rem !important; }
 .rk-result-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-bottom: .9rem; }
@@ -328,7 +330,8 @@
 
     <div class="rk-form-foot">
       <p>R = F(빈도) × S(강도) · AI 모드는 내 계정에 저장한 OpenAI 키를 사용합니다</p>
-      <button type="submit" class="btn btn-primary rk-submit">
+      <p class="rk-ai-status" id="risk-ai-status" role="status" aria-live="polite" hidden></p>
+      <button type="submit" class="btn btn-primary rk-submit" id="risk-submit-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
         위험성평가 시작
       </button>
@@ -694,6 +697,78 @@
       document.body.classList.add('risk-printing');
       window.print();
       setTimeout(function () { document.body.classList.remove('risk-printing'); }, 500);
+    });
+  }
+
+  var riskForm = document.getElementById('risk-form');
+  var aiStatus = document.getElementById('risk-ai-status');
+  var submitBtn = document.getElementById('risk-submit-btn');
+  function setAiStatus(msg, isError) {
+    if (!aiStatus) return;
+    aiStatus.hidden = !msg;
+    aiStatus.textContent = msg || '';
+    aiStatus.classList.toggle('is-error', !!isError);
+  }
+  function finishAi(msg) {
+    if (submitBtn) submitBtn.disabled = false;
+    setAiStatus(msg, true);
+  }
+  function pollAiJob(jobId) {
+    var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    (async function loop() {
+      var misses = 0;
+      while (true) {
+        await sleep(3000);
+        var j = null;
+        try {
+          var res = await fetch('/admin/risk-assessment/job/' + jobId, { credentials: 'same-origin' });
+          j = await res.json();
+        } catch (e) {
+          misses += 1;
+          if (misses >= 5) { finishAi('서버 응답이 없어 진행 상태를 확인하지 못했습니다. 잠시 후 다시 실행하세요.'); return; }
+          continue;
+        }
+        misses = 0;
+        if (j.status === 'running') {
+          setAiStatus('AI가 위험성평가를 작성하고 있습니다… ' + (j.elapsed || 0) + '초 경과 (보통 1~3분)');
+          continue;
+        }
+        if (j.status === 'done' || j.status === 'error') {
+          setAiStatus('작성 완료 — 결과를 불러옵니다…');
+          window.location.href = '/admin/risk-assessment/job/' + jobId + '/result';
+          return;
+        }
+        finishAi(j.error || 'AI 작업을 찾을 수 없습니다. 다시 실행하세요.');
+        return;
+      }
+    })();
+  }
+  if (riskForm) {
+    riskForm.addEventListener('submit', async function (e) {
+      var ai = riskForm.querySelector('input[name="use_ai"]:checked');
+      if (!ai || ai.value !== '1' || !window.fetch) return;
+      e.preventDefault();
+      if (submitBtn) submitBtn.disabled = true;
+      setAiStatus('AI 작성 요청 중…');
+      try {
+        var res = await fetch(riskForm.action, {
+          method: 'POST',
+          body: new FormData(riskForm),
+          credentials: 'same-origin',
+          headers: { 'X-Risk-Async': '1' }
+        });
+        var ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok || ct.indexOf('application/json') < 0) {
+          finishAi('AI 작성 요청에 실패했습니다. 로그인 상태를 확인한 뒤 다시 실행하세요.');
+          return;
+        }
+        var j = await res.json();
+        if (!j.job_id) { finishAi('AI 작성 요청에 실패했습니다.'); return; }
+        setAiStatus('AI가 위험성평가를 작성하고 있습니다… (보통 1~3분)');
+        pollAiJob(j.job_id);
+      } catch (err) {
+        finishAi('AI 작성 요청 중 오류: ' + (err && err.message ? err.message : err));
+      }
     });
   }
 

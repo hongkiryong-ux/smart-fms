@@ -9114,42 +9114,109 @@ async def risk_assessment_run(
         "assessment_no": assessment_no.strip(),
         "apply_type": apply_type.strip() or "정기평가",
     }
-    try:
-        from risk_assessment import user_openai_credentials
+    from risk_assessment import user_openai_credentials
 
-        api_key, openai_model = user_openai_credentials(user)
-        result = assess(
-            work_name=work_name.strip(),
-            five_m=five_m,
-            use_ai=(use_ai == "1"),
-            major_name=major_name.strip(),
-            meta=meta,
-            api_key=api_key,
-            openai_model=openai_model,
-        )
+    api_key, openai_model = user_openai_credentials(user)
+    assess_kwargs = dict(
+        work_name=work_name.strip(),
+        five_m=five_m,
+        use_ai=(use_ai == "1"),
+        major_name=major_name.strip(),
+        meta=meta,
+        api_key=api_key,
+        openai_model=openai_model,
+    )
+    form_state = {
+        "work_name": work_name.strip(),
+        "five_m": five_m,
+        "meta": meta,
+        "major_name": major_name.strip(),
+        "preset_name": preset_name.strip(),
+        "use_ai": use_ai == "1",
+    }
+
+    # AI 작성은 수십 초~수 분 걸려 프록시 제한(약 100초)에 걸리므로 백그라운드 작업 + 진행 확인으로 처리
+    if use_ai == "1" and request.headers.get("x-risk-async") == "1":
+        job_id = _risk_job_start(user.id, assess, assess_kwargs, form_state)
+        return JSONResponse({"job_id": job_id})
+
+    try:
+        result = await asyncio.to_thread(assess, **assess_kwargs)
     except Exception as e:
         print(f"[risk] assess failed: {e}", flush=True)
-        return templates.TemplateResponse(
-            request,
-            "risk_assessment.html",
-            _risk_page_context(
-                user,
-                work_name=work_name.strip(),
-                five_m=five_m,
-                meta=meta,
-                selected_major=major_name.strip(),
-                preset_name=preset_name.strip(),
-                use_ai=(use_ai == "1"),
-                error_msg=f"평가 중 오류: {e}",
-            ),
-            status_code=500,
-        )
+        return _risk_render_error(request, user, form_state, e)
+    return _risk_render_result(request, user, form_state, result)
 
+
+_RISK_JOBS: dict[str, dict] = {}
+_RISK_JOB_TTL = 30 * 60
+
+
+def _risk_job_start(user_id: int, fn, kwargs: dict, form_state: dict) -> str:
+    import uuid
+
+    now = time.time()
+    for jid in [k for k, v in _RISK_JOBS.items() if now - v["created"] > _RISK_JOB_TTL]:
+        _RISK_JOBS.pop(jid, None)
+
+    job_id = uuid.uuid4().hex
+    job = {
+        "user_id": user_id,
+        "created": now,
+        "status": "running",
+        "form_state": form_state,
+        "result": None,
+        "error": "",
+    }
+    _RISK_JOBS[job_id] = job
+
+    async def _run():
+        try:
+            job["result"] = await asyncio.to_thread(fn, **kwargs)
+            job["status"] = "done"
+        except Exception as e:
+            print(f"[risk] ai job failed: {e}", flush=True)
+            job["error"] = str(e)
+            job["status"] = "error"
+
+    job["task"] = asyncio.create_task(_run())
+    return job_id
+
+
+def _risk_job_get(job_id: str, user: User) -> dict | None:
+    job = _RISK_JOBS.get(job_id or "")
+    if not job or job["user_id"] != user.id:
+        return None
+    return job
+
+
+def _risk_render_error(request: Request, user: User, form_state: dict, err) -> Response:
+    return templates.TemplateResponse(
+        request,
+        "risk_assessment.html",
+        _risk_page_context(
+            user,
+            work_name=form_state["work_name"],
+            five_m=form_state["five_m"],
+            meta=form_state["meta"],
+            selected_major=form_state["major_name"],
+            preset_name=form_state["preset_name"],
+            use_ai=form_state["use_ai"],
+            error_msg=f"평가 중 오류: {err}",
+        ),
+        status_code=500,
+    )
+
+
+def _risk_render_result(request: Request, user: User, form_state: dict, result: dict) -> Response:
+    five_m = form_state["five_m"]
+    meta = form_state["meta"]
+    major_name = form_state["major_name"]
     # 세션에는 가벼운 메타만 보관 (쿠키 용량 초과 방지 — 내보내기는 폼 POST 사용)
     request.session["risk_last"] = {
         "work_name": result["work_name"],
         "five_m": five_m,
-        "major_name": major_name.strip(),
+        "major_name": major_name,
         "meta": {**(meta or {}), "mode": result["mode"]},
     }
 
@@ -9161,8 +9228,8 @@ async def risk_assessment_run(
             work_name=result["work_name"],
             five_m=five_m,
             meta=meta,
-            selected_major=major_name.strip(),
-            preset_name=preset_name.strip() or result["work_name"],
+            selected_major=major_name,
+            preset_name=form_state["preset_name"] or result["work_name"],
             use_ai=(result["mode"] == "ai"),
             form_rows=result["form_rows"],
             result_rows=result["rows"],
@@ -9174,6 +9241,42 @@ async def risk_assessment_run(
             info_msg=result.get("register_msg") or "",
         ),
     )
+
+
+@app.get("/admin/risk-assessment/job/{job_id}")
+async def risk_assessment_job_status(
+    job_id: str,
+    user: User = Depends(require_can_edit),
+):
+    job = _risk_job_get(job_id, user)
+    if not job:
+        return JSONResponse(
+            {"status": "missing", "error": "작업을 찾을 수 없습니다. 서버가 재시작되었을 수 있으니 다시 실행하세요."},
+            status_code=404,
+        )
+    return JSONResponse(
+        {
+            "status": job["status"],
+            "elapsed": int(time.time() - job["created"]),
+            "error": job["error"],
+        }
+    )
+
+
+@app.get("/admin/risk-assessment/job/{job_id}/result")
+async def risk_assessment_job_result(
+    request: Request,
+    job_id: str,
+    user: User = Depends(require_can_edit),
+):
+    job = _risk_job_get(job_id, user)
+    if not job:
+        return RedirectResponse("/admin/risk-assessment", status_code=303)
+    if job["status"] == "error":
+        return _risk_render_error(request, user, job["form_state"], job["error"])
+    if job["status"] != "done" or not job["result"]:
+        return RedirectResponse("/admin/risk-assessment", status_code=303)
+    return _risk_render_result(request, user, job["form_state"], job["result"])
 
 
 @app.post("/admin/risk-assessment/ai-settings")
@@ -9280,7 +9383,8 @@ async def risk_assessment_learn(
                 dest.write_bytes(data)
                 tmp_paths.append(dest)
 
-            result = learn_documents(
+            result = await asyncio.to_thread(
+                learn_documents,
                 tmp_paths,
                 major_name.strip(),
                 allow_update=(allow_update == "1"),
@@ -9508,7 +9612,8 @@ async def risk_assessment_command(
     }
     last = request.session.get("risk_last") or {}
     try:
-        result_text = run_additional(
+        result_text = await asyncio.to_thread(
+            run_additional,
             command_num,
             work_name.strip(),
             five_m,
@@ -9527,7 +9632,8 @@ async def risk_assessment_command(
         try:
             from risk_assessment import assess
 
-            again = assess(
+            again = await asyncio.to_thread(
+                assess,
                 work_name=last["work_name"],
                 five_m=last.get("five_m") or five_m,
                 use_ai=False,
