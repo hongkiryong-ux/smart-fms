@@ -409,6 +409,92 @@ def _assess_ai(
     return finalize_ai_rows(rows, job, ai=None, on_status=None)
 
 
+FIVE_M_KEYS = ("Man", "Machine", "Material", "Method", "Management", "Environment")
+
+_FIVE_M_SYSTEM = """당신은 산업안전 JSA(작업안전분석)·위험성평가 전문가입니다.
+사용자가 준 작업명을 분석해 공종, 작업방법, 작업순서, 안전조치의 핵심 포인트를 찾아
+5M1E 위험요인 입력란을 채웁니다. 인사말 없이 JSON 객체 하나만 출력합니다.
+
+출력 키와 작성 기준 (모두 한국어, 각 값은 쉼표로 구분한 핵심 구절 4~8개, 220자 이내):
+- work_type: 공종 이름 한 구절 (예: 기계설비 정비, 전기 활선 근접작업)
+- Man: 작업 인원·자격·교육·숙련도·보호구·신호수/감시자
+- Machine: 사용 설비·장비·공구·방호장치·양중기구 등 상태
+- Material: 취급 자재·부품·화학물질·중량·에너지원(전기/압력/열) 특성
+- Method: "공종: ○○" 로 시작 → 작업방법 → "작업순서: ①…→②…→③…" (3~6단계) 포함
+- Management: 안전조치(LOTO·작업허가·TBM·감독·점검·출입통제·비상조치) 중심
+- Environment: 장소·고소/밀폐·조도·소음·온도·기상·통행자 혼재 등
+
+작업명에서 알 수 없는 내용은 같은 공종의 일반적인 현장 조건으로 추정해 작성합니다."""
+
+
+def suggest_five_m_ai(
+    job: str,
+    major_name: str = "",
+    *,
+    api_key: str,
+    model: str = "gpt-4o-mini",
+    current: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """작업명 → AI 작업분석으로 5M1E 초안 생성 (사용자 계정 API 키 사용)."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    job = (job or "").strip()
+    if not job:
+        raise RuntimeError("작업명을 먼저 입력하세요.")
+    key = (api_key or "").strip()
+    if not key:
+        raise RuntimeError("OpenAI 키가 없습니다. ‘키 설정’에서 본인 API 키를 저장하세요.")
+
+    lines = [f"작업명: {job}"]
+    if (major_name or "").strip():
+        lines.append(f"대분류: {major_name.strip()}")
+    hints = {k: (v or "").strip() for k, v in (current or {}).items() if (v or "").strip()}
+    if hints:
+        lines.append("사용자가 이미 적은 내용(살려서 보완): " + json.dumps(hints, ensure_ascii=False))
+
+    model_name = (model or "gpt-4o-mini").strip() or "gpt-4o-mini"
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": _FIVE_M_SYSTEM},
+            {"role": "user", "content": "\n".join(lines)},
+        ],
+        "response_format": {"type": "json_object"},
+    }
+    if model_name.lower().startswith(("gpt-4", "gpt-3.5", "chatgpt-4o")):
+        payload["temperature"] = 0.3
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=75) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = json.loads(e.read().decode("utf-8")).get("error", {}).get("message", "")
+        except Exception:
+            pass
+        raise RuntimeError(f"OpenAI 호출 실패({e.code}) {detail}".strip()) from e
+
+    raw = data["choices"][0]["message"]["content"]
+    try:
+        obj = json.loads(raw)
+    except ValueError as e:
+        raise RuntimeError("AI 응답을 해석하지 못했습니다. 다시 시도하세요.") from e
+
+    out = {k: str(obj.get(k) or "").strip() for k in FIVE_M_KEYS}
+    if not any(out.values()):
+        raise RuntimeError("AI가 5M1E 내용을 만들지 못했습니다. 작업명을 구체적으로 적어 다시 시도하세요.")
+    out["work_type"] = str(obj.get("work_type") or "").strip()
+    return out
+
+
 def run_additional(command_num: int, job: str, five_m: dict, report_text: str = "", major_name: str = "", user_question: str = "") -> str:
     """추가 명령 1~7 (네트워크 검색 포함 — 시간 소요 가능)."""
     from app.additional_commands import run_additional_command

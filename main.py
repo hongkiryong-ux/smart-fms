@@ -9073,6 +9073,42 @@ async def risk_assessment_page(
         )
 
 
+@app.post("/admin/risk-assessment/suggest-5m")
+async def risk_assessment_suggest_5m(
+    work_name: str = Form(""),
+    major_name: str = Form(""),
+    Man: str = Form(""),
+    Machine: str = Form(""),
+    Material: str = Form(""),
+    Method: str = Form(""),
+    Management: str = Form(""),
+    Environment: str = Form(""),
+    user: User = Depends(require_can_edit),
+):
+    """작업명 → AI 작업분석으로 5M1E 입력란 초안 (JSON)."""
+    from risk_assessment import user_openai_credentials
+    from risk_assessment.web_bridge import suggest_five_m_ai
+
+    api_key, openai_model = user_openai_credentials(user)
+    current = {
+        "Man": Man, "Machine": Machine, "Material": Material,
+        "Method": Method, "Management": Management, "Environment": Environment,
+    }
+    try:
+        five_m = await asyncio.to_thread(
+            suggest_five_m_ai,
+            work_name,
+            major_name,
+            api_key=api_key,
+            model=openai_model,
+            current=current,
+        )
+    except Exception as e:
+        print(f"[risk] suggest-5m failed: {e}", flush=True)
+        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=400)
+    return JSONResponse({"ok": True, "five_m": five_m})
+
+
 @app.post("/admin/risk-assessment/assess")
 async def risk_assessment_run(
     request: Request,

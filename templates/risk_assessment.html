@@ -42,6 +42,16 @@
 .rk-grid-meta { grid-template-columns: 1fr 1fr; }
 .rk-f { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
 .rk-f > label { font-size: .76rem; font-weight: 700; color: #475569; margin: 0; }
+.rk-job-row { display: flex; gap: .5rem; align-items: stretch; }
+.rk-job-row input { flex: 1 1 auto; min-width: 0; }
+.rk-autofill-btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: .35rem; padding: .45rem .85rem; border-radius: 9px; border: 1px solid #c7d7f0; background: linear-gradient(180deg, #f4f8ff, #e8f0fd); color: #13539f; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.rk-autofill-btn:hover { background: #dce9fb; }
+.rk-autofill-btn:disabled { opacity: .6; cursor: progress; }
+.rk-autofill-btn svg { width: 15px; height: 15px; }
+.rk-autofill-btn[hidden] { display: none; }
+.rk-autofill-status { margin: .1rem 0 0; font-size: .78rem; font-weight: 700; color: #13539f; }
+.rk-autofill-status.is-error { color: #b42318; }
+.rk-5m textarea.rk-filled { border-color: #93c5fd; background: #f2f7ff; }
 .rk-f input, .rk-f select, .rk-5m textarea {
   width: 100%; box-sizing: border-box; padding: .52rem .65rem; border: 1px solid #dbe3ee; border-radius: 9px;
   background: #fff; font-size: .88rem; font-family: inherit; color: #0f172a; transition: border-color .15s, box-shadow .15s;
@@ -264,9 +274,18 @@
           </div>
           <div class="rk-f rk-span2">
             <label for="risk-work-name">작업/설비명</label>
-            <input type="text" name="work_name" id="risk-work-name" required
-                   value="{{ work_name or '' }}"
-                   placeholder="예: 중량물 취급" />
+            <div class="rk-job-row">
+              <input type="text" name="work_name" id="risk-work-name" required
+                     value="{{ work_name or '' }}"
+                     placeholder="예: 중량물 취급" />
+              <button type="button" class="btn btn-sm rk-autofill-btn" id="risk-autofill-btn"
+                      {% if not use_ai %}hidden{% endif %}
+                      title="작업명을 AI로 분석해 공종·작업방법·작업순서·안전조치를 5M1E에 채웁니다">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+                5M1E 자동 채우기
+              </button>
+            </div>
+            <p class="rk-autofill-status" id="risk-autofill-status" role="status" aria-live="polite" hidden></p>
           </div>
         </div>
       </div>
@@ -299,7 +318,7 @@
     </div>
 
     <div class="rk-sec rk-sec-5m">
-      <div class="rk-sec-head"><span class="rk-step">3</span><h2>5M1E 위험요인</h2><small>소분류를 고르면 자동으로 채워지며 수정할 수 있습니다</small></div>
+      <div class="rk-sec-head"><span class="rk-step">3</span><h2>5M1E 위험요인</h2><small>소분류를 고르거나 AI 모드에서 「5M1E 자동 채우기」를 누르면 채워지며, 직접 수정할 수 있습니다</small></div>
       <div class="rk-5m-grid">
         <div class="rk-5m">
           <label for="risk-man"><span class="rk-5m-ico">M</span>Man <em>사람</em></label>
@@ -602,11 +621,75 @@
     });
   }
 
+  var autofillBtn = document.getElementById('risk-autofill-btn');
+  var autofillStatus = document.getElementById('risk-autofill-status');
+  var FIVE_M_KEYS = ['Man', 'Machine', 'Material', 'Method', 'Management', 'Environment'];
+
   document.querySelectorAll('input[name="use_ai"]').forEach(function (el) {
     el.addEventListener('change', function () {
       document.querySelectorAll('.risk-mode-opt').forEach(function (l) { l.classList.remove('is-on'); });
       el.closest('.risk-mode-opt').classList.add('is-on');
+      if (autofillBtn) autofillBtn.hidden = el.value !== '1';
+      if (autofillStatus && el.value !== '1') autofillStatus.hidden = true;
     });
+  });
+
+  function setAutofillStatus(msg, isError) {
+    if (!autofillStatus) return;
+    autofillStatus.hidden = !msg;
+    autofillStatus.textContent = msg || '';
+    autofillStatus.classList.toggle('is-error', !!isError);
+  }
+  function growTextarea(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight + 2, 260) + 'px';
+  }
+  if (autofillBtn) {
+    autofillBtn.addEventListener('click', async function () {
+      var job = (fields.name.value || '').trim();
+      if (!job) {
+        setAutofillStatus('작업명을 먼저 입력하세요.', true);
+        fields.name.focus();
+        return;
+      }
+      var hasText = FIVE_M_KEYS.some(function (k) { return (fields[k].value || '').trim(); });
+      if (hasText && !confirm('이미 적힌 5M1E 내용을 AI 작업분석 결과로 바꿀까요?\n(적힌 내용은 AI가 참고해 보완합니다)')) return;
+      var fd = new FormData();
+      fd.append('work_name', job);
+      fd.append('major_name', major.value || '');
+      FIVE_M_KEYS.forEach(function (k) { fd.append(k, fields[k].value || ''); });
+      autofillBtn.disabled = true;
+      setAutofillStatus('AI가 「' + job + '」 작업을 분석하고 있습니다… (보통 5~20초)');
+      try {
+        var res = await fetch('/admin/risk-assessment/suggest-5m', { method: 'POST', body: fd, credentials: 'same-origin' });
+        var ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (ct.indexOf('application/json') < 0) {
+          setAutofillStatus('요청에 실패했습니다. 로그인 상태를 확인한 뒤 다시 시도하세요.', true);
+          return;
+        }
+        var j = await res.json();
+        if (!j.ok) {
+          setAutofillStatus(j.error || '5M1E 자동 채우기에 실패했습니다.', true);
+          return;
+        }
+        FIVE_M_KEYS.forEach(function (k) {
+          var v = (j.five_m && j.five_m[k]) || '';
+          if (!v) return;
+          fields[k].value = v;
+          fields[k].classList.add('rk-filled');
+          growTextarea(fields[k]);
+        });
+        var wt = j.five_m && j.five_m.work_type;
+        setAutofillStatus('5M1E를 채웠습니다' + (wt ? ' · 공종: ' + wt : '') + ' — 내용을 확인·수정한 뒤 평가를 시작하세요.');
+      } catch (err) {
+        setAutofillStatus('자동 채우기 중 오류: ' + (err && err.message ? err.message : err), true);
+      } finally {
+        autofillBtn.disabled = false;
+      }
+    });
+  }
+  FIVE_M_KEYS.forEach(function (k) {
+    if (fields[k]) fields[k].addEventListener('input', function () { fields[k].classList.remove('rk-filled'); });
   });
 
   major.addEventListener('change', filterByMajor);
