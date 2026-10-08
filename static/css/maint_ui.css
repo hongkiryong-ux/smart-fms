@@ -312,6 +312,24 @@ body.mui .badge { font-weight: 700; letter-spacing: -.01em; }
 body.mui .badge-urgent { background: #fee2e2; color: #b91c1c; }
 body.mui .badge-wo { background: #e0e7ff; color: #3730a3; }
 
+/* 페이지 넘김 */
+body.mui .pager { margin-top: 1rem; gap: .3rem; }
+body.mui .pager-btn,
+body.mui .pager-num {
+  min-width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 9px;
+  background: #fff;
+  font-weight: 700;
+}
+body.mui .pager-num.is-current {
+  background: #13539f;
+  border-color: #13539f;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(19, 83, 159, .25);
+}
+
 /* 상세 화면 */
 body.mui .process-steps li { border-radius: 12px; }
 body.mui .info-dl dt { font-size: .74rem; font-weight: 700; color: #94a3b8; margin-top: .75rem; }

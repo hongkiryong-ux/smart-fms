@@ -50,7 +50,7 @@
 
 <section class="card card-wide">
   <div class="ilog2-files-list-head">
-    <h2>보관된 자료 <small class="text-muted">({{ files|length }}건 · {{ total_size_label }})</small></h2>
+    <h2>보관된 자료 <small class="text-muted">({{ total_count }}건 · {{ total_size_label }}{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small></h2>
     <form method="get" class="ilog2-search mperf-filter">
       <select name="year" aria-label="연도">
         <option value="">전체 연도</option>
@@ -115,6 +115,7 @@
       </tbody>
     </table>
   </div>
+  {% include "partials/pager.html" %}
   {% else %}
   <p class="empty">{% if filtered %}조회 결과가 없습니다.{% else %}보관된 자료가 없습니다.{% endif %}</p>
   {% endif %}

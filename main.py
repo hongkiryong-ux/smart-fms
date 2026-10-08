@@ -8126,6 +8126,7 @@ async def maintenance_performance_page(
     year: str = Query("", max_length=4),
     site_id: int | None = Query(None),
     q: str = Query("", max_length=100),
+    page: int = Query(1),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -8179,13 +8180,20 @@ async def maintenance_performance_page(
             }
         )
     zip_params = [("ids", f["id"]) for f in files] if (year or site_id or q.strip()) else []
+    pager = _paginate(files, page)
+    page_qs = urlencode(
+        [(k, v) for k, v in (("year", year), ("site_id", site_id or ""), ("q", q.strip())) if v]
+    )
     return templates.TemplateResponse(
         request,
         "maintenance_performance.html",
         {
             "user": user,
             "sites": sites,
-            "files": files,
+            "files": pager["items"],
+            "total_count": len(files),
+            "pager": pager,
+            "base_url": _MPERF_BASE + (f"?{page_qs}" if page_qs else ""),
             "total_size_label": _ilog2_size_label(total_size),
             "years": years,
             "year": year,
@@ -9801,30 +9809,30 @@ async def d1_list(
         for w in filtered_all:
             name = w.partner.name if w.partner else "미지정"
             by_partner.setdefault(name, []).append(w)
-        for name in sorted(by_partner.keys(), key=lambda n: (n == "미지정", n)):
-            items = by_partner[name]
+        ordered_names = sorted(by_partner.keys(), key=lambda n: (n == "미지정", n))
+        flat_orders: list = []
+        for name in ordered_names:
             if partner_sel != 0:
-                items = _sort_orders_today_receipt_first(items, today)
+                by_partner[name] = _sort_orders_today_receipt_first(by_partner[name], today)
+            flat_orders.extend(by_partner[name])
+        pager = _paginate(flat_orders, page)
+        page_ids = {int(w.id) for w in pager["items"]}
+        for name in ordered_names:
+            items = by_partner[name]
+            page_items = [w for w in items if int(w.id) in page_ids]
+            if not page_items:
+                continue
             partner_groups.append(
                 {
                     "name": name,
-                    "orders": items,
+                    "orders": page_items,
+                    "total": len(items),
                     "today_count": sum(
                         1 for w in items if _wo_is_today_partner_receipt(w, today)
                     ),
                 }
             )
-        pager = {
-            "page": 1,
-            "total": len(filtered_all),
-            "total_pages": 1,
-            "page_numbers": [1],
-            "has_prev": False,
-            "has_next": False,
-            "items": filtered_all,
-            "per_page": max(1, len(filtered_all) or 1),
-        }
-        board_orders = filtered_all
+        board_orders = pager["items"]
     elif boards:
         pager = _paginate(selected_works, page)
         board_orders = pager["items"]

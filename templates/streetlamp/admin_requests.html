@@ -22,7 +22,7 @@
   <p class="flash-error" role="alert">편집 권한이 없어 해당 기능(설정·삭제)을 사용할 수 없습니다.</p>
   {% endif %}
   <div class="admin-header">
-    <h2>정비 의뢰 목록</h2>
+    <h2>정비 의뢰 목록 <small class="text-muted">({{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small></h2>
     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
       <a href="{{ path_qr_page }}" class="btn-secondary">전체 QR ZIP</a>
       {% if not is_guest %}
@@ -160,6 +160,7 @@
           <td class="col-work-combined status-memo-combined">
             <form method="post" action="{{ path_requests_list }}" class="status-memo-form" enctype="application/x-www-form-urlencoded">
               <input type="hidden" name="mr_id" value="{{ r.id }}" />
+              <input type="hidden" name="return_qs" value="{{ return_qs }}" />
               <div class="status-memo-stack">
                 <div class="status-memo-controls-row">
                   <select name="mr_status" class="mr-status-select" aria-label="처리 상태 (접수·처리중·완료)">
@@ -177,6 +178,7 @@
           <td class="col-action">
             <form action="{{ path_requests_remove }}" method="post" class="inline-form" onsubmit="return confirm('이 접수 건을 삭제할까요? 삭제 후에는 복구할 수 없습니다.');">
               <input type="hidden" name="mr_id" value="{{ r.id }}" />
+              <input type="hidden" name="return_qs" value="{{ return_qs }}" />
               <button type="submit" class="btn-small btn-danger">삭제</button>
             </form>
           </td>
@@ -186,6 +188,7 @@
       </tbody>
     </table>
     </div>
+    {% include "partials/pager.html" %}
   {% endif %}
 </section>
 <script>

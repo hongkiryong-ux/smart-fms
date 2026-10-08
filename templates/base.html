@@ -10,7 +10,7 @@
   {% block head_extra %}{% endblock %}
   {% set _mui_p = request.url.path %}
   {% set maint_ui = _mui_p.startswith('/admin/work-orders') or _mui_p.startswith('/admin/d1') or _mui_p.startswith('/admin/facility-section') or _mui_p.startswith('/admin/maintenance-final-approvals') or _mui_p.startswith('/admin/maintenance-performance') or _mui_p.startswith('/admin/streetlamp') %}
-  {% if maint_ui %}<link rel="stylesheet" href="/static/css/maint_ui.css?v=1" />{% endif %}
+  {% if maint_ui %}<link rel="stylesheet" href="/static/css/maint_ui.css?v=2" />{% endif %}
 </head>
 <body{% if maint_ui %} class="mui"{% endif %}>
   {% if maint_ui %}<script>try { if (localStorage.getItem('maintUi') === 'old') document.body.classList.remove('mui'); } catch (e) {}</script>{% endif %}

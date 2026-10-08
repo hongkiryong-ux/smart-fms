@@ -299,13 +299,15 @@
 {% if filters.view_partner %}
 <section class="card">
   <div class="wo-list-head">
-    <h2>업체별 정비 리스트</h2>
+    <h2>업체별 정비 리스트
+      <small class="text-muted">({{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small>
+    </h2>
   </div>
   {% if partner_groups %}
   <div class="d1-partner-groups">
     {% for g in partner_groups %}
     <details class="d1-partner-group" open>
-      <summary>{{ g.name }} <small class="text-muted">({{ g.orders|length }}건{% if g.today_count %} · 정비접수 {{ g.today_count }}건{% endif %})</small></summary>
+      <summary>{{ g.name }} <small class="text-muted">({% if g.total != g.orders|length %}이 페이지 {{ g.orders|length }} / 전체 {% endif %}{{ g.total }}건{% if g.today_count %} · 정비접수 {{ g.today_count }}건{% endif %})</small></summary>
       {{ wo_board_table(g.orders, partners, "항목 없음", filters, today_receipt_ids) }}
     </details>
     {% endfor %}
@@ -313,6 +315,11 @@
   {% else %}
   <p class="empty">표시할 정비가 없습니다.</p>
   {% endif %}
+  {% set vparts = ['view=partner'] %}
+  {% for s in filters.statuses %}{% set _ = vparts.append('status=' ~ s) %}{% endfor %}
+  {% if filters.partner_id %}{% set _ = vparts.append('partner_id=' ~ filters.partner_id) %}{% endif %}
+  {% set base_url = '/admin/d1?' ~ vparts|join('&') %}
+  {% include "partials/pager.html" %}
 </section>
 {% else %}
   {% for section in board_sections %}

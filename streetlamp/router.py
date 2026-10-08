@@ -216,18 +216,54 @@ async def _admin_requests_select(db: AsyncSession, clauses: list) -> list[Mainte
     return list(result.scalars().unique())
 
 
+REQUESTS_PAGE_SIZE = 20
+
+
+def _paginate(items: list, page: int) -> dict:
+    total = len(items)
+    total_pages = max(1, (total + REQUESTS_PAGE_SIZE - 1) // REQUESTS_PAGE_SIZE)
+    page_n = max(1, min(int(page or 1), total_pages))
+    start_p = max(1, page_n - 2)
+    end_p = min(total_pages, start_p + 4)
+    start_p = max(1, end_p - 4)
+    start = (page_n - 1) * REQUESTS_PAGE_SIZE
+    return {
+        "items": items[start:start + REQUESTS_PAGE_SIZE],
+        "page": page_n,
+        "per_page": REQUESTS_PAGE_SIZE,
+        "total": total,
+        "total_pages": total_pages,
+        "page_numbers": list(range(start_p, end_p + 1)),
+        "has_prev": page_n > 1,
+        "has_next": page_n < total_pages,
+    }
+
+
+def _list_redirect(return_qs: str, flash: str) -> RedirectResponse:
+    qs = (return_qs or "").lstrip("?")
+    if "/" in qs or "\\" in qs or ":" in qs:
+        qs = ""
+    sep = "&" if qs else ""
+    return RedirectResponse(f"{admin_paths()['path_requests_list']}?{qs}{sep}flash={flash}", 303)
+
+
 @router.get("/admin/streetlamp/requests")
 async def admin_requests(request: Request, date_from: str = "", date_to: str = "", lamp_id: str = "",
                          request_type: str = "", name: str = "", phone: str = "", content: str = "",
-                         q: str = "", filter_status: str = "", user=Depends(require_login),
-                         db: AsyncSession = Depends(get_db)):
+                         q: str = "", filter_status: str = "", page: int = Query(1),
+                         user=Depends(require_login), db: AsyncSession = Depends(get_db)):
     _check_access(user)
     clauses, values = _filters(date_from=date_from, date_to=date_to, lamp_id=lamp_id, request_type=request_type,
                                name=name, phone=phone, content=content, q=q, filter_status=filter_status)
+    all_rows = await _admin_requests_select(db, clauses)
+    pager = _paginate(all_rows, page)
+    export_qs = urlencode({k: v for k, v in values.items() if v})
     return _render(request, "streetlamp/admin_requests.html", _ctx(
-        request, user, requests_list=await _admin_requests_select(db, clauses), RequestType=RequestType,
+        request, user, requests_list=pager["items"], pager=pager, RequestType=RequestType,
         RequestStatus=RequestStatus, RequestTypeLabel=RequestTypeLabel, RequestStatusLabel=RequestStatusLabel,
-        export_qs=urlencode({k: v for k, v in values.items() if v}),
+        export_qs=export_qs,
+        base_url=admin_paths()["path_requests_list"] + (f"?{export_qs}" if export_qs else ""),
+        return_qs=export_qs + (("&" if export_qs else "") + f"page={pager['page']}" if pager["page"] > 1 else ""),
         request_type_filter=values.get("request_type", ""),
         status_filter=values.get("filter_status", ""),
         **values))
@@ -235,26 +271,28 @@ async def admin_requests(request: Request, date_from: str = "", date_to: str = "
 
 @router.post("/admin/streetlamp/requests")
 async def admin_request_save(mr_id: int = Form(...), mr_status: str = Form(...), mr_work_memo: str = Form(""),
+                             return_qs: str = Form(""),
                              user=Depends(require_login), db: AsyncSession = Depends(get_db)):
     _check_access(user)
     row = await db.get(MaintenanceRequest, mr_id)
     if not row:
-        return RedirectResponse(f"{admin_paths()['path_requests_list']}?flash=nosuchrequest", 303)
+        return _list_redirect(return_qs, "nosuchrequest")
     try: row.status = RequestStatus(mr_status)
     except ValueError: raise HTTPException(422, "유효하지 않은 상태입니다.")
     row.work_memo = mr_work_memo.strip() or None
     row.completed_at = datetime.utcnow() if row.status == RequestStatus.done else None
     await db.commit()
-    return RedirectResponse(f"{admin_paths()['path_requests_list']}?flash=saved", 303)
+    return _list_redirect(return_qs, "saved")
 
 
 @router.post("/admin/streetlamp/requests/delete")
-async def admin_request_delete(mr_id: int = Form(...), user=Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def admin_request_delete(mr_id: int = Form(...), return_qs: str = Form(""),
+                               user=Depends(require_login), db: AsyncSession = Depends(get_db)):
     _check_access(user)
     if not can_edit(user): raise HTTPException(403, "삭제 권한이 없습니다.")
     if row := await db.get(MaintenanceRequest, mr_id):
         await db.delete(row); await db.commit()
-    return RedirectResponse(f"{admin_paths()['path_requests_list']}?flash=saved", 303)
+    return _list_redirect(return_qs, "saved")
 
 
 @router.get("/admin/streetlamp/requests/export")
