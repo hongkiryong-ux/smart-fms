@@ -4,7 +4,7 @@
 {% macro wo_board_table(orders, partners, empty_msg, filters=None, today_receipt_ids=None) %}
   {% set today_ids = today_receipt_ids or [] %}
   <div class="table-scroll">
-  <table class="data-table wo-list-table wo-list-compact">
+  <table class="data-table wo-list-table wo-list-compact d1-list-table" data-col-share="follow">
     <thead>
       <tr>
         <th class="wo-sel-col">
@@ -19,7 +19,7 @@
         <th>협력사</th>
         <th>진행</th>
         <th>조치내용</th>
-        <th>승인자</th>
+        <th data-col="작업 승인자">승인자</th>
         <th>최종승인자</th>
         <th>저장</th>
         <th>작업허가 승인요청</th>
@@ -471,5 +471,5 @@
   syncBulk();
 })();
 </script>
-<script src="/static/js/wo-col-resize.js"></script>
+<script src="/static/js/wo-col-resize.js?v=2"></script>
 {% endblock %}
