@@ -215,7 +215,6 @@ body.mui .table-scroll {
   border: 1px solid var(--mui-line);
   border-radius: 12px;
   background: #fff;
-  max-height: 72vh;
 }
 body.mui .data-table { font-size: .84rem; }
 body.mui .data-table thead th {
@@ -423,7 +422,6 @@ body.mui .streetlamp-admin table th {
   body.mui .page-header { padding: .85rem 1rem .85rem 1.2rem; }
   body.mui .page-header h1 { font-size: 1.15rem; }
   body.mui .card { padding: .9rem; }
-  body.mui .table-scroll { max-height: none; }
 }
 
 /* 새 화면 ⇄ 기존 화면 전환 버튼 (클래스와 무관하게 표시) */
