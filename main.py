@@ -1217,6 +1217,68 @@ async def _startup_db_init() -> None:
     )
 
 
+_RISK_PRESETS_KEY = "risk.user_presets"
+_risk_presets_pending: dict[str, str | None] = {"text": None}
+_risk_presets_lock: asyncio.Lock | None = None
+
+
+async def _risk_presets_flush() -> None:
+    """위험성평가 소분류(학습 결과) 최신본을 DB에 저장 — 연속 저장 시 마지막 내용만 반영."""
+    global _risk_presets_lock
+    if _risk_presets_lock is None:
+        _risk_presets_lock = asyncio.Lock()
+    async with _risk_presets_lock:
+        text = _risk_presets_pending["text"]
+        if text is None:
+            return
+        _risk_presets_pending["text"] = None
+        try:
+            async with AsyncSessionLocal() as db:
+                row = await db.get(AppSetting, _RISK_PRESETS_KEY)
+                if row:
+                    row.value = text
+                else:
+                    db.add(AppSetting(key=_RISK_PRESETS_KEY, value=text))
+                await db.commit()
+        except Exception as e:
+            print(f"[risk] user_presets DB save failed: {e}", flush=True)
+
+
+async def _risk_presets_sync_startup(init_task: asyncio.Task) -> None:
+    """서버 파일은 재배포 때 초기화되므로 DB 저장본으로 복원하고, 이후 저장은 DB에도 기록."""
+    try:
+        await init_task
+    except Exception:
+        pass
+    try:
+        from risk_assessment import web_bridge
+        from app import work_type_store as wts
+
+        async with AsyncSessionLocal() as db:
+            row = await db.get(AppSetting, _RISK_PRESETS_KEY)
+            stored = row.value if row else None
+        if stored:
+            json.loads(stored)
+            await asyncio.to_thread(wts.USER_PRESETS_PATH.write_text, stored, encoding="utf-8")
+            web_bridge._lookup.cache_clear()
+            web_bridge._engine.cache_clear()
+            print("[risk] user_presets restored from DB", flush=True)
+        elif wts.USER_PRESETS_PATH.exists():
+            _risk_presets_pending["text"] = wts.USER_PRESETS_PATH.read_text(encoding="utf-8")
+            await _risk_presets_flush()
+            print("[risk] user_presets seeded to DB", flush=True)
+
+        loop = asyncio.get_running_loop()
+
+        def _on_save(text: str) -> None:
+            _risk_presets_pending["text"] = text
+            asyncio.run_coroutine_threadsafe(_risk_presets_flush(), loop)
+
+        wts.add_save_listener(_on_save)
+    except Exception as e:
+        print(f"[risk] user_presets DB sync skip: {e}", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Render health check가 막히지 않도록 DB 초기화는 백그라운드로 수행."""
@@ -1225,6 +1287,7 @@ async def lifespan(app: FastAPI):
 
     _os.environ.setdefault("LAW_WEB_SEARCH", "0")
     init_task = asyncio.create_task(_startup_db_init())
+    app.state.risk_presets_sync_task = asyncio.create_task(_risk_presets_sync_startup(init_task))
 
     scheduler = None
     keep_task = None

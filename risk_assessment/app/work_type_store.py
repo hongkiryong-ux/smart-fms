@@ -12,6 +12,14 @@ from app.runtime_paths import DATA_DIR
 USER_PRESETS_PATH = DATA_DIR / "user_presets.json"
 BUILTIN_PATH = DATA_DIR / "work_types.json"
 
+# 웹 서버가 저장 내용을 DB에도 남기도록 등록 (서버 파일은 재배포 시 초기화됨)
+_save_listeners: list = []
+
+
+def add_save_listener(fn) -> None:
+    if fn not in _save_listeners:
+        _save_listeners.append(fn)
+
 _RISK_ROW_KEYS = [
     "work_class",
     "phase",
@@ -87,10 +95,13 @@ class UserPresetStore:
 
     def save(self) -> None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
-        USER_PRESETS_PATH.write_text(
-            json.dumps(self._data, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        text = json.dumps(self._data, ensure_ascii=False, indent=2)
+        USER_PRESETS_PATH.write_text(text, encoding="utf-8")
+        for fn in list(_save_listeners):
+            try:
+                fn(text)
+            except Exception as e:
+                print(f"[risk] user_presets save listener failed: {e}", flush=True)
 
     @property
     def presets(self) -> list[dict]:
