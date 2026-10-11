@@ -53,6 +53,75 @@
 .pmx-tab:hover { background: rgba(255, 255, 255, .12); color: #fff; }
 .pmx-tab.is-on { background: #fff; color: var(--pmx-blue); box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
 
+/* 내 건물 */
+.pmx-mybld {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .7rem 1rem;
+  border: 1px solid var(--pmx-line);
+  border-radius: 14px;
+  background: #fff;
+}
+.pmx-mybld.is-set { border-color: #bcd3ef; background: linear-gradient(90deg, #eef5fd, #fff 70%); }
+.pmx-mybld-ico {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: #eaf2fc;
+  color: var(--pmx-blue);
+}
+.pmx-mybld-ico svg { width: 17px; height: 17px; }
+.pmx-mybld-text { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; font-size: .85rem; }
+.pmx-mybld-text strong { color: var(--pmx-text); font-weight: 800; }
+.pmx-mybld-names { display: flex; flex-wrap: wrap; gap: .3rem; }
+.pmx-mybld-names em {
+  font-style: normal;
+  padding: .1rem .55rem;
+  border-radius: 999px;
+  background: var(--pmx-blue);
+  color: #fff;
+  font-size: .76rem;
+  font-weight: 700;
+}
+.pmx-mybld-btn { flex: 0 0 auto; border-radius: 9px; }
+.pmx-mybld-dialog { width: min(460px, calc(100vw - 1.5rem)); }
+.pmx-mybld-tools { display: flex; gap: .6rem; margin: .4rem 0 .5rem; }
+.pmx-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--pmx-blue);
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pmx-link:hover { text-decoration: underline; }
+.pmx-mybld-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .4rem;
+  max-height: 46vh;
+  overflow: auto;
+  padding: .1rem;
+}
+.pmx-mybld-opt {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .5rem .65rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.pmx-mybld-opt input { margin: 0; accent-color: var(--pmx-blue); }
+.pmx-mybld-opt:has(input:checked) { border-color: #7aa7dc; background: #eef5fd; font-weight: 700; color: var(--pmx-blue); }
+.pmx-mybld-actions { justify-content: flex-end; margin-top: .9rem; }
+
 /* 카드 */
 .pmx-card {
   background: #fff;
@@ -439,4 +508,6 @@
   .pmx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pmx-toolbar-gap { display: none; }
   .pmx-cycle-form { flex-wrap: wrap; }
+  .pmx-mybld { flex-wrap: wrap; }
+  .pmx-mybld-list { grid-template-columns: 1fr; }
 }

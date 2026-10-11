@@ -10790,6 +10790,23 @@ def _pm_match_filters(
     return True
 
 
+def _pm_user_building_ids(user: User) -> set[int]:
+    """계정에 지정된 PM 담당 건물 id (비어 있으면 전체 건물)."""
+    raw = getattr(user, "pm_building_ids", None)
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            raw = None
+    out: set[int] = set()
+    for v in raw or []:
+        try:
+            out.add(int(v))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 async def _pm_filtered_schedules(
     db: AsyncSession,
     *,
@@ -10797,6 +10814,7 @@ async def _pm_filtered_schedules(
     building_id: int | None = None,
     equipment_id: int | None = None,
     due_only: bool = False,
+    building_ids: set[int] | None = None,
 ) -> list[PMSchedule]:
     today = _today_kst()
     schedules = (
@@ -10807,9 +10825,12 @@ async def _pm_filtered_schedules(
             .order_by(PMSchedule.next_due.asc().nullslast())
         )
     ).scalars().unique().all()
-    return [
-        s
-        for s in schedules
+    out = []
+    for s in schedules:
+        if building_ids:
+            bld = _equipment_building(s.equipment)
+            if not bld or bld.id not in building_ids:
+                continue
         if _pm_match_filters(
             s,
             q=q,
@@ -10817,8 +10838,9 @@ async def _pm_filtered_schedules(
             equipment_id=equipment_id,
             due_only=due_only,
             today=today,
-        )
-    ]
+        ):
+            out.append(s)
+    return out
 
 
 def _pm_excel_response(schedules: list[PMSchedule]):
@@ -20209,6 +20231,20 @@ async def pm_list(
     due_only = due in ("1", "due", "overdue")
     active_tab = tab if tab in ("list", "settings") else "list"
 
+    all_buildings = _sort_buildings(
+        (
+            await db.execute(
+                select(Building).where(Building.is_active == True).order_by(Building.name)  # noqa: E712
+            )
+        ).scalars().all()
+    )
+    my_ids = _pm_user_building_ids(user) & {b.id for b in all_buildings}
+    buildings = [b for b in all_buildings if b.id in my_ids] if my_ids else all_buildings
+    if my_ids and building_id and building_id not in my_ids:
+        building_id = None
+    if my_ids and len(my_ids) == 1 and active_tab == "list" and not building_id:
+        building_id = next(iter(my_ids))
+
     # 점검목록: 건물 선택 전에는 목록을 조회·표시하지 않음
     if active_tab == "list" and not building_id:
         all_schedules: list = []
@@ -20219,6 +20255,7 @@ async def pm_list(
             building_id=building_id,
             equipment_id=equipment_id,
             due_only=due_only,
+            building_ids=my_ids or None,
         )
 
     pager = _paginate(list(all_schedules), page)
@@ -20256,14 +20293,6 @@ async def pm_list(
         if rv in ("caution", "fault"):
             summary[rv] += 1
 
-    buildings = _sort_buildings(
-        (
-            await db.execute(
-                select(Building).where(Building.is_active == True).order_by(Building.name)  # noqa: E712
-            )
-        ).scalars().all()
-    )
-
     eq_q = (
         select(Equipment)
         .where(Equipment.is_active == True)  # noqa: E712
@@ -20275,12 +20304,14 @@ async def pm_list(
         )
         .order_by(Equipment.code)
     )
-    if building_id:
-        eq_q = (
-            eq_q.join(Zone, Equipment.zone_id == Zone.id)
-            .join(Floor, Zone.floor_id == Floor.id)
-            .where(Floor.building_id == building_id)
+    if building_id or my_ids:
+        eq_q = eq_q.join(Zone, Equipment.zone_id == Zone.id).join(
+            Floor, Zone.floor_id == Floor.id
         )
+        if building_id:
+            eq_q = eq_q.where(Floor.building_id == building_id)
+        else:
+            eq_q = eq_q.where(Floor.building_id.in_(my_ids))
     equipment_list = (await db.execute(eq_q)).scalars().unique().all()
 
     # 건물별·설비별 그룹 (목록 탭) — 현재 페이지 일정만
@@ -20328,6 +20359,8 @@ async def pm_list(
             "pager": pager,
             "building_stats": building_stats,
             "summary": summary,
+            "all_buildings": all_buildings,
+            "my_building_ids": my_ids,
             "filters": {
                 "q": q,
                 "building_id": building_id,
@@ -20366,8 +20399,43 @@ async def pm_export(
         building_id=building_id,
         equipment_id=equipment_id,
         due_only=due_only,
+        building_ids=_pm_user_building_ids(user) or None,
     )
     return _pm_excel_response(schedules)
+
+
+@app.post("/admin/pm/my-buildings")
+async def pm_my_buildings_save(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    form = await request.form()
+    picked: set[int] = set()
+    for v in form.getlist("building_ids"):
+        try:
+            picked.add(int(v))
+        except (TypeError, ValueError):
+            continue
+    if picked:
+        valid = (
+            await db.execute(
+                select(Building.id).where(
+                    Building.id.in_(picked), Building.is_active == True  # noqa: E712
+                )
+            )
+        ).scalars().all()
+        picked = set(valid)
+    db_user = await db.get(User, user.id)
+    if not db_user:
+        raise HTTPException(404)
+    db_user.pm_building_ids = sorted(picked) or None
+    await db.commit()
+    tab = "settings" if str(form.get("tab", "")) == "settings" else "list"
+    msg = f"내 건물 {len(picked)}곳만 표시합니다." if picked else "전체 건물을 표시합니다."
+    return RedirectResponse(f"/admin/pm?tab={tab}&msg={quote(msg)}", status_code=303)
 
 
 @app.post("/admin/pm/schedules")

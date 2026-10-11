@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}점검(PM){% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="/static/css/pm_ui.css?v=1" />{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/pm_ui.css?v=2" />{% endblock %}
 {% block content %}
 {% set sel_building = (buildings|selectattr('id', 'equalto', filters.building_id)|list|first) if filters.building_id else none %}
 {% set qs_q = filters.q|urlencode %}
@@ -33,6 +33,54 @@
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
+<section class="pmx-mybld{% if my_building_ids %} is-set{% endif %}">
+  <span class="pmx-mybld-ico" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+  </span>
+  <div class="pmx-mybld-text">
+    {% if my_building_ids %}
+    <strong>내 건물만 표시 중</strong>
+    <span class="pmx-mybld-names">
+      {% for b in buildings %}<em>{{ b.name }}</em>{% endfor %}
+    </span>
+    {% else %}
+    <strong>전체 건물 표시 중</strong>
+    <span class="pmx-muted">내 건물을 설정하면 이 계정에서는 해당 건물만 보입니다.</span>
+    {% endif %}
+  </div>
+  <button type="button" class="btn btn-sm btn-secondary pmx-mybld-btn" data-open-dialog="pm-my-buildings">내 건물 설정</button>
+</section>
+
+<dialog id="pm-my-buildings" class="eq-dialog pmx-dialog pmx-mybld-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+  </form>
+  <div class="eq-popup-body">
+    <h2>내 건물 설정</h2>
+    <p class="pmx-dlg-sub">선택한 건물만 점검목록·주기설정·Excel에 표시됩니다. 모두 해제하면 전체 건물이 보입니다.</p>
+    <form method="post" action="/admin/pm/my-buildings" id="pm-my-buildings-form">
+      <input type="hidden" name="tab" value="{{ tab }}" />
+      <div class="pmx-mybld-tools">
+        <button type="button" class="pmx-link" data-mybld-all="1">전체 선택</button>
+        <button type="button" class="pmx-link" data-mybld-all="0">모두 해제</button>
+      </div>
+      <div class="pmx-mybld-list">
+        {% for b in all_buildings %}
+        <label class="pmx-mybld-opt">
+          <input type="checkbox" name="building_ids" value="{{ b.id }}" {% if b.id in my_building_ids %}checked{% endif %} />
+          <span>{{ b.name }}</span>
+        </label>
+        {% else %}
+        <p class="pmx-muted">등록된 건물이 없습니다.</p>
+        {% endfor %}
+      </div>
+      <div class="pmx-result-actions pmx-mybld-actions">
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
 {% if tab == 'settings' %}
 {# ───────────── 주기설정 ───────────── #}
 <section class="pmx-card">
@@ -45,7 +93,7 @@
   </div>
 
   <div class="pmx-bld-strip" role="group" aria-label="건물 선택">
-    <a class="pmx-bld-chip{% if not filters.building_id %} is-on{% endif %}" href="/admin/pm?tab=settings">전체 건물</a>
+    <a class="pmx-bld-chip{% if not filters.building_id %} is-on{% endif %}" href="/admin/pm?tab=settings">{% if my_building_ids %}내 건물 전체{% else %}전체 건물{% endif %}</a>
     {% for b in buildings %}
     {% set st = building_stats.get(b.id) %}
     <a class="pmx-bld-chip{% if filters.building_id == b.id %} is-on{% endif %}"
@@ -446,6 +494,15 @@
   }
 
   document.addEventListener('click', function (e) {
+    var allBtn = e.target.closest('[data-mybld-all]');
+    if (allBtn) {
+      var on = allBtn.getAttribute('data-mybld-all') === '1';
+      document.querySelectorAll('#pm-my-buildings-form input[name=building_ids]').forEach(function (cb) {
+        cb.checked = on;
+      });
+      return;
+    }
+
     var openBtn = e.target.closest('[data-open-dialog]');
     if (openBtn) {
       e.preventDefault();

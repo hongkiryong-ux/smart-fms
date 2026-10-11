@@ -132,6 +132,8 @@ class User(Base):
     can_delete = Column(Boolean, default=True)
     # 메인 메뉴 접근 키 목록 (null이면 역할 기본값 사용)
     menu_access = Column(JSON, nullable=True)
+    # 점검(PM) 담당 건물 id 목록 (비어 있으면 전체 건물 표시)
+    pm_building_ids = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     # 위험성평가 AI — 계정별 개인 키 (다른 사용자와 공유하지 않음)
     openai_api_key = Column(String(200), nullable=True)
