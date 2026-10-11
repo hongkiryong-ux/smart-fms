@@ -272,10 +272,6 @@
           </button>
         </div>
         <ul class="nav-sub" id="nav-maintenance-sub">
-          <li>
-            <a href="/admin/maintenance/dashboard"
-               class="{% if mdash_path %}active{% endif %}"><span class="nav-label">정비 대시보드</span></a>
-          </li>
           {% if can_wo %}
           <li>
             <a href="/admin/work-orders"
@@ -472,7 +468,7 @@
             path.indexOf('/d1') !== -1 ||
             path.indexOf('/facility-section') !== -1 ||
             path.indexOf('/streetlamp') !== -1 ||
-            path.indexOf('/maintenance-final') !== -1
+            path.indexOf('/admin/maintenance') !== -1
           )) return true;
           return false;
         }) || withActive[withActive.length - 1];
@@ -572,7 +568,7 @@
     bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-library', 'nav-library-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-maintenance', 'nav-maint-open', {
-      mobileToggleOnly: true,
+      expandByChevronOnly: true,
       accordionGroup: topLevelNavIds,
     });
     bindNavExpandable('nav-d1', 'nav-d1-open', { accordionGroup: nestedNavIds });
