@@ -10751,6 +10751,7 @@ def _pm_eq_options():
         .selectinload(Equipment.zone)
         .selectinload(Zone.floor)
         .selectinload(Floor.building)
+        .selectinload(Building.site)
     )
 
 
@@ -10821,7 +10822,10 @@ async def _pm_filtered_schedules(
         await db.execute(
             select(PMSchedule)
             .where(PMSchedule.is_active == True)  # noqa: E712
-            .options(_pm_eq_options(), selectinload(PMSchedule.inspections))
+            .options(
+                _pm_eq_options(),
+                selectinload(PMSchedule.inspections).selectinload(PMInspection.work_order),
+            )
             .order_by(PMSchedule.next_due.asc().nullslast())
         )
     ).scalars().unique().all()
@@ -20215,26 +20219,98 @@ async def inspection_log_set_qr_write_file(
     )
 
 
+PM_STATUS_LABELS = {
+    "overdue": "지연",
+    "today": "오늘",
+    "progress": "진행중",
+    "planned": "예정",
+    "done": "완료",
+}
+_PM_STATUS_ORDER = {"overdue": 0, "today": 1, "progress": 2, "planned": 3, "done": 4}
+_PM_WO_OPEN = {"received", "assigned", "in_progress"}
+
+
+def _pm_kst_date(dt: datetime | None) -> date | None:
+    if not isinstance(dt, datetime):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(KST).date()
+
+
+def _pm_row(schedule: PMSchedule, today: date) -> dict:
+    """대시보드·대상목록용 일정 상태 (지연/오늘/진행중/예정/완료)."""
+    insps = sorted(
+        (i for i in (schedule.inspections or []) if i.inspected_at),
+        key=lambda i: i.inspected_at,
+        reverse=True,
+    )
+    latest = insps[0] if insps else None
+    latest_day = _pm_kst_date(latest.inspected_at) if latest else None
+    wo = latest.work_order if latest else None
+    wo_status = getattr(getattr(wo, "status", None), "value", getattr(wo, "status", None))
+    due = schedule.next_due
+    if wo is not None and wo_status in _PM_WO_OPEN:
+        status = "progress"
+    elif due and due < today:
+        status = "overdue"
+    elif due and due == today:
+        status = "today"
+    elif latest is not None:
+        status = "done"
+    else:
+        status = "planned"
+    eq = schedule.equipment
+    bld = _equipment_building(eq)
+    return {
+        "pm": schedule,
+        "eq": eq,
+        "building": bld,
+        "site": getattr(bld, "site", None) if bld else None,
+        "hist": insps,
+        "latest": latest,
+        "latest_day": latest_day,
+        "wo": wo,
+        "status": status,
+        "dleft": (due - today).days if due else None,
+        "done_today": latest_day == today and status != "progress",
+    }
+
+
+def _pm_month_add(d: date, months: int) -> date:
+    y, m = divmod(d.month - 1 + months, 12)
+    return date(d.year + y, m + 1, 1)
+
+
 @app.get("/admin/pm")
 async def pm_list(
     request: Request,
     q: str = Query(""),
     building_id: int | None = Query(None),
     equipment_id: int | None = Query(None),
+    category: str = Query(""),
+    status: str = Query(""),
     due: str = Query(""),
     tab: str = Query("list"),
     page: int = Query(1),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
+    import calendar
+
     today = _today_kst()
-    due_only = due in ("1", "due", "overdue")
     active_tab = tab if tab in ("list", "settings") else "list"
+    if due in ("1", "due", "overdue") and not status:
+        status = "overdue"
+    status = status if status in PM_STATUS_LABELS else ""
 
     all_buildings = _sort_buildings(
         (
             await db.execute(
-                select(Building).where(Building.is_active == True).order_by(Building.name)  # noqa: E712
+                select(Building)
+                .where(Building.is_active == True)  # noqa: E712
+                .options(selectinload(Building.site))
+                .order_by(Building.name)
             )
         ).scalars().all()
     )
@@ -20242,131 +20318,206 @@ async def pm_list(
     buildings = [b for b in all_buildings if b.id in my_ids] if my_ids else all_buildings
     if my_ids and building_id and building_id not in my_ids:
         building_id = None
-    if my_ids and len(my_ids) == 1 and active_tab == "list" and not building_id:
-        building_id = next(iter(my_ids))
 
-    # 점검목록: 건물 선택 전에는 목록을 조회·표시하지 않음
-    if active_tab == "list" and not building_id:
-        all_schedules: list = []
-    else:
-        all_schedules = await _pm_filtered_schedules(
-            db,
-            q=q,
-            building_id=building_id,
-            equipment_id=equipment_id,
-            due_only=due_only,
-            building_ids=my_ids or None,
+    ctx: dict = {}
+    if active_tab == "list":
+        scope = await _pm_filtered_schedules(db, building_ids=my_ids or None)
+        rows = [_pm_row(s, today) for s in scope]
+
+        # KPI (오늘 기준)
+        today_rows = [
+            r for r in rows
+            if r["done_today"] or (r["pm"].next_due and r["pm"].next_due <= today)
+        ]
+        kpi_total = len(rows)
+        kpi_today = len(today_rows)
+        kpi_done = sum(1 for r in today_rows if r["done_today"])
+        kpi_progress = sum(1 for r in rows if r["status"] == "progress")
+        kpi_overdue = sum(1 for r in rows if r["status"] == "overdue")
+
+        def _pct(n: int, base: int) -> float:
+            return round(n * 100.0 / base, 1) if base else 0.0
+
+        kpi = {
+            "total": kpi_total,
+            "today": kpi_today,
+            "done": kpi_done,
+            "done_pct": _pct(kpi_done, kpi_today),
+            "progress": kpi_progress,
+            "progress_pct": _pct(kpi_progress, kpi_total),
+            "overdue": kpi_overdue,
+            "overdue_pct": _pct(kpi_overdue, kpi_total),
+        }
+
+        # 상태 현황 (도넛)
+        donut_colors = {
+            "done": "#22c55e",
+            "progress": "#f59e0b",
+            "overdue": "#ef4444",
+            "today": "#3b82f6",
+            "planned": "#cbd5e1",
+        }
+        circ = 2 * 3.14159265 * 42
+        offset = 0.0
+        donut = []
+        for key in ("done", "progress", "overdue", "today", "planned"):
+            n = sum(1 for r in rows if r["status"] == key)
+            length = circ * n / kpi_total if kpi_total else 0.0
+            donut.append(
+                {
+                    "key": key,
+                    "label": "미실시" if key == "planned" else ("오늘 예정" if key == "today" else PM_STATUS_LABELS[key]),
+                    "count": n,
+                    "pct": _pct(n, kpi_total),
+                    "color": donut_colors[key],
+                    "dash": f"{length:.2f} {circ - length:.2f}",
+                    "offset": f"{-offset:.2f}",
+                }
+            )
+            offset += length
+
+        # 월별 계획/실적 (최근 6개월)
+        first_this = today.replace(day=1)
+        months = [_pm_month_add(first_this, -i) for i in range(5, -1, -1)]
+        monthly = []
+        for m0 in months:
+            dim = calendar.monthrange(m0.year, m0.month)[1]
+            m1 = _pm_month_add(m0, 1)
+            plan = sum(
+                dim / _pm_cycle_days(r["pm"].frequency, r["pm"].custom_days) for r in rows
+            )
+            actual = sum(
+                1
+                for r in rows
+                for i in r["hist"]
+                if (d := _pm_kst_date(i.inspected_at)) and m0 <= d < m1
+            )
+            monthly.append({"label": f"{m0.month}월", "plan": int(round(plan)), "actual": actual})
+        top = max([1] + [x["plan"] for x in monthly] + [x["actual"] for x in monthly])
+        step = max(1, -(-top // 4))
+        chart_max = step * 4
+        for x in monthly:
+            x["plan_h"] = round(x["plan"] * 100.0 / chart_max, 1)
+            x["actual_h"] = round(x["actual"] * 100.0 / chart_max, 1)
+        chart_ticks = [step * i for i in range(4, -1, -1)]
+
+        # 오늘 일정 (지연 → 오늘 → 7일 이내 예정)
+        agenda = sorted(
+            [r for r in rows if r["status"] in ("overdue", "today")]
+            + [r for r in today_rows if r["done_today"]],
+            key=lambda r: (_PM_STATUS_ORDER.get(r["status"], 9), r["pm"].next_due or today),
         )
+        if len(agenda) < 8:
+            soon = sorted(
+                (
+                    r for r in rows
+                    if r["status"] in ("planned", "done")
+                    and not r["done_today"]
+                    and r["dleft"] is not None
+                    and 0 < r["dleft"] <= 7
+                ),
+                key=lambda r: r["pm"].next_due,
+            )
+            agenda += soon[: 8 - len(agenda)]
+        agenda = agenda[:8]
 
-    pager = _paginate(list(all_schedules), page)
-    schedules = pager["items"]
+        # 점검 대상 목록 (필터)
+        categories = sorted({(r["eq"].category or "").strip() for r in rows if r["eq"] and r["eq"].category})
+        needle = q.strip().lower()
+        filtered = []
+        for r in rows:
+            if building_id and (not r["building"] or r["building"].id != building_id):
+                continue
+            if equipment_id and (not r["eq"] or r["eq"].id != equipment_id):
+                continue
+            if category and (not r["eq"] or (r["eq"].category or "") != category):
+                continue
+            if status and r["status"] != status:
+                continue
+            if needle:
+                hay = " ".join(
+                    [
+                        r["pm"].title or "",
+                        r["pm"].assignee_name or "",
+                        r["eq"].code if r["eq"] else "",
+                        r["eq"].name if r["eq"] else "",
+                        r["building"].name if r["building"] else "",
+                    ]
+                ).lower()
+                if needle not in hay:
+                    continue
+            filtered.append(r)
+        filtered.sort(
+            key=lambda r: (
+                _PM_STATUS_ORDER.get(r["status"], 9),
+                r["pm"].next_due or date.max,
+                _building_sort_key(r["building"].name if r["building"] else ""),
+            )
+        )
+        pager = _paginate(filtered, page)
+        ctx = {
+            "kpi": kpi,
+            "donut": donut,
+            "monthly": monthly,
+            "chart_ticks": chart_ticks,
+            "agenda": agenda,
+            "rows": pager["items"],
+            "row_offset": (pager["page"] - 1) * pager.get("per_page", 20),
+            "pager": pager,
+            "categories": categories,
+            "status_labels": PM_STATUS_LABELS,
+        }
 
-    # 건물 카드용 건물별 점검일정·기한도래 수
+    equipment_list = []
+    if active_tab == "settings":
+        eq_q = (
+            select(Equipment)
+            .where(Equipment.is_active == True)  # noqa: E712
+            .options(
+                selectinload(Equipment.zone)
+                .selectinload(Zone.floor)
+                .selectinload(Floor.building),
+                selectinload(Equipment.pm_schedules),
+            )
+            .order_by(Equipment.code)
+        )
+        if building_id or my_ids:
+            eq_q = eq_q.join(Zone, Equipment.zone_id == Zone.id).join(
+                Floor, Zone.floor_id == Floor.id
+            )
+            if building_id:
+                eq_q = eq_q.where(Floor.building_id == building_id)
+            else:
+                eq_q = eq_q.where(Floor.building_id.in_(my_ids))
+        equipment_list = (await db.execute(eq_q)).scalars().unique().all()
+
     building_stats: dict[int, dict[str, int]] = {}
-    stat_rows = (
-        await db.execute(
-            select(PMSchedule)
-            .where(PMSchedule.is_active == True)  # noqa: E712
-            .options(_pm_eq_options())
-        )
-    ).scalars().unique().all()
-    for s in stat_rows:
-        bld = _equipment_building(s.equipment)
-        if not bld:
-            continue
-        st = building_stats.setdefault(bld.id, {"total": 0, "due": 0})
-        st["total"] += 1
-        if s.next_due and s.next_due <= today:
-            st["due"] += 1
-
-    # 선택 건물 요약 (필터 전체 기준)
-    summary = {"total": len(all_schedules), "due": 0, "caution": 0, "fault": 0, "never": 0}
-    for s in all_schedules:
-        if s.next_due and s.next_due <= today:
-            summary["due"] += 1
-        insps = [i for i in (s.inspections or []) if i.inspected_at]
-        if not insps:
-            summary["never"] += 1
-            continue
-        latest = max(insps, key=lambda i: i.inspected_at)
-        rv = latest.result.value if latest.result else ""
-        if rv in ("caution", "fault"):
-            summary[rv] += 1
-
-    eq_q = (
-        select(Equipment)
-        .where(Equipment.is_active == True)  # noqa: E712
-        .options(
-            selectinload(Equipment.zone)
-            .selectinload(Zone.floor)
-            .selectinload(Floor.building),
-            selectinload(Equipment.pm_schedules),
-        )
-        .order_by(Equipment.code)
-    )
-    if building_id or my_ids:
-        eq_q = eq_q.join(Zone, Equipment.zone_id == Zone.id).join(
-            Floor, Zone.floor_id == Floor.id
-        )
-        if building_id:
-            eq_q = eq_q.where(Floor.building_id == building_id)
-        else:
-            eq_q = eq_q.where(Floor.building_id.in_(my_ids))
-    equipment_list = (await db.execute(eq_q)).scalars().unique().all()
-
-    # 건물별·설비별 그룹 (목록 탭) — 현재 페이지 일정만
-    grouped: dict[str, dict] = {}
-    for pm in schedules:
-        eq = pm.equipment
-        bld = _equipment_building(eq)
-        bname = bld.name if bld else "미지정 건물"
-        bid = bld.id if bld else 0
-        bucket = grouped.setdefault(
-            str(bid),
-            {"building_id": bid, "building_name": bname, "equipment": {}},
-        )
-        ek = str(eq.id) if eq else "0"
-        e_bucket = bucket["equipment"].setdefault(
-            ek,
-            {
-                "equipment": eq,
-                "schedules": [],
-            },
-        )
-        e_bucket["schedules"].append(pm)
-
-    grouped_list = sorted(
-        grouped.values(),
-        key=lambda g: _building_sort_key(g["building_name"]),
-    )
-    for g in grouped_list:
-        g["equipment_list"] = sorted(
-            g["equipment"].values(),
-            key=lambda e: (e["equipment"].code if e["equipment"] else ""),
-        )
+    if active_tab == "settings":
+        for eq in equipment_list:
+            bld = _equipment_building(eq)
+            if not bld:
+                continue
+            st = building_stats.setdefault(bld.id, {"total": 0, "due": 0})
+            st["total"] += sum(1 for s in (eq.pm_schedules or []) if s.is_active)
 
     return templates.TemplateResponse(
         request,
         "pm.html",
         {
             "user": user,
-            "schedules": schedules,
-            "grouped_list": grouped_list,
             "buildings": buildings,
             "equipment_list": equipment_list,
             "today": today,
             "tab": active_tab,
-            "pager": pager,
             "building_stats": building_stats,
-            "summary": summary,
             "all_buildings": all_buildings,
             "my_building_ids": my_ids,
             "filters": {
                 "q": q,
                 "building_id": building_id,
                 "equipment_id": equipment_id,
-                "due": due_only,
-                "page": pager["page"],
+                "category": category,
+                "status": status,
             },
             "freq_choices": [
                 (PMFrequency.daily, "매일"),
@@ -20379,6 +20530,7 @@ async def pm_list(
             ],
             "message": request.query_params.get("msg", ""),
             "error": request.query_params.get("error", ""),
+            **ctx,
         },
     )
 
