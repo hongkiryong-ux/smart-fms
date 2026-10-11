@@ -20535,6 +20535,295 @@ async def pm_list(
     )
 
 
+# 정비유형: 지정 업체명 키워드 → 유형
+MAINT_TYPE_BY_PARTNER: tuple[tuple[str, str], ...] = (
+    ("서희건설", "토건"),
+    ("우민전기", "전기"),
+    ("디와이이", "조명"),
+    ("한려기계", "설비"),
+    ("제철공무", "승강기·에어컨"),
+    ("창대이엔씨", "주방기기"),
+)
+MAINT_TYPE_ORDER: tuple[str, ...] = tuple(t for _, t in MAINT_TYPE_BY_PARTNER) + ("기타", "업체 미지정")
+MAINT_TYPE_COLORS: dict[str, str] = {
+    "토건": "#8b5cf6",
+    "전기": "#16a34a",
+    "조명": "#facc15",
+    "설비": "#2563eb",
+    "승강기·에어컨": "#06b6d4",
+    "주방기기": "#f97316",
+    "기타": "#94a3b8",
+    "업체 미지정": "#e2e8f0",
+}
+_WO_DONE = {"completed", "verified", "closed"}
+
+
+def _maint_type_of(wo: WorkOrder) -> str:
+    partner = getattr(wo, "partner", None)
+    name = (getattr(partner, "name", "") or "").replace(" ", "")
+    if not name:
+        return "업체 미지정"
+    for key, label in MAINT_TYPE_BY_PARTNER:
+        if key in name:
+            return label
+    return "기타"
+
+
+def _maint_wo_row(wo: WorkOrder, today: date) -> dict:
+    st = wo.status.value if isinstance(wo.status, WorkOrderStatus) else str(wo.status or "")
+    done = st in _WO_DONE
+    created_d = _pm_kst_date(wo.created_at)
+    completed_d = _pm_kst_date(wo.completed_at) if wo.completed_at else None
+    if done and not completed_d:
+        completed_d = _pm_kst_date(wo.completion_approved_at) if wo.completion_approved_at else created_d
+    sched = wo.scheduled_date
+    delayed = (not done) and bool(sched) and sched < today
+    urgent = (not done) and (wo.priority or "") == "high"
+    if done:
+        group, label, tone = "done", "완료", "done"
+    elif delayed:
+        group, label, tone = "delay", "지연", "delay"
+    else:
+        group = "progress"
+        if urgent:
+            label, tone = "긴급", "urgent"
+        elif st in ("received", "assigned"):
+            label, tone = "접수", "received"
+        else:
+            label, tone = "진행중", "progress"
+    eq = wo.equipment
+    bld = _equipment_building(eq) if eq else None
+    return {
+        "wo": wo,
+        "group": group,
+        "label": label,
+        "tone": tone,
+        "urgent": urgent,
+        "created_d": created_d,
+        "completed_d": completed_d,
+        "delay_days": (today - sched).days if delayed else 0,
+        "eq_name": (eq.name if eq else "") or wo.title,
+        "building": bld,
+        "site_id": wo.site_id or (bld.site_id if bld else None),
+        "location": bld.name if bld else "-",
+        "mtype": _maint_type_of(wo),
+        "number": f"{(created_d or today).year}-{wo.id:05d}",
+        "owner": (wo.partner.name if wo.partner else "") or (wo.assignee_name or "-"),
+    }
+
+
+@app.get("/admin/maintenance/dashboard")
+async def maintenance_dashboard(
+    request: Request,
+    tab: str = Query("all"),
+    site_id: int = Query(0),
+    building_id: int = Query(0),
+    mtype: str = Query(""),
+    date_from: str = Query(""),
+    date_to: str = Query(""),
+    page: int = Query(1),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    if not any(
+        can_access_menu(user, k)
+        for k in ("work_orders", "d1", "facility_section", "maintenance_performance", "streetlamp")
+    ):
+        raise HTTPException(403)
+
+    today = _today_kst()
+    stmt = (
+        select(WorkOrder)
+        .where(WorkOrder.is_active == True, WorkOrder.is_rejected.is_not(True))  # noqa: E712
+        .options(
+            selectinload(WorkOrder.partner),
+            selectinload(WorkOrder.equipment)
+            .selectinload(Equipment.zone)
+            .selectinload(Zone.floor)
+            .selectinload(Floor.building),
+        )
+    )
+    role = getattr(user.role, "value", user.role)
+    if role in ("partner", "external") and user.partner_id:
+        stmt = stmt.where(WorkOrder.partner_id == user.partner_id)
+    orders = (await db.execute(stmt)).scalars().unique().all()
+    rows = [_maint_wo_row(w, today) for w in orders]
+
+    month0 = today.replace(day=1)
+    prev0 = _pm_month_add(month0, -1)
+    this_rows = [r for r in rows if r["created_d"] and r["created_d"] >= month0]
+    prev_rows = [r for r in rows if r["created_d"] and prev0 <= r["created_d"] < month0]
+
+    def _pct(n: int, base: int) -> float:
+        return round(n * 100.0 / base, 1) if base else 0.0
+
+    def _avg_days(lo: date, hi: date) -> float | None:
+        spans = [
+            (r["completed_d"] - r["created_d"]).days
+            for r in rows
+            if r["group"] == "done" and r["completed_d"] and r["created_d"] and lo <= r["completed_d"] < hi
+        ]
+        return round(sum(spans) / len(spans), 1) if spans else None
+
+    n_this = len(this_rows)
+    n_prev = len(prev_rows)
+    kpi = {
+        "total": n_this,
+        "prev": n_prev,
+        "change": round((n_this - n_prev) * 100.0 / n_prev) if n_prev else None,
+        "progress": sum(1 for r in this_rows if r["group"] == "progress"),
+        "done": sum(1 for r in this_rows if r["group"] == "done"),
+        "delay": sum(1 for r in this_rows if r["group"] == "delay" or r["urgent"]),
+        "avg": _avg_days(month0, _pm_month_add(month0, 1)),
+        "avg_prev": _avg_days(prev0, month0),
+    }
+    kpi["progress_pct"] = _pct(kpi["progress"], n_this)
+    kpi["done_pct"] = _pct(kpi["done"], n_this)
+    kpi["delay_pct"] = _pct(kpi["delay"], n_this)
+
+    # 정비유형(업체) 도넛 — 이번 달 접수
+    circ = 2 * 3.14159265 * 42
+    offset = 0.0
+    type_stats = []
+    for t in MAINT_TYPE_ORDER:
+        n = sum(1 for r in this_rows if r["mtype"] == t)
+        if not n and t in ("기타", "업체 미지정"):
+            continue
+        length = circ * n / n_this if n_this else 0.0
+        type_stats.append(
+            {
+                "label": t,
+                "count": n,
+                "pct": _pct(n, n_this),
+                "color": MAINT_TYPE_COLORS.get(t, "#94a3b8"),
+                "dash": f"{length:.2f} {circ - length:.2f}",
+                "offset": f"{-offset:.2f}",
+            }
+        )
+        offset += length
+
+    # 월별 추이 (최근 6개월)
+    trend = []
+    for i in range(5, -1, -1):
+        m0 = _pm_month_add(month0, -i)
+        m1 = _pm_month_add(m0, 1)
+        recv = sum(1 for r in rows if r["created_d"] and m0 <= r["created_d"] < m1)
+        done = sum(1 for r in rows if r["completed_d"] and r["group"] == "done" and m0 <= r["completed_d"] < m1)
+        late = 0
+        for r in rows:
+            sd = r["wo"].scheduled_date
+            if not sd or not (m0 <= sd < m1):
+                continue
+            if r["group"] == "delay" or (r["group"] == "done" and r["completed_d"] and r["completed_d"] > sd):
+                late += 1
+        trend.append({"label": f"{m0.month}월", "recv": recv, "done": done, "late": late})
+    top = max([1] + [max(t["recv"], t["done"], t["late"]) for t in trend])
+    step = max(1, -(-top // 5))
+    chart_max = step * 5
+    for idx, t in enumerate(trend):
+        t["recv_h"] = round(t["recv"] * 100.0 / chart_max, 1)
+        t["done_h"] = round(t["done"] * 100.0 / chart_max, 1)
+        t["late_y"] = round(100 - t["late"] * 100.0 / chart_max, 2)
+        t["x"] = round((idx + 0.5) * 100.0 / len(trend), 2)
+    chart_ticks = [step * i for i in range(5, -1, -1)]
+    late_points = " ".join(f"{t['x']},{t['late_y']}" for t in trend)
+
+    delayed = sorted(
+        [r for r in rows if r["group"] == "delay"],
+        key=lambda r: (-r["delay_days"], not r["urgent"]),
+    )
+    recent = sorted(
+        rows,
+        key=lambda r: r["wo"].completed_at or r["wo"].created_at or datetime.min,
+        reverse=True,
+    )[:5]
+
+    # 정비접수 현황 (필터)
+    def _parse_d(s: str) -> date | None:
+        try:
+            return date.fromisoformat(s.strip()) if s.strip() else None
+        except ValueError:
+            return None
+
+    d_from = _parse_d(date_from) or prev0
+    d_to = _parse_d(date_to) or today
+    tab_val = tab if tab in ("all", "progress", "done", "delay") else "all"
+    base_rows = []
+    for r in rows:
+        if not r["created_d"] or not (d_from <= r["created_d"] <= d_to):
+            continue
+        if site_id and r["site_id"] != site_id:
+            continue
+        if building_id and (not r["building"] or r["building"].id != building_id):
+            continue
+        if mtype and r["mtype"] != mtype:
+            continue
+        base_rows.append(r)
+    tab_counts = {
+        "all": len(base_rows),
+        "progress": sum(1 for r in base_rows if r["group"] == "progress"),
+        "done": sum(1 for r in base_rows if r["group"] == "done"),
+        "delay": sum(1 for r in base_rows if r["group"] == "delay"),
+    }
+    listed = [r for r in base_rows if tab_val == "all" or r["group"] == tab_val]
+    listed.sort(key=lambda r: r["wo"].created_at or datetime.min, reverse=True)
+    pager = _paginate(listed, page, per_page=10)
+
+    sites = (
+        await db.execute(select(Site).where(Site.is_active == True).order_by(Site.name))  # noqa: E712
+    ).scalars().all()
+    bq = select(Building).where(Building.is_active == True)  # noqa: E712
+    if site_id:
+        bq = bq.where(Building.site_id == site_id)
+    buildings = _sort_buildings((await db.execute(bq.order_by(Building.name))).scalars().all())
+
+    shortcuts = [
+        (k, label, href, icon)
+        for k, label, href, icon in (
+            ("work_orders", "정비접수", "/admin/work-orders", "wrench"),
+            ("maintenance_performance", "정비실적", "/admin/maintenance-performance", "doc"),
+            ("equipment", "설비관리", "/admin/equipment", "building"),
+            ("pm", "PM(점검)", "/admin/pm", "calendar"),
+            ("materials", "자재관리", "/admin/materials", "box"),
+            ("partners", "협력사", "/admin/partners", "people"),
+        )
+        if can_access_menu(user, k)
+    ]
+
+    return templates.TemplateResponse(
+        request,
+        "maintenance_dashboard.html",
+        {
+            "user": user,
+            "today": today,
+            "kpi": kpi,
+            "type_stats": type_stats,
+            "trend": trend,
+            "chart_ticks": chart_ticks,
+            "late_points": late_points,
+            "delayed": delayed[:5],
+            "delayed_total": len(delayed),
+            "recent": recent,
+            "rows": pager["items"],
+            "row_offset": (pager["page"] - 1) * pager["per_page"],
+            "pager": pager,
+            "tab": tab_val,
+            "tab_counts": tab_counts,
+            "sites": sites,
+            "buildings": buildings,
+            "mtypes": MAINT_TYPE_ORDER,
+            "shortcuts": shortcuts,
+            "filters": {
+                "site_id": site_id,
+                "building_id": building_id,
+                "mtype": mtype,
+                "date_from": d_from.isoformat(),
+                "date_to": d_to.isoformat(),
+            },
+        },
+    )
+
+
 @app.get("/admin/pm/export")
 async def pm_export(
     q: str = Query(""),
