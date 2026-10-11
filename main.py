@@ -20224,6 +20224,38 @@ async def pm_list(
     pager = _paginate(list(all_schedules), page)
     schedules = pager["items"]
 
+    # 건물 카드용 건물별 점검일정·기한도래 수
+    building_stats: dict[int, dict[str, int]] = {}
+    stat_rows = (
+        await db.execute(
+            select(PMSchedule)
+            .where(PMSchedule.is_active == True)  # noqa: E712
+            .options(_pm_eq_options())
+        )
+    ).scalars().unique().all()
+    for s in stat_rows:
+        bld = _equipment_building(s.equipment)
+        if not bld:
+            continue
+        st = building_stats.setdefault(bld.id, {"total": 0, "due": 0})
+        st["total"] += 1
+        if s.next_due and s.next_due <= today:
+            st["due"] += 1
+
+    # 선택 건물 요약 (필터 전체 기준)
+    summary = {"total": len(all_schedules), "due": 0, "caution": 0, "fault": 0, "never": 0}
+    for s in all_schedules:
+        if s.next_due and s.next_due <= today:
+            summary["due"] += 1
+        insps = [i for i in (s.inspections or []) if i.inspected_at]
+        if not insps:
+            summary["never"] += 1
+            continue
+        latest = max(insps, key=lambda i: i.inspected_at)
+        rv = latest.result.value if latest.result else ""
+        if rv in ("caution", "fault"):
+            summary[rv] += 1
+
     buildings = _sort_buildings(
         (
             await db.execute(
@@ -20294,6 +20326,8 @@ async def pm_list(
             "today": today,
             "tab": active_tab,
             "pager": pager,
+            "building_stats": building_stats,
+            "summary": summary,
             "filters": {
                 "q": q,
                 "building_id": building_id,

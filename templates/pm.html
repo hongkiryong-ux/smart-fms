@@ -1,9 +1,29 @@
 {% extends "base.html" %}
 {% block title %}점검(PM){% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/pm_ui.css?v=1" />{% endblock %}
 {% block content %}
-<header class="page-header">
-  <h1>예방정비 (PM)</h1>
-  <p>설비 코드별 점검주기 설정 · 점검 결과(정상/주의/고장) 기록 · 이상 시 정비의뢰 연계</p>
+{% set sel_building = (buildings|selectattr('id', 'equalto', filters.building_id)|list|first) if filters.building_id else none %}
+{% set qs_q = filters.q|urlencode %}
+<div class="pmx">
+
+<header class="pmx-hero">
+  <div class="pmx-hero-text">
+    <span class="pmx-eyebrow">PREVENTIVE MAINTENANCE</span>
+    <h1>예방정비 (PM)</h1>
+    <p>설비 코드별 점검주기 설정 · 점검 결과(정상/주의/고장) 기록 · 이상 시 정비의뢰 연계</p>
+  </div>
+  <nav class="pmx-tabs" aria-label="PM 화면 전환">
+    <a class="pmx-tab{% if tab == 'list' %} is-on{% endif %}"
+       href="/admin/pm?q={{ qs_q }}{% if filters.building_id %}&building_id={{ filters.building_id }}{% endif %}{% if filters.equipment_id %}&equipment_id={{ filters.equipment_id }}{% endif %}{% if filters.due %}&due=1{% endif %}&tab=list">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>
+      점검목록
+    </a>
+    <a class="pmx-tab{% if tab == 'settings' %} is-on{% endif %}"
+       href="/admin/pm?tab=settings{% if filters.building_id %}&building_id={{ filters.building_id }}{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
+      주기설정
+    </a>
+  </nav>
 </header>
 
 {% if message %}
@@ -13,35 +33,30 @@
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
-<div class="pm-tabs">
-  <a class="pm-tab{% if tab == 'list' %} active{% endif %}"
-     href="/admin/pm?q={{ filters.q|urlencode }}{% if filters.building_id %}&building_id={{ filters.building_id }}{% endif %}{% if filters.equipment_id %}&equipment_id={{ filters.equipment_id }}{% endif %}{% if filters.due %}&due=1{% endif %}&tab=list">점검목록</a>
-  <a class="pm-tab{% if tab == 'settings' %} active{% endif %}"
-     href="/admin/pm?tab=settings{% if filters.building_id %}&building_id={{ filters.building_id }}{% endif %}">주기설정</a>
-</div>
-
 {% if tab == 'settings' %}
-<section class="card">
-  <h2>설비 코드별 점검주기 설정</h2>
-  <p class="text-muted" style="margin-bottom:0.75rem">주기를 저장하면 점검목록에 자동으로 표시됩니다.</p>
+{# ───────────── 주기설정 ───────────── #}
+<section class="pmx-card">
+  <div class="pmx-card-head">
+    <div>
+      <h2>설비 코드별 점검주기 설정</h2>
+      <p>주기를 저장하면 점검목록에 자동으로 표시됩니다.{% if sel_building %} · <strong>{{ sel_building.name }}</strong>{% endif %}</p>
+    </div>
+    <span class="pmx-count">설비 {{ equipment_list|length }}대</span>
+  </div>
 
-  <form method="get" action="/admin/pm" class="wo-filter-bar">
-    <input type="hidden" name="tab" value="settings" />
-    <details class="pm-filter-details" open>
-      <summary>건물 선택</summary>
-      <div class="pm-filter-chips">
-        <a class="pm-chip{% if not filters.building_id %} active{% endif %}"
-           href="/admin/pm?tab=settings">전체 건물</a>
-        {% for b in buildings %}
-        <a class="pm-chip{% if filters.building_id == b.id %} active{% endif %}"
-           href="/admin/pm?tab=settings&building_id={{ b.id }}">{{ b.name }}</a>
-        {% endfor %}
-      </div>
-    </details>
-  </form>
+  <div class="pmx-bld-strip" role="group" aria-label="건물 선택">
+    <a class="pmx-bld-chip{% if not filters.building_id %} is-on{% endif %}" href="/admin/pm?tab=settings">전체 건물</a>
+    {% for b in buildings %}
+    {% set st = building_stats.get(b.id) %}
+    <a class="pmx-bld-chip{% if filters.building_id == b.id %} is-on{% endif %}"
+       href="/admin/pm?tab=settings&building_id={{ b.id }}">
+      {{ b.name }}{% if st %}<em>{{ st.total }}</em>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
 
-  <div class="table-scroll">
-  <table class="data-table">
+  <div class="pmx-table-wrap">
+  <table class="pmx-table pmx-settings-table">
     <thead>
       <tr>
         <th>건물</th>
@@ -55,52 +70,54 @@
     <tbody>
       {% for eq in equipment_list %}
       {% set active_pm = (eq.pm_schedules|selectattr('is_active')|list|first) if eq.pm_schedules else none %}
-      <tr>
-        <td>
+      <tr{% if not active_pm %} class="is-unset"{% endif %}>
+        <td class="pmx-muted">
           {% if eq.zone and eq.zone.floor and eq.zone.floor.building %}
           {{ eq.zone.floor.building.name }}
           {% else %}-{% endif %}
         </td>
-        <td><code>{{ eq.code }}</code></td>
-        <td>{{ eq.name }}</td>
+        <td><code class="pmx-code">{{ eq.code }}</code></td>
+        <td class="pmx-strong">{{ eq.name }}</td>
         <td>
           {% if active_pm %}
-          {{ pm_freq_label(active_pm.frequency) }}{% if active_pm.frequency.value == 'custom' %} ({{ active_pm.custom_days }}일){% endif %}
-          {% else %}<span class="text-muted">미설정</span>{% endif %}
+          <span class="pmx-freq">{{ pm_freq_label(active_pm.frequency) }}{% if active_pm.frequency.value == 'custom' %} ({{ active_pm.custom_days }}일){% endif %}</span>
+          {% else %}<span class="pmx-unset">미설정</span>{% endif %}
         </td>
-        <td>{{ active_pm.next_due if active_pm else '-' }}</td>
+        <td>{{ active_pm.next_due if active_pm and active_pm.next_due else '-' }}</td>
         <td>
-          <form method="post" action="/admin/pm/schedules" class="pm-cycle-form">
-            <input type="hidden" name="equipment_id" value="{{ eq.id }}" />
-            {% if filters.building_id %}
-            <input type="hidden" name="building_id" value="{{ filters.building_id }}" />
+          <div class="pmx-cycle-cell">
+            <form method="post" action="/admin/pm/schedules" class="pm-cycle-form pmx-cycle-form">
+              <input type="hidden" name="equipment_id" value="{{ eq.id }}" />
+              {% if filters.building_id %}
+              <input type="hidden" name="building_id" value="{{ filters.building_id }}" />
+              {% endif %}
+              <input type="text" name="title" class="pmx-in-title" value="{{ active_pm.title if active_pm else (eq.code ~ ' 예방점검') }}" placeholder="점검명" />
+              <select name="frequency" class="pm-freq-select">
+                {% for f, label in freq_choices %}
+                <option value="{{ f.value }}"
+                  {% if active_pm and active_pm.frequency == f %}selected{% elif not active_pm and f.value == 'monthly' %}selected{% endif %}>
+                  {{ label }}
+                </option>
+                {% endfor %}
+              </select>
+              <input type="number" name="custom_days" min="1" placeholder="일수" class="pmx-in-days"
+                     value="{{ active_pm.custom_days if active_pm and active_pm.custom_days else '' }}"
+                     title="사용자지정 일수" />
+              <input type="date" name="next_due" value="{{ active_pm.next_due if active_pm and active_pm.next_due else '' }}" title="다음 점검일" />
+              <input type="text" name="assignee_name" class="pmx-in-assignee" value="{{ active_pm.assignee_name if active_pm else '' }}" placeholder="담당자" />
+              <button type="submit" class="btn btn-sm btn-primary">저장</button>
+            </form>
+            {% if active_pm %}
+            <form method="post" action="/admin/pm/schedules/{{ active_pm.id }}/deactivate" class="inline-form"
+                  onsubmit="return confirm('이 설비의 점검주기를 해제할까요?');">
+              <button type="submit" class="pmx-link-danger">해제</button>
+            </form>
             {% endif %}
-            <input type="text" name="title" value="{{ active_pm.title if active_pm else (eq.code ~ ' 예방점검') }}" placeholder="점검명" />
-            <select name="frequency" class="pm-freq-select">
-              {% for f, label in freq_choices %}
-              <option value="{{ f.value }}"
-                {% if active_pm and active_pm.frequency == f %}selected{% elif not active_pm and f.value == 'monthly' %}selected{% endif %}>
-                {{ label }}
-              </option>
-              {% endfor %}
-            </select>
-            <input type="number" name="custom_days" min="1" placeholder="일수"
-                   value="{{ active_pm.custom_days if active_pm and active_pm.custom_days else '' }}"
-                   title="사용자지정 일수" style="width:5rem" />
-            <input type="date" name="next_due" value="{{ active_pm.next_due if active_pm and active_pm.next_due else '' }}" title="다음 점검일" />
-            <input type="text" name="assignee_name" value="{{ active_pm.assignee_name if active_pm else '' }}" placeholder="담당자" style="width:6rem" />
-            <button type="submit" class="btn btn-sm btn-primary">저장</button>
-          </form>
-          {% if active_pm %}
-          <form method="post" action="/admin/pm/schedules/{{ active_pm.id }}/deactivate" class="inline-form"
-                onsubmit="return confirm('이 설비의 점검주기를 해제할까요?');">
-            <button type="submit" class="link-action link-danger">해제</button>
-          </form>
-          {% endif %}
+          </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="empty">등록된 설비가 없습니다.</td></tr>
+      <tr><td colspan="6" class="pmx-empty-cell">등록된 설비가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -108,226 +125,289 @@
 </section>
 
 {% else %}
-<section class="card">
-  <div class="wo-list-head">
-    <h2>
-      예방점검 목록
-      {% if filters.building_id %}
-      <small class="text-muted">({{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small>
-      {% endif %}
-    </h2>
-    <div class="row-actions">
-      {% if filters.building_id %}
-      <a class="btn btn-sm btn-secondary"
-         href="/admin/pm/export?q={{ filters.q|urlencode }}{% if filters.building_id %}&building_id={{ filters.building_id }}{% endif %}{% if filters.equipment_id %}&equipment_id={{ filters.equipment_id }}{% endif %}{% if filters.due %}&due=1{% endif %}">Excel 저장</a>
-      {% endif %}
-      <a class="btn btn-sm btn-primary" href="/admin/pm?tab=settings">주기설정</a>
-    </div>
-  </div>
-
-  <form method="get" action="/admin/pm" class="wo-filter-bar" id="pm-filter-form">
+{# ───────────── 점검목록 ───────────── #}
+<section class="pmx-card pmx-toolbar-card">
+  <form method="get" action="/admin/pm" class="pmx-toolbar" id="pm-filter-form">
     <input type="hidden" name="tab" value="list" />
-    <input type="search"
-           name="q"
-           value="{{ filters.q }}"
-           placeholder="건물·설비코드·설비명·점검명·담당자 검색"
-           class="wo-filter-q" />
-    <label class="wo-check{% if filters.due %} is-on{% endif %}">
+    {% if filters.building_id %}<input type="hidden" name="building_id" value="{{ filters.building_id }}" />{% endif %}
+    <div class="pmx-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input type="search"
+             name="q"
+             value="{{ filters.q }}"
+             placeholder="건물·설비코드·설비명·점검명·담당자 검색" />
+    </div>
+    <label class="pmx-toggle{% if filters.due %} is-on{% endif %}">
       <input type="checkbox" name="due" value="1" {% if filters.due %}checked{% endif %} onchange="this.form.submit()" />
-      <span>점검기한 도래</span>
+      <span>점검기한 도래만</span>
     </label>
     <button type="submit" class="btn btn-sm btn-primary">검색</button>
     <a class="btn btn-sm btn-secondary" href="/admin/pm">초기화</a>
-  </form>
-
-  <div class="pm-filter-panels">
-    <details class="pm-filter-details" open>
-      <summary>건물별 필터</summary>
-      <div class="pm-filter-chips">
-        {% for b in buildings %}
-        <a class="pm-chip{% if filters.building_id == b.id %} active{% endif %}"
-           href="/admin/pm?building_id={{ b.id }}&q={{ filters.q|urlencode }}{% if filters.due %}&due=1{% endif %}">{{ b.name }}</a>
-        {% endfor %}
-      </div>
-    </details>
-
+    <span class="pmx-toolbar-gap"></span>
     {% if filters.building_id %}
-    <details class="pm-filter-details" {% if filters.equipment_id or filters.building_id %}open{% endif %}>
-      <summary>설비별 필터</summary>
-      <div class="pm-filter-chips">
-        <a class="pm-chip{% if not filters.equipment_id %} active{% endif %}"
-           href="/admin/pm?{% if filters.building_id %}building_id={{ filters.building_id }}&{% endif %}q={{ filters.q|urlencode }}{% if filters.due %}&due=1{% endif %}">전체 설비</a>
-        {% for eq in equipment_list %}
-        {% if eq.pm_schedules and (eq.pm_schedules|selectattr('is_active')|list) %}
-        <a class="pm-chip{% if filters.equipment_id == eq.id %} active{% endif %}"
-           href="/admin/pm?equipment_id={{ eq.id }}{% if filters.building_id %}&building_id={{ filters.building_id }}{% endif %}&q={{ filters.q|urlencode }}{% if filters.due %}&due=1{% endif %}">
-          {{ eq.code }} · {{ eq.name }}
-        </a>
-        {% endif %}
-        {% endfor %}
-      </div>
-    </details>
+    <a class="btn btn-sm btn-secondary"
+       href="/admin/pm/export?q={{ qs_q }}&building_id={{ filters.building_id }}{% if filters.equipment_id %}&equipment_id={{ filters.equipment_id }}{% endif %}{% if filters.due %}&due=1{% endif %}">Excel 저장</a>
     {% endif %}
+    <a class="btn btn-sm btn-primary" href="/admin/pm?tab=settings{% if filters.building_id %}&building_id={{ filters.building_id }}{% endif %}">주기설정</a>
+  </form>
+</section>
+
+{% if not filters.building_id %}
+<section class="pmx-card">
+  <div class="pmx-card-head">
+    <div>
+      <h2>건물 선택</h2>
+      <p>건물을 선택하면 설비별 예방점검 목록이 표시됩니다.</p>
+    </div>
+  </div>
+  <div class="pmx-bld-grid">
+    {% for b in buildings %}
+    {% set st = building_stats.get(b.id) %}
+    <a class="pmx-bld-card{% if not st %} is-empty{% endif %}"
+       href="/admin/pm?building_id={{ b.id }}&q={{ qs_q }}{% if filters.due %}&due=1{% endif %}">
+      <span class="pmx-bld-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V5l8-3 8 3v16"/><path d="M9 21v-5h6v5M8 8h2M14 8h2M8 12h2M14 12h2"/></svg>
+      </span>
+      <span class="pmx-bld-name">{{ b.name }}</span>
+      <span class="pmx-bld-meta">
+        {% if st %}
+        <span>점검일정 <b>{{ st.total }}</b></span>
+        {% if st.due %}<span class="pmx-due-pill">기한도래 {{ st.due }}</span>{% endif %}
+        {% else %}
+        <span class="pmx-muted">점검일정 없음</span>
+        {% endif %}
+      </span>
+      <span class="pmx-bld-go" aria-hidden="true">›</span>
+    </a>
+    {% else %}
+    <p class="pmx-empty">등록된 건물이 없습니다.</p>
+    {% endfor %}
+  </div>
+</section>
+
+{% else %}
+<section class="pmx-card pmx-select-card">
+  <div class="pmx-bld-strip" role="group" aria-label="건물 선택">
+    {% for b in buildings %}
+    {% set st = building_stats.get(b.id) %}
+    <a class="pmx-bld-chip{% if filters.building_id == b.id %} is-on{% endif %}"
+       href="/admin/pm?building_id={{ b.id }}&q={{ qs_q }}{% if filters.due %}&due=1{% endif %}">
+      {{ b.name }}{% if st %}<em>{{ st.total }}</em>{% endif %}{% if st and st.due %}<i class="pmx-dot" title="기한도래 {{ st.due }}건"></i>{% endif %}
+    </a>
+    {% endfor %}
   </div>
 
-  {% if not filters.building_id %}
-  <p class="empty pm-select-building-hint">건물별 필터에서 건물을 선택하면 점검 목록이 표시됩니다.</p>
-  {% elif grouped_list %}
-  <div class="pm-building-groups">
+  <div class="pmx-kpis">
+    <div class="pmx-kpi">
+      <span class="pmx-kpi-label">점검일정</span>
+      <strong>{{ summary.total }}</strong>
+      <small>{{ sel_building.name if sel_building else '' }}</small>
+    </div>
+    <a class="pmx-kpi is-due{% if filters.due %} is-on{% endif %}"
+       href="/admin/pm?building_id={{ filters.building_id }}&q={{ qs_q }}{% if filters.equipment_id %}&equipment_id={{ filters.equipment_id }}{% endif %}{% if not filters.due %}&due=1{% endif %}"
+       title="{% if filters.due %}전체 보기{% else %}기한 도래만 보기{% endif %}">
+      <span class="pmx-kpi-label">기한 도래</span>
+      <strong>{{ summary.due }}</strong>
+      <small>{% if filters.due %}전체 보기 ›{% else %}도래만 보기 ›{% endif %}</small>
+    </a>
+    <div class="pmx-kpi is-caution">
+      <span class="pmx-kpi-label">최근 주의</span>
+      <strong>{{ summary.caution }}</strong>
+      <small>최근 점검 결과</small>
+    </div>
+    <div class="pmx-kpi is-fault">
+      <span class="pmx-kpi-label">최근 고장</span>
+      <strong>{{ summary.fault }}</strong>
+      <small>최근 점검 결과</small>
+    </div>
+    <div class="pmx-kpi is-never">
+      <span class="pmx-kpi-label">미점검</span>
+      <strong>{{ summary.never }}</strong>
+      <small>기록 없음</small>
+    </div>
+  </div>
+
+  {% set eq_with_pm = [] %}
+  {% for eq in equipment_list %}{% if eq.pm_schedules and (eq.pm_schedules|selectattr('is_active')|list) %}{% set _ = eq_with_pm.append(eq) %}{% endif %}{% endfor %}
+  {% if eq_with_pm %}
+  <details class="pmx-eq-filter"{% if filters.equipment_id %} open{% endif %}>
+    <summary>설비별 보기 <small>{{ eq_with_pm|length }}대</small></summary>
+    <div class="pmx-eq-chips">
+      <a class="pmx-eq-chip{% if not filters.equipment_id %} is-on{% endif %}"
+         href="/admin/pm?building_id={{ filters.building_id }}&q={{ qs_q }}{% if filters.due %}&due=1{% endif %}">전체 설비</a>
+      {% for eq in eq_with_pm %}
+      <a class="pmx-eq-chip{% if filters.equipment_id == eq.id %} is-on{% endif %}"
+         href="/admin/pm?equipment_id={{ eq.id }}&building_id={{ filters.building_id }}&q={{ qs_q }}{% if filters.due %}&due=1{% endif %}">
+        <code>{{ eq.code }}</code> {{ eq.name }}
+      </a>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+</section>
+
+<section class="pmx-card pmx-list-card">
+  <div class="pmx-card-head">
+    <div>
+      <h2>예방점검 목록</h2>
+      <p>{{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %}{% if filters.due %} · 기한 도래만{% endif %}</p>
+    </div>
+    <div class="pmx-legend">
+      <span class="pm-result pm-result-normal">정상</span>
+      <span class="pm-result pm-result-caution">주의</span>
+      <span class="pm-result pm-result-fault">고장</span>
+    </div>
+  </div>
+
+  {% if grouped_list %}
+  <div class="pmx-groups">
     {% for g in grouped_list %}
-    <details class="pm-building-group" open>
+    {% for e in g.equipment_list %}
+    <details class="pmx-eq-group" open>
       <summary>
-        <strong>{{ g.building_name }}</strong>
-        <small class="text-muted">
-          {% set ns = namespace(n=0) %}
-          {% for e in g.equipment_list %}{% set ns.n = ns.n + e.schedules|length %}{% endfor %}
-          {{ ns.n }}건
-        </small>
+        <span class="pmx-eq-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </span>
+        <code class="pmx-code">{{ e.equipment.code if e.equipment else '-' }}</code>
+        <span class="pmx-eq-name">{{ e.equipment.name if e.equipment else '설비 없음' }}</span>
+        {% if grouped_list|length > 1 %}<span class="pmx-muted pmx-eq-bld">{{ g.building_name }}</span>{% endif %}
+        <span class="pmx-count">{{ e.schedules|length }}건</span>
       </summary>
 
-      {% for e in g.equipment_list %}
-      <details class="pm-equipment-group" open>
-        <summary>
-          <code>{{ e.equipment.code if e.equipment else '-' }}</code>
-          {{ e.equipment.name if e.equipment else '설비 없음' }}
-          <small class="text-muted">({{ e.schedules|length }})</small>
-        </summary>
+      <div class="pmx-table-wrap">
+      <table class="pmx-table pm-list-table">
+        <thead>
+          <tr>
+            <th>점검명</th>
+            <th>주기</th>
+            <th>담당</th>
+            <th>다음점검</th>
+            <th>마지막</th>
+            <th>최근결과</th>
+            <th>등록내용</th>
+            <th class="pmx-th-action">점검기록</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pm in e.schedules %}
+          {% set hist = (pm.inspections|sort(attribute='inspected_at', reverse=true)) if pm.inspections else [] %}
+          {% set latest = hist|first if hist else none %}
+          {% set dleft = (pm.next_due - today).days if pm.next_due else none %}
+          <tr class="{% if dleft is not none and dleft < 0 %}is-overdue{% elif dleft == 0 %}is-today{% endif %}">
+            <td class="pmx-strong">{{ pm.title }}</td>
+            <td><span class="pmx-freq">{{ pm_freq_label(pm.frequency) }}{% if pm.frequency.value == 'custom' %} ({{ pm.custom_days }}일){% endif %}</span></td>
+            <td>{{ pm.assignee_name or '-' }}</td>
+            <td class="pmx-due-cell">
+              {% if pm.next_due %}
+              <span class="pmx-date">{{ pm.next_due }}</span>
+              {% if dleft < 0 %}<span class="pmx-dday is-over">D+{{ -dleft }}</span>
+              {% elif dleft == 0 %}<span class="pmx-dday is-today">오늘</span>
+              {% elif dleft <= 7 %}<span class="pmx-dday is-soon">D-{{ dleft }}</span>
+              {% endif %}
+              {% else %}-{% endif %}
+            </td>
+            <td class="pmx-muted">{{ pm.last_done or '-' }}</td>
+            <td>
+              {% if latest %}
+              <span class="pm-result pm-result-{{ latest.result.value }}">{{ pm_result_label(latest.result) }}</span>
+              {% else %}<span class="pmx-muted">-</span>{% endif %}
+            </td>
+            <td class="pm-note-cell">
+              {% if latest and latest.note %}
+              <span class="pm-note-preview" title="{{ latest.note }}">{{ latest.note }}</span>
+              {% elif latest %}
+              <span class="pmx-muted">내용 없음</span>
+              {% else %}<span class="pmx-muted">-</span>{% endif %}
+            </td>
+            <td class="pmx-td-action">
+              <button type="button" class="btn btn-sm btn-primary pmx-inspect-btn"
+                      data-open-dialog="pm-inspect-{{ pm.id }}">점검하기</button>
+              <dialog id="pm-inspect-{{ pm.id }}" class="eq-dialog pm-inspect-dialog pmx-dialog">
+                <form method="dialog" class="eq-dialog-top">
+                  <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+                </form>
+                <div class="eq-popup-body">
+                  <h2>점검 결과 기록</h2>
+                  <p class="pmx-dlg-sub">
+                    <code class="pmx-code">{{ e.equipment.code if e.equipment else '' }}</code>
+                    {{ e.equipment.name if e.equipment else '' }} · {{ pm.title }}
+                  </p>
 
-        <div class="table-scroll">
-        <table class="data-table pm-list-table">
-          <thead>
-            <tr>
-              <th>점검명</th>
-              <th>주기</th>
-              <th>담당</th>
-              <th>다음점검</th>
-              <th>마지막</th>
-              <th>최근결과</th>
-              <th>등록내용</th>
-              <th>점검기록</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for pm in e.schedules %}
-            {% set hist = (pm.inspections|sort(attribute='inspected_at', reverse=true)) if pm.inspections else [] %}
-            {% set latest = hist|first if hist else none %}
-            <tr>
-              <td>{{ pm.title }}</td>
-              <td>
-                {{ pm_freq_label(pm.frequency) }}
-                {% if pm.frequency.value == 'custom' %} ({{ pm.custom_days }}일){% endif %}
-              </td>
-              <td>{{ pm.assignee_name or '-' }}</td>
-              <td>
-                {% if pm.next_due and pm.next_due <= today %}
-                <span class="badge badge-urgent">{{ pm.next_due }}</span>
-                {% else %}{{ pm.next_due or '-' }}{% endif %}
-              </td>
-              <td>{{ pm.last_done or '-' }}</td>
-              <td>
-                {% if latest %}
-                <span class="pm-result pm-result-{{ latest.result.value }}">{{ pm_result_label(latest.result) }}</span>
-                {% else %}-{% endif %}
-              </td>
-              <td class="pm-note-cell">
-                {% if latest and latest.note %}
-                <span class="pm-note-preview" title="{{ latest.note }}">{{ latest.note }}</span>
-                {% elif latest %}
-                <span class="text-muted">내용 없음</span>
-                {% else %}-{% endif %}
-              </td>
-              <td>
-                <button type="button" class="btn btn-sm btn-primary"
-                        data-open-dialog="pm-inspect-{{ pm.id }}">점검하기</button>
-                <dialog id="pm-inspect-{{ pm.id }}" class="eq-dialog pm-inspect-dialog">
-                  <form method="dialog" class="eq-dialog-top">
-                    <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
-                  </form>
-                  <div class="eq-popup-body">
-                    <h2>점검 결과 기록</h2>
-                    <p class="text-muted">
-                      {{ e.equipment.code if e.equipment else '' }}
-                      {{ e.equipment.name if e.equipment else '' }} · {{ pm.title }}
-                    </p>
-
-                    <div class="pm-history-box">
-                      <h3>등록된 점검 내용</h3>
-                      {% if hist %}
-                      <ul class="pm-history-list">
-                        {% for h in hist[:10] %}
-                        <li>
-                          <div class="pm-history-meta">
-                            <span class="pm-result pm-result-{{ h.result.value }}">{{ pm_result_label(h.result) }}</span>
-                            <time>{{ fmt_kst(h.inspected_at) if h.inspected_at else '-' }}</time>
-                            <span>{{ h.inspector_name or '점검자 미기재' }}</span>
-                            {% if h.work_order_id %}
-                            <a href="/admin/work-orders/{{ h.work_order_id }}">정비의뢰 #{{ h.work_order_id }}</a>
-                            {% endif %}
-                          </div>
-                          <p class="pm-history-note">{{ h.note or '내용 없음' }}</p>
-                        </li>
-                        {% endfor %}
-                      </ul>
-                      {% else %}
-                      <p class="empty">아직 등록된 점검 내용이 없습니다.</p>
-                      {% endif %}
-                    </div>
-
-                    <form method="post"
-                          action="/admin/pm/schedules/{{ pm.id }}/inspect"
-                          class="form-stack pm-inspect-form"
-                          data-pm-id="{{ pm.id }}">
-                      <input type="hidden" name="redirect_to" value="/admin/pm?msg=점검결과가+저장되었습니다" />
-                      <input type="hidden" name="result" value="" />
-                      <input type="hidden" name="request_work_order" value="0" />
-                      <label>점검자</label>
-                      <input type="text" name="inspector_name" value="{{ user.name }}" />
-                      <label>점검 내용</label>
-                      <textarea name="note" rows="3" placeholder="점검 내용·이상 소견을 기록하세요"></textarea>
-                      <label>결과 선택</label>
-                      <div class="pm-result-actions">
-                        <button type="button" data-pm-result="normal" class="btn btn-sm pm-btn-normal">정상</button>
-                        <button type="button" data-pm-result="caution" class="btn btn-sm pm-btn-caution">주의</button>
-                        <button type="button" data-pm-result="fault" class="btn btn-sm pm-btn-fault">고장</button>
-                      </div>
-                      <p class="text-muted" style="font-size:0.85rem;margin:0">
-                        주의/고장 선택 시 정비의뢰 접수 여부를 확인합니다.
-                      </p>
-                    </form>
+                  <div class="pm-history-box">
+                    <h3>등록된 점검 내용</h3>
+                    {% if hist %}
+                    <ul class="pm-history-list">
+                      {% for h in hist[:10] %}
+                      <li>
+                        <div class="pm-history-meta">
+                          <span class="pm-result pm-result-{{ h.result.value }}">{{ pm_result_label(h.result) }}</span>
+                          <time>{{ fmt_kst(h.inspected_at) if h.inspected_at else '-' }}</time>
+                          <span>{{ h.inspector_name or '점검자 미기재' }}</span>
+                          {% if h.work_order_id %}
+                          <a href="/admin/work-orders/{{ h.work_order_id }}">정비의뢰 #{{ h.work_order_id }}</a>
+                          {% endif %}
+                        </div>
+                        <p class="pm-history-note">{{ h.note or '내용 없음' }}</p>
+                      </li>
+                      {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="empty">아직 등록된 점검 내용이 없습니다.</p>
+                    {% endif %}
                   </div>
-                </dialog>
 
-                <dialog id="pm-wo-confirm-{{ pm.id }}" class="eq-dialog pm-wo-confirm-dialog">
-                  <form method="dialog" class="eq-dialog-top">
-                    <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
-                  </form>
-                  <div class="eq-popup-body">
-                    <h2>정비의뢰 접수 확인</h2>
-                    <p class="text-muted">아래 내용으로 점검 결과를 등록합니다.</p>
-                    <dl class="info-dl pm-wo-preview">
-                      <dt>결과</dt>
-                      <dd><span class="pm-wo-preview-result"></span></dd>
-                      <dt>점검자</dt>
-                      <dd class="pm-wo-preview-inspector"></dd>
-                      <dt>점검 내용</dt>
-                      <dd class="pm-wo-preview-note"></dd>
-                    </dl>
-                    <p><strong>정비의뢰를 접수하시겠습니까?</strong></p>
-                    <div class="pm-result-actions">
-                      <button type="button" class="btn btn-secondary pm-wo-save-only">점검만 저장</button>
-                      <button type="button" class="btn btn-primary pm-wo-confirm">정비의뢰 접수</button>
+                  <form method="post"
+                        action="/admin/pm/schedules/{{ pm.id }}/inspect"
+                        class="form-stack pm-inspect-form"
+                        data-pm-id="{{ pm.id }}">
+                    <input type="hidden" name="redirect_to" value="/admin/pm?msg=점검결과가+저장되었습니다" />
+                    <input type="hidden" name="result" value="" />
+                    <input type="hidden" name="request_work_order" value="0" />
+                    <label>점검자</label>
+                    <input type="text" name="inspector_name" value="{{ user.name }}" />
+                    <label>점검 내용</label>
+                    <textarea name="note" rows="3" placeholder="점검 내용·이상 소견을 기록하세요"></textarea>
+                    <label>결과 선택</label>
+                    <div class="pm-result-actions pmx-result-actions">
+                      <button type="button" data-pm-result="normal" class="btn btn-sm pm-btn-normal">정상</button>
+                      <button type="button" data-pm-result="caution" class="btn btn-sm pm-btn-caution">주의</button>
+                      <button type="button" data-pm-result="fault" class="btn btn-sm pm-btn-fault">고장</button>
                     </div>
+                    <p class="pmx-dlg-hint">주의/고장 선택 시 정비의뢰 접수 여부를 확인합니다.</p>
+                  </form>
+                </div>
+              </dialog>
+
+              <dialog id="pm-wo-confirm-{{ pm.id }}" class="eq-dialog pm-wo-confirm-dialog pmx-dialog">
+                <form method="dialog" class="eq-dialog-top">
+                  <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+                </form>
+                <div class="eq-popup-body">
+                  <h2>정비의뢰 접수 확인</h2>
+                  <p class="pmx-dlg-sub">아래 내용으로 점검 결과를 등록합니다.</p>
+                  <dl class="info-dl pm-wo-preview">
+                    <dt>결과</dt>
+                    <dd><span class="pm-wo-preview-result"></span></dd>
+                    <dt>점검자</dt>
+                    <dd class="pm-wo-preview-inspector"></dd>
+                    <dt>점검 내용</dt>
+                    <dd class="pm-wo-preview-note"></dd>
+                  </dl>
+                  <p><strong>정비의뢰를 접수하시겠습니까?</strong></p>
+                  <div class="pm-result-actions pmx-result-actions">
+                    <button type="button" class="btn btn-secondary pm-wo-save-only">점검만 저장</button>
+                    <button type="button" class="btn btn-primary pm-wo-confirm">정비의뢰 접수</button>
                   </div>
-                </dialog>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        </div>
-      </details>
-      {% endfor %}
+                </div>
+              </dialog>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
     </details>
+    {% endfor %}
     {% endfor %}
   </div>
   {% set ns = namespace(base='/admin/pm?building_id=' ~ filters.building_id) %}
@@ -337,13 +417,16 @@
   {% set base_url = ns.base %}
   {% include "partials/pager.html" %}
   {% else %}
-  <p class="empty">
-    표시할 점검 일정이 없습니다.
-    <a href="/admin/pm?tab=settings">주기설정</a>에서 설비별 점검주기를 등록하세요.
-  </p>
+  <div class="pmx-empty">
+    <strong>표시할 점검 일정이 없습니다.</strong>
+    <span>{% if filters.due or filters.q %}검색 조건을 바꿔 보거나 {% endif %}<a href="/admin/pm?tab=settings&building_id={{ filters.building_id }}">주기설정</a>에서 설비별 점검주기를 등록하세요.</span>
+  </div>
   {% endif %}
 </section>
 {% endif %}
+{% endif %}
+
+</div>
 
 <script>
 (function () {
