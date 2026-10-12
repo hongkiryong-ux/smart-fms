@@ -8864,5 +8864,26 @@ tr.wo-row-selected {
 .ilog-notes-text {
   width: 100%;
   word-break: break-word;
+  line-height: 1.55;
+}
+.ilog-notes-table td.ilog-notes-multi {
+  white-space: pre;
+}
+.ilog-note-block + .ilog-note-block {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed #dbe3ee;
+}
+.ilog-note-tag {
+  display: inline-block;
+  margin-bottom: 0.15rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: #eef4fb;
+  color: #1d4ed8;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.ilog-note-body {
   white-space: pre-wrap;
 }

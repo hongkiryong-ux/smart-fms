@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""점검일지2 특이사항 — 건별 한 줄 목록·검색·엑셀보내기 공통."""
+"""점검일지2 특이사항 — 하루 한 행 목록·검색·엑셀보내기 공통."""
 from __future__ import annotations
 
 import importlib
@@ -42,32 +42,64 @@ def _weekday(iso: str) -> str:
         return ""
 
 
+def _as_written(text: str) -> str:
+    """일지에 입력한 줄바꿈·들여쓰기는 살리고 앞뒤 빈 줄과 줄 끝 공백만 정리."""
+    lines = [line.rstrip() for line in str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    return "\n".join(lines).strip("\n")
+
+
+def _uniq(values: list[str]) -> list[str]:
+    seen: list[str] = []
+    for v in values:
+        if v and v not in seen:
+            seen.append(v)
+    return seen
+
+
 def notes_rows(notes_list: dict[str, Any] | None, q: str = "") -> list[dict[str, Any]]:
-    """일자별 특이사항을 한 건(줄)씩 펼치고 키워드로 거른다."""
+    """일자별 특이사항을 하루 한 행으로 묶고(일지에 적힌 줄바꿈 유지) 키워드로 거른다."""
     keyword = (q or "").strip().lower()
     rows: list[dict[str, Any]] = []
     for entry in (notes_list or {}).get("entries") or []:
         iso = str(entry.get("date") or "")
+        blocks: list[dict[str, str]] = []
         for item in entry.get("items") or []:
             time = str(item.get("time") or "").strip()
             section = str(item.get("section") or "").strip()
             if section == "특이사항":
                 section = ""
-            for line in str(item.get("text") or "").splitlines():
-                text = line.strip()
-                if not text:
-                    continue
-                if keyword and keyword not in f"{time} {section} {text}".lower():
-                    continue
-                rows.append({
-                    "no": len(rows) + 1,
-                    "date": iso,
-                    "weekday": _weekday(iso),
-                    "time": time,
-                    "section": section,
-                    "text": text,
-                })
+            text = _as_written(item.get("text") or "")
+            if not text.strip():
+                continue
+            if keyword and keyword not in f"{time} {section} {text}".lower():
+                continue
+            blocks.append({"time": time, "section": section, "text": text})
+        if not blocks:
+            continue
+        multi = len(blocks) > 1
+        for b in blocks:
+            b["label"] = " · ".join(v for v in (b["time"], b["section"]) if v) if multi else ""
+        text = "\n".join(
+            (f"[{b['label']}]\n{b['text']}" if b["label"] else b["text"]) for b in blocks
+        )
+        rows.append({
+            "no": len(rows) + 1,
+            "date": iso,
+            "weekday": _weekday(iso),
+            "time": "\n".join(_uniq([b["time"] for b in blocks])),
+            "section": "\n".join(_uniq([b["section"] for b in blocks])),
+            "text": text,
+            "blocks": blocks,
+        })
     return rows
+
+
+def _excel_line_count(text: str, width_chars: float) -> int:
+    total = 0
+    for line in str(text or "").split("\n"):
+        w = sum(2 if ord(ch) > 0x2E7F else 1 for ch in line)
+        total += max(1, -(-w // max(1, int(width_chars))))
+    return max(1, total)
 
 
 def resolve_module(kind: str, building) -> Any | None:
@@ -102,9 +134,16 @@ def export_rows_workbook(rows: list[dict[str, Any]], *, title: str) -> bytes:
             cell.border = border
             cell.alignment = Alignment(
                 horizontal="left" if col == 6 else "center",
-                vertical="center",
-                wrap_text=col == 6,
+                vertical="top" if col == 6 else "center",
+                wrap_text=col >= 4,
             )
+        lines = max(
+            _excel_line_count(row["text"], 88),
+            _excel_line_count(row["time"], 8),
+            _excel_line_count(row["section"], 13),
+        )
+        if lines > 1:
+            ws.row_dimensions[r].height = min(409, 15 * lines + 3)
     if not rows:
         ws.cell(4, 6, "(특이사항 없음)")
     for letter, width in zip("ABCDEF", (6, 12, 6, 9, 14, 90)):

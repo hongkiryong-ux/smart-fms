@@ -13580,7 +13580,7 @@ async def ilog2_notes_export(
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    """점검일지2 특이사항을 건별 한 줄로 엑셀 출력 (검색어 적용)."""
+    """점검일지2 특이사항을 하루 한 행으로 엑셀 출력 (검색어 적용)."""
     from urllib.parse import quote
 
     from ilog2_notes import NOTES_MODULES, export_rows_workbook, notes_rows, resolve_module

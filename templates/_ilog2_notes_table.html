@@ -12,8 +12,8 @@
     {% if notes_q %}<a class="btn btn-sm btn-secondary" href="?tab=notes&year={{ year }}&month={{ month }}">검색 해제</a>{% endif %}
     <a class="btn btn-sm btn-primary" href="/admin/inspection-logs2/{{ building.id }}/notes/export.xlsx?kind={{ notes_kind }}&year={{ year }}&month={{ month }}{% if notes_q %}&q={{ notes_q|urlencode }}{% endif %}">엑셀 출력</a>
   </form>
-  <p class="text-muted ilog-notes-hint">1일 일지에 작성된 특이사항을 한 건씩 한 줄로 보여줍니다. 여러 줄로 작성한 내용은 줄마다 한 건으로 나뉩니다. 날짜를 누르면 해당 일지로 이동합니다.</p>
-  <p class="ilog-notes-count">{{ year }}년 {{ month }}월{% if notes_q %} · 「{{ notes_q }}」 검색{% endif %} · 총 {{ notes_list_rows|length }}건</p>
+  <p class="text-muted ilog-notes-hint">하루에 작성된 특이사항을 한 행에 모아 일지에 적힌 줄바꿈 그대로 보여줍니다. 시간·구분이 여러 개인 날은 칸 안에 구분 표시를 붙입니다. 날짜를 누르면 해당 일지로 이동합니다.</p>
+  <p class="ilog-notes-count">{{ year }}년 {{ month }}월{% if notes_q %} · 「{{ notes_q }}」 검색{% endif %} · 총 {{ notes_list_rows|length }}일</p>
   {% if notes_list_rows %}
   <div class="ilog-notes-wrap">
     <table class="ilog-notes-table">
@@ -24,9 +24,9 @@
           <td class="c">{{ r.no }}</td>
           <td class="c nowrap"><a href="?tab=daily&date={{ r.date }}">{{ r.date }}</a></td>
           <td class="c{% if r.weekday == '토' %} is-sat{% elif r.weekday == '일' %} is-sun{% endif %}">{{ r.weekday }}</td>
-          <td class="c nowrap">{{ r.time }}</td>
-          <td class="c nowrap">{{ r.section }}</td>
-          <td class="ilog-notes-text">{{ r.text }}</td>
+          <td class="c nowrap ilog-notes-multi">{{ r.time }}</td>
+          <td class="c nowrap ilog-notes-multi">{{ r.section }}</td>
+          <td class="ilog-notes-text">{% for b in r.blocks %}<div class="ilog-note-block">{% if b.label %}<span class="ilog-note-tag">{{ b.label }}</span>{% endif %}<div class="ilog-note-body">{{ b.text }}</div></div>{% endfor %}</td>
         </tr>
         {% endfor %}
       </tbody>
