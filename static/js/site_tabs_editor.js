@@ -237,10 +237,40 @@
     });
   }
 
+  var canHover = !!(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+  var hoverTimer = null;
+  var TAB_HOVER_MS = 90;
+  var PHOTO_HOVER_MS = 220;
+
+  function clearHoverTimer() {
+    if (hoverTimer) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+    }
+  }
+
+  function hoverActivate(siteId) {
+    activate(siteId);
+    var panel = root.querySelector('.sites-tab-panel[data-site-id="' + siteId + '"]');
+    if (panel) ensureMapAssets(panel);
+  }
+
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
+      clearHoverTimer();
       activate(tab.getAttribute("data-site-id"));
     });
+    if (canHover) {
+      tab.addEventListener("mouseenter", function () {
+        clearHoverTimer();
+        var siteId = tab.getAttribute("data-site-id");
+        hoverTimer = setTimeout(function () {
+          hoverTimer = null;
+          hoverActivate(siteId);
+        }, TAB_HOVER_MS);
+      });
+      tab.addEventListener("mouseleave", clearHoverTimer);
+    }
   });
 
   panels.forEach(function (panel) {
@@ -256,8 +286,20 @@
     if (openBtn) {
       openBtn.addEventListener("click", function () {
         if (editing) return;
+        clearHoverTimer();
         setPanelMode(panel, "map");
       });
+      if (canHover) {
+        openBtn.addEventListener("mouseenter", function () {
+          if (editing) return;
+          clearHoverTimer();
+          hoverTimer = setTimeout(function () {
+            hoverTimer = null;
+            if (!editing && panel.classList.contains("is-active")) setPanelMode(panel, "map");
+          }, PHOTO_HOVER_MS);
+        });
+        openBtn.addEventListener("mouseleave", clearHoverTimer);
+      }
     }
     var backBtn = panel.querySelector(".sites-back-photo-btn");
     if (backBtn) {
@@ -283,4 +325,11 @@
   }
 
   syncUploadButtons();
+
+  if (canHover) {
+    window.addEventListener("load", function () {
+      var active = root.querySelector(".sites-tab-panel.is-active");
+      if (active) ensureMapAssets(active);
+    });
+  }
 })();

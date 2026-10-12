@@ -11,7 +11,7 @@
     {% if view_mode == 'map' %}· 안내도{% else %}· 건물 목록{% endif %}
   </p>
   {% elif view_mode == 'grid' %}
-  <p>상단 사업장 탭을 선택한 뒤, 사진을 누르면 같은 화면에서 안내도로 전환됩니다.</p>
+  <p>상단 사업장에 마우스를 올리면 사진이, 사진에 마우스를 올리면 안내도가 보입니다. (터치 화면은 눌러서 전환)</p>
   {% else %}
   <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
   {% endif %}
@@ -34,7 +34,7 @@
     {% endif %}
   </div>
   <p class="text-muted sites-tabs-hint" id="sites-tabs-hint">
-    상단 사업장을 선택하면 사진이 바뀝니다. 사진을 누르면 같은 화면에서 안내도로 전환됩니다.
+    상단 사업장에 마우스를 올리면 해당 사업장 사진으로, 사진 위에 마우스를 올리면 안내도로 바뀝니다. 다른 사업장에 올리면 다시 그 사업장 사진이 나옵니다. (클릭·터치로도 전환)
     안내도 위치·사진 설정은 왼쪽 메뉴에서 사업장을 직접 선택하세요.
   </p>
   <p class="site-map-edit-hint" id="sites-tabs-edit-hint" hidden>
@@ -131,7 +131,7 @@
 </section>
 
 <script src="/static/js/site_map_hover_preview.js?v=20260918b" defer></script>
-<script src="/static/js/site_tabs_editor.js?v=20260918b" defer></script>
+<script src="/static/js/site_tabs_editor.js?v=20261012h" defer></script>
 
 {# ── 단일 사업장 안내도 ── #}
 {% elif site_map and view_mode == 'map' %}
