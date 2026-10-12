@@ -26,7 +26,7 @@
 {% set show_n = vis['notices'] if 'notices' in vis else true %}
 {% set eh = equipment_health or {'total': kpi.equipment, 'items': [], 'issues': 0, 'inspected': 0} %}
 
-<div class="dg">
+<div class="dg dg-fit" id="dg-root">
   <header class="dg-top">
     <div class="dg-top-left">
       <h1>광양운영그룹 대시보드 <span class="dg-live">● LIVE</span></h1>
@@ -39,6 +39,8 @@
       </button>
       <span class="dg-clock" id="ops-clock">{{ now_label or kpi.as_of }}</span>
       <span class="dg-user"><span class="dg-user-ava" aria-hidden="true">{{ (user.name or user.username or '?')[:1] if user else '?' }}</span>{{ role_label or (user.role.value if user and user.role else '') }}</span>
+      <button type="button" class="dg-top-link dg-fit-toggle" id="dg-fit-toggle" aria-pressed="true"
+              title="끄면 이전처럼 아래로 스크롤해서 봅니다 (이 PC 브라우저에 저장)">한 화면 맞춤 ON</button>
       {% if not preview and user_can_edit(user) %}
       <a class="dg-top-link" href="/admin/dashboard/layouts" title="이전 화면(운영 보드 등)으로 되돌리거나 다른 구성을 고릅니다">화면 구성</a>
       {% endif %}
@@ -406,3 +408,32 @@
     </section>
   </div>
 </div>
+<script>
+(function () {
+  var root = document.getElementById('dg-root');
+  var btn = document.getElementById('dg-fit-toggle');
+  if (!root || !btn) return;
+  var on = true;
+  try { on = localStorage.getItem('dg.fit') !== '0'; } catch (e) {}
+  // 1920×1080 모니터 기준 배치를 화면 크기에 맞춰 비율 축소 (CSS 적용 범위와 같은 1400×700 이상)
+  function fitZoom() {
+    var w = window.innerWidth, h = window.innerHeight;
+    if (!on || w < 1400 || h < 700) { root.style.zoom = ''; return; }
+    var z = Math.max(0.78, Math.min(1, h / 940, (w - 240) / 1520));
+    root.style.zoom = z < 0.995 ? z.toFixed(3) : '';
+  }
+  function apply() {
+    root.classList.toggle('dg-fit', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.textContent = on ? '한 화면 맞춤 ON' : '한 화면 맞춤 OFF';
+    fitZoom();
+  }
+  btn.addEventListener('click', function () {
+    on = !on;
+    try { localStorage.setItem('dg.fit', on ? '1' : '0'); } catch (e) {}
+    apply();
+  });
+  window.addEventListener('resize', fitZoom);
+  apply();
+})();
+</script>

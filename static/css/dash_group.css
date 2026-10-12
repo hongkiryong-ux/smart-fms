@@ -445,3 +445,90 @@
   .dg-legend { width: 100%; }
   .dg-card { padding: 14px; }
 }
+
+/* 한 화면 맞춤 (dg-fit) — PC 모니터에서 스크롤 없이 전체 표시, 넘치는 목록은 카드 안에서만 스크롤 */
+.dg-fit-toggle { cursor: pointer; }
+.dg-fit-toggle[aria-pressed="true"] { color: var(--dg-blue); border-color: #c9d9f8; background: #f3f7ff; }
+@media (max-width: 1399px), (max-height: 699px) {
+  .dg-fit-toggle { display: none !important; }
+}
+@media (min-width: 1400px) and (min-height: 700px) {
+  .main-with-sidebar:has(.dg-fit):not(:has(.dash-layout-banner)) {
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px 12px;
+  }
+  .main-with-sidebar:has(.dg-fit) .dash-board-group {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .dg.dg-fit {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1.42fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .dg-fit .dg-top h1 { font-size: 1.22rem; }
+  .dg-fit .dg-top p { margin-top: 1px; font-size: 0.8rem; }
+  .dg-fit .dg-online, .dg-fit .dg-clock, .dg-fit .dg-user, .dg-fit .dg-top-link { height: 32px; padding: 0 10px; font-size: 0.76rem; }
+
+  .dg-fit .dg-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+  .dg-fit .dg-kpi { padding: 10px 12px; gap: 10px; border-radius: 14px; }
+  .dg-fit .dg-kpi-ico { width: 38px; height: 38px; border-radius: 12px; }
+  .dg-fit .dg-kpi-ico svg { width: 19px; height: 19px; }
+  .dg-fit .dg-kpi-label { font-size: 0.76rem; }
+  .dg-fit .dg-kpi strong { font-size: 1.36rem; }
+
+  .dg-fit .dg-card { min-height: 0; overflow: hidden; padding: 11px 14px; gap: 8px; border-radius: 14px; }
+  .dg-fit .dg-head h2 { font-size: 0.96rem; }
+
+  .dg-fit .dg-grid { min-height: 0; gap: 10px; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+  .dg-fit .dg-site-list { flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
+  .dg-fit .dg-site-list li { padding: 6px 0; gap: 10px; grid-template-columns: 24px 54px minmax(0, 1fr) auto auto; }
+  .dg-fit .dg-rank { width: 24px; height: 24px; }
+  .dg-fit .dg-site-thumb { width: 54px; height: 38px; border-radius: 8px; }
+  .dg-fit .dg-site-name { font-size: 0.88rem; }
+  .dg-fit .dg-site-metrics a { min-width: 50px; padding: 3px 6px; }
+  .dg-fit .dg-site-metrics b { font-size: 0.92rem; }
+  .dg-fit .dg-site-go { padding: 4px 8px; }
+
+  .dg-fit .dg-health-body { flex: 1 1 0; min-height: 0; gap: 14px; align-items: center; }
+  .dg-fit .dg-donut { height: 100%; width: auto; aspect-ratio: 1 / 1; max-height: 168px; min-height: 0; }
+  .dg-fit .dg-donut-center strong { font-size: 1.25rem; }
+  .dg-fit .dg-legend { gap: 1px; }
+  .dg-fit .dg-legend a { padding: 4px 6px; }
+  .dg-fit .dg-foot {
+    font-size: 0.68rem;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .dg-fit .dg-sched-list,
+  .dg-fit .dg-notice-list { flex: 1; min-height: 0; overflow-y: auto; }
+  .dg-fit .dg-sched-empty { padding: 0; gap: 6px; min-height: 0; }
+  .dg-fit .dg-sched-ico { width: 42px; height: 42px; border-radius: 13px; }
+  .dg-fit .dg-notice-list button { padding: 6px 2px; }
+
+  .dg-fit .dg-bar-chart { flex: 1; min-height: 0; height: auto; }
+
+  .dg-fit .dg-bottom { min-height: 0; gap: 10px; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .dg-fit .dg-bottom.no-energy { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dg-fit .dg-bottom .dg-energy { grid-column: auto; }
+  .dg-fit .dg-energy { gap: 8px; }
+  .dg-fit .dg-energy .dash-energy-pane.is-active { flex: 1; min-height: 0; overflow-y: auto; }
+  .dg-fit .dg-energy .dash-energy-card { padding: 8px 10px 6px; gap: 0.1rem; }
+  .dg-fit .dg-energy .dash-energy-card-value { font-size: 1.18rem; }
+  .dg-fit .dg-energy .dash-energy-spark { height: 38px; }
+  .dg-fit .dg-energy .dash-footnote { margin: 0; font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dg-fit .dg-table-wrap { flex: 1; min-height: 0; overflow: auto; }
+  .dg-fit .dg-table th { position: sticky; top: 0; z-index: 1; padding: 6px 8px; }
+  .dg-fit .dg-table td { padding: 6px 8px; }
+}
