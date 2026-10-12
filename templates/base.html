@@ -246,7 +246,10 @@
           </button>
         </div>
         <ul class="nav-sub" id="nav-inspection-logs2-sub">
-          {% for b in request.state.nav_inspection_log2_buildings or [] %}
+          {% set _ilog_nav = request.state.nav_inspection_log2_buildings or [] %}
+          {% set _ilog_my = user_building_ids(user) if user else [] %}
+          {% set _ilog_mine = (_ilog_nav|selectattr('id', 'in', _ilog_my)|list) if _ilog_my else [] %}
+          {% for b in (_ilog_mine or _ilog_nav) %}
           <li>
             <a href="/admin/inspection-logs2/{{ b.id }}"
                class="{% if ilog2_bid == b.id|string %}active{% endif %}"
@@ -565,7 +568,10 @@
       expandByChevronOnly: true,
       accordionGroup: topLevelNavIds,
     });
-    bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open', { accordionGroup: topLevelNavIds });
+    bindNavExpandable('nav-inspection-logs2', 'nav-ilog2-open', {
+      expandByChevronOnly: true,
+      accordionGroup: topLevelNavIds,
+    });
     bindNavExpandable('nav-library', 'nav-library-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-maintenance', 'nav-maint-open', {
       expandByChevronOnly: true,

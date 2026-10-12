@@ -10808,6 +10808,72 @@ def _pm_user_building_ids(user: User) -> set[int]:
     return out
 
 
+templates.env.globals["user_building_ids"] = _pm_user_building_ids
+
+_ILOG2_DAILY_TABLES = (
+    "housing_substation_daily",
+    "central_control_room_daily",
+    "ccr_facility_daily",
+    "steelworks_hq_daily",
+    "steelworks_hall_daily",
+    "human_center_daily",
+    "eoulrim_gym_daily",
+    "baegun_art_hall_daily",
+    "sub53_daily",
+    "baegun_shopping_daily",
+    "baegundae_daily",
+    "rist_daily",
+    "ground_gwangyang_daily",
+    "baegun_dorm_daily",
+    "giga_town_daily",
+    "park1538_daily",
+)
+
+
+def _ilog2_as_datetime(v):
+    if v is None or isinstance(v, datetime):
+        return v
+    try:
+        return datetime.fromisoformat(str(v).replace("Z", ""))
+    except ValueError:
+        return None
+
+
+async def _ilog2_written_days(
+    db: AsyncSession, building_ids: set[int], start: date, end: date
+) -> set[tuple[int, date]]:
+    """기간 내 실제 저장된 일지(건물, 날짜). 열람만으로 생성된 행은 제외."""
+    from sqlalchemy import Date, bindparam, inspect as sa_inspect, text
+
+    out: set[tuple[int, date]] = set()
+    if not building_ids:
+        return out
+    async with engine.connect() as conn:
+        existing = set(await conn.run_sync(lambda c: sa_inspect(c).get_table_names()))
+    for table in _ILOG2_DAILY_TABLES:
+        if table not in existing:
+            continue
+        stmt = text(
+            f"SELECT building_id, log_date, created_at, updated_at FROM {table} "
+            "WHERE building_id IN :ids AND log_date >= :s AND log_date <= :e"
+        ).bindparams(
+            bindparam("ids", expanding=True),
+            bindparam("s", type_=Date),
+            bindparam("e", type_=Date),
+        )
+        rows = (
+            await db.execute(stmt, {"ids": sorted(building_ids), "s": start, "e": end})
+        ).all()
+        for bid, log_date, created_at, updated_at in rows:
+            c_at = _ilog2_as_datetime(created_at)
+            u_at = _ilog2_as_datetime(updated_at)
+            if not c_at or not u_at or (u_at - c_at).total_seconds() < 2:
+                continue
+            d = log_date if isinstance(log_date, date) else date.fromisoformat(str(log_date)[:10])
+            out.add((int(bid), d))
+    return out
+
+
 async def _pm_filtered_schedules(
     db: AsyncSession,
     *,
@@ -11526,7 +11592,13 @@ async def inspection_logs2_page(
         for b in all_buildings
         if b.id not in selected_ids and (b.name or "").strip() != "중앙관제실(설비)"
     ]
-    building_groups = group_buildings_by_site(selected_buildings)
+    my_building_ids = _pm_user_building_ids(user) & selected_ids
+    visible_buildings = (
+        [b for b in selected_buildings if b.id in my_building_ids]
+        if my_building_ids
+        else selected_buildings
+    )
+    building_groups = group_buildings_by_site(visible_buildings)
     attach_counts: dict[int, int] = {}
     try:
         attach_counts = {
@@ -11544,15 +11616,43 @@ async def inspection_logs2_page(
         await db.rollback()
         print(f"[inspection_logs2] attachment counts skip: {e}", flush=True)
 
+    today = _today_kst()
+    month_start = today.replace(day=1)
+    visible_ids = {b.id for b in visible_buildings}
+    written: set[tuple[int, date]] = set()
+    try:
+        written = await _ilog2_written_days(db, visible_ids, month_start, today)
+    except Exception as e:
+        await db.rollback()
+        print(f"[inspection_logs2] written days skip: {e}", flush=True)
+    written_today = {bid for bid, d in written if d == today}
+    month_slots = len(visible_ids) * today.day
+    month_done = len(written)
+    kpi = {
+        "buildings": len(visible_buildings),
+        "buildings_all": len(selected_buildings),
+        "today_written": len(written_today),
+        "attachments": sum(attach_counts.get(bid, 0) for bid in visible_ids),
+        "attach_buildings": sum(1 for bid in visible_ids if attach_counts.get(bid)),
+        "progress": round(month_done * 100 / month_slots) if month_slots else 0,
+        "month_done": month_done,
+        "month_slots": month_slots,
+    }
+
     return templates.TemplateResponse(
         request,
         "inspection_logs2.html",
         {
             "user": user,
             "selected_buildings": selected_buildings,
+            "visible_buildings": visible_buildings,
+            "my_building_ids": my_building_ids,
             "building_groups": building_groups,
             "available_buildings": available_buildings,
             "attach_counts": attach_counts,
+            "written_today": written_today,
+            "kpi": kpi,
+            "today": today,
             "error": request.query_params.get("error"),
             "message": request.query_params.get("message"),
         },
@@ -20872,10 +20972,24 @@ async def pm_my_buildings_save(
     db_user = await db.get(User, user.id)
     if not db_user:
         raise HTTPException(404)
+    # 화면에 보이지 않은 건물(다른 메뉴에서 고른 건물)은 그대로 유지
+    scope: set[int] = set()
+    for v in form.getlist("scope_ids"):
+        try:
+            scope.add(int(v))
+        except (TypeError, ValueError):
+            continue
+    shown = len(picked & scope) if scope else len(picked)
+    if scope:
+        picked = (_pm_user_building_ids(db_user) - scope) | (picked & scope)
     db_user.pm_building_ids = sorted(picked) or None
     await db.commit()
+    msg = f"내 건물 {shown}곳만 표시합니다." if shown else "전체 건물을 표시합니다."
+    if str(form.get("next", "")) == "ilog2":
+        return RedirectResponse(
+            f"/admin/inspection-logs2?message={quote(msg)}", status_code=303
+        )
     tab = "settings" if str(form.get("tab", "")) == "settings" else "list"
-    msg = f"내 건물 {len(picked)}곳만 표시합니다." if picked else "전체 건물을 표시합니다."
     return RedirectResponse(f"/admin/pm?tab={tab}&msg={quote(msg)}", status_code=303)
 
 

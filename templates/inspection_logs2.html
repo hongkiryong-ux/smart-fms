@@ -1,22 +1,83 @@
 {% extends "base.html" %}
 {% block title %}점검일지{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/ilog2_dash.css?v=1" />{% endblock %}
 {% block content %}
-<header class="page-header">
-  <h1>점검일지</h1>
-  <p>건물을 추가한 뒤, 건물을 클릭해 해당 건물 점검일지를 관리합니다. 기존 일지는 「📎 과거 일지 자료」에 파일로 보관하고 내려받을 수 있습니다.</p>
+{% set ico_building %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5.5A1.5 1.5 0 0 1 5.5 4h7A1.5 1.5 0 0 1 14 5.5V21"/><path d="M14 9h4.5A1.5 1.5 0 0 1 20 10.5V21"/><path d="M3 21h18"/><path d="M7.5 8h3M7.5 11.5h3M7.5 15h3M16.5 13h.01M16.5 16.5h.01"/></svg>{% endset %}
+{% set ico_doc %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>{% endset %}
+{% set ico_clip %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>{% endset %}
+{% set ico_folder %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>{% endset %}
+<div class="ilg">
+
+<header class="ilg-head">
+  <span class="ilg-head-ico" aria-hidden="true">{{ ico_doc }}</span>
+  <div class="ilg-head-text">
+    <h1>점검일지</h1>
+    <p>건물별 점검일지를 통합 관리하고 과거 일지 자료를 확인합니다.</p>
+  </div>
+  {% if selected_buildings %}
+  <button type="button" class="ilg-mybld-btn{% if my_building_ids %} is-set{% endif %}" data-open-dialog="ilg-my-buildings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+    내 건물 설정{% if my_building_ids %} <b>{{ my_building_ids|length }}</b>{% endif %}
+  </button>
+  {% endif %}
 </header>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
-<section class="card card-wide">
-  <h2>건물 추가</h2>
+<section class="ilg-kpis" aria-label="점검일지 요약">
+  <a class="ilg-kpi is-blue" href="#ilg-buildings">
+    <span class="ilg-kpi-ico" aria-hidden="true">{{ ico_building }}</span>
+    <span class="ilg-kpi-body">
+      <span class="ilg-kpi-label">등록 건물</span>
+      <strong>{{ kpi.buildings }}</strong>
+      <em>{% if my_building_ids %}내 건물 · 전체 {{ kpi.buildings_all }}곳{% else %}점검일지 관리 건물{% endif %}</em>
+    </span>
+    <span class="ilg-kpi-arrow" aria-hidden="true">›</span>
+  </a>
+  <a class="ilg-kpi is-green" href="#ilg-buildings">
+    <span class="ilg-kpi-ico" aria-hidden="true">{{ ico_doc }}</span>
+    <span class="ilg-kpi-body">
+      <span class="ilg-kpi-label">점검일지</span>
+      <strong>{{ kpi.today_written }}</strong>
+      <em>오늘({{ today.month }}/{{ today.day }}) 작성 건물</em>
+    </span>
+    <span class="ilg-kpi-arrow" aria-hidden="true">›</span>
+  </a>
+  <a class="ilg-kpi is-purple" href="#ilg-buildings">
+    <span class="ilg-kpi-ico" aria-hidden="true">{{ ico_folder }}</span>
+    <span class="ilg-kpi-body">
+      <span class="ilg-kpi-label">과거 일지 자료</span>
+      <strong>{{ kpi.attachments }}</strong>
+      <em>보관 파일 · {{ kpi.attach_buildings }}개 건물</em>
+    </span>
+    <span class="ilg-kpi-arrow" aria-hidden="true">›</span>
+  </a>
+  <a class="ilg-kpi is-orange" href="#ilg-buildings">
+    <span class="ilg-kpi-ico" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16"/><path d="M7 15l3.5-4 3 2.5L18 8"/><path d="M14.5 8H18v3.5"/></svg>
+    </span>
+    <span class="ilg-kpi-body">
+      <span class="ilg-kpi-label">점검 진행률</span>
+      <strong>{{ kpi.progress }}<small>%</small></strong>
+      <span class="ilg-kpi-bar" aria-hidden="true"><i style="width: {{ [kpi.progress, 100]|min }}%"></i></span>
+      <em>이번 달 작성 {{ kpi.month_done }} / {{ kpi.month_slots }}일</em>
+    </span>
+    <span class="ilg-kpi-arrow" aria-hidden="true">›</span>
+  </a>
+</section>
+
+<section class="ilg-card ilg-add">
+  <h2 class="ilg-card-title">
+    <span class="ilg-title-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+    건물 추가
+  </h2>
   {% if available_buildings %}
-  <form method="post" action="/admin/inspection-logs2/buildings" class="ilog-add-form">
-    <label>
-      <span>건물 선택</span>
+  <form method="post" action="/admin/inspection-logs2/buildings" class="ilg-add-form">
+    <label class="ilg-add-field">
+      <span class="ilg-add-label">건물 선택</span>
       <select name="building_id" required>
-        <option value="">선택하세요</option>
+        <option value="">건물을 선택하세요</option>
         {% for b in available_buildings %}
         <option value="{{ b.id }}">
           {% if b.site %}{{ b.site.name }} / {% endif %}{{ b.name }} ({{ b.code }})
@@ -25,50 +86,147 @@
       </select>
     </label>
     {% if user_can_create(user) %}
-    <button type="submit" class="btn btn-primary">추가</button>
+    <button type="submit" class="ilg-add-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      추가
+    </button>
     {% endif %}
   </form>
   {% else %}
-  <p class="text-muted">추가할 수 있는 건물이 없습니다. 모든 활성 건물이 이미 등록되었거나 건물이 없습니다.</p>
+  <p class="ilg-muted">추가할 수 있는 건물이 없습니다. 모든 활성 건물이 이미 등록되었거나 건물이 없습니다.</p>
   {% endif %}
 </section>
 
-<section class="card card-wide">
-  <h2>등록된 건물 <small class="text-muted">({{ selected_buildings|length }})</small></h2>
+<section class="ilg-card" id="ilg-buildings">
+  <div class="ilg-list-head">
+    <h2 class="ilg-card-title">
+      <span class="ilg-title-ico" aria-hidden="true">{{ ico_building }}</span>
+      등록된 건물 <span class="ilg-count">({{ visible_buildings|length }})</span>
+    </h2>
+    {% if my_building_ids %}
+    <span class="ilg-filter-chip">
+      내 건물만 표시 중 · 전체 {{ selected_buildings|length }}곳
+      <button type="button" class="ilg-chip-link" data-open-dialog="ilg-my-buildings">변경</button>
+    </span>
+    {% endif %}
+  </div>
+
   {% if building_groups %}
-  <div class="eq-site-building-list">
-    {% for g in building_groups %}
-    <section class="eq-site-group">
-      <h3 class="eq-site-group-title">{{ g.site_name }}</h3>
-      <div class="eq-building-grid">
-        {% for b in g.buildings %}
-        <div class="ilog-building-card eq-building-palette-{{ (loop.index0 % 12) + 1 }}">
-          <a class="ilog-building-link" href="/admin/inspection-logs2/{{ b.id }}">
+  {% set ns = namespace(i=0) %}
+  {% for g in building_groups %}
+  <section class="ilg-site">
+    <h3 class="ilg-site-head">
+      <span class="ilg-site-pill ilg-sp{{ loop.index0 % 4 }}">
+        {{ ico_building }}{{ g.site_name }}
+      </span>
+      <span class="ilg-site-count">{{ g.buildings|length }}개</span>
+    </h3>
+    <div class="ilg-grid">
+      {% for b in g.buildings %}
+      {% set ns.i = ns.i + 1 %}
+      {% set n_attach = (attach_counts or {}).get(b.id, 0) %}
+      <article class="ilg-bcard ilg-c{{ (ns.i - 1) % 8 }}">
+        <a class="ilg-bcard-main" href="/admin/inspection-logs2/{{ b.id }}">
+          <span class="ilg-bcard-ico" aria-hidden="true">{{ ico_building }}</span>
+          <span class="ilg-bcard-name">
             <strong>{{ b.name }}</strong>
-            <span class="eq-building-code">{{ b.code }}</span>
-          </a>
-          <div class="ilog-card-actions">
-            {% set n_attach = (attach_counts or {}).get(b.id, 0) %}
-            <a class="ilog-attach-link{% if n_attach %} has-files{% endif %}"
-               href="/admin/inspection-logs2/{{ b.id }}/files"
-               title="기존 일지 파일 보관·다운로드">📎 과거 일지 자료 {{ n_attach }}</a>
+            <span class="ilg-bcard-sub">
+              <em>{{ b.code }}</em>
+              {% if b.id in written_today %}<span class="ilg-done" title="오늘 일지 저장됨">오늘 작성</span>{% endif %}
+            </span>
+          </span>
+        </a>
+        <details class="ilg-menu">
+          <summary aria-label="「{{ b.name }}」 메뉴" title="메뉴">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5.5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="18.5" r="1.7"/></svg>
+          </summary>
+          <div class="ilg-menu-pop">
+            <a href="/admin/inspection-logs2/{{ b.id }}">일지 열기</a>
+            <a href="/admin/inspection-logs2/{{ b.id }}/files">과거 일지 자료</a>
             {% if user_can_delete(user) %}
             <form method="post"
                   action="/admin/inspection-logs2/buildings/{{ b.id }}/remove"
-                  class="ilog-remove-form"
                   onsubmit="return confirm('「{{ b.name }}」 등록을 해제할까요?');">
-              <button type="submit" class="btn btn-sm btn-danger">해제</button>
+              <button type="submit" class="is-danger">등록 해제</button>
             </form>
             {% endif %}
           </div>
+        </details>
+        <div class="ilg-bcard-foot">
+          <a class="ilg-pill{% if n_attach %} has-files{% endif %}"
+             href="/admin/inspection-logs2/{{ b.id }}/files"
+             title="기존 일지 파일 보관·다운로드">{{ ico_clip }}과거 일지 {{ n_attach }}</a>
+          <a class="ilg-open" href="/admin/inspection-logs2/{{ b.id }}">일지 열기 <span aria-hidden="true">→</span></a>
         </div>
-        {% endfor %}
-      </div>
-    </section>
-    {% endfor %}
-  </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
   {% else %}
-  <p class="empty">등록된 건물이 없습니다. 위에서 건물을 추가하세요.</p>
+  <p class="ilg-empty">등록된 건물이 없습니다. 위에서 건물을 추가하세요.</p>
   {% endif %}
 </section>
+
+{% if selected_buildings %}
+<dialog id="ilg-my-buildings" class="eq-dialog ilg-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+  </form>
+  <div class="eq-popup-body">
+    <h2>내 건물 설정</h2>
+    <p class="ilg-dlg-sub">선택한 건물만 이 계정의 점검일지 화면·메뉴에 표시됩니다. 모두 해제하면 전체 건물이 보입니다. (점검(PM)과 같은 설정을 사용합니다)</p>
+    <form method="post" action="/admin/pm/my-buildings" id="ilg-my-buildings-form">
+      <input type="hidden" name="next" value="ilog2" />
+      {% for b in selected_buildings %}<input type="hidden" name="scope_ids" value="{{ b.id }}" />{% endfor %}
+      <div class="ilg-dlg-tools">
+        <button type="button" class="ilg-chip-link" data-mybld-all="1">전체 선택</button>
+        <button type="button" class="ilg-chip-link" data-mybld-all="0">모두 해제</button>
+      </div>
+      <div class="ilg-dlg-list">
+        {% for b in selected_buildings %}
+        <label class="ilg-dlg-opt">
+          <input type="checkbox" name="building_ids" value="{{ b.id }}" {% if b.id in my_building_ids %}checked{% endif %} />
+          <span>{{ b.name }}{% if b.site %}<small>{{ b.site.name }}</small>{% endif %}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <div class="ilg-dlg-actions">
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+{% endif %}
+
+</div>
+
+<script>
+(function () {
+  document.addEventListener('click', function (e) {
+    var openBtn = e.target.closest('[data-open-dialog]');
+    if (openBtn) {
+      var dlg = document.getElementById(openBtn.getAttribute('data-open-dialog'));
+      if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+      else if (dlg) dlg.setAttribute('open', 'open');
+      return;
+    }
+    var allBtn = e.target.closest('[data-mybld-all]');
+    if (allBtn) {
+      var on = allBtn.getAttribute('data-mybld-all') === '1';
+      document.querySelectorAll('#ilg-my-buildings-form input[name=building_ids]').forEach(function (cb) {
+        cb.checked = on;
+      });
+      return;
+    }
+    document.querySelectorAll('.ilg-menu[open]').forEach(function (d) {
+      if (!d.contains(e.target)) d.removeAttribute('open');
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.ilg-menu[open]').forEach(function (d) { d.removeAttribute('open'); });
+  });
+})();
+</script>
 {% endblock %}
