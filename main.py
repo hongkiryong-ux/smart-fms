@@ -7568,6 +7568,7 @@ async def work_orders_list(
             "photo_counts": photo_counts,
             "pager": pager,
             "partners": partners,
+            "partner_risk_by_id": _partner_risk_by_id(partners),
             "buildings": buildings,
             "equipment_opts": equipment_opts,
             "equipment_opts_json": json.dumps(equipment_opts, ensure_ascii=False),
@@ -7679,6 +7680,9 @@ async def work_order_create(
     assignee_name: str = Form(""),
     scheduled_date: str = Form(""),
     partner_id: int = Form(0),
+    hazard_content: str = Form(""),
+    safety_measures: str = Form(""),
+    risk_grade: str = Form(""),
     photos: list[UploadFile] = File(default=[]),
     user: User = Depends(require_can_create),
     db: AsyncSession = Depends(get_db),
@@ -7715,11 +7719,14 @@ async def work_order_create(
         except ValueError:
             sched = None
 
+    partner = None
     partner_fk = None
     if partner_id and partner_id > 0:
         partner = await db.get(Partner, partner_id)
         if partner and partner.is_active:
             partner_fk = partner.id
+        else:
+            partner = None
 
     title = f"[정비의뢰] {eq.code} {eq.name}"
     person = _wo_person_label(user)
@@ -7737,6 +7744,17 @@ async def work_order_create(
         status=WorkOrderStatus.received,
         work_type="정비",
     )
+    if partner is not None:
+        wo.partner = partner
+        form_hazard = (hazard_content or "").strip()
+        form_safety = (safety_measures or "").strip()
+        form_grade = (risk_grade or "").strip()[:20]
+        if form_hazard or form_safety or form_grade:
+            wo.hazard_content = form_hazard or None
+            wo.safety_measures = form_safety or None
+            wo.risk_grade = form_grade or None
+        else:
+            _wo_apply_partner_risk_from_excel(wo)
     db.add(wo)
     await db.flush()
     _saved, skipped = await save_wo_photos(

@@ -317,7 +317,7 @@
     {% elif request.query_params.get('error') == 'desc' %}
     <div class="alert alert-error">정비의뢰 내용을 입력하세요.</div>
     {% endif %}
-    <form method="post" action="/admin/work-orders" enctype="multipart/form-data" class="form-stack" id="wo-create-form">
+    <form method="post" action="/admin/work-orders" enctype="multipart/form-data" class="form-stack eq-wo-request-form" id="wo-create-form">
       <label>건물</label>
       <select id="wo-building" required>
         <option value="">건물 선택</option>
@@ -346,12 +346,14 @@
       </select>
 
       <label>협력사</label>
-      <select name="partner_id">
+      <select name="partner_id" class="eq-wo-partner-select">
         <option value="0">미지정</option>
         {% for p in partners %}
         <option value="{{ p.id }}">{{ p.name }}</option>
         {% endfor %}
       </select>
+
+      {% include "partials/eq_wo_risk_fields.html" %}
 
       <label>담당자</label>
       <input type="text" name="assignee_name" value="{{ default_assignee }}" placeholder="담당자명" />
@@ -404,6 +406,35 @@
   {% if request.query_params.get('open') or request.query_params.get('error') in ['eq', 'desc'] %}
   openDialog('wo-create-dialog');
   {% endif %}
+
+  var partnerRiskById = {{ partner_risk_by_id | default({}) | tojson }};
+  function fillWoCreateRisk(form, partnerId) {
+    if (!form) return;
+    var box = form.querySelector('.eq-wo-risk-fields');
+    if (!box) return;
+    var hazard = form.querySelector('.eq-wo-hazard');
+    var safety = form.querySelector('.eq-wo-safety');
+    var grade = form.querySelector('.eq-wo-grade');
+    var pid = String(partnerId || '0');
+    if (pid === '0') {
+      box.hidden = true;
+      if (hazard) hazard.value = '';
+      if (safety) safety.value = '';
+      if (grade) grade.value = '';
+      return;
+    }
+    var risk = partnerRiskById[pid] || {};
+    box.hidden = false;
+    if (hazard) hazard.value = risk.hazard_content || '';
+    if (safety) safety.value = risk.safety_measures || '';
+    if (grade) grade.value = risk.risk_grade || '';
+  }
+  var woCreateForm = document.getElementById('wo-create-form');
+  var woCreatePartner = woCreateForm ? woCreateForm.querySelector('.eq-wo-partner-select') : null;
+  if (woCreatePartner) {
+    woCreatePartner.addEventListener('change', function () { fillWoCreateRisk(woCreateForm, woCreatePartner.value); });
+    if (woCreatePartner.value && woCreatePartner.value !== '0') fillWoCreateRisk(woCreateForm, woCreatePartner.value);
+  }
 
   var filterForm = document.getElementById('wo-filter-form');
   var excelBtn = document.getElementById('wo-excel-btn');
