@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}설비관리 대시보드{% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="/static/css/eq_dash.css?v=1" />{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/eq_dash.css?v=2" />{% endblock %}
 {% block content %}
 {% macro status_pill(key, label) %}<span class="eqd-st eqd-st-{{ key }}">{{ label }}</span>{% endmacro %}
 {% set chev %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>{% endset %}
@@ -41,8 +41,14 @@
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 {% if my_building_ids %}
 <div class="eqd-scope">
-  <strong>내 건물만 표시 중</strong>
-  <span>{% for b in scope_buildings %}<em>{{ b.name }}</em>{% endfor %}</span>
+  <details class="eqd-scope-fold">
+    <summary>
+      <strong>내 건물만 표시 중</strong>
+      <span class="eqd-scope-count">{{ scope_buildings|length }}곳</span>
+      <span class="eqd-scope-caret" aria-hidden="true">▾</span>
+    </summary>
+    <span class="eqd-scope-names">{% for b in scope_buildings %}<em>{{ b.name }}</em>{% endfor %}</span>
+  </details>
   <button type="button" class="eqd-link" data-open-dialog="eqd-my-buildings">변경</button>
 </div>
 {% endif %}

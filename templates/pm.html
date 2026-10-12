@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}점검(PM){% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="/static/css/pm_ui.css?v=3" />{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/pm_ui.css?v=4" />{% endblock %}
 {% block content %}
 {% set sel_building = (buildings|selectattr('id', 'equalto', filters.building_id)|list|first) if filters.building_id else none %}
 {% set qs_q = filters.q|urlencode %}
@@ -37,10 +37,16 @@
   </span>
   <div class="pmx-mybld-text">
     {% if my_building_ids %}
-    <strong>내 건물만 표시 중</strong>
-    <span class="pmx-mybld-names">
-      {% for b in buildings %}<em>{{ b.name }}</em>{% endfor %}
-    </span>
+    <details class="pmx-mybld-fold">
+      <summary>
+        <strong>내 건물만 표시 중</strong>
+        <span class="pmx-mybld-count">{{ buildings|length }}곳</span>
+        <span class="pmx-mybld-caret" aria-hidden="true">▾</span>
+      </summary>
+      <span class="pmx-mybld-names">
+        {% for b in buildings %}<em>{{ b.name }}</em>{% endfor %}
+      </span>
+    </details>
     {% else %}
     <strong>전체 건물 표시 중</strong>
     <span class="pmx-muted">내 건물을 설정하면 이 계정에서는 해당 건물만 보입니다.</span>

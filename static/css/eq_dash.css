@@ -85,8 +85,30 @@
   background: linear-gradient(90deg, #eef4ff, #fff 70%);
   font-size: .84rem;
 }
+.eqd-scope { align-items: flex-start; }
 .eqd-scope strong { color: #1e3a8a; }
-.eqd-scope span { display: flex; flex-wrap: wrap; gap: .3rem; flex: 1 1 auto; min-width: 0; }
+.eqd-scope-fold { flex: 1 1 auto; min-width: 0; }
+.eqd-scope-fold summary {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.eqd-scope-fold summary::-webkit-details-marker { display: none; }
+.eqd-scope-fold summary:hover strong { color: var(--eqd-blue); }
+.eqd-scope-count {
+  padding: .05rem .5rem;
+  border-radius: 999px;
+  background: #dbe8f8;
+  color: var(--eqd-blue);
+  font-size: .75rem;
+  font-weight: 800;
+}
+.eqd-scope-caret { color: var(--eqd-muted); font-size: .8rem; transition: transform .15s; }
+.eqd-scope-fold[open] .eqd-scope-caret { transform: rotate(180deg); }
+.eqd-scope-names { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
 .eqd-scope em {
   font-style: normal;
   padding: .1rem .55rem;

@@ -249,6 +249,28 @@
 .pmx-mybld-text { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; font-size: .85rem; }
 .pmx-mybld-text strong { color: var(--pmx-text); font-weight: 800; }
 .pmx-mybld-names { display: flex; flex-wrap: wrap; gap: .3rem; }
+.pmx-mybld-fold { flex: 1 1 auto; min-width: 0; }
+.pmx-mybld-fold summary {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.pmx-mybld-fold summary::-webkit-details-marker { display: none; }
+.pmx-mybld-count {
+  padding: .05rem .5rem;
+  border-radius: 999px;
+  background: #dbe8f8;
+  color: var(--pmx-blue);
+  font-size: .75rem;
+  font-weight: 800;
+}
+.pmx-mybld-caret { color: var(--pmx-muted); font-size: .8rem; transition: transform .15s; }
+.pmx-mybld-fold[open] .pmx-mybld-caret { transform: rotate(180deg); }
+.pmx-mybld-fold summary:hover strong { color: var(--pmx-blue); }
+.pmx-mybld-fold .pmx-mybld-names { margin-top: .5rem; }
 .pmx-mybld-names em {
   font-style: normal;
   padding: .1rem .55rem;
