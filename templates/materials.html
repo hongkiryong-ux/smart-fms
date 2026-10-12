@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}자재관리{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/materials.css?v=1" />
+<link rel="stylesheet" href="/static/css/materials.css?v=3" />
 {% endblock %}
 {% block content %}
 {% set popup_q = 'popup=1&' if popup else '' %}
@@ -15,7 +15,8 @@
   {% endif %}
 {% endfor %}
 
-<div class="mt-page">
+<div class="mt-page mt-fit" id="mt-root">
+  <script>try { if (localStorage.getItem('mt.fit') === '0') document.getElementById('mt-root').classList.remove('mt-fit'); } catch (e) {}</script>
   <header class="mt-head">
     <div class="mt-head-title">
       <span class="mt-head-ico" aria-hidden="true">
@@ -27,6 +28,10 @@
       </div>
     </div>
     <div class="mt-head-actions">
+      <button type="button" class="mt-btn mt-fit-toggle" id="mt-fit-toggle" aria-pressed="true" title="모니터 한 화면에 맞춤 (끄면 기존처럼 스크롤)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        한 화면
+      </button>
       <span class="mt-btn mt-date-chip" title="기준일 (오늘 입·출고 집계)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
         {{ today_kst[:4] }}년 {{ today_kst[5:7]|int }}월 {{ today_kst[8:10]|int }}일
@@ -163,6 +168,7 @@
           <span id="mat-pager-nums"></span>
           <label class="mt-per-page">페이지당
             <select id="mat-per-page">
+              <option value="-1">화면 맞춤</option>
               <option value="12">12개</option>
               <option value="20">20개</option>
               <option value="50">50개</option>
@@ -322,11 +328,11 @@
         </div>
         <div class="mt-recent-wrap">
           <table class="mt-recent">
-            <colgroup><col style="width:25%"/><col style="width:15%"/><col/><col style="width:14%"/><col style="width:24%"/></colgroup>
+            <colgroup><col style="width:27%"/><col style="width:14%"/><col/><col style="width:12%"/><col style="width:24%"/></colgroup>
             <thead><tr><th>일자</th><th>구분</th><th>자재명</th><th class="c-num">수량</th><th>사유</th></tr></thead>
             <tbody>
               {% set recent = logs|selectattr('action', 'in', ['입고', '출고'])|list %}
-              {% for lg in recent[:6] %}
+              {% for lg in recent[:20] %}
               <tr>
                 <td title="{{ lg.created_at_fmt }}">{{ lg.created_at_fmt[5:16] }}</td>
                 <td><span class="mt-log-act {{ 'a-in' if lg.action == '입고' else 'a-out' }}">{{ lg.action }}</span></td>
@@ -641,12 +647,24 @@
   var pagerNums = document.getElementById('mat-pager-nums');
   var perSel = document.getElementById('mat-per-page');
   var page = 1;
-  var perPage = 12;
+  var perPage = -1;
   try {
     var saved = localStorage.getItem('mat.perPage');
     if (saved !== null && perSel.querySelector('option[value="' + saved + '"]')) perPage = parseInt(saved, 10);
   } catch (e) {}
   perSel.value = String(perPage);
+  var tableWrap = document.querySelector('.mt-table-wrap');
+
+  function fitRows() {
+    var root = document.getElementById('mt-root');
+    var fitting = root.classList.contains('mt-fit') && window.matchMedia('(min-width: 1400px) and (min-height: 700px)').matches;
+    if (!fitting || !rows.length) return 0;
+    var head = tableWrap.querySelector('thead');
+    var vis = rows.filter(function (r) { return !r.classList.contains('is-paged-out'); })[0] || rows[0];
+    var rowH = vis.getBoundingClientRect().height || 38;
+    var avail = tableWrap.clientHeight - (head ? head.getBoundingClientRect().height : 0);
+    return Math.max(5, Math.floor(avail / rowH));
+  }
 
   function pageBtn(label, target, opts) {
     var b = document.createElement('button');
@@ -658,12 +676,20 @@
     pagerNums.appendChild(b);
   }
   function renderPage() {
-    var size = perPage > 0 ? perPage : rows.length || 1;
-    var pages = Math.max(1, Math.ceil(rows.length / size));
-    if (page > pages) page = pages;
-    rows.forEach(function (tr, i) {
-      tr.classList.toggle('is-paged-out', Math.floor(i / size) + 1 !== page);
-    });
+    var fitted = perPage < 0 ? fitRows() : 0;
+    var size = perPage > 0 ? perPage : (perPage < 0 ? (fitted || 12) : rows.length || 1);
+    var pages;
+    function applySize() {
+      pages = Math.max(1, Math.ceil(rows.length / size));
+      if (page > pages) page = pages;
+      rows.forEach(function (tr, i) {
+        tr.classList.toggle('is-paged-out', Math.floor(i / size) + 1 !== page);
+      });
+    }
+    applySize();
+    if (fitted) {
+      while (size > 5 && tableWrap.scrollHeight > tableWrap.clientHeight + 1) { size--; applySize(); }
+    }
     pagerNums.innerHTML = '';
     pageBtn('‹', page - 1, { disabled: page <= 1 });
     var list = [];
@@ -694,7 +720,15 @@
     page = 1;
     renderPage();
   });
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    if (perPage >= 0) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderPage, 120);
+  });
+  window.matRenderPage = renderPage;
   renderPage();
+  window.addEventListener('load', function () { if (perPage < 0) renderPage(); });
 
   function openDialog(id) {
     var el = document.getElementById(id);
@@ -723,6 +757,18 @@
   {% elif open_dlg == 'group-rename' %}
   openDialog('mat-group-rename-dialog');
   {% endif %}
+
+  var root = document.getElementById('mt-root');
+  var fitBtn = document.getElementById('mt-fit-toggle');
+  function syncFitBtn() { fitBtn.setAttribute('aria-pressed', root.classList.contains('mt-fit') ? 'true' : 'false'); }
+  fitBtn.addEventListener('click', function () {
+    var on = !root.classList.contains('mt-fit');
+    root.classList.toggle('mt-fit', on);
+    try { localStorage.setItem('mt.fit', on ? '1' : '0'); } catch (e) {}
+    syncFitBtn();
+    if (window.matRenderPage) window.matRenderPage();
+  });
+  syncFitBtn();
 
   setMode('new');
   syncHidden();

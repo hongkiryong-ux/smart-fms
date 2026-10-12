@@ -214,6 +214,70 @@
 .mt-log-act.a-new { background: #e0e7ff; color: #3730a3; }
 .mt-log-act.a-del { background: #fee2e2; color: #991b1b; }
 
+/* 한 화면 맞춤 (mt-fit) — PC 모니터에서 페이지 스크롤 없이 표시, 넘치는 목록은 카드 안에서만 스크롤 */
+.mt-fit-toggle[aria-pressed="true"] { color: #1d4ed8; border-color: #c9d9f8; background: #f3f7ff; }
+.mt-fit-toggle[aria-pressed="true"] svg { color: #1d4ed8; }
+@media (max-width: 1399px), (max-height: 699px) {
+  .mt-fit-toggle { display: none !important; }
+}
+@media (min-width: 1400px) and (min-height: 700px) {
+  .main-with-sidebar:has(.mt-fit), .main-full:has(.mt-fit) {
+    box-sizing: border-box;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px;
+  }
+  .mt-page.mt-fit { flex: 1; min-height: 0; gap: 10px; }
+  .mt-fit .mt-head-ico { width: 38px; height: 38px; border-radius: 11px; }
+  .mt-fit .mt-head h1 { font-size: 1.3rem; }
+  .mt-fit .mt-head p { font-size: 0.8rem; }
+  .mt-fit .mt-btn { height: 34px; padding: 0 12px; }
+
+  .mt-fit .mt-layout { flex: 1; min-height: 0; gap: 10px; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+  .mt-fit .mt-main, .mt-fit .mt-side { min-height: 0; gap: 10px; }
+  .mt-fit .mt-kpis { gap: 10px; }
+  .mt-fit .mt-kpi { padding: 11px 16px; }
+  .mt-fit .mt-kpi-ico { width: 44px; height: 44px; border-radius: 13px; }
+  .mt-fit .mt-kpi strong { font-size: 1.5rem; }
+
+  .mt-fit .mt-list { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .mt-fit .mt-list .mt-card-head { padding: 10px 16px 8px; }
+  .mt-fit .mt-filter { padding-bottom: 8px; }
+  .mt-fit .mt-table-wrap { flex: 1; min-height: 0; overflow: auto; }
+  .mt-fit .mt-table thead th { padding: 8px 12px; }
+  .mt-fit .mt-table tbody td { padding: 7px 12px; }
+  .mt-fit .mt-pager { padding: 8px 16px; }
+
+  .mt-fit .mt-card-head { padding: 10px 16px 8px; }
+  .mt-fit .mt-donut-body { padding-bottom: 12px; }
+  .mt-fit .mt-form-body { padding-top: 10px; gap: 8px 12px; }
+  .mt-fit .mt-form-actions { padding: 8px 16px 10px; }
+  .mt-fit .mt-recent-card { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .mt-fit .mt-recent-wrap { flex: 1; min-height: 0; overflow: auto; }
+  .mt-fit .mt-recent th { position: sticky; top: 0; z-index: 1; }
+}
+@media (min-width: 1400px) and (min-height: 700px) and (max-height: 900px) {
+  .mt-fit .mt-head p { display: none; }
+  .mt-fit .mt-kpi { padding: 8px 14px; }
+  .mt-fit .mt-kpi-ico { width: 38px; height: 38px; }
+  .mt-fit .mt-kpi-ico svg { width: 22px; height: 22px; }
+  .mt-fit .mt-kpi strong { font-size: 1.3rem; }
+  .mt-fit .mt-kpi-sub { display: none; }
+  .mt-fit .mt-donut { width: 112px; height: 112px; }
+  .mt-fit .mt-donut-center strong { font-size: 1.05rem; }
+  .mt-fit .mt-donut-center span { font-size: 0.66rem; }
+  .mt-fit .mt-legend { max-height: none; overflow: visible; gap: 0; }
+  .mt-fit .mt-legend a { padding: 2px 4px; }
+  .mt-fit .mt-donut-body { padding-bottom: 8px; }
+  .mt-fit .mt-field input, .mt-fit .mt-field select { height: 33px; }
+  .mt-fit .mt-field label { margin-bottom: 3px; }
+  .mt-fit .mt-act { height: 36px; }
+  .mt-fit .mt-tab { padding: 6px 12px 7px; }
+}
+
 .materials-dialog { width: min(420px, calc(100vw - 2rem)); }
 .materials-logs-dialog { width: min(900px, calc(100vw - 2rem)); }
 
@@ -225,6 +289,8 @@
   .mt-donut { width: 128px; height: 128px; }
   .mt-donut-center strong { font-size: 1.15rem; }
   .mt-col-wide { display: none; }
+  .mt-recent th, .mt-recent td { padding-left: 6px; padding-right: 6px; }
+  .mt-recent td:first-child { font-size: 0.74rem; }
 }
 @media (max-width: 1400px) {
   .mt-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
