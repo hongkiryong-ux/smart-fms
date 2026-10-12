@@ -3481,8 +3481,13 @@ async def _compute_dashboard_kpi(db: AsyncSession) -> dict:
     }
 
 
-DASHBOARD_LAYOUTS = ("wide", "ops", "gallery", "bento")
+DASHBOARD_LAYOUTS = ("group", "wide", "ops", "gallery", "bento")
 DASHBOARD_LAYOUT_META = {
+    "group": {
+        "label": "광양운영그룹 대시보드 (2026.10 새 화면)",
+        "ref": "광양운영그룹 대시보드 시안",
+        "desc": "KPI 6종, 사업장 현황, 설비 상태(점검 PM 결과 기준), 사업장별 설비 수, 전력사용량, 최근 정비 이력, 7일 내 점검 예정을 한 화면에 보여줍니다.",
+    },
     "ops": {
         "label": "운영 보드 (기존 화면)",
         "ref": "운영 대시보드 시안",
@@ -3510,6 +3515,7 @@ _KPI_CACHE_TTL_SEC = 30.0
 _kpi_cache: dict = {"at": 0.0, "data": None}
 _layout_cache: str | None = None
 _kpi_lock: asyncio.Lock | None = None
+_DASH_GROUP_ROLLOUT_KEY = "dashboard.layout_rollout_group"
 
 
 def _kpi_lock_get() -> asyncio.Lock:
@@ -3547,9 +3553,22 @@ async def _get_dashboard_layout(db: AsyncSession) -> str:
     try:
         row = await db.get(AppSetting, "dashboard.layout")
         val = (row.value or "").strip() if row else ""
+        # 새 화면은 1회만 자동 적용(이전 값은 롤아웃 키에 보관) — 이후 관리자가 되돌리면 그대로 유지
+        if await db.get(AppSetting, _DASH_GROUP_ROLLOUT_KEY) is None:
+            db.add(AppSetting(key=_DASH_GROUP_ROLLOUT_KEY, value=val or "ops"))
+            if row:
+                row.value = "group"
+            else:
+                db.add(AppSetting(key="dashboard.layout", value="group"))
+            await db.commit()
+            val = "group"
         _layout_cache = val if val in DASHBOARD_LAYOUTS else "ops"
     except Exception as e:
         print(f"[dashboard] layout read fallback: {e}", flush=True)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         _layout_cache = "ops"
     return _layout_cache
 
@@ -3557,6 +3576,8 @@ async def _get_dashboard_layout(db: AsyncSession) -> str:
 async def _set_dashboard_layout(db: AsyncSession, layout: str) -> None:
     global _layout_cache
     row = await db.get(AppSetting, "dashboard.layout")
+    if await db.get(AppSetting, _DASH_GROUP_ROLLOUT_KEY) is None:
+        db.add(AppSetting(key=_DASH_GROUP_ROLLOUT_KEY, value=((row.value or "").strip() if row else "") or "ops"))
     if row:
         row.value = layout
     else:
@@ -3583,6 +3604,206 @@ async def _dashboard_buildings(db: AsyncSession) -> list[dict]:
         }
         for b in buildings
     ]
+
+
+DASH_HEALTH_META = (
+    ("normal", "정상 운영", "#2f6fed"),
+    ("caution", "점검 필요(이상)", "#f5b100"),
+    ("fault", "고장", "#ef4444"),
+    ("repair", "고장(정비중)", "#f97316"),
+)
+DASH_HEALTH_LINKS = {
+    "normal": "/admin/equipment",
+    "caution": "/admin/pm",
+    "fault": "/admin/pm",
+    "repair": "/admin/pm?status=progress",
+}
+_DASH_WO_OPEN_KEYS = {"received", "assigned", "in_progress"}
+_DASH_WO_DONE_KEYS = {"completed", "verified", "closed"}
+DASH_SITE_BAR_COLORS = ("#2f6fed", "#22b07d", "#f5a524", "#8b5cf6", "#ef4444", "#14b8a6", "#64748b")
+
+
+def _dash_active_equipment_ids():
+    return (
+        select(Equipment.id)
+        .join(Zone, Equipment.zone_id == Zone.id)
+        .join(Floor, Zone.floor_id == Floor.id)
+        .join(Building, Floor.building_id == Building.id)
+        .join(Site, Building.site_id == Site.id)
+        .where(
+            Equipment.is_active == True,  # noqa: E712
+            Building.is_active == True,  # noqa: E712
+            Site.is_active == True,  # noqa: E712
+        )
+    )
+
+
+async def _dashboard_equipment_health(db: AsyncSession, total: int) -> dict:
+    """설비 상태 현황 — 설비별 최신 PM 점검결과(주의/고장)와 연결 정비의뢰 상태로 분류."""
+    scope = _dash_active_equipment_ids()
+    ranked = (
+        select(
+            PMInspection.equipment_id.label("eid"),
+            PMInspection.result.label("result"),
+            PMInspection.work_order_id.label("wo_id"),
+            func.row_number()
+            .over(
+                partition_by=PMInspection.equipment_id,
+                order_by=(PMInspection.inspected_at.desc().nulls_last(), PMInspection.id.desc()),
+            )
+            .label("rn"),
+        )
+        .where(PMInspection.equipment_id.in_(scope))
+        .subquery()
+    )
+    rows = (
+        await db.execute(
+            select(ranked.c.eid, ranked.c.result, WorkOrder.status, WorkOrder.is_active)
+            .select_from(ranked)
+            .outerjoin(WorkOrder, WorkOrder.id == ranked.c.wo_id)
+            .where(ranked.c.rn == 1)
+        )
+    ).all()
+    open_eids = set(
+        (
+            await db.execute(
+                select(WorkOrder.equipment_id)
+                .where(
+                    WorkOrder.equipment_id.in_(scope),
+                    WorkOrder.is_active == True,  # noqa: E712
+                    WorkOrder.status.in_(_WO_OPEN),
+                )
+                .distinct()
+            )
+        ).scalars().all()
+    )
+    counts = {"caution": 0, "fault": 0, "repair": 0}
+    for eid, result, wo_status, wo_active in rows:
+        res = getattr(result, "value", result)
+        if res not in ("caution", "fault"):
+            continue
+        st = getattr(wo_status, "value", wo_status)
+        wo_live = wo_status is not None and wo_active is not False
+        if wo_live and st in _DASH_WO_DONE_KEYS:
+            continue
+        if res == "caution":
+            counts["caution"] += 1
+        elif (wo_live and st in _DASH_WO_OPEN_KEYS) or eid in open_eids:
+            counts["repair"] += 1
+        else:
+            counts["fault"] += 1
+    total = max(int(total or 0), sum(counts.values()))
+    counts["normal"] = total - sum(counts.values())
+    items = []
+    offset = 25.0
+    for key, label, color in DASH_HEALTH_META:
+        n = counts[key]
+        pct = (n * 100.0 / total) if total else 0.0
+        items.append(
+            {
+                "key": key,
+                "label": label,
+                "color": color,
+                "count": n,
+                "pct": round(pct, 1),
+                "dash": round(pct, 3),
+                "offset": round(offset, 3),
+                "url": DASH_HEALTH_LINKS[key],
+            }
+        )
+        offset -= pct
+    return {
+        "total": total,
+        "issues": counts["caution"] + counts["fault"] + counts["repair"],
+        "inspected": len(rows),
+        "items": items,
+    }
+
+
+_DASH_WO_LABELS = {
+    "received": "접수",
+    "assigned": "배정",
+    "in_progress": "진행중",
+    "completed": "완료",
+    "verified": "검수",
+    "closed": "종료",
+}
+
+
+async def _dashboard_recent_maint(db: AsyncSession, limit: int = 6) -> list[dict]:
+    rows = (
+        await db.execute(
+            select(WorkOrder, Equipment.name, Building.name, Site.name)
+            .select_from(WorkOrder)
+            .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
+            .outerjoin(Zone, Equipment.zone_id == Zone.id)
+            .outerjoin(Floor, Zone.floor_id == Floor.id)
+            .outerjoin(Building, Floor.building_id == Building.id)
+            .outerjoin(Site, WorkOrder.site_id == Site.id)
+            .where(WorkOrder.is_active == True)  # noqa: E712
+            .order_by(WorkOrder.id.desc())
+            .limit(limit)
+        )
+    ).all()
+    out = []
+    for wo, eq_name, bld_name, site_name in rows:
+        st = getattr(wo.status, "value", wo.status) or ""
+        ts = wo.completed_at if st in _DASH_WO_DONE_KEYS and getattr(wo, "completed_at", None) else wo.created_at
+        out.append(
+            {
+                "id": wo.id,
+                "date": _fmt_kst(ts)[:10] if ts else "",
+                "equipment": eq_name or "-",
+                "building": bld_name or site_name or "-",
+                "title": wo.title or "정비의뢰",
+                "status": st,
+                "status_label": _DASH_WO_LABELS.get(st, st or "-"),
+                "url": f"/admin/work-orders/{wo.id}",
+            }
+        )
+    return out
+
+
+async def _dashboard_pm_upcoming(db: AsyncSession, days: int = 7, limit: int = 6) -> dict:
+    today = _today_kst()
+    end = today + timedelta(days=days)
+    base = (
+        select(PMSchedule, Equipment.name, Building.name)
+        .join(Equipment, PMSchedule.equipment_id == Equipment.id)
+        .join(Zone, Equipment.zone_id == Zone.id)
+        .join(Floor, Zone.floor_id == Floor.id)
+        .join(Building, Floor.building_id == Building.id)
+        .join(Site, Building.site_id == Site.id)
+        .where(
+            PMSchedule.is_active == True,  # noqa: E712
+            PMSchedule.next_due >= today,
+            PMSchedule.next_due <= end,
+            Equipment.is_active == True,  # noqa: E712
+            Building.is_active == True,  # noqa: E712
+            Site.is_active == True,  # noqa: E712
+        )
+    )
+    total = (
+        await db.execute(select(func.count()).select_from(base.subquery()))
+    ).scalar() or 0
+    rows = (
+        await db.execute(base.order_by(PMSchedule.next_due.asc(), PMSchedule.id.asc()).limit(limit))
+    ).all()
+    items = []
+    for pm, eq_name, bld_name in rows:
+        dleft = (pm.next_due - today).days
+        items.append(
+            {
+                "date": pm.next_due.strftime("%Y-%m-%d"),
+                "equipment": eq_name or "-",
+                "building": bld_name or "-",
+                "kind": f"{_pm_freq_label(pm.frequency)} · {pm.title}" if pm.title else _pm_freq_label(pm.frequency),
+                "status": "today" if dleft == 0 else "planned",
+                "status_label": "오늘" if dleft == 0 else f"D-{dleft}",
+                "url": f"/admin/pm?equipment_id={pm.equipment_id}",
+            }
+        )
+    return {"total": int(total), "items": items}
 
 
 @app.get("/admin/dashboard")
@@ -3615,13 +3836,36 @@ async def dashboard(
     recent_notices: list[dict] = []
     site_status: list[dict] = []
     recent_work_orders: list[dict] = []
-    ops_like = layout in ("ops", "wide")
+    equipment_health: dict = {}
+    recent_maint: list[dict] = []
+    pm_upcoming: dict = {"total": 0, "items": []}
+    site_bars: dict = {"max": 5, "items": []}
+    ops_like = layout in ("ops", "wide", "group")
     if ops_like or (not is_preview and layout not in ("gallery", "bento")):
         today_schedules = await load_today_schedules(db)
         recent_notices = await load_recent_notices(db)
         site_status = await load_site_status(db)
         if layout == "wide":
             recent_work_orders = await load_recent_work_orders(db, limit=6)
+    if layout == "group":
+        equipment_health = await _dashboard_equipment_health(db, int(kpi.get("equipment") or 0))
+        recent_maint = await _dashboard_recent_maint(db, limit=6)
+        pm_upcoming = await _dashboard_pm_upcoming(db, days=7, limit=6)
+        bar_max = _eqd_nice_max(max((int(s.get("equipment") or 0) for s in site_status), default=0))
+        site_bars = {
+            "max": bar_max,
+            "ticks": [round(bar_max * i / 4) for i in range(4, -1, -1)],
+            "items": [
+                {
+                    "id": s["id"],
+                    "name": s["name"],
+                    "value": int(s.get("equipment") or 0),
+                    "pct": round(int(s.get("equipment") or 0) * 100.0 / bar_max, 1) if bar_max else 0,
+                    "color": DASH_SITE_BAR_COLORS[i % len(DASH_SITE_BAR_COLORS)],
+                }
+                for i, s in enumerate(site_status)
+            ],
+        }
 
     now_label = datetime.now(KST).strftime("%Y.%m.%d (%a) %H:%M")
     # 요일 영문 → 한글로 간단 치환
@@ -3670,6 +3914,10 @@ async def dashboard(
             "recent_notices": recent_notices,
             "site_status": site_status,
             "recent_work_orders": recent_work_orders,
+            "equipment_health": equipment_health,
+            "recent_maint": recent_maint,
+            "pm_upcoming": pm_upcoming,
+            "site_bars": site_bars,
             "welcome_name": welcome_name,
             "risk_summary": risk_summary,
             "now_label": now_label,
@@ -21062,7 +21310,7 @@ MAINT_TYPE_COLORS: dict[str, str] = {
     "기타": "#94a3b8",
     "업체 미지정": "#e2e8f0",
 }
-_WO_DONE = {"completed", "verified", "closed"}
+_MAINT_WO_DONE = {"completed", "verified", "closed"}
 
 
 def _maint_type_of(wo: WorkOrder) -> str:
@@ -21078,7 +21326,7 @@ def _maint_type_of(wo: WorkOrder) -> str:
 
 def _maint_wo_row(wo: WorkOrder, today: date) -> dict:
     st = wo.status.value if isinstance(wo.status, WorkOrderStatus) else str(wo.status or "")
-    done = st in _WO_DONE
+    done = st in _MAINT_WO_DONE
     created_d = _pm_kst_date(wo.created_at)
     completed_d = _pm_kst_date(wo.completed_at) if wo.completed_at else None
     if done and not completed_d:

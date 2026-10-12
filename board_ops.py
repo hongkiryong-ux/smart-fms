@@ -941,6 +941,10 @@ async def dashboard_settings_page(
     ]
     site_order_items = await load_site_status(db)
     layout_meta = {
+        "group": {
+            "label": "광양운영그룹 대시보드 (2026.10 새 화면)",
+            "desc": "KPI 6종·사업장 현황·설비 상태(PM 결과)·정비 이력·7일 내 점검 예정을 한 화면에.",
+        },
         "ops": {
             "label": "운영 보드 (기존 화면)",
             "desc": "사업장 현황을 순위·정비의뢰 목록형으로 보여주는 기존 대시보드입니다.",

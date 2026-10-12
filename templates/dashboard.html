@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
+{% block head_extra %}{% if layout == 'group' %}<link rel="stylesheet" href="/static/css/dash_group.css?v=1" />{% endif %}{% endblock %}
 {% block content %}
 {% if preview %}
 <div class="dash-layout-banner" role="status">
@@ -24,7 +25,7 @@
 {% endif %}
 
 <div class="dash-board dash-board-{{ layout }}">
-  {% if layout not in ('ops', 'wide') %}
+  {% if layout not in ('ops', 'wide', 'group') %}
   <header class="dash-top">
     <div class="dash-top-left">
     <h1>{% if layout == 'gallery' %}시설 Dashboard{% elif layout == 'bento' %}한눈에 Dashboard{% else %}운영 Dashboard{% endif %}</h1>
@@ -54,6 +55,8 @@
     {% include "dashboard_bento.html" %}
   {% elif layout == 'wide' %}
     {% include "dashboard_wide.html" %}
+  {% elif layout == 'group' %}
+    {% include "dashboard_group.html" %}
   {% else %}
     {% include "dashboard_ops.html" %}
   {% endif %}

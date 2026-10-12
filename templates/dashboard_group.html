@@ -1,0 +1,408 @@
+{# 광양운영그룹 대시보드 (2026.10 시안) — 기존 KPI/에너지/공지 JS id 유지 #}
+{% macro ico(name) -%}
+<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'equip' -%}<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M7 8h4M7 11h7"/>
+{%- elif name == 'today' -%}<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>
+{%- elif name == 'urgent' -%}<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/>
+{%- elif name == 'request' -%}<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M9 11h6M9 15h4"/>
+{%- elif name == 'done' -%}<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>
+{%- elif name == 'open' -%}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+{%- elif name == 'cal' -%}<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+{% set cfg = dash_config or {'order': [], 'visible': {}, 'site_metrics': {}} %}
+{% set vis = cfg.visible if cfg.visible is mapping else {} %}
+{% set sm = cfg.site_metrics if cfg.site_metrics is mapping else {} %}
+{% set m_buildings = sm['buildings'] if 'buildings' in sm else true %}
+{% set m_equipment = sm['equipment'] if 'equipment' in sm else true %}
+{% set m_requests = sm['requests'] if 'requests' in sm else true %}
+{% set m_unresolved = sm['unresolved'] if 'unresolved' in sm else true %}
+{% set m_completed = sm['completed'] if 'completed' in sm else true %}
+{% set show_m = vis['maintenance_status'] if 'maintenance_status' in vis else true %}
+{% set show_s = vis['sites_status'] if 'sites_status' in vis else true %}
+{% set show_e = vis['energy'] if 'energy' in vis else true %}
+{% set show_sch = vis['schedules'] if 'schedules' in vis else true %}
+{% set show_n = vis['notices'] if 'notices' in vis else true %}
+{% set eh = equipment_health or {'total': kpi.equipment, 'items': [], 'issues': 0, 'inspected': 0} %}
+
+<div class="dg">
+  <header class="dg-top">
+    <div class="dg-top-left">
+      <h1>광양운영그룹 대시보드 <span class="dg-live">● LIVE</span></h1>
+      <p>{{ kpi.sites }}개 사업장 · {{ kpi.buildings }}개 시설 · 총 설비수 {{ kpi.equipment|thousands }}개</p>
+    </div>
+    <div class="dg-top-right">
+      <button type="button" class="dg-online" data-online-open aria-haspopup="dialog">
+        <span class="dg-online-dot" aria-hidden="true"></span>
+        현재 접속 <strong data-online-count>{{ online_count|default(1) }}</strong>명
+      </button>
+      <span class="dg-clock" id="ops-clock">{{ now_label or kpi.as_of }}</span>
+      <span class="dg-user"><span class="dg-user-ava" aria-hidden="true">{{ (user.name or user.username or '?')[:1] if user else '?' }}</span>{{ role_label or (user.role.value if user and user.role else '') }}</span>
+      {% if not preview and user_can_edit(user) %}
+      <a class="dg-top-link" href="/admin/dashboard/layouts" title="이전 화면(운영 보드 등)으로 되돌리거나 다른 구성을 고릅니다">화면 구성</a>
+      {% endif %}
+      {% if not preview and user and user.role.value == 'system_admin' %}
+      <a class="dg-top-link" href="/admin/dashboard/settings">⚙ 설정</a>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if show_m %}
+  <section class="dg-kpis" data-widget="maintenance_status">
+    <a class="dg-kpi tone-blue" href="/admin/equipment">
+      <span class="dg-kpi-ico">{{ ico('equip') }}</span>
+      <span class="dg-kpi-body">
+        <span class="dg-kpi-label">총 설비 수</span>
+        <strong>{{ kpi.equipment|thousands }}<small>개</small></strong>
+        <em>{{ kpi.sites }}개 사업장 · {{ kpi.buildings }}개 시설</em>
+      </span>
+      <span class="dg-kpi-go" aria-hidden="true">›</span>
+    </a>
+    <a class="dg-kpi tone-purple" href="/admin/d1?board=today">
+      <span class="dg-kpi-ico">{{ ico('today') }}</span>
+      <span class="dg-kpi-body">
+        <span class="dg-kpi-label">오늘 작업</span>
+        <strong><span id="kpi-d1-plan">{{ kpi.d1_today_plan }}</span><small>건</small></strong>
+        <em>예정 {{ kpi.d1_today_plan }} / 진행 {{ kpi.wo_progress }}</em>
+      </span>
+      <span class="dg-kpi-go" aria-hidden="true">›</span>
+    </a>
+    <a class="dg-kpi tone-red" href="/admin/work-orders?status=received&amp;status=in_progress&amp;priority=high">
+      <span class="dg-kpi-ico">{{ ico('urgent') }}</span>
+      <span class="dg-kpi-body">
+        <span class="dg-kpi-label">긴급 정비</span>
+        <strong><span id="kpi-wo-urgent">{{ kpi.wo_urgent }}</span><small>건</small></strong>
+        <em>미완료 긴급</em>
+      </span>
+      <span class="dg-kpi-go" aria-hidden="true">›</span>
+    </a>
+    <a class="dg-kpi tone-orange" href="/admin/work-orders?status=received">
+      <span class="dg-kpi-ico">{{ ico('request') }}</span>
+      <span class="dg-kpi-body">
+        <span class="dg-kpi-label">정비 의뢰 건</span>
+        <strong><span id="kpi-wo-request">{{ kpi.wo_request }}</span><small>건</small></strong>
+        <em>접수·배정</em>
+      </span>
+      <span class="dg-kpi-go" aria-hidden="true">›</span>
+    </a>
+    <a class="dg-kpi tone-green" href="/admin/work-orders?status=completed">
+      <span class="dg-kpi-ico">{{ ico('done') }}</span>
+      <span class="dg-kpi-body">
+        <span class="dg-kpi-label">해결 건</span>
+        <strong><span id="kpi-wo-done">{{ kpi.wo_done }}</span><small>건</small></strong>
+        <em>완료·검수</em>
+      </span>
+      <span class="dg-kpi-go" aria-hidden="true">›</span>
+    </a>
+    <a class="dg-kpi tone-amber" href="/admin/work-orders?status=in_progress">
+      <span class="dg-kpi-ico">{{ ico('open') }}</span>
+      <span class="dg-kpi-body">
+        <span class="dg-kpi-label">미해결 건</span>
+        <strong><span id="kpi-wo-unresolved">{{ kpi.wo_unresolved }}</span><small>건</small></strong>
+        <em>접수 {{ kpi.wo_request }} / 진행 {{ kpi.wo_progress }}</em>
+      </span>
+      <span class="dg-kpi-go" aria-hidden="true">›</span>
+    </a>
+  </section>
+  {% endif %}
+
+  <div class="dg-grid">
+    {% if show_s %}
+    <section class="dg-card dg-sites" data-widget="sites_status">
+      <div class="dg-head">
+        <h2>사업장 현황</h2>
+        <a class="dg-pill" href="/admin/dashboard/gwangyang-facilities" title="광양 주택지역 공공시설물 상세 현황">사업장별 상세현황</a>
+        <span class="dg-head-meta">총 설비수 <b>{{ kpi.equipment|thousands }}</b>개</span>
+        <a class="dg-more" href="/admin/sites">전체 보기 ›</a>
+      </div>
+      {% if site_status %}
+      <ul class="dg-site-list">
+        {% for s in site_status %}
+        <li>
+          <span class="dg-rank rank-{{ s.rank if s.rank < 6 else 'n' }}">{{ s.rank }}</span>
+          {% if s.photo_url %}
+          <span class="dg-site-thumb"><img src="{{ s.photo_url }}" alt="{{ s.name }}" loading="lazy" /></span>
+          {% else %}
+          <span class="dg-site-thumb tone-{{ loop.index0 % 5 }}"></span>
+          {% endif %}
+          <div class="dg-site-info">
+            <a class="dg-site-name" href="/admin/sites?site_id={{ s.id }}&amp;view=map" title="{{ s.name }} 사업장">{{ s.name }}</a>
+            {% if m_buildings or m_equipment %}
+            <span class="dg-site-meta">
+              {% if m_buildings %}{{ s.buildings }}개 시설{% endif %}{% if m_buildings and m_equipment %} · {% endif %}{% if m_equipment %}{{ s.equipment|thousands }}개 설비{% endif %}
+            </span>
+            {% endif %}
+          </div>
+          <div class="dg-site-metrics">
+            {% if m_requests %}
+            <a href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress&amp;status=completed" title="{{ s.name }} 정비의뢰 목록">
+              <span>정비의뢰</span><b>{{ s.requests }}</b>
+            </a>
+            {% endif %}
+            {% if m_unresolved %}
+            <a class="is-warn" href="/admin/work-orders?site_id={{ s.id }}&amp;status=received&amp;status=in_progress" title="{{ s.name }} 미해결 목록">
+              <span>미해결</span><b>{{ s.unresolved }}</b>
+            </a>
+            {% endif %}
+            {% if m_completed %}
+            <a class="is-ok" href="/admin/work-orders?site_id={{ s.id }}&amp;status=completed" title="{{ s.name }} 완료 목록">
+              <span>완료</span><b>{{ s.completed }}</b>
+            </a>
+            {% endif %}
+          </div>
+          {% if s.is_gwangyang_ops and s.facilities_url %}
+          <a class="dg-site-go" href="{{ s.facilities_url }}">공공시설물 ›</a>
+          {% else %}
+          <a class="dg-site-go" href="/admin/sites?site_id={{ s.id }}&amp;view=map">자세히 보기 ›</a>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="dg-empty">등록된 사업장이 없습니다.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="dg-card dg-health" data-widget="equipment_health">
+      <div class="dg-head">
+        <h2>설비 상태 현황</h2>
+        <a class="dg-more" href="/admin/pm">점검(PM) ›</a>
+      </div>
+      <div class="dg-health-body">
+        <div class="dg-donut">
+          <svg viewBox="0 0 42 42" role="img" aria-label="설비 상태 비율">
+            <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#eef2f7" stroke-width="5.2"></circle>
+            {% for it in eh['items'] %}{% if it.count > 0 %}
+            <circle cx="21" cy="21" r="15.9155" fill="none" stroke="{{ it.color }}" stroke-width="5.2"
+                    stroke-dasharray="{{ it.dash }} {{ 100 - it.dash }}" stroke-dashoffset="{{ it.offset }}">
+              <title>{{ it.label }} {{ it.count|thousands }}개 ({{ it.pct }}%)</title>
+            </circle>
+            {% endif %}{% endfor %}
+          </svg>
+          <div class="dg-donut-center">
+            <span>총 설비</span>
+            <strong>{{ eh.total|thousands }}</strong>
+            <em>개</em>
+          </div>
+        </div>
+        <ul class="dg-legend">
+          {% for it in eh['items'] %}
+          <li>
+            <a href="{{ it.url }}">
+              <i style="background: {{ it.color }}"></i>
+              <span class="dg-legend-label">{{ it.label }}</span>
+              <b>{{ it.count|thousands }}개</b>
+              <em>{{ it.pct }}%</em>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      <p class="dg-foot">점검(PM) 설비별 최신 결과 기준 · 주의=점검 필요, 고장=정비의뢰 없음/대기, 정비의뢰 진행 중=정비중 · 정비 완료 시 정상 복귀</p>
+    </section>
+
+    {% if show_sch %}
+    <section class="dg-card dg-sched" data-widget="schedules">
+      <div class="dg-head">
+        <h2>주요 설비 일정 (오늘)</h2>
+        <a class="dg-more" href="/admin/schedules">전체 일정 ›</a>
+      </div>
+      {% if today_schedules %}
+      <ul class="dg-sched-list">
+        {% for e in today_schedules %}
+        <li>
+          <span class="dg-time">{{ e.event_time or '--:--' }}</span>
+          <span class="ops-badge cat-{{ e.category }}">{{ e.category }}</span>
+          <div>
+            <strong>{{ e.title }}</strong>
+            <em>{{ e.location or e.site_name }}</em>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="dg-sched-empty">
+        <span class="dg-sched-ico">{{ ico('cal') }}</span>
+        <p>오늘 등록된 일정이 없습니다.</p>
+        <a class="dg-btn" href="/admin/schedules">+ 일정 등록</a>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="dg-card dg-bars" data-widget="site_equipment">
+      <div class="dg-head">
+        <h2>사업장별 설비 수</h2>
+        <span class="dg-head-meta">단위: 개</span>
+      </div>
+      {% if site_bars['items'] %}
+      <div class="dg-bar-chart">
+        <div class="dg-bar-axis">
+          {% for t in site_bars.ticks %}<span>{{ t|thousands }}</span>{% endfor %}
+        </div>
+        <div class="dg-bar-plot">
+          <div class="dg-bar-grid">{% for t in site_bars.ticks %}<i></i>{% endfor %}</div>
+          {% for b in site_bars['items'] %}
+          <a class="dg-bar" href="/admin/equipment?site_id={{ b.id }}" title="{{ b.name }} 설비 {{ b.value|thousands }}개">
+            <span class="dg-bar-col" style="height: {{ b.pct }}%; background: {{ b.color }}">
+              <b>{{ b.value|thousands }}</b>
+            </span>
+            <span class="dg-bar-name">{{ b.name }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <p class="dg-empty">표시할 사업장이 없습니다.</p>
+      {% endif %}
+    </section>
+
+    {% if show_n %}
+    <section class="dg-card dg-notice" data-widget="notices">
+      <div class="dg-head">
+        <h2>공지사항</h2>
+        <a class="dg-more" href="/admin/notices">전체 보기 ›</a>
+      </div>
+      {% if recent_notices %}
+      <ul class="dg-notice-list">
+        {% for n in recent_notices %}
+        <li>
+          <button type="button" data-notice-open="{{ n.id }}" aria-label="{{ n.title }} 공지 내용 보기">
+            <span class="ops-badge cat-{{ n.category }}">{{ n.category }}</span>
+            <strong>{% if n.is_pinned %}📌 {% endif %}{{ n.title }}</strong>
+            <span class="dg-date">{{ n.date_label }}</span>
+          </button>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="dg-empty">등록된 공지가 없습니다. <a href="/admin/notices">공지 등록</a></p>
+      {% endif %}
+    </section>
+    {% endif %}
+  </div>
+
+  <div class="dg-bottom{% if not show_e %} no-energy{% endif %}">
+    {% if show_e %}
+    {% set energy = kpi.energy %}
+    {% set energy_tabs = energy.tabs if energy.tabs is defined else [] %}
+    <section class="dg-card dash-energy-panel dg-energy" data-widget="energy" data-energy-root>
+      <div class="dash-energy-head">
+        <div class="dash-energy-title">
+          <h2>전력사용량</h2>
+          <span class="dash-energy-sub" id="energy-as-of">{{ energy.as_of_label or '' }} 기준 · 최근 7일</span>
+        </div>
+        <div class="dash-energy-tabs" role="tablist" aria-label="전력사용량 사업장">
+          {% for tab in energy_tabs %}
+          <button type="button"
+                  class="dash-energy-tab{% if loop.first %} is-active{% endif %}"
+                  role="tab"
+                  aria-selected="{{ 'true' if loop.first else 'false' }}"
+                  data-energy-tab="{{ tab.id }}">{{ tab.label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      {% for tab in energy_tabs %}
+      <div class="dash-energy-pane{% if loop.first %} is-active{% endif %}"
+           role="tabpanel"
+           data-energy-pane="{{ tab.id }}"
+           {% if not loop.first %}hidden{% endif %}>
+        <div class="dash-energy-cards">
+          {% for card in tab.cards %}
+          <article class="dash-energy-card{% if card.usage is none %} is-empty{% endif %}"
+                   data-energy-card="{{ tab.id }}-{{ card.id }}"
+                   data-energy-tab-id="{{ tab.id }}">
+            <div class="dash-energy-card-name">{{ card.name }}</div>
+            <div class="dash-energy-card-value">
+              <span id="nrg-{{ tab.id }}-{{ card.id }}-usage">{% if card.usage is none %}미입력{% else %}{{ "{:,.0f}".format(card.usage) }}{% endif %}</span>
+              <em class="dash-energy-unit"{% if card.usage is none %} hidden{% endif %}>kWh</em>
+            </div>
+            <div class="dash-energy-metrics" id="nrg-{{ tab.id }}-{{ card.id }}-metrics"{% if card.usage is none %} hidden{% endif %}>
+              <span><b id="nrg-{{ tab.id }}-{{ card.id }}-usage2">{{ "{:,.0f}".format(card.usage) if card.usage is not none else '-' }}</b> kWh</span>
+              <span>최대 <b id="nrg-{{ tab.id }}-{{ card.id }}-amp">{{ "{:,.1f}".format(card.max_a).rstrip('0').rstrip('.') if card.max_a is not none else '-' }}</b>A</span>
+              <span class="dash-energy-load"{% if tab.id != 'housing' and card.get('load_pct') is none %} hidden{% endif %}>부하율 (<b id="nrg-{{ tab.id }}-{{ card.id }}-load">{{ "{:,.1f}".format(card.load_pct).rstrip('0').rstrip('.') if card.get('load_pct') is not none else '-' }}</b>%)</span>
+            </div>
+            <div class="dash-energy-card-sub" id="nrg-{{ tab.id }}-{{ card.id }}-sub">
+              {% if card.usage is none %}
+              전일 점검일지를 입력해 주세요
+              {% elif card.change_pct is not none %}
+              전일 대비 {% if card.change_pct > 0 %}+{% endif %}{{ "{:,.1f}".format(card.change_pct) }}%
+              {% else %}
+              전일 대비 -
+              {% endif %}
+            </div>
+            <canvas class="dash-energy-spark"
+                    id="spark-{{ tab.id }}-{{ card.id }}"
+                    width="220" height="64"
+                    data-spark-values='{{ card["values"] | tojson }}'
+                    title="{{ card.name }} 최근 7일 전력사용량"
+                    {% if card.usage is none %}hidden{% endif %}></canvas>
+          </article>
+          {% else %}
+          <p class="dg-empty">표시할 전력 데이터가 없습니다.</p>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      <p class="dash-footnote" id="energy-note">{{ energy.note }}</p>
+    </section>
+    {% endif %}
+
+    <section class="dg-card dg-table-card" data-widget="recent_maint">
+      <div class="dg-head">
+        <h2>최근 정비 이력</h2>
+        <a class="dg-more" href="/admin/work-orders">전체 보기 ›</a>
+      </div>
+      {% if recent_maint %}
+      <div class="dg-table-wrap">
+        <table class="dg-table">
+          <thead><tr><th>일자</th><th>설비명</th><th>건물</th><th>작업내용</th><th>상태</th></tr></thead>
+          <tbody>
+            {% for w in recent_maint %}
+            <tr>
+              <td class="dg-nowrap">{{ w.date[5:] if w.date else '-' }}</td>
+              <td class="dg-ellip" title="{{ w.equipment }}">{{ w.equipment }}</td>
+              <td class="dg-ellip" title="{{ w.building }}">{{ w.building }}</td>
+              <td class="dg-ellip"><a href="{{ w.url }}" title="{{ w.title }}">{{ w.title }}</a></td>
+              <td><span class="dg-st st-{{ w.status }}">{{ w.status_label }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="dg-empty">정비 이력이 없습니다.</p>
+      {% endif %}
+    </section>
+
+    <section class="dg-card dg-table-card" data-widget="pm_upcoming">
+      <div class="dg-head">
+        <h2>점검 예정 설비 <small>(7일 이내)</small></h2>
+        <span class="dg-count">{{ pm_upcoming.total }}건</span>
+        <a class="dg-more" href="/admin/pm">전체 보기 ›</a>
+      </div>
+      {% if pm_upcoming['items'] %}
+      <div class="dg-table-wrap">
+        <table class="dg-table">
+          <thead><tr><th>예정일</th><th>설비명</th><th>건물</th><th>점검유형</th><th>상태</th></tr></thead>
+          <tbody>
+            {% for p in pm_upcoming['items'] %}
+            <tr>
+              <td class="dg-nowrap">{{ p.date[5:] }}</td>
+              <td class="dg-ellip"><a href="{{ p.url }}" title="{{ p.equipment }}">{{ p.equipment }}</a></td>
+              <td class="dg-ellip" title="{{ p.building }}">{{ p.building }}</td>
+              <td class="dg-ellip" title="{{ p.kind }}">{{ p.kind }}</td>
+              <td><span class="dg-st st-pm-{{ p.status }}">{{ p.status_label }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="dg-empty">7일 이내 점검 예정 설비가 없습니다.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
