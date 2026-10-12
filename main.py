@@ -21863,6 +21863,38 @@ def _material_item_dict(it: MaterialItem) -> dict:
     }
 
 
+MATERIAL_GROUP_COLORS = ("#2f6fed", "#14b8a6", "#f97316", "#e05a47", "#8b5cf6", "#22a06b", "#eab308", "#64748b", "#0ea5e9", "#db2777")
+
+
+def _material_group_stats(groups: list[str], all_items: list[dict]) -> dict:
+    """자재 유형(그룹)별 재고 합계 — 도넛 차트·유형 색상용."""
+    qty: dict[str, int] = {g: 0 for g in groups}
+    cnt: dict[str, int] = {g: 0 for g in groups}
+    for it in all_items:
+        g = it["group_name"] or "기타"
+        qty[g] = qty.get(g, 0) + int(it["quantity"] or 0)
+        cnt[g] = cnt.get(g, 0) + 1
+    total = sum(qty.values())
+    order = sorted(qty, key=lambda g: (-qty[g], g))
+    rows = []
+    offset = 25.0
+    for i, g in enumerate(order):
+        pct = qty[g] * 100.0 / total if total else 0.0
+        rows.append(
+            {
+                "name": g,
+                "qty": qty[g],
+                "count": cnt.get(g, 0),
+                "pct": round(pct, 1),
+                "dash": round(pct, 3),
+                "offset": round(offset, 3),
+                "color": MATERIAL_GROUP_COLORS[i % len(MATERIAL_GROUP_COLORS)],
+            }
+        )
+        offset -= pct
+    return {"total": total, "items": rows}
+
+
 def _material_log_dict(lg: MaterialLog) -> dict:
     return {
         "id": lg.id,
@@ -21912,6 +21944,20 @@ async def materials_page(
                 await db.execute(select(MaterialItem).order_by(MaterialItem.name))
             ).scalars().all()
         ]
+        last_in = {
+            name: _fmt_kst_date(ts)
+            for name, ts in (
+                await db.execute(
+                    select(MaterialLog.name, func.max(MaterialLog.created_at))
+                    .where(MaterialLog.action.in_(("입고", "등록")), MaterialLog.quantity > 0)
+                    .group_by(MaterialLog.name)
+                )
+            ).all()
+            if ts
+        }
+        for it in items:
+            it["last_in"] = last_in.get(it["name"], "")
+        group_stats = _material_group_stats(groups, all_items)
         items_json = json.dumps(all_items, ensure_ascii=False)
         logs = [
             _material_log_dict(lg)
@@ -21948,6 +21994,8 @@ async def materials_page(
             "items_json": items_json,
             "logs": logs,
             "groups": groups,
+            "group_stats": group_stats,
+            "group_colors": {g["name"]: g["color"] for g in group_stats["items"]},
             "q": q_val,
             "selected_group": group_val,
             "today_kst": datetime.now(KST).strftime("%Y-%m-%d"),

@@ -1,173 +1,7 @@
 {% extends "base.html" %}
 {% block title %}자재관리{% endblock %}
 {% block head_extra %}
-<style>
-  .mt-page { display: flex; flex-direction: column; gap: 1rem; }
-  .mt-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
-  .mt-head h1 { margin: 0; font-size: 1.45rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 0.55rem; }
-  .mt-head-ico {
-    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-    background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #fff; font-size: 1rem;
-  }
-  .mt-head p { margin: 0.35rem 0 0; color: #64748b; font-size: 0.88rem; }
-  .mt-head-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; }
-  .mt-btn {
-    display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; white-space: nowrap;
-    border: 1px solid #dbe3ee; background: #fff; color: #1e293b; text-decoration: none;
-    border-radius: 10px; padding: 0.45rem 0.8rem; font-size: 0.85rem; font-weight: 600;
-    transition: background .12s ease, border-color .12s ease;
-  }
-  .mt-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
-  .mt-btn svg { width: 16px; height: 16px; color: #475569; }
-  .mt-more { position: relative; }
-  .mt-more > summary { list-style: none; }
-  .mt-more > summary::-webkit-details-marker { display: none; }
-  .mt-more-menu {
-    position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 190px;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.35rem;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
-  }
-  .mt-more-menu a, .mt-more-menu button {
-    display: block; width: 100%; text-align: left; border: 0; background: transparent; cursor: pointer;
-    padding: 0.5rem 0.65rem; border-radius: 8px; font-size: 0.86rem; color: #1e293b; text-decoration: none;
-  }
-  .mt-more-menu a:hover, .mt-more-menu button:hover { background: #f1f5f9; }
-  .mt-more-menu .danger { color: #b91c1c; }
-  .mt-more-menu .danger:hover { background: #fef2f2; }
-  .mt-more-menu hr { border: 0; border-top: 1px solid #eef2f7; margin: 0.3rem 0; }
-
-  .mt-alert { margin: 0; }
-
-  .mt-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
-  .mt-kpi {
-    display: flex; align-items: center; gap: 0.75rem; background: #fff; border: 1px solid #e5eaf1;
-    border-radius: 14px; padding: 0.8rem 1rem; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-  }
-  .mt-kpi-ico { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 1.05rem; flex: 0 0 auto; }
-  .mt-kpi-label { display: block; font-size: 0.78rem; color: #64748b; }
-  .mt-kpi strong { display: block; font-size: 1.3rem; color: #0f172a; line-height: 1.25; }
-  .mt-kpi strong small { font-size: 0.78rem; color: #64748b; font-weight: 600; margin-left: 0.15rem; }
-  .mt-kpi-sub { font-size: 0.74rem; color: #94a3b8; }
-  .tone-blue .mt-kpi-ico { background: #e0f2fe; }
-  .tone-indigo .mt-kpi-ico { background: #e0e7ff; }
-  .tone-red .mt-kpi-ico { background: #fee2e2; }
-  .tone-green .mt-kpi-ico { background: #dcfce7; }
-
-  .mt-body { display: grid; grid-template-columns: 210px minmax(0, 1fr) 330px; gap: 1rem; align-items: start; }
-  .mt-card {
-    background: #fff; border: 1px solid #e5eaf1; border-radius: 16px;
-    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05); min-width: 0;
-  }
-  .mt-card-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap;
-    padding: 0.85rem 1rem; border-bottom: 1px solid #eef2f7;
-  }
-  .mt-card-head h2 { margin: 0; font-size: 0.98rem; font-weight: 700; color: #0f172a; }
-  .mt-count { font-size: 0.78rem; color: #64748b; background: #f1f5f9; border-radius: 999px; padding: 0.1rem 0.55rem; margin-left: 0.35rem; font-weight: 600; }
-
-  .mt-groups { position: sticky; top: 1rem; }
-  .mt-group-list { list-style: none; margin: 0; padding: 0.45rem; max-height: calc(100vh - 340px); overflow-y: auto; }
-  .mt-group-list a {
-    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-    padding: 0.5rem 0.65rem; border-radius: 9px; color: #334155; text-decoration: none; font-size: 0.87rem;
-  }
-  .mt-group-list a:hover { background: #f1f5f9; }
-  .mt-group-list a.is-on { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
-  .mt-group-list a span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mt-group-list .n { font-size: 0.74rem; color: #94a3b8; font-weight: 600; flex: 0 0 auto; }
-  .mt-group-list a.is-on .n { color: #3b82f6; }
-  .mt-group-add {
-    display: block; margin: 0 0.45rem 0.55rem; width: calc(100% - 0.9rem); text-align: center;
-    border: 1px dashed #cbd5e1; background: transparent; color: #64748b; border-radius: 9px;
-    padding: 0.45rem; font-size: 0.82rem; cursor: pointer;
-  }
-  .mt-group-add:hover { border-color: #93c5fd; color: #2563eb; background: #f8fbff; }
-
-  .mt-search { display: flex; align-items: center; gap: 0.4rem; }
-  .mt-search-box { position: relative; }
-  .mt-search-box svg { position: absolute; left: 0.6rem; top: 50%; width: 15px; height: 15px; transform: translateY(-50%); color: #94a3b8; }
-  .mt-search input {
-    width: 230px; box-sizing: border-box; padding: 0.42rem 0.7rem 0.42rem 2rem; font-size: 0.86rem;
-    border: 1px solid #dbe3ee; border-radius: 9px; background: #f8fafc;
-  }
-  .mt-search input:focus { outline: none; border-color: #93c5fd; background: #fff; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
-  .mt-clear { font-size: 0.8rem; color: #64748b; text-decoration: none; }
-  .mt-clear:hover { color: #2563eb; }
-
-  .mt-table-wrap { max-height: calc(100vh - 330px); min-height: 260px; overflow: auto; }
-  .mt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.87rem; }
-  .mt-table thead th {
-    position: sticky; top: 0; z-index: 1; background: #f8fafc; color: #64748b; font-weight: 700; font-size: 0.78rem;
-    text-align: left; padding: 0.6rem 0.85rem; border-bottom: 1px solid #e5eaf1; white-space: nowrap;
-  }
-  .mt-table tbody td { padding: 0.6rem 0.85rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; vertical-align: middle; }
-  .mt-table tbody tr[data-name] { cursor: pointer; transition: background .1s ease; }
-  .mt-table tbody tr[data-name]:hover td { background: #f8fbff; }
-  .mt-table tbody tr.is-selected td { background: #eff6ff; }
-  .mt-table tbody tr.is-selected td:first-child { box-shadow: inset 3px 0 0 #2563eb; }
-  .mt-table .c-num { text-align: right; white-space: nowrap; }
-  .mt-name { font-weight: 700; color: #0f172a; white-space: nowrap; }
-  .mt-muted { color: #94a3b8; }
-  .mt-qty { font-weight: 800; font-variant-numeric: tabular-nums; }
-  .mt-qty.zero { color: #dc2626; }
-  .mt-qty-tag { display: inline-block; margin-left: 0.35rem; font-size: 0.68rem; font-weight: 700; color: #b91c1c; background: #fee2e2; border-radius: 999px; padding: 0.05rem 0.4rem; vertical-align: 1px; }
-  .mt-chip { display: inline-block; font-size: 0.74rem; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 0.12rem 0.55rem; white-space: nowrap; }
-  .mt-empty { text-align: center; color: #94a3b8; padding: 3rem 1rem !important; }
-
-  .mt-form { position: sticky; top: 1rem; }
-  .mt-form-body { padding: 0.9rem 1rem 1rem; display: grid; gap: 0.7rem; }
-  .mt-field label { display: block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 0.25rem; }
-  .mt-field label .req { color: #dc2626; margin-left: 0.15rem; }
-  .mt-field input, .mt-field select {
-    width: 100%; box-sizing: border-box; padding: 0.5rem 0.65rem; font-size: 0.9rem;
-    border: 1px solid #dbe3ee; border-radius: 9px; background: #fff; color: #0f172a;
-  }
-  .mt-field input:focus, .mt-field select:focus { outline: none; border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
-  .mt-field-hint { font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem; }
-  .mt-field-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
-  .mt-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.2rem; }
-  .mt-act {
-    display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; cursor: pointer;
-    border: 0; border-radius: 10px; padding: 0.6rem 0.75rem; font-size: 0.9rem; font-weight: 700; color: #fff;
-  }
-  .mt-act.in { background: #16a34a; }
-  .mt-act.in:hover { background: #15803d; }
-  .mt-act.out { background: #ea580c; }
-  .mt-act.out:hover { background: #c2410c; }
-  .mt-act.add { grid-column: 1 / -1; background: #0f172a; }
-  .mt-act.add:hover { background: #1e3a8a; }
-  .mt-form-foot { display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 1rem; border-top: 1px solid #eef2f7; }
-  .mt-link-btn { border: 0; background: transparent; cursor: pointer; font-size: 0.82rem; color: #64748b; padding: 0.2rem 0.3rem; border-radius: 6px; }
-  .mt-link-btn:hover { color: #0f172a; background: #f1f5f9; }
-  .mt-link-btn.danger { color: #dc2626; }
-  .mt-link-btn.danger:hover { background: #fef2f2; color: #b91c1c; }
-  .mt-hidden-forms { display: none; }
-  .mt-sel-badge { font-size: 0.74rem; color: #2563eb; background: #eff6ff; border-radius: 999px; padding: 0.1rem 0.55rem; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  .materials-dialog { width: min(420px, calc(100vw - 2rem)); }
-  .materials-logs-dialog { width: min(900px, calc(100vw - 2rem)); }
-  .mt-log-act { display: inline-block; font-size: 0.74rem; font-weight: 700; border-radius: 999px; padding: 0.08rem 0.5rem; background: #f1f5f9; color: #475569; }
-  .mt-log-act.a-in { background: #dcfce7; color: #166534; }
-  .mt-log-act.a-out { background: #ffedd5; color: #9a3412; }
-  .mt-log-act.a-new { background: #e0e7ff; color: #3730a3; }
-  .mt-log-act.a-del { background: #fee2e2; color: #991b1b; }
-
-  @media (max-width: 1280px) {
-    .mt-body { grid-template-columns: minmax(0, 1fr) 300px; }
-    .mt-groups { grid-column: 1 / -1; position: static; display: flex; align-items: center; flex-wrap: wrap; }
-    .mt-groups .mt-card-head { border-bottom: 0; padding-right: 0.25rem; }
-    .mt-group-list { display: flex; flex-wrap: wrap; gap: 0.3rem; max-height: none; flex: 1; padding: 0.5rem; }
-    .mt-group-list a { border: 1px solid #e5eaf1; padding: 0.35rem 0.7rem; }
-    .mt-group-add { width: auto; margin: 0.5rem; padding: 0.35rem 0.7rem; }
-  }
-  @media (max-width: 900px) {
-    .mt-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .mt-body { grid-template-columns: minmax(0, 1fr); }
-    .mt-form { position: static; }
-    .mt-search input { width: 100%; }
-    .mt-table-wrap { max-height: none; }
-  }
-</style>
+<link rel="stylesheet" href="/static/css/materials.css?v=1" />
 {% endblock %}
 {% block content %}
 {% set popup_q = 'popup=1&' if popup else '' %}
@@ -183,22 +17,27 @@
 
 <div class="mt-page">
   <header class="mt-head">
-    <div>
-      <h1><span class="mt-head-ico" aria-hidden="true">📦</span>자재관리</h1>
-      <p>자재 입·출고와 재고를 관리합니다. 표에서 자재를 클릭하면 오른쪽 입력란에 바로 채워집니다.</p>
+    <div class="mt-head-title">
+      <span class="mt-head-ico" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg>
+      </span>
+      <div>
+        <h1>자재관리</h1>
+        <p>자재의 입·출고와 재고를 관리합니다. 표에서 자재를 클릭하면 오른쪽 입력화면에 바로 채워집니다.</p>
+      </div>
     </div>
     <div class="mt-head-actions">
+      <span class="mt-btn mt-date-chip" title="기준일 (오늘 입·출고 집계)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        {{ today_kst[:4] }}년 {{ today_kst[5:7]|int }}월 {{ today_kst[8:10]|int }}일
+      </span>
       <a class="mt-btn" href="/admin/materials/export">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
-        Excel 저장
+        Excel 다운로드
       </a>
-      <button type="button" class="mt-btn" data-open-dialog="mat-import-dialog">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9"/><path d="m7 14 5-5 5 5"/><path d="M5 4h14"/></svg>
-        Excel 불러오기
-      </button>
-      <button type="button" class="mt-btn" data-open-dialog="mat-logs-dialog">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
-        입출고 로그
+      <button type="button" class="mt-btn is-primary" data-mat-mode-go="in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        입·출고 등록
       </button>
       <details class="mt-more">
         <summary class="mt-btn" aria-label="더보기">
@@ -206,12 +45,14 @@
           더보기
         </summary>
         <div class="mt-more-menu">
+          <button type="button" data-open-dialog="mat-import-dialog">Excel 불러오기</button>
+          <button type="button" data-open-dialog="mat-logs-dialog">입출고 로그</button>
           <a href="/admin/materials/export-logs">로그 기록 Excel 저장</a>
           <hr />
-          <button type="button" data-open-dialog="mat-group-add-dialog">그룹 추가</button>
-          <button type="button" data-open-dialog="mat-group-rename-dialog">그룹 이름 변경</button>
+          <button type="button" data-open-dialog="mat-group-add-dialog">자재유형(그룹) 추가</button>
+          <button type="button" data-open-dialog="mat-group-rename-dialog">자재유형(그룹) 이름 변경</button>
           {% if can_del %}
-          <button type="button" data-open-dialog="mat-group-del-dialog">그룹 삭제</button>
+          <button type="button" data-open-dialog="mat-group-del-dialog">자재유형(그룹) 삭제</button>
           <hr />
           <button type="button" class="danger" data-open-dialog="mat-reset-dialog">전체 데이터 초기화</button>
           {% endif %}
@@ -226,186 +67,281 @@
   {% if message %}<div class="alert alert-ok mt-alert">{{ message }}</div>{% endif %}
   {% if error %}<div class="alert alert-error mt-alert">{{ error }}</div>{% endif %}
 
-  <div class="mt-kpis">
-    <div class="mt-kpi tone-blue">
-      <span class="mt-kpi-ico" aria-hidden="true">🧾</span>
-      <div><span class="mt-kpi-label">자재 종류</span><strong>{{ "{:,}".format(all_items|length) }}<small>종</small></strong><span class="mt-kpi-sub">그룹 {{ groups|length }}개</span></div>
-    </div>
-    <div class="mt-kpi tone-indigo">
-      <span class="mt-kpi-ico" aria-hidden="true">📦</span>
-      <div><span class="mt-kpi-label">총 재고 수량</span><strong>{{ "{:,}".format(total_qty) }}<small>개</small></strong><span class="mt-kpi-sub">전체 자재 합계</span></div>
-    </div>
-    <div class="mt-kpi tone-red">
-      <span class="mt-kpi-ico" aria-hidden="true">⚠️</span>
-      <div><span class="mt-kpi-label">재고 없음</span><strong>{{ zero_cnt }}<small>종</small></strong><span class="mt-kpi-sub">수량 0인 자재</span></div>
-    </div>
-    <div class="mt-kpi tone-green">
-      <span class="mt-kpi-ico" aria-hidden="true">🔄</span>
-      <div><span class="mt-kpi-label">오늘 입·출고</span><strong>{{ ns.tin }}<small>입고</small> · {{ ns.tout }}<small>출고</small></strong><span class="mt-kpi-sub">{{ today_kst }}</span></div>
-    </div>
-  </div>
+  <div class="mt-layout">
+    <div class="mt-main">
+      <div class="mt-kpis">
+        <div class="mt-kpi tone-blue">
+          <span class="mt-kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span>
+          <div><span class="mt-kpi-label">전체 자재 수</span><strong>{{ "{:,}".format(all_items|length) }}<small>개</small></strong><span class="mt-kpi-sub">등록된 자재 전체 수 · 유형 {{ groups|length }}개</span></div>
+        </div>
+        <div class="mt-kpi tone-green">
+          <span class="mt-kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 4.5-9 4.5-9-4.5z"/><path d="m3 12 9 4.5 9-4.5"/><path d="m3 16.5 9 4.5 9-4.5"/></svg></span>
+          <div><span class="mt-kpi-label">재고 수량</span><strong>{{ "{:,}".format(total_qty) }}<small>개</small></strong><span class="mt-kpi-sub">전체 재고 수량</span></div>
+        </div>
+        <div class="mt-kpi tone-orange">
+          <span class="mt-kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4.5M12 17h.01"/></svg></span>
+          <div><span class="mt-kpi-label">재고 부족</span><strong>{{ zero_cnt }}<small>개</small></strong><span class="mt-kpi-sub">재고가 0인 자재</span></div>
+        </div>
+        <div class="mt-kpi tone-purple">
+          <span class="mt-kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v14M3.5 7.5 7 4l3.5 3.5"/><path d="M17 20V6M13.5 16.5 17 20l3.5-3.5"/></svg></span>
+          <div><span class="mt-kpi-label">오늘 입·출고</span><strong>{{ ns.tin + ns.tout }}<small>건</small></strong><span class="mt-kpi-sub">입고 {{ ns.tin }} / 출고 {{ ns.tout }}</span></div>
+        </div>
+      </div>
 
-  <div class="mt-body">
-    <aside class="mt-card mt-groups">
-      <div class="mt-card-head"><h2>그룹</h2></div>
-      <ul class="mt-group-list">
-        <li>
-          <a class="{% if not selected_group %}is-on{% endif %}" href="/admin/materials?{{ popup_q }}q={{ q|urlencode }}">
-            <span>전체</span><span class="n">{{ all_items|length }}</span>
-          </a>
-        </li>
-        {% for g in groups %}
-        <li>
-          <a class="{% if selected_group == g %}is-on{% endif %}" href="/admin/materials?{{ popup_q }}group={{ g|urlencode }}&q={{ q|urlencode }}" title="{{ g }}">
-            <span>{{ g }}</span><span class="n">{{ all_items|selectattr('group_name', 'equalto', g)|list|length }}</span>
-          </a>
-        </li>
-        {% endfor %}
-      </ul>
-      <button type="button" class="mt-group-add" data-open-dialog="mat-group-add-dialog">+ 그룹 추가</button>
-    </aside>
-
-    <section class="mt-card mt-list">
-      <div class="mt-card-head">
-        <h2>{{ selected_group or '전체 자재' }}<span class="mt-count">{{ items|length }}</span></h2>
-        <form method="get" action="/admin/materials" class="mt-search">
+      <section class="mt-card mt-list">
+        <form method="get" action="/admin/materials" class="mt-list-form">
           {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
-          {% if selected_group %}<input type="hidden" name="group" value="{{ selected_group }}" />{% endif %}
-          <div class="mt-search-box">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input type="search" name="q" value="{{ q }}" placeholder="자재명·사양·비고·위치 검색" />
+          <div class="mt-card-head">
+            <h2>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>
+              자재 목록
+            </h2>
+            <span class="mt-count">총 {{ "{:,}".format(items|length) }}건</span>
+            <div class="mt-list-tools">
+              <select name="group" class="mt-select" onchange="this.form.submit()" aria-label="자재유형">
+                <option value="">전체 자재유형 ({{ all_items|length }})</option>
+                {% for g in groups %}
+                <option value="{{ g }}" {% if selected_group == g %}selected{% endif %}>{{ g }} ({{ all_items|selectattr('group_name', 'equalto', g)|list|length }})</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="mt-btn mt-search-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                검색
+              </button>
+              {% if q or selected_group %}<a class="mt-clear" href="/admin/materials{% if popup %}?popup=1{% endif %}">필터 지우기</a>{% endif %}
+            </div>
           </div>
-          {% if q %}<a class="mt-clear" href="/admin/materials?{{ popup_q }}{% if selected_group %}group={{ selected_group|urlencode }}{% endif %}">지우기</a>{% endif %}
+          <div class="mt-filter">
+            <div class="mt-search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input type="search" name="q" value="{{ q }}" class="mt-search-input" placeholder="자재명, 규격(사양), 비고, 저장 위치를 검색하세요." />
+            </div>
+          </div>
         </form>
-      </div>
-      <div class="mt-table-wrap">
-        <table class="mt-table materials-table">
-          <thead>
-            <tr>
-              <th>자재 이름</th>
-              <th class="c-num">수량</th>
-              <th>사양</th>
-              <th>비고</th>
-              <th>그룹</th>
-              <th>저장 위치</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for it in items %}
-            <tr data-name="{{ it.name }}"
-                data-qty="{{ it.quantity }}"
-                data-spec="{{ it.spec }}"
-                data-remarks="{{ it.remarks }}"
-                data-group="{{ it.group_name }}"
-                data-location="{{ it.location }}">
-              <td class="mt-name">{{ it.name }}</td>
-              <td class="c-num"><span class="mt-qty{% if it.quantity == 0 %} zero{% endif %}">{{ "{:,}".format(it.quantity) }}</span>{% if it.quantity == 0 %}<span class="mt-qty-tag">없음</span>{% endif %}</td>
-              <td>{{ it.spec or '' }}{% if not it.spec %}<span class="mt-muted">-</span>{% endif %}</td>
-              <td>{{ it.remarks or '' }}{% if not it.remarks %}<span class="mt-muted">-</span>{% endif %}</td>
-              <td>{% if it.group_name %}<span class="mt-chip">{{ it.group_name }}</span>{% endif %}</td>
-              <td>{{ it.location or '' }}{% if not it.location %}<span class="mt-muted">-</span>{% endif %}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="6" class="mt-empty">{% if q %}「{{ q }}」 검색 결과가 없습니다.{% else %}표시할 자재가 없습니다. 오른쪽에서 새 자재를 등록하세요.{% endif %}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
+        <div class="mt-table-wrap">
+          <table class="mt-table materials-table">
+            <thead>
+              <tr>
+                <th class="c">No</th>
+                <th>자재명</th>
+                <th>규격(사양)</th>
+                <th>자재유형</th>
+                <th class="c-num">현재재고</th>
+                <th class="c">상태</th>
+                <th>저장 위치</th>
+                <th class="mt-col-wide">비고</th>
+                <th class="c">최근 입고일</th>
+                <th class="c">관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for it in items %}
+              <tr data-name="{{ it.name }}"
+                  data-qty="{{ it.quantity }}"
+                  data-spec="{{ it.spec }}"
+                  data-remarks="{{ it.remarks }}"
+                  data-group="{{ it.group_name }}"
+                  data-location="{{ it.location }}">
+                <td class="c mt-no">{{ loop.index }}</td>
+                <td class="mt-name">{{ it.name }}</td>
+                <td><div class="mt-ellip" title="{{ it.spec }}">{{ it.spec or '' }}{% if not it.spec %}<span class="mt-muted">-</span>{% endif %}</div></td>
+                <td>{% if it.group_name %}<span class="mt-chip" style="--chip: {{ group_colors.get(it.group_name, '#64748b') }}">{{ it.group_name }}</span>{% endif %}</td>
+                <td class="c-num"><span class="mt-qty{% if it.quantity == 0 %} zero{% endif %}">{{ "{:,}".format(it.quantity) }}</span></td>
+                <td class="c">{% if it.quantity == 0 %}<span class="mt-state low">부족</span>{% else %}<span class="mt-state ok">정상</span>{% endif %}</td>
+                <td><div class="mt-ellip" title="{{ it.location }}">{{ it.location or '' }}{% if not it.location %}<span class="mt-muted">-</span>{% endif %}</div></td>
+                <td class="mt-col-wide"><div class="mt-ellip" title="{{ it.remarks }}">{{ it.remarks or '' }}{% if not it.remarks %}<span class="mt-muted">-</span>{% endif %}</div></td>
+                <td class="c">{% if it.last_in %}{{ it.last_in }}{% else %}<span class="mt-muted">-</span>{% endif %}</td>
+                <td class="c"><button type="button" class="mt-detail-btn">상세 ›</button></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="10" class="mt-empty">{% if q %}「{{ q }}」 검색 결과가 없습니다.{% else %}표시할 자재가 없습니다. 오른쪽에서 새 자재를 등록하세요.{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-pager" id="mat-pager">
+          <span id="mat-pager-nums"></span>
+          <label class="mt-per-page">페이지당
+            <select id="mat-per-page">
+              <option value="12">12개</option>
+              <option value="20">20개</option>
+              <option value="50">50개</option>
+              <option value="100">100개</option>
+              <option value="0">전체</option>
+            </select>
+          </label>
+        </div>
+      </section>
+    </div>
 
-    <aside class="mt-card mt-form">
-      <div class="mt-card-head">
-        <h2>자재 입·출고</h2>
-        <span class="mt-sel-badge" id="mat-sel-badge" style="display:none"></span>
-      </div>
-      <div class="mt-form-body">
-        <div class="mt-field">
-          <label for="mat-group">그룹</label>
-          <select id="mat-group" name="group_name" form="mat-add-form">
-            {% for g in groups %}
-            <option value="{{ g }}" {% if selected_group == g %}selected{% endif %}>{{ g }}</option>
+    <div class="mt-side">
+      <section class="mt-card mt-type-card">
+        <div class="mt-card-head"><h2>자재 유형별 재고 현황</h2></div>
+        {% if group_stats['items'] %}
+        <div class="mt-donut-body">
+          <div class="mt-donut">
+            <svg viewBox="0 0 42 42" aria-hidden="true">
+              <circle cx="21" cy="21" r="15.915" fill="none" stroke="#eef2f7" stroke-width="5.2"/>
+              {% for g in group_stats['items'] %}{% if g.dash > 0 %}
+              <circle cx="21" cy="21" r="15.915" fill="none" stroke="{{ g.color }}" stroke-width="5.2"
+                      stroke-dasharray="{{ g.dash }} {{ 100 - g.dash }}" stroke-dashoffset="{{ g.offset }}"><title>{{ g.name }} {{ g.qty }}개 ({{ g.pct }}%)</title></circle>
+              {% endif %}{% endfor %}
+            </svg>
+            <div class="mt-donut-center">
+              <span>총 재고 수량</span>
+              <strong>{{ "{:,}".format(group_stats['total']) }}</strong>
+              <em>개</em>
+            </div>
+          </div>
+          <ul class="mt-legend">
+            {% for g in group_stats['items'] %}
+            <li>
+              <a href="/admin/materials?{{ popup_q }}group={{ g.name|urlencode }}" class="{% if selected_group == g.name %}is-on{% endif %}" title="{{ g.name }} — 자재 {{ g.count }}종">
+                <i style="background: {{ g.color }}"></i>
+                <span class="nm">{{ g.name }}</span>
+                <b>{{ "{:,}".format(g.qty) }}</b>
+                <em>({{ g.pct }}%)</em>
+              </a>
+            </li>
             {% endfor %}
-          </select>
+          </ul>
         </div>
-        <div class="mt-field">
-          <label for="mat-name-input">자재명<span class="req">*</span></label>
-          <input type="text" id="mat-name-input" list="mat-name-list" placeholder="선택하거나 새 이름 입력" autocomplete="off" />
-          <datalist id="mat-name-list">
-            {% for it in all_items %}
-            <option value="{{ it.name }}"></option>
-            {% endfor %}
-          </datalist>
+        {% else %}
+        <div class="mt-donut-empty">등록된 자재유형이 없습니다.</div>
+        {% endif %}
+      </section>
+
+      <section class="mt-card mt-form mt-form-card" id="mat-form-card">
+        <div class="mt-card-head">
+          <h2>자재 등록 / 입·출고</h2>
+          <span class="mt-sel-badge" id="mat-sel-badge" style="display:none"></span>
         </div>
-        <div class="mt-field">
-          <label for="mat-qty">수량</label>
-          <input type="number" id="mat-qty" name="quantity" form="mat-stock-in-form" value="0" min="0" />
-          <div class="mt-field-hint">입·출고 수량 / 새 자재는 초기 수량</div>
+        <div class="mt-tabs" role="tablist">
+          <button type="button" class="mt-tab is-on" data-mode-tab="new" role="tab">신규 등록</button>
+          <button type="button" class="mt-tab" data-mode-tab="in" role="tab">입고</button>
+          <button type="button" class="mt-tab" data-mode-tab="out" role="tab">출고</button>
         </div>
-        <div class="mt-field">
-          <label for="mat-reason">출고 사유<span class="req" title="출고 시 필수">*</span></label>
-          <input type="text" id="mat-reason" placeholder="출고 시 필수 입력" autocomplete="off" />
-        </div>
-        <div class="mt-field">
-          <label for="mat-spec">사양</label>
-          <input type="text" id="mat-spec" name="spec" form="mat-add-form" />
-        </div>
-        <div class="mt-field-row2">
+        <div class="mt-form-body">
           <div class="mt-field">
-            <label for="mat-remarks">비고</label>
-            <input type="text" id="mat-remarks" name="remarks" form="mat-add-form" />
+            <label for="mat-name-input">자재명<span class="req">*</span></label>
+            <input type="text" id="mat-name-input" list="mat-name-list" placeholder="선택하거나 새 이름 입력" autocomplete="off" />
+            <datalist id="mat-name-list">
+              {% for it in all_items %}
+              <option value="{{ it.name }}"></option>
+              {% endfor %}
+            </datalist>
+          </div>
+          <div class="mt-field" data-modes="new in">
+            <label for="mat-group">자재유형</label>
+            <select id="mat-group">
+              {% for g in groups %}
+              <option value="{{ g }}" {% if selected_group == g %}selected{% endif %}>{{ g }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mt-field" data-modes="out">
+            <label for="mat-cur-stock">현재 재고</label>
+            <input type="text" id="mat-cur-stock" value="-" readonly tabindex="-1" />
           </div>
           <div class="mt-field">
+            <label for="mat-qty"><span id="mat-qty-label">초기 수량</span></label>
+            <input type="number" id="mat-qty" value="0" min="0" />
+          </div>
+          <div class="mt-field" data-modes="new in">
+            <label for="mat-spec">규격(사양)</label>
+            <input type="text" id="mat-spec" placeholder="예) 220V 20A" />
+          </div>
+          <div class="mt-field full" data-modes="out">
+            <label for="mat-reason">출고 사유<span class="req">*</span></label>
+            <input type="text" id="mat-reason" placeholder="출고 시 필수 입력" autocomplete="off" />
+          </div>
+          <div class="mt-field" data-modes="new in">
             <label for="mat-location">저장 위치</label>
-            <input type="text" id="mat-location" name="location" form="mat-add-form" />
+            <input type="text" id="mat-location" placeholder="예) 자재창고 A-3" />
+          </div>
+          <div class="mt-field" data-modes="new in">
+            <label for="mat-remarks">비고</label>
+            <input type="text" id="mat-remarks" />
           </div>
         </div>
-        <div class="mt-actions">
-          <button type="submit" form="mat-stock-in-form" class="mt-act in">⬆ 입고</button>
-          <button type="submit" form="mat-stock-out-form" class="mt-act out">⬇ 출고</button>
-          <button type="submit" form="mat-add-form" class="mt-act add">＋ 새 자재 등록</button>
+        <div class="mt-form-actions">
+          <button type="button" class="mt-act reset" id="mat-clear-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+            초기화
+          </button>
+          <button type="submit" form="mat-add-form" class="mt-act go" id="mat-go-btn" data-mode-btn="new">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>
+            <span id="mat-go-label">등록</span>
+          </button>
         </div>
-      </div>
-      <div class="mt-form-foot">
-        <button type="button" class="mt-link-btn" id="mat-clear-btn">입력 초기화</button>
         {% if can_del %}
-        <form method="post" action="/admin/materials/delete" class="inline-form" id="mat-del-top"
-              onsubmit="return matConfirmDelete();">
+        <div class="mt-form-foot">
+          <form method="post" action="/admin/materials/delete" class="inline-form" id="mat-del-top"
+                onsubmit="return matConfirmDelete();">
+            {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+            <input type="hidden" name="filter_group" value="{{ selected_group }}" />
+            <input type="hidden" name="name" id="mat-del-name" value="" />
+            <button type="submit" class="mt-link-btn danger">선택 자재 삭제</button>
+          </form>
+        </div>
+        {% endif %}
+
+        <form id="mat-add-form" method="post" action="/admin/materials/add" class="mt-hidden-forms">
           {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
           <input type="hidden" name="filter_group" value="{{ selected_group }}" />
-          <input type="hidden" name="name" id="mat-del-name" value="" />
-          <button type="submit" class="mt-link-btn danger">선택 자재 삭제</button>
+          <input type="hidden" name="name" id="mat-add-name" value="" />
+          <input type="hidden" name="quantity" id="mat-add-qty" value="0" />
+          <input type="hidden" name="spec" id="mat-add-spec" value="" />
+          <input type="hidden" name="remarks" id="mat-add-remarks" value="" />
+          <input type="hidden" name="location" id="mat-add-location" value="" />
+          <input type="hidden" name="group_name" id="mat-add-group" value="" />
         </form>
-        {% endif %}
-      </div>
+        <form id="mat-stock-in-form" method="post" action="/admin/materials/stock-in" class="mt-hidden-forms">
+          {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+          <input type="hidden" name="filter_group" value="{{ selected_group }}" />
+          <input type="hidden" name="name" id="mat-in-name" value="" />
+          <input type="hidden" name="quantity" id="mat-in-qty" value="0" />
+          <input type="hidden" name="spec" id="mat-in-spec" value="" />
+          <input type="hidden" name="remarks" id="mat-in-remarks" value="" />
+          <input type="hidden" name="location" id="mat-in-location" value="" />
+          <input type="hidden" name="group_name" id="mat-in-group" value="" />
+        </form>
+        <form id="mat-stock-out-form" method="post" action="/admin/materials/stock-out" class="mt-hidden-forms">
+          {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
+          <input type="hidden" name="filter_group" value="{{ selected_group }}" />
+          <input type="hidden" name="name" id="mat-out-name" value="" />
+          <input type="hidden" name="quantity" id="mat-out-qty" value="0" />
+          <input type="hidden" name="reason" id="mat-out-reason" value="" />
+        </form>
+      </section>
 
-      <form id="mat-add-form" method="post" action="/admin/materials/add" class="mt-hidden-forms">
-        {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
-        <input type="hidden" name="filter_group" value="{{ selected_group }}" />
-        <input type="hidden" name="name" id="mat-add-name" value="" />
-        <input type="hidden" name="quantity" id="mat-add-qty" value="0" />
-        <input type="hidden" name="spec" id="mat-add-spec" value="" />
-        <input type="hidden" name="remarks" id="mat-add-remarks" value="" />
-        <input type="hidden" name="location" id="mat-add-location" value="" />
-        <input type="hidden" name="group_name" id="mat-add-group" value="" />
-      </form>
-      <form id="mat-stock-in-form" method="post" action="/admin/materials/stock-in" class="mt-hidden-forms">
-        {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
-        <input type="hidden" name="filter_group" value="{{ selected_group }}" />
-        <input type="hidden" name="name" id="mat-in-name" value="" />
-        <input type="hidden" name="quantity" id="mat-in-qty" value="0" />
-        <input type="hidden" name="spec" id="mat-in-spec" value="" />
-        <input type="hidden" name="remarks" id="mat-in-remarks" value="" />
-        <input type="hidden" name="location" id="mat-in-location" value="" />
-        <input type="hidden" name="group_name" id="mat-in-group" value="" />
-      </form>
-      <form id="mat-stock-out-form" method="post" action="/admin/materials/stock-out" class="mt-hidden-forms">
-        {% if popup %}<input type="hidden" name="popup" value="1" />{% endif %}
-        <input type="hidden" name="filter_group" value="{{ selected_group }}" />
-        <input type="hidden" name="name" id="mat-out-name" value="" />
-        <input type="hidden" name="quantity" id="mat-out-qty" value="0" />
-        <input type="hidden" name="reason" id="mat-out-reason" value="" />
-      </form>
-    </aside>
+      <section class="mt-card mt-recent-card">
+        <div class="mt-card-head">
+          <h2>최근 입·출고 내역</h2>
+          <button type="button" class="mt-more-link" data-open-dialog="mat-logs-dialog">전체보기 ›</button>
+        </div>
+        <div class="mt-recent-wrap">
+          <table class="mt-recent">
+            <colgroup><col style="width:25%"/><col style="width:15%"/><col/><col style="width:14%"/><col style="width:24%"/></colgroup>
+            <thead><tr><th>일자</th><th>구분</th><th>자재명</th><th class="c-num">수량</th><th>사유</th></tr></thead>
+            <tbody>
+              {% set recent = logs|selectattr('action', 'in', ['입고', '출고'])|list %}
+              {% for lg in recent[:6] %}
+              <tr>
+                <td title="{{ lg.created_at_fmt }}">{{ lg.created_at_fmt[5:16] }}</td>
+                <td><span class="mt-log-act {{ 'a-in' if lg.action == '입고' else 'a-out' }}">{{ lg.action }}</span></td>
+                <td title="{{ lg.name }}"><b>{{ lg.name }}</b></td>
+                <td class="c-num"><span class="mt-qty">{{ "{:,}".format(lg.quantity) }}</span></td>
+                <td title="{{ lg.reason }}">{{ lg.reason or '-' }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="mt-empty" style="padding:1.5rem !important">입·출고 내역이 없습니다.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
 
@@ -529,12 +465,41 @@
   var specEl = document.getElementById('mat-spec');
   var remarksEl = document.getElementById('mat-remarks');
   var locEl = document.getElementById('mat-location');
+  var curStockEl = document.getElementById('mat-cur-stock');
   var selBadge = document.getElementById('mat-sel-badge');
   var delNameEl = document.getElementById('mat-del-name');
+  var formCard = document.getElementById('mat-form-card');
+  var goBtn = document.getElementById('mat-go-btn');
+  var goLabel = document.getElementById('mat-go-label');
+  var qtyLabel = document.getElementById('mat-qty-label');
   var items = [];
   try { items = JSON.parse(document.getElementById('mat-items-data').textContent || '[]'); } catch (e) { items = []; }
   var byName = {};
   items.forEach(function (it) { byName[it.name] = it; });
+
+  var MODES = {
+    'new': { form: 'mat-add-form', label: '등록', qty: '초기 수량' },
+    'in': { form: 'mat-stock-in-form', label: '입고', qty: '입고 수량' },
+    'out': { form: 'mat-stock-out-form', label: '출고', qty: '출고 수량' }
+  };
+  var mode = 'new';
+
+  function setMode(m) {
+    if (!MODES[m]) return;
+    mode = m;
+    formCard.querySelectorAll('[data-mode-tab]').forEach(function (t) {
+      var on = t.getAttribute('data-mode-tab') === m;
+      t.classList.toggle('is-on', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    formCard.querySelectorAll('[data-modes]').forEach(function (f) {
+      f.classList.toggle('is-mode-on', f.getAttribute('data-modes').split(' ').indexOf(m) >= 0);
+    });
+    goBtn.setAttribute('form', MODES[m].form);
+    goBtn.setAttribute('data-mode-btn', m);
+    goLabel.textContent = MODES[m].label;
+    qtyLabel.textContent = MODES[m].qty;
+  }
 
   function syncHidden() {
     var name = (nameEl.value || '').trim();
@@ -563,11 +528,12 @@
     document.getElementById('mat-out-reason').value = (reasonEl.value || '').trim();
     if (delNameEl) delNameEl.value = name;
 
+    var known = byName[name];
     if (selBadge) {
-      var known = byName[name];
       selBadge.style.display = known ? '' : 'none';
       selBadge.textContent = known ? '선택: ' + name + ' (재고 ' + known.quantity + ')' : '';
     }
+    if (curStockEl) curStockEl.value = known ? String(known.quantity) : '-';
   }
 
   function markRow(name) {
@@ -585,8 +551,20 @@
     locEl.value = it.location || '';
     if (it.group_name) groupEl.value = it.group_name;
     markRow(it.name);
+    if (mode === 'new') setMode('in');
     syncHidden();
   }
+
+  formCard.querySelectorAll('[data-mode-tab]').forEach(function (t) {
+    t.addEventListener('click', function () { setMode(t.getAttribute('data-mode-tab')); });
+  });
+  document.querySelectorAll('[data-mat-mode-go]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      setMode(b.getAttribute('data-mat-mode-go'));
+      formCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(function () { nameEl.focus(); }, 250);
+    });
+  });
 
   nameEl.addEventListener('change', function () {
     var it = byName[nameEl.value.trim()];
@@ -646,7 +624,8 @@
     return confirm('「' + nm + '」을(를) 삭제할까요?');
   };
 
-  document.querySelectorAll('.materials-table tbody tr[data-name]').forEach(function (tr) {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('.materials-table tbody tr[data-name]'));
+  rows.forEach(function (tr) {
     tr.addEventListener('click', function () {
       applyItem({
         name: tr.dataset.name,
@@ -658,6 +637,64 @@
       });
     });
   });
+
+  var pagerNums = document.getElementById('mat-pager-nums');
+  var perSel = document.getElementById('mat-per-page');
+  var page = 1;
+  var perPage = 12;
+  try {
+    var saved = localStorage.getItem('mat.perPage');
+    if (saved !== null && perSel.querySelector('option[value="' + saved + '"]')) perPage = parseInt(saved, 10);
+  } catch (e) {}
+  perSel.value = String(perPage);
+
+  function pageBtn(label, target, opts) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (opts && opts.on) b.className = 'is-on';
+    if (opts && opts.disabled) b.disabled = true;
+    else b.addEventListener('click', function () { page = target; renderPage(); });
+    pagerNums.appendChild(b);
+  }
+  function renderPage() {
+    var size = perPage > 0 ? perPage : rows.length || 1;
+    var pages = Math.max(1, Math.ceil(rows.length / size));
+    if (page > pages) page = pages;
+    rows.forEach(function (tr, i) {
+      tr.classList.toggle('is-paged-out', Math.floor(i / size) + 1 !== page);
+    });
+    pagerNums.innerHTML = '';
+    pageBtn('‹', page - 1, { disabled: page <= 1 });
+    var list = [];
+    if (pages <= 7) { for (var p = 1; p <= pages; p++) list.push(p); }
+    else {
+      list.push(1);
+      var s = Math.max(2, page - 2), e = Math.min(pages - 1, page + 2);
+      if (page <= 4) { s = 2; e = 5; }
+      if (page >= pages - 3) { s = pages - 4; e = pages - 1; }
+      if (s > 2) list.push('…');
+      for (var q = s; q <= e; q++) list.push(q);
+      if (e < pages - 1) list.push('…');
+      list.push(pages);
+    }
+    list.forEach(function (p) {
+      if (p === '…') {
+        var g = document.createElement('span');
+        g.className = 'gap';
+        g.textContent = '…';
+        pagerNums.appendChild(g);
+      } else pageBtn(String(p), p, { on: p === page });
+    });
+    pageBtn('›', page + 1, { disabled: page >= pages });
+  }
+  perSel.addEventListener('change', function () {
+    perPage = parseInt(perSel.value, 10) || 0;
+    try { localStorage.setItem('mat.perPage', String(perPage)); } catch (e) {}
+    page = 1;
+    renderPage();
+  });
+  renderPage();
 
   function openDialog(id) {
     var el = document.getElementById(id);
@@ -687,6 +724,7 @@
   openDialog('mat-group-rename-dialog');
   {% endif %}
 
+  setMode('new');
   syncHidden();
 })();
 </script>
