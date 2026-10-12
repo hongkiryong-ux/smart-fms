@@ -201,7 +201,11 @@
             <time>{{ fmt_kst(h.inspected_at) if h.inspected_at else '-' }}</time>
             <span>{{ h.inspector_name or '점검자 미기재' }}</span>
             {% if h.work_order_id %}
+            {% if h.work_order and h.work_order.is_active != false %}
             <a href="/admin/work-orders/{{ h.work_order_id }}">정비의뢰 #{{ h.work_order_id }}</a>
+            {% else %}
+            <span class="pmx-muted" title="정비관리에서 삭제된 정비의뢰입니다">정비의뢰 #{{ h.work_order_id }} (삭제됨)</span>
+            {% endif %}
             {% endif %}
           </div>
           <p class="pm-history-note">{{ h.note or '내용 없음' }}</p>

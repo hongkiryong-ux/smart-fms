@@ -7761,12 +7761,25 @@ async def work_order_detail(
     wo = (
         await db.execute(
             select(WorkOrder)
-            .where(WorkOrder.id == wo_id, WorkOrder.is_active == True)
+            .where(WorkOrder.id == wo_id)
             .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
         )
     ).scalar_one_or_none()
-    if not wo:
-        raise HTTPException(404)
+    if not wo or wo.is_active is False:
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {
+                "user": user,
+                "status_code": 404,
+                "message": (
+                    f"정비의뢰 #{wo_id}는 삭제된 정비의뢰입니다. 점검(PM)에서 다시 점검하거나 새 정비의뢰를 등록해 주세요."
+                    if wo
+                    else f"정비의뢰 #{wo_id}를 찾을 수 없습니다."
+                ),
+            },
+            status_code=404,
+        )
     partners = (
         await db.execute(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)
@@ -21003,6 +21016,8 @@ def _pm_row(schedule: PMSchedule, today: date) -> dict:
     latest = insps[0] if insps else None
     latest_day = _pm_kst_date(latest.inspected_at) if latest else None
     wo = latest.work_order if latest else None
+    if wo is not None and wo.is_active is False:
+        wo = None
     wo_status = getattr(getattr(wo, "status", None), "value", getattr(wo, "status", None))
     due = schedule.next_due
     if wo is not None and wo_status in _PM_WO_OPEN:
