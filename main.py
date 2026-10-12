@@ -1633,6 +1633,7 @@ templates.env.globals.update(
     pm_freq_label=_pm_freq_label,
     pm_result_label=_pm_result_label,
 )
+templates.env.filters["thousands"] = lambda v: f"{int(v or 0):,}"
 
 from streetlamp.router import router as streetlamp_router
 from streetlamp.router import templates as streetlamp_templates
@@ -5615,6 +5616,387 @@ async def _building_category_counts(
     return {cat: cnt for cat, cnt in count_q.all() if cat}
 
 
+EQD_STATUS = {
+    "normal": ("정상", "#1f6fd8"),
+    "warning": ("점검 필요", "#f5b942"),
+    "error": ("고장/사용중지", "#ef4444"),
+    "unknown": ("미확인", "#94a3b8"),
+}
+EQD_STATUS_SHORT = {"normal": "정상", "warning": "점검필요", "error": "고장", "unknown": "미확인"}
+EQD_ISSUES = {
+    "pm": "PM 점검 필요 설비",
+    "overdue": "점검 예정 초과 설비",
+    "missing": "설비정보(제조사·모델) 누락 설비",
+    "unknown": "상태 미확인 설비",
+    "recent": "최근 등록·변경 설비",
+}
+
+
+def _eqd_status_key(raw) -> str:
+    s = str(raw or "").strip().lower()
+    if s in ("normal", "warning", "error"):
+        return s
+    if s in ("", "none"):
+        return "unknown"
+    return "error" if s in ("stop", "stopped", "fault", "broken", "disabled") else "unknown"
+
+
+def _eqd_nice_max(v: int) -> int:
+    if v <= 0:
+        return 5
+    mag = 10 ** (len(str(int(v))) - 1)
+    for m in (1, 2, 2.5, 5, 10):
+        if v <= m * mag:
+            return int(m * mag)
+    return int(10 * mag)
+
+
+async def _equipment_dashboard(
+    request: Request,
+    user: User,
+    db: AsyncSession,
+    all_buildings: list,
+    *,
+    view: str | None,
+    month: str | None,
+    status: str | None,
+    issue: str | None,
+    q: str | None,
+    page: int | None,
+    message: str | None,
+    error: str | None,
+):
+    from math import ceil
+    from urllib.parse import urlencode
+
+    today = _today_kst()
+    active_ids = {b.id for b in all_buildings}
+    my_building_ids = _pm_user_building_ids(user) & active_ids
+    scope_buildings = (
+        [b for b in all_buildings if b.id in my_building_ids]
+        if my_building_ids
+        else all_buildings
+    )
+    scope_ids = [b.id for b in scope_buildings] or [-1]
+
+    def scoped(stmt, base=Equipment):
+        if base is Equipment:
+            stmt = stmt.select_from(Equipment)
+        return (
+            stmt.join(Zone, Zone.id == Equipment.zone_id)
+            .join(Floor, Floor.id == Zone.floor_id)
+            .where(Equipment.is_active == True, Floor.building_id.in_(scope_ids))  # noqa: E712
+        )
+
+    eq_ids_sq = scoped(select(Equipment.id)).scalar_subquery()
+
+    # 대상 월 (최근 등록·변경 기준)
+    try:
+        y, m = (int(x) for x in str(month or "").split("-")[:2])
+        month_start = date(y, m, 1)
+    except (TypeError, ValueError):
+        month_start = today.replace(day=1)
+    month_end = _pm_month_add(month_start, 1)
+    month_key = f"{month_start.year:04d}-{month_start.month:02d}"
+    month_options = []
+    cur = today.replace(day=1)
+    for i in range(12):
+        d = _pm_month_add(cur, -i)
+        month_options.append({"key": f"{d.year:04d}-{d.month:02d}", "label": f"{d.year}년 {d.month}월"})
+    if month_key not in {o["key"] for o in month_options}:
+        month_options.insert(0, {"key": month_key, "label": f"{month_start.year}년 {month_start.month}월"})
+
+    def kst_to_utc(d: date) -> datetime:
+        return (
+            datetime(d.year, d.month, d.day, tzinfo=KST)
+            .astimezone(timezone.utc)
+            .replace(tzinfo=None)
+        )
+
+    m_from, m_to = kst_to_utc(month_start), kst_to_utc(month_end)
+
+    total_eq = (await db.execute(scoped(select(func.count(Equipment.id))))).scalar() or 0
+
+    status_counts: dict[str, int] = {k: 0 for k in EQD_STATUS}
+    for raw, cnt in (
+        await db.execute(scoped(select(Equipment.status, func.count(Equipment.id))).group_by(Equipment.status))
+    ).all():
+        status_counts[_eqd_status_key(raw)] += int(cnt)
+
+    blank = lambda col: func.coalesce(func.trim(col), "") == ""  # noqa: E731
+    missing_cond = and_(blank(Equipment.manufacturer), blank(Equipment.model))
+    missing_cnt = (
+        await db.execute(scoped(select(func.count(Equipment.id))).where(missing_cond))
+    ).scalar() or 0
+
+    pm_due_cnt = (
+        await db.execute(
+            select(func.count(func.distinct(PMSchedule.equipment_id))).where(
+                PMSchedule.is_active == True,  # noqa: E712
+                PMSchedule.next_due.is_not(None),
+                PMSchedule.next_due <= today,
+                PMSchedule.equipment_id.in_(eq_ids_sq),
+            )
+        )
+    ).scalar() or 0
+    pm_overdue_cnt = (
+        await db.execute(
+            select(func.count(func.distinct(PMSchedule.equipment_id))).where(
+                PMSchedule.is_active == True,  # noqa: E712
+                PMSchedule.next_due.is_not(None),
+                PMSchedule.next_due < today,
+                PMSchedule.equipment_id.in_(eq_ids_sq),
+            )
+        )
+    ).scalar() or 0
+
+    lamp_cnt = 0
+    try:
+        from streetlamp.models import Lamp
+
+        lamp_cnt = (await db.execute(select(func.count(Lamp.id)))).scalar() or 0
+    except Exception as e:
+        await db.rollback()
+        print(f"[eq_dash] lamp count skip: {e}", flush=True)
+
+    kpi = {
+        "buildings": len(scope_buildings),
+        "buildings_all": len(all_buildings),
+        "equipment": total_eq,
+        "lamps": lamp_cnt,
+        "pm_due": pm_due_cnt,
+        "missing": missing_cnt,
+    }
+
+    # 사업장별 설비 현황
+    site_counts: dict = {}
+    for sid, cnt in (
+        await db.execute(
+            scoped(select(Floor.building_id, func.count(Equipment.id))).group_by(Floor.building_id)
+        )
+    ).all():
+        site_counts[sid] = int(cnt)
+    sites: dict = {}
+    for b in scope_buildings:
+        key = b.site_id
+        row = sites.setdefault(
+            key,
+            {"site_id": key, "name": (b.site.name if b.site else "") or "미지정", "count": 0, "buildings": 0},
+        )
+        row["count"] += site_counts.get(b.id, 0)
+        row["buildings"] += 1
+    site_rows = sorted(sites.values(), key=lambda r: (-r["count"], r["name"]))
+    bar_max = _eqd_nice_max(max((r["count"] for r in site_rows), default=0))
+    for r in site_rows:
+        r["pct"] = round(r["count"] * 100 / bar_max, 2) if bar_max else 0
+    bar_ticks = [round(bar_max * i / 5) for i in range(6)]
+
+    # 상태 분포 도넛
+    circ = 2 * 3.14159265 * 40
+    offset = 0.0
+    donut = []
+    for key, (label, color) in EQD_STATUS.items():
+        n = status_counts.get(key, 0)
+        if key == "unknown" and not n:
+            continue
+        length = circ * n / total_eq if total_eq else 0.0
+        donut.append(
+            {
+                "key": key,
+                "label": label,
+                "color": color,
+                "count": n,
+                "pct": round(n * 100 / total_eq, 1) if total_eq else 0,
+                "dash": f"{length:.2f} {circ - length:.2f}",
+                "offset": f"{-offset:.2f}",
+            }
+        )
+        offset += length
+
+    eq_opts = (
+        selectinload(Equipment.zone).selectinload(Zone.floor).selectinload(Floor.building).selectinload(Building.site),
+        selectinload(Equipment.equipment_type),
+    )
+
+    # 최근 등록·변경 (대상 월)
+    recent_map: dict[int, dict] = {}
+    for eq in (
+        await db.execute(
+            scoped(select(Equipment))
+            .where(Equipment.created_at >= m_from, Equipment.created_at < m_to)
+            .options(*eq_opts)
+            .order_by(Equipment.created_at.desc())
+            .limit(60)
+        )
+    ).scalars().all():
+        recent_map[eq.id] = {"eq": eq, "at": eq.created_at, "kind": "신규", "summary": "설비 등록"}
+    for log, eq in (
+        await db.execute(
+            scoped(
+                select(EquipmentChangeLog, Equipment)
+                .select_from(EquipmentChangeLog)
+                .join(Equipment, Equipment.id == EquipmentChangeLog.equipment_id),
+                base=EquipmentChangeLog,
+            )
+            .where(EquipmentChangeLog.changed_at >= m_from, EquipmentChangeLog.changed_at < m_to)
+            .options(*eq_opts)
+            .order_by(EquipmentChangeLog.changed_at.desc())
+            .limit(200)
+        )
+    ).all():
+        prev = recent_map.get(eq.id)
+        if prev is None or (log.changed_at and prev["at"] and log.changed_at > prev["at"]):
+            recent_map[eq.id] = {
+                "eq": eq,
+                "at": log.changed_at,
+                "kind": "변경",
+                "summary": log.summary or "정보 변경",
+            }
+    recent_all = sorted(recent_map.values(), key=lambda r: r["at"] or datetime.min, reverse=True)
+
+    def eq_row(eq, extra: dict | None = None) -> dict:
+        zone = eq.zone
+        floor = zone.floor if zone else None
+        bld = floor.building if floor else None
+        st = _eqd_status_key(eq.status)
+        row = {
+            "id": eq.id,
+            "code": eq.code,
+            "name": eq.name,
+            "building_id": bld.id if bld else None,
+            "building": bld.name if bld else "",
+            "site": (bld.site.name if bld and bld.site else ""),
+            "type": (eq.equipment_type.name if eq.equipment_type else "") or eq.category or "",
+            "status": st,
+            "status_label": EQD_STATUS_SHORT[st],
+            "at": eq.created_at,
+        }
+        if extra:
+            row.update(extra)
+        return row
+
+    recent_rows = [eq_row(r["eq"], {"at": r["at"], "kind": r["kind"], "summary": r["summary"]}) for r in recent_all]
+
+    status_unknown = status_counts.get("unknown", 0)
+    checks = [
+        {"key": "overdue", "label": "점검 예정 초과", "desc": "기한이 지난 PM 점검이 있습니다.", "count": pm_overdue_cnt, "tone": "red"},
+        {"key": "missing", "label": "설비정보 누락", "desc": "제조사·모델이 등록되지 않은 설비가 있습니다.", "count": missing_cnt, "tone": "orange"},
+        {"key": "unknown", "label": "상태 미확인", "desc": "설비 상태를 확인해 주세요.", "count": status_unknown, "tone": "blue"},
+    ]
+
+    # 목록 보기 (전체보기·확인 필요 사항)
+    list_ctx = None
+    if view == "list":
+        status_f = status if status in EQD_STATUS else None
+        issue_f = issue if issue in EQD_ISSUES else None
+        q_f = (q or "").strip()
+        if issue_f == "recent":
+            items = recent_all
+            if q_f:
+                ql = q_f.lower()
+                items = [
+                    r for r in items
+                    if ql in (r["eq"].code or "").lower() or ql in (r["eq"].name or "").lower()
+                ]
+            pager = _paginate(items, page, 20)
+            rows = [
+                eq_row(r["eq"], {"at": r["at"], "kind": r["kind"], "summary": r["summary"]})
+                for r in pager["items"]
+            ]
+        else:
+            stmt = scoped(select(Equipment))
+            if issue_f in ("pm", "overdue"):
+                due_cond = PMSchedule.next_due <= today if issue_f == "pm" else PMSchedule.next_due < today
+                stmt = stmt.where(
+                    Equipment.id.in_(
+                        select(PMSchedule.equipment_id).where(
+                            PMSchedule.is_active == True,  # noqa: E712
+                            PMSchedule.next_due.is_not(None),
+                            due_cond,
+                        )
+                    )
+                )
+            elif issue_f == "missing":
+                stmt = stmt.where(missing_cond)
+            if issue_f == "unknown" or status_f == "unknown":
+                stmt = stmt.where(
+                    or_(
+                        Equipment.status.is_(None),
+                        func.lower(func.coalesce(Equipment.status, "")).not_in(["normal", "warning", "error"]),
+                    )
+                )
+            elif status_f:
+                stmt = stmt.where(func.lower(Equipment.status) == status_f)
+            if q_f:
+                like = f"%{q_f}%"
+                stmt = stmt.where(or_(Equipment.code.ilike(like), Equipment.name.ilike(like)))
+            cnt = (
+                await db.execute(select(func.count()).select_from(stmt.with_only_columns(Equipment.id).subquery()))
+            ).scalar() or 0
+            pager = _paginate(list(range(cnt)), page, 20)
+            eqs = (
+                await db.execute(
+                    stmt.options(*eq_opts)
+                    .order_by(Floor.building_id, Equipment.category, Equipment.code)
+                    .offset((pager["page"] - 1) * 20)
+                    .limit(20)
+                )
+            ).scalars().all()
+            rows = [eq_row(e) for e in eqs]
+        if issue_f:
+            title = EQD_ISSUES[issue_f]
+        elif status_f:
+            title = f"상태: {EQD_STATUS[status_f][0]}"
+        else:
+            title = "전체 설비"
+        params = {"view": "list"}
+        if issue_f:
+            params["issue"] = issue_f
+        if status_f:
+            params["status"] = status_f
+        if q_f:
+            params["q"] = q_f
+        if issue_f == "recent":
+            params["month"] = month_key
+        list_ctx = {
+            "title": title,
+            "rows": rows,
+            "pager": pager,
+            "base_url": "/admin/equipment?" + urlencode(params),
+            "issue": issue_f,
+            "status": status_f,
+            "q": q_f,
+        }
+
+    return templates.TemplateResponse(
+        request,
+        "equipment_dashboard.html",
+        {
+            "user": user,
+            "kpi": kpi,
+            "site_rows": site_rows,
+            "bar_max": bar_max,
+            "bar_ticks": bar_ticks,
+            "donut": donut,
+            "total_eq": total_eq,
+            "recent_rows": recent_rows[:6],
+            "recent_total": len(recent_rows),
+            "checks": checks,
+            "month_key": month_key,
+            "month_label": f"{month_start.year}년 {month_start.month}월",
+            "month_options": month_options,
+            "scope_buildings": scope_buildings,
+            "all_buildings": all_buildings,
+            "my_building_ids": my_building_ids,
+            "list_ctx": list_ctx,
+            "status_labels": EQD_STATUS,
+            "message": message,
+            "error": error,
+            "can_lamp": can_access_menu(user, "streetlamp"),
+        },
+    )
+
+
 @app.get("/admin/equipment")
 async def equipment_list(
     request: Request,
@@ -5624,6 +6006,12 @@ async def equipment_list(
     error: str | None = None,
     message: str | None = None,
     open_eq: int | None = None,
+    view: str | None = None,
+    month: str | None = None,
+    status: str | None = None,
+    issue: str | None = None,
+    q: str | None = None,
+    page: int | None = None,
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -5638,6 +6026,24 @@ async def equipment_list(
             ).scalars().all()
         )
     )
+    if not building_id and site_id is None and view != "buildings":
+        return await _equipment_dashboard(
+            request,
+            user,
+            db,
+            buildings,
+            view=view,
+            month=month,
+            status=status,
+            issue=issue,
+            q=q,
+            page=page,
+            message=message,
+            error=error,
+        )
+    my_bids = _pm_user_building_ids(user) & {b.id for b in buildings}
+    if my_bids and not building_id:
+        buildings = [b for b in buildings if b.id in my_bids]
     building_groups = group_buildings_by_site(buildings)
 
     selected_building = None
@@ -10809,6 +11215,7 @@ def _pm_user_building_ids(user: User) -> set[int]:
 
 
 templates.env.globals["user_building_ids"] = _pm_user_building_ids
+streetlamp_templates.env.globals["user_building_ids"] = _pm_user_building_ids
 
 _ILOG2_DAILY_TABLES = (
     "housing_substation_daily",
@@ -20985,10 +21392,12 @@ async def pm_my_buildings_save(
     db_user.pm_building_ids = sorted(picked) or None
     await db.commit()
     msg = f"내 건물 {shown}곳만 표시합니다." if shown else "전체 건물을 표시합니다."
-    if str(form.get("next", "")) == "ilog2":
-        return RedirectResponse(
-            f"/admin/inspection-logs2?message={quote(msg)}", status_code=303
-        )
+    next_page = {
+        "ilog2": "/admin/inspection-logs2",
+        "equipment": "/admin/equipment",
+    }.get(str(form.get("next", "")))
+    if next_page:
+        return RedirectResponse(f"{next_page}?message={quote(msg)}", status_code=303)
     tab = "settings" if str(form.get("tab", "")) == "settings" else "list"
     return RedirectResponse(f"/admin/pm?tab={tab}&msg={quote(msg)}", status_code=303)
 

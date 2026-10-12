@@ -188,7 +188,17 @@
           </button>
         </div>
         <ul class="nav-sub" id="nav-equipment-sub">
-          {% for g in request.state.nav_building_groups or [] %}
+          {% set _eq_my = user_building_ids(user) if user else [] %}
+          {% set _eq_groups = request.state.nav_building_groups or [] %}
+          {% if _eq_my %}
+            {% set _eq_filtered = [] %}
+            {% for g in _eq_groups %}
+              {% set _gb = g.buildings|selectattr('id', 'in', _eq_my)|list %}
+              {% if _gb %}{% set _ = _eq_filtered.append({'site_id': g.site_id, 'site_name': g.site_name, 'buildings': _gb}) %}{% endif %}
+            {% endfor %}
+            {% if _eq_filtered %}{% set _eq_groups = _eq_filtered %}{% endif %}
+          {% endif %}
+          {% for g in _eq_groups %}
           {% set eq_ns = namespace(open=false) %}
           {% if nav_bid %}
             {% for b in g.buildings %}

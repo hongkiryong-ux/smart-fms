@@ -1,0 +1,346 @@
+{% extends "base.html" %}
+{% block title %}설비관리 대시보드{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/eq_dash.css?v=1" />{% endblock %}
+{% block content %}
+{% macro status_pill(key, label) %}<span class="eqd-st eqd-st-{{ key }}">{{ label }}</span>{% endmacro %}
+{% set chev %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>{% endset %}
+<div class="eqd">
+
+<header class="eqd-head">
+  <div class="eqd-head-text">
+    <h1>설비관리 대시보드</h1>
+    <p>사업장·건물·설비 현황과 등록정보를 통합 관리합니다.</p>
+  </div>
+  <div class="eqd-head-actions">
+    <form method="get" action="/admin/equipment" class="eqd-month">
+      {% if list_ctx %}
+      <input type="hidden" name="view" value="list" />
+      <input type="hidden" name="issue" value="recent" />
+      {% endif %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <select name="month" aria-label="조회 월" onchange="this.form.submit()">
+        {% for o in month_options %}
+        <option value="{{ o.key }}" {% if o.key == month_key %}selected{% endif %}>{{ o.label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <button type="button" class="eqd-btn eqd-btn-ghost{% if my_building_ids %} is-set{% endif %}" data-open-dialog="eqd-my-buildings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+      내 건물 설정{% if my_building_ids %} <b>{{ my_building_ids|length }}</b>{% endif %}
+    </button>
+    {% if user_can_create(user) %}
+    <a class="eqd-btn eqd-btn-primary" href="/admin/equipment/import">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      설비 등록
+    </a>
+    {% endif %}
+  </div>
+</header>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+{% if my_building_ids %}
+<div class="eqd-scope">
+  <strong>내 건물만 표시 중</strong>
+  <span>{% for b in scope_buildings %}<em>{{ b.name }}</em>{% endfor %}</span>
+  <button type="button" class="eqd-link" data-open-dialog="eqd-my-buildings">변경</button>
+</div>
+{% endif %}
+
+<section class="eqd-kpis" aria-label="설비 요약">
+  <a class="eqd-kpi is-blue" href="/admin/equipment?view=buildings">
+    <span class="eqd-kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5.5A1.5 1.5 0 0 1 5.5 4h7A1.5 1.5 0 0 1 14 5.5V21"/><path d="M14 9h4.5A1.5 1.5 0 0 1 20 10.5V21"/><path d="M3 21h18"/><path d="M7.5 8h3M7.5 11.5h3M7.5 15h3"/></svg></span>
+    <span class="eqd-kpi-body">
+      <span class="eqd-kpi-label">전체 건물</span>
+      <span class="eqd-kpi-num"><strong>{{ kpi.buildings|thousands }}</strong>개</span>
+      <em>{% if my_building_ids %}내 건물 · 전체 {{ kpi.buildings_all }}개{% else %}등록된 전체 건물 수{% endif %}</em>
+    </span>
+  </a>
+  <a class="eqd-kpi is-teal" href="/admin/equipment?view=list">
+    <span class="eqd-kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 7V5h8v2M8 18v2M16 18v2M8 11h.01M12 11h.01M16 11h.01M8 14h8"/></svg></span>
+    <span class="eqd-kpi-body">
+      <span class="eqd-kpi-label">등록 설비</span>
+      <span class="eqd-kpi-num"><strong>{{ kpi.equipment|thousands }}</strong>개</span>
+      <em>등록된 전체 설비 수</em>
+    </span>
+  </a>
+  {% if can_lamp %}<a class="eqd-kpi is-sky" href="/admin/streetlamp/requests">{% else %}<div class="eqd-kpi is-sky">{% endif %}
+    <span class="eqd-kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V7"/><path d="M12 7c0-2 1.5-3.5 3.5-3.5S19 5 19 7"/><path d="M12 7c0-2-1.5-3.5-3.5-3.5S5 5 5 7"/><path d="M17 7.5l1 2.5M7 7.5l-1 2.5M9 21h6"/></svg></span>
+    <span class="eqd-kpi-body">
+      <span class="eqd-kpi-label">가로등</span>
+      <span class="eqd-kpi-num"><strong>{{ kpi.lamps|thousands }}</strong>개</span>
+      <em>등록된 가로등 수</em>
+    </span>
+  {% if can_lamp %}</a>{% else %}</div>{% endif %}
+  <a class="eqd-kpi is-amber" href="/admin/equipment?view=list&issue=pm">
+    <span class="eqd-kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.2L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></svg></span>
+    <span class="eqd-kpi-body">
+      <span class="eqd-kpi-label">점검 필요</span>
+      <span class="eqd-kpi-num"><strong>{{ kpi.pm_due|thousands }}</strong>건</span>
+      <em>PM 점검이 필요한 설비 수</em>
+    </span>
+  </a>
+  <a class="eqd-kpi is-slate" href="/admin/equipment?view=list&issue=missing">
+    <span class="eqd-kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/></svg></span>
+    <span class="eqd-kpi-body">
+      <span class="eqd-kpi-label">정보 미등록</span>
+      <span class="eqd-kpi-num"><strong>{{ kpi.missing|thousands }}</strong>건</span>
+      <em>설비정보가 누락된 건수</em>
+    </span>
+  </a>
+</section>
+
+{% if list_ctx %}
+{# ───────── 목록 보기 ───────── #}
+<section class="eqd-card">
+  <div class="eqd-card-head">
+    <h2>
+      <a class="eqd-back" href="/admin/equipment" title="대시보드로">‹</a>
+      {{ list_ctx.title }} <small>({{ list_ctx.pager.total|thousands }})</small>
+    </h2>
+    <form method="get" action="/admin/equipment" class="eqd-search">
+      <input type="hidden" name="view" value="list" />
+      {% if list_ctx.issue %}<input type="hidden" name="issue" value="{{ list_ctx.issue }}" />{% endif %}
+      {% if list_ctx.status %}<input type="hidden" name="status" value="{{ list_ctx.status }}" />{% endif %}
+      {% if list_ctx.issue == 'recent' %}<input type="hidden" name="month" value="{{ month_key }}" />{% endif %}
+      <input type="search" name="q" value="{{ list_ctx.q }}" placeholder="설비번호·설비명 검색" />
+      <button type="submit" class="eqd-btn eqd-btn-primary eqd-btn-sm">검색</button>
+    </form>
+  </div>
+  {% if not list_ctx.issue %}
+  <nav class="eqd-tabs" aria-label="상태 필터">
+    <a class="{% if not list_ctx.status %}is-on{% endif %}" href="/admin/equipment?view=list">전체</a>
+    {% for key, v in status_labels.items() %}
+    <a class="{% if list_ctx.status == key %}is-on{% endif %}" href="/admin/equipment?view=list&status={{ key }}">{{ v[0] }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+  <div class="eqd-table-wrap">
+    <table class="eqd-table">
+      <thead>
+        <tr>
+          <th>설비번호</th><th>설비명</th><th>사업장/건물</th><th>설비유형</th><th>상태</th>
+          {% if list_ctx.issue == 'recent' %}<th>구분</th><th>내용</th><th>최종수정일</th>{% else %}<th>등록일</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in list_ctx.rows %}
+        <tr>
+          <td><a class="eqd-code" href="/admin/equipment?building_id={{ r.building_id }}&open_eq={{ r.id }}">{{ r.code }}</a></td>
+          <td class="eqd-name">{{ r.name }}</td>
+          <td class="eqd-loc">{{ r.site }}{% if r.site and r.building %} / {% endif %}{{ r.building }}</td>
+          <td>{{ r.type or '-' }}</td>
+          <td>{{ status_pill(r.status, r.status_label) }}</td>
+          {% if list_ctx.issue == 'recent' %}
+          <td><span class="eqd-kind{% if r.kind == '신규' %} is-new{% endif %}">{{ r.kind }}</span></td>
+          <td class="eqd-summary">{{ r.summary }}</td>
+          {% endif %}
+          <td class="eqd-date">{{ fmt_kst(r.at)[:16] if r.at else '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="eqd-empty">해당하는 설비가 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% with pager=list_ctx.pager, base_url=list_ctx.base_url %}{% include "partials/pager.html" %}{% endwith %}
+</section>
+{% else %}
+{# ───────── 대시보드 ───────── #}
+<div class="eqd-row eqd-row-top">
+  <section class="eqd-card">
+    <div class="eqd-card-head">
+      <h2><span class="eqd-h-ico"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="11" width="4" height="9" rx="1"/><rect x="10" y="5" width="4" height="15" rx="1"/><rect x="16" y="14" width="4" height="6" rx="1"/></svg></span>사업장별 설비 현황</h2>
+      <a class="eqd-more" href="/admin/equipment?view=buildings">전체보기 {{ chev }}</a>
+    </div>
+    {% if site_rows %}
+    <div class="eqd-bars">
+      {% for r in site_rows %}
+      <a class="eqd-bar-row" href="/admin/equipment?site_id={{ r.site_id }}" title="{{ r.name }} · 건물 {{ r.buildings }}개">
+        <span class="eqd-bar-label">{{ r.name }}</span>
+        <span class="eqd-bar-track">
+          <i class="eqd-bar-fill" style="width: {{ r.pct }}%; --o: {{ [1 - loop.index0 * 0.12, 0.4]|max }}"></i>
+          <b style="left: calc({{ r.pct }}% + .45rem)">{{ r.count|thousands }}</b>
+        </span>
+      </a>
+      {% endfor %}
+      <div class="eqd-bar-axis" aria-hidden="true">
+        <span></span>
+        <span class="eqd-bar-ticks">
+          {% for t in bar_ticks %}<i style="left: {{ loop.index0 * 20 }}%">{{ t|thousands }}</i>{% endfor %}
+        </span>
+      </div>
+    </div>
+    {% else %}
+    <p class="eqd-empty">표시할 사업장이 없습니다.</p>
+    {% endif %}
+  </section>
+
+  <section class="eqd-card">
+    <div class="eqd-card-head">
+      <h2><span class="eqd-h-ico"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 3.05A9 9 0 1 0 20.95 13H11z"/><path d="M13 3.05V11h7.95A9 9 0 0 0 13 3.05z" opacity=".55"/></svg></span>설비 상태 분포</h2>
+      <a class="eqd-more" href="/admin/equipment?view=list">전체보기 {{ chev }}</a>
+    </div>
+    <div class="eqd-donut-wrap">
+      <svg class="eqd-donut" viewBox="0 0 100 100" role="img" aria-label="설비 상태 분포">
+        <circle cx="50" cy="50" r="40" fill="none" stroke="#eef2f7" stroke-width="16"/>
+        {% for d in donut %}{% if d.count %}
+        <circle cx="50" cy="50" r="40" fill="none" stroke="{{ d.color }}" stroke-width="16"
+                stroke-dasharray="{{ d.dash }}" stroke-dashoffset="{{ d.offset }}"
+                transform="rotate(-90 50 50)"><title>{{ d.label }} {{ d.count }}개</title></circle>
+        {% endif %}{% endfor %}
+        <text x="50" y="42" text-anchor="middle" class="eqd-donut-t1">총 설비</text>
+        <text x="50" y="56" text-anchor="middle" class="eqd-donut-t2">{{ total_eq|thousands }}</text>
+        <text x="50" y="66" text-anchor="middle" class="eqd-donut-t1">개</text>
+      </svg>
+      <ul class="eqd-legend">
+        {% for d in donut %}
+        <li>
+          <a href="/admin/equipment?view=list&status={{ d.key }}">
+            <i style="background: {{ d.color }}"></i>
+            <span>{{ d.label }}</span>
+            <strong>{{ d.count|thousands }}<small>({{ d.pct }}%)</small></strong>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+</div>
+
+<div class="eqd-row eqd-row-bottom">
+  <section class="eqd-card">
+    <div class="eqd-card-head">
+      <h2><span class="eqd-h-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2.5h6v3H9zM8.5 10h7M8.5 14h7M8.5 18h4"/></svg></span>최근 등록·변경 설비 <small>{{ month_label }}</small></h2>
+      <a class="eqd-more" href="/admin/equipment?view=list&issue=recent&month={{ month_key }}">전체보기 {{ chev }}</a>
+    </div>
+    <div class="eqd-table-wrap">
+      <table class="eqd-table">
+        <thead>
+          <tr><th>설비번호</th><th>설비명</th><th>사업장/건물</th><th>설비유형</th><th>상태</th><th>최종수정일</th></tr>
+        </thead>
+        <tbody>
+          {% for r in recent_rows %}
+          <tr>
+            <td><a class="eqd-code" href="/admin/equipment?building_id={{ r.building_id }}&open_eq={{ r.id }}">{{ r.code }}</a></td>
+            <td class="eqd-name" title="{{ r.kind }} · {{ r.summary }}">{{ r.name }}</td>
+            <td class="eqd-loc">{{ r.site }}{% if r.site and r.building %} / {% endif %}{{ r.building }}</td>
+            <td>{{ r.type or '-' }}</td>
+            <td>{{ status_pill(r.status, r.status_label) }}</td>
+            <td class="eqd-date">{{ fmt_kst(r.at)[:16] if r.at else '-' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="eqd-empty">{{ month_label }}에 등록·변경된 설비가 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="eqd-card">
+    <div class="eqd-card-head">
+      <h2><span class="eqd-h-ico"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span>빠른 메뉴</h2>
+    </div>
+    <div class="eqd-quick">
+      {% if user_can_create(user) %}
+      <a href="/admin/equipment/import"><span class="eqd-q-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span>설비 등록{{ chev }}</a>
+      {% endif %}
+      <a href="/admin/equipment/import"><span class="eqd-q-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13l2 2 4-4"/></svg></span>엑셀 Import/Export{{ chev }}</a>
+      <button type="button" data-open-dialog="eqd-qr"><span class="eqd-q-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg></span>QR 관리{{ chev }}</button>
+      <a href="/admin/equipment?view=list&issue=recent&month={{ month_key }}"><span class="eqd-q-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4M12 8v4l3 2"/></svg></span>설비 이력 조회{{ chev }}</a>
+    </div>
+  </section>
+
+  <section class="eqd-card">
+    <div class="eqd-card-head">
+      <h2 class="is-alert"><span class="eqd-h-ico"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 22zM19 16.5V11a7 7 0 0 0-5.5-6.8V3.5a1.5 1.5 0 0 0-3 0v.7A7 7 0 0 0 5 11v5.5L3.5 18v1h17v-1z"/></svg></span>확인 필요 사항</h2>
+      <a class="eqd-more" href="/admin/equipment?view=list&issue=overdue">전체보기 {{ chev }}</a>
+    </div>
+    <ul class="eqd-checks">
+      {% for c in checks %}
+      <li>
+        <a class="is-{{ c.tone }}" href="/admin/equipment?view=list&issue={{ c.key }}">
+          <i aria-hidden="true">!</i>
+          <span class="eqd-check-text"><strong>{{ c.label }}</strong><small>{{ c.desc }}</small></span>
+          <b>{{ c.count|thousands }}건</b>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endif %}
+
+<dialog id="eqd-my-buildings" class="eq-dialog eqd-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+  </form>
+  <div class="eq-popup-body">
+    <h2>내 건물 설정</h2>
+    <p class="eqd-dlg-sub">선택한 건물만 이 계정의 설비관리 대시보드·건물 목록·메뉴에 표시됩니다. 모두 해제하면 전체 건물이 보입니다. (점검(PM)·점검일지와 같은 설정)</p>
+    <form method="post" action="/admin/pm/my-buildings" id="eqd-my-buildings-form">
+      <input type="hidden" name="next" value="equipment" />
+      <div class="eqd-dlg-tools">
+        <button type="button" class="eqd-link" data-mybld-all="1">전체 선택</button>
+        <button type="button" class="eqd-link" data-mybld-all="0">모두 해제</button>
+      </div>
+      <div class="eqd-dlg-list">
+        {% for b in all_buildings %}
+        <label class="eqd-dlg-opt">
+          <input type="checkbox" name="building_ids" value="{{ b.id }}" {% if b.id in my_building_ids %}checked{% endif %} />
+          <span>{{ b.name }}{% if b.site %}<small>{{ b.site.name }}</small>{% endif %}</span>
+        </label>
+        {% else %}
+        <p class="eqd-empty">등록된 건물이 없습니다.</p>
+        {% endfor %}
+      </div>
+      <div class="eqd-dlg-actions">
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="eqd-qr" class="eq-dialog eqd-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <button type="submit" class="eq-popup-close" aria-label="닫기">&times;</button>
+  </form>
+  <div class="eq-popup-body">
+    <h2>QR 관리</h2>
+    <p class="eqd-dlg-sub">건물별 설비 QR 코드를 ZIP으로 내려받습니다.</p>
+    <div class="eqd-qr-list">
+      {% for b in scope_buildings %}
+      <a href="/admin/equipment/building/{{ b.id }}/qr-zip">
+        <span>{{ b.name }}{% if b.site %}<small>{{ b.site.name }}</small>{% endif %}</span>
+        <em>ZIP 다운로드</em>
+      </a>
+      {% else %}
+      <p class="eqd-empty">건물이 없습니다.</p>
+      {% endfor %}
+    </div>
+  </div>
+</dialog>
+
+</div>
+
+<script>
+(function () {
+  document.addEventListener('click', function (e) {
+    var openBtn = e.target.closest('[data-open-dialog]');
+    if (openBtn) {
+      var dlg = document.getElementById(openBtn.getAttribute('data-open-dialog'));
+      if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+      else if (dlg) dlg.setAttribute('open', 'open');
+      return;
+    }
+    var allBtn = e.target.closest('[data-mybld-all]');
+    if (allBtn) {
+      var on = allBtn.getAttribute('data-mybld-all') === '1';
+      document.querySelectorAll('#eqd-my-buildings-form input[name=building_ids]').forEach(function (cb) {
+        cb.checked = on;
+      });
+    }
+  });
+})();
+</script>
+{% endblock %}
