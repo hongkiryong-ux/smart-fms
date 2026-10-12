@@ -39,11 +39,9 @@
       <span>KST <strong id="dash-as-of">{{ kpi.as_of }}</strong></span>
       <span class="dash-dot">·</span>
       <span>30초 자동갱신</span>
-      {% if not preview %}
+      {% if not preview and user and user.role.value == 'system_admin' %}
       <a class="dash-layout-change" href="/admin/dashboard/layouts">화면 구성 샘플</a>
-      {% if user and user.role.value == 'system_admin' %}
       <a class="dash-layout-change" href="/admin/dashboard/settings">대시보드 설정</a>
-      {% endif %}
       {% endif %}
     </div>
   </header>
