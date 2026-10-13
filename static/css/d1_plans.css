@@ -1,0 +1,332 @@
+/* 정비 List(D-1)/협력사 — work_orders.css(wo2-) 위에 덧씌움 */
+
+.wo2-head-title p a {
+  color: #1d5fd6;
+  text-decoration: none;
+}
+.wo2-head-title p a:hover {
+  text-decoration: underline;
+}
+
+/* KPI */
+.d1-kpis .wo2-kpi.is-on {
+  background: #f1f6ff;
+  border-color: #8fb1e8;
+}
+.d1-kpis .wo2-kpi.is-off {
+  opacity: 0.6;
+  cursor: default;
+}
+.k-today .wo2-kpi-ico { background: #fff6d6; color: #e0a800; }
+.k-today b { color: #d99a00; }
+.k-tmr .wo2-kpi-ico { background: #ffeadb; color: #f0701a; }
+.k-tmr b { color: #f0701a; }
+.k-sched .wo2-kpi-ico { background: #e3edff; color: #1d5fd6; }
+.k-sched b { color: #1d5fd6; }
+
+/* 검색 + 작업 구분 탭 */
+.d1-filter {
+  display: block;
+}
+.d1-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.5rem;
+  margin: 0;
+}
+.d1-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #edf0f4;
+}
+.d1-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 34px;
+  padding: 0 0.9rem;
+  border: 1px solid #d6dbe3;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.d1-tab b {
+  min-width: 22px;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: #4b5563;
+  font-size: 0.76rem;
+  text-align: center;
+}
+a.d1-tab:hover {
+  background: #f5f7fa;
+}
+.d1-tab.is-on {
+  background: #0f2a5c;
+  border-color: #0f2a5c;
+  color: #fff;
+}
+.d1-tab.is-on b {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.d1-tab.is-off {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 목록 머리 */
+.d1-list-title h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #111827;
+}
+.d1-list-title h2 span {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1d5fd6;
+}
+.d1-hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+.d1-subsection + .d1-subsection {
+  margin-top: 1rem;
+}
+.d1-subsection h3 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f2a5c;
+}
+.d1-subsection h3 span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+.d1-subsection h3 small {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #9ca3af;
+}
+.d1-partner-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.d1-partner-group > summary {
+  margin-bottom: 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f2a5c;
+  cursor: pointer;
+}
+.d1-partner-group > summary small {
+  font-weight: 600;
+  color: #6b7280;
+}
+.d1-empty {
+  text-align: center;
+}
+
+/* 표 */
+/* 40px 미만은 wo-col-resize.js 최소 너비(40)로 늘어나 표가 넘치므로 40 */
+.d1-list-table th.c-sel { width: 40px; }
+.d1-list-table th.c-no { width: 40px; }
+.d1-list-table th.c-detail { width: 52px; }
+.d1-list-table th.c-eq { width: 96px; }
+.d1-list-table th.c-req { width: 150px; }
+.d1-list-table th.c-person { width: 64px; }
+.d1-list-table th.c-date { width: 80px; }
+.d1-list-table th.c-sched { width: 100px; }
+.d1-list-table th.c-pri { width: 58px; }
+.d1-list-table th.c-partner { width: 92px; }
+.d1-list-table th.c-seg { width: 114px; }
+.d1-list-table th.c-action { width: 96px; }
+.d1-list-table th.c-btn { width: 50px; }
+.d1-list-table th.c-permit { width: 84px; }
+.d1-list-table th.c-risk { width: 108px; }
+.d1-list-table th.c-grade { width: 64px; }
+.d1-list-table th.c-del { width: 42px; }
+.d1-list-table th.wo-col-off { width: 0; }
+.d1-list-table th {
+  padding-left: 0.3rem;
+  padding-right: 0.45rem;
+  white-space: normal;
+  word-break: keep-all;
+  line-height: 1.2;
+}
+.d1-list-table td {
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
+  text-overflow: clip;
+}
+.d1-list-table td.c-eq,
+.d1-list-table td.c-req,
+.d1-list-table td.c-person,
+.d1-list-table td.c-risk {
+  text-overflow: ellipsis;
+}
+.d1-list-table td.c-risk {
+  text-align: left;
+  color: #4b5563;
+}
+.d1-eq-code {
+  font-weight: 700;
+  color: #0f2a5c;
+}
+.d1-list-table tr.wo-today-receipt td {
+  background: #fffbea;
+}
+.d1-list-table tr.wo-req-sent td {
+  background: #fafbfc;
+}
+.d1-list-table tbody tr.wo-req-sent:hover td,
+.d1-list-table tbody tr.wo-today-receipt:hover td {
+  background: #f3f8ff;
+}
+.d1-list-table .wo-sel-done {
+  color: #18a058;
+  font-weight: 800;
+}
+.d1-list-table .wo2-date-wrap input {
+  padding: 0 0.15rem;
+}
+.d1-list-table .wo2-date-wrap input {
+  position: relative;
+  cursor: pointer;
+}
+/* 달력 아이콘 대신 칸 전체를 눌러 날짜 선택 (좁은 열에서 날짜가 잘리지 않게) */
+.d1-list-table .wo2-date-wrap input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.d1-list-table .wo2-date-wrap input[readonly] {
+  pointer-events: none;
+  color: #6b7280;
+}
+
+/* 진행상태 의뢰/진행/완료 */
+.d1-list-table .d1-seg.wo-step-btns {
+  display: inline-flex;
+  gap: 0;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid #d6dbe3;
+  border-radius: 7px;
+  background: #fff;
+}
+.d1-list-table .d1-seg .wo-step-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 24px;
+  margin: 0;
+  padding: 0 0.3rem;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #4b5563;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.d1-list-table .d1-seg .wo-step-btn input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+  pointer-events: none;
+}
+.d1-list-table .d1-seg .wo-step-btn:hover {
+  background: #f1f5f9;
+}
+.d1-list-table .d1-seg .wo-step-btn.is-on {
+  background: #1d6ff2;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 작업허가 상태 */
+.d1-state {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.22rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.d1-state.s-req {
+  background: #e8f0fe;
+  color: #1d5fd6;
+}
+.d1-state.s-ok {
+  background: #dcf5e6;
+  color: #15803d;
+}
+
+/* 1600px 안팎 화면에서 가로 스크롤 없이 모든 열이 보이도록 */
+@media (max-width: 1760px) {
+  .d1-list-table { font-size: 0.77rem; }
+  .d1-list-table th { font-size: 0.75rem; }
+  .d1-list-table th.c-detail { width: 50px; }
+  .d1-list-table th.c-eq { width: 86px; }
+  .d1-list-table th.c-req { width: 110px; }
+  .d1-list-table th.c-person { width: 56px; }
+  .d1-list-table th.c-date { width: 74px; }
+  .d1-list-table th.c-sched { width: 94px; }
+  .d1-list-table th.c-pri { width: 54px; }
+  .d1-list-table th.c-partner { width: 84px; }
+  .d1-list-table th.c-seg { width: 102px; }
+  .d1-list-table th.c-action { width: 80px; }
+  .d1-list-table th.c-btn { width: 52px; }
+  .d1-list-table th.c-permit { width: 78px; }
+  .d1-list-table th.c-risk { width: 78px; }
+  .d1-list-table th.c-del { width: 40px; }
+  .d1-list-table .wo2-date-wrap input,
+  .d1-list-table .wo2-cell-sel,
+  .d1-list-table .wo2-cell-input { font-size: 0.75rem; }
+  .d1-list-table .wo2-tag { min-width: 0; padding: 0.16rem 0.4rem; font-size: 0.72rem; }
+  .d1-list-table .wo2-pill-link { padding: 0.18rem 0.45rem; font-size: 0.72rem; }
+  .d1-list-table .wo2-mini { min-width: 0; padding: 0 0.45rem; font-size: 0.74rem; }
+  .d1-list-table .d1-seg .wo-step-btn { min-width: 29px; padding: 0 0.2rem; font-size: 0.72rem; }
+}
+
+@media (max-width: 1400px) {
+  .d1-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .d1-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

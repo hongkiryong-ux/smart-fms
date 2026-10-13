@@ -7954,6 +7954,7 @@ async def work_order_status(
     filter_partner_id: str = Form(""),
     d1_board: str = Form(""),
     d1_partner_id: str = Form(""),
+    d1_view: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -8052,32 +8053,17 @@ async def work_order_status(
 
     await db.commit()
     if redirect == "d1":
-        board_raw = (d1_board or "").strip().lower()
-        has_partner = (d1_partner_id or "").strip() not in ("", "0")
-        if board_raw == "all":
-            params: list[tuple[str, str]] = [("board", "all")]
-        else:
-            board_vals = _parse_d1_boards(
-                [board_raw] if board_raw else [],
-                allow_receipt=has_partner,
-            )
-            default_board = "receipt" if has_partner else "today"
-            params = (
-                [("board", board_vals[0])]
-                if board_vals
-                else [("board", default_board)]
-            )
-        if filter_status.strip():
-            for part in filter_status.split(","):
-                p = part.strip()
-                if p:
-                    params.append(("status", p))
-        if has_partner:
-            params.append(("partner_id", (d1_partner_id or "").strip()))
-        if page.strip() and page.strip() not in ("", "1"):
-            params.append(("page", page.strip()))
-        qs = f"?{urlencode(params)}" if params else ""
-        return RedirectResponse(f"/admin/d1{qs}", status_code=303)
+        return _d1_redirect(
+            d1_board=d1_board,
+            d1_partner_id=d1_partner_id,
+            filter_status=filter_status,
+            page=page,
+            q=q,
+            priority=filter_priority,
+            date_from=date_from,
+            date_to=date_to,
+            view=d1_view,
+        )
     if redirect == "facility":
         fac_board = (d1_board or "day_before").strip() or "day_before"
         return _facility_redirect(board=fac_board, page=page)
@@ -8393,6 +8379,7 @@ async def work_order_delete(
     filter_partner_id: str = Form(""),
     d1_board: str = Form(""),
     d1_partner_id: str = Form(""),
+    d1_view: str = Form(""),
     user: User = Depends(require_can_delete),
     db: AsyncSession = Depends(get_db),
 ):
@@ -8404,32 +8391,17 @@ async def work_order_delete(
     wo.is_active = False
     await db.commit()
     if redirect == "d1":
-        board_raw = (d1_board or "").strip().lower()
-        has_partner = (d1_partner_id or "").strip() not in ("", "0")
-        if board_raw == "all":
-            params: list[tuple[str, str]] = [("board", "all")]
-        else:
-            board_vals = _parse_d1_boards(
-                [board_raw] if board_raw else [],
-                allow_receipt=has_partner,
-            )
-            default_board = "receipt" if has_partner else "today"
-            params = (
-                [("board", board_vals[0])]
-                if board_vals
-                else [("board", default_board)]
-            )
-        if filter_status.strip():
-            for part in filter_status.split(","):
-                p = part.strip()
-                if p:
-                    params.append(("status", p))
-        if has_partner:
-            params.append(("partner_id", (d1_partner_id or "").strip()))
-        if page.strip() and page.strip() not in ("", "1"):
-            params.append(("page", page.strip()))
-        qs = f"?{urlencode(params)}" if params else ""
-        return RedirectResponse(f"/admin/d1{qs}", status_code=303)
+        return _d1_redirect(
+            d1_board=d1_board,
+            d1_partner_id=d1_partner_id,
+            filter_status=filter_status,
+            page=page,
+            q=q,
+            priority=filter_priority,
+            date_from=date_from,
+            date_to=date_to,
+            view=d1_view,
+        )
     params = {
         k: v
         for k, v in {
@@ -8457,13 +8429,20 @@ def _d1_redirect(
     page: str = "",
     message: str = "",
     error: str = "",
+    q: str = "",
+    priority: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    view: str = "",
 ) -> RedirectResponse:
     from urllib.parse import urlencode
 
     board_raw = (d1_board or "").strip().lower()
     has_partner = (d1_partner_id or "").strip() not in ("", "0")
-    if board_raw == "all":
-        params: list[tuple[str, str]] = [("board", "all")]
+    if (view or "").strip().lower() == "partner":
+        params: list[tuple[str, str]] = [("view", "partner")]
+    elif board_raw == "all":
+        params = [("board", "all")]
     else:
         board_vals = _parse_d1_boards(
             [board_raw] if board_raw else [],
@@ -8480,6 +8459,14 @@ def _d1_redirect(
                 params.append(("status", p))
     if has_partner:
         params.append(("partner_id", (d1_partner_id or "").strip()))
+    for key, val in (
+        ("q", q),
+        ("priority", priority),
+        ("date_from", date_from),
+        ("date_to", date_to),
+    ):
+        if (val or "").strip():
+            params.append((key, val.strip()))
     if page.strip() and page.strip() not in ("", "1"):
         params.append(("page", page.strip()))
     if message.strip():
@@ -8516,10 +8503,26 @@ async def work_order_request_approval(
     d1_partner_id: str = Form(""),
     filter_status: str = Form(""),
     page: str = Form(""),
+    q: str = Form(""),
+    filter_priority: str = Form(""),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
+    d1_view: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     """D-1(협력사): 예정일 지정 후 시설섹션으로 승인요청."""
+    keep = dict(
+        d1_board=d1_board,
+        d1_partner_id=d1_partner_id,
+        filter_status=filter_status,
+        page=page,
+        q=q,
+        priority=filter_priority,
+        date_from=date_from,
+        date_to=date_to,
+        view=d1_view,
+    )
     wo = await db.get(WorkOrder, wo_id)
     if not wo or not wo.is_active:
         raise HTTPException(404)
@@ -8527,39 +8530,17 @@ async def work_order_request_approval(
         db, wo, partner_id=partner_id, scheduled_date=scheduled_date
     )
     if not wo.partner_id:
-        return _d1_redirect(
-            d1_board=d1_board,
-            d1_partner_id=d1_partner_id,
-            filter_status=filter_status,
-            page=page,
-            error="업체가 지정되지 않았습니다.",
-        )
+        return _d1_redirect(**keep, error="업체가 지정되지 않았습니다.")
     if not wo.scheduled_date:
-        return _d1_redirect(
-            d1_board=d1_board,
-            d1_partner_id=d1_partner_id,
-            filter_status=filter_status,
-            page=page,
-            error="예정일을 지정한 뒤 작업허가 승인요청하세요.",
-        )
+        return _d1_redirect(**keep, error="예정일을 지정한 뒤 작업허가 승인요청하세요.")
     if getattr(wo, "approval_requested", False):
-        return _d1_redirect(
-            d1_board=d1_board,
-            d1_partner_id=d1_partner_id,
-            filter_status=filter_status,
-            page=page,
-            message="이미 작업허가 승인요청된 항목입니다.",
-        )
+        return _d1_redirect(**keep, message="이미 작업허가 승인요청된 항목입니다.")
     wo.approval_requested = True
     wo.approval_requested_by = _wo_approver_label(user)
     wo.approval_requested_at = datetime.utcnow()
     await db.commit()
     return _d1_redirect(
-        d1_board=d1_board,
-        d1_partner_id=d1_partner_id,
-        filter_status=filter_status,
-        page=page,
-        message="작업허가 승인요청되었습니다. 시설섹션에서 확인됩니다.",
+        **keep, message="작업허가 승인요청되었습니다. 시설섹션에서 확인됩니다."
     )
 
 
@@ -8570,10 +8551,26 @@ async def d1_request_approval_bulk(
     d1_partner_id: str = Form(""),
     filter_status: str = Form(""),
     page: str = Form(""),
+    q: str = Form(""),
+    filter_priority: str = Form(""),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
+    d1_view: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
     """D-1(협력사): 선택 항목 일괄 승인요청."""
+    keep = dict(
+        d1_board=d1_board,
+        d1_partner_id=d1_partner_id,
+        filter_status=filter_status,
+        page=page,
+        q=q,
+        priority=filter_priority,
+        date_from=date_from,
+        date_to=date_to,
+        view=d1_view,
+    )
     form = await request.form()
     raw_ids = form.getlist("wo_ids")
     ids: list[int] = []
@@ -8590,13 +8587,7 @@ async def d1_request_approval_bulk(
         seen.add(i)
         uniq.append(i)
     if not uniq:
-        return _d1_redirect(
-            d1_board=d1_board,
-            d1_partner_id=d1_partner_id,
-            filter_status=filter_status,
-            page=page,
-            error="작업허가 승인요청할 항목을 선택하세요.",
-        )
+        return _d1_redirect(**keep, error="작업허가 승인요청할 항목을 선택하세요.")
 
     label = _wo_approver_label(user)
     now = datetime.utcnow()
@@ -8643,18 +8634,9 @@ async def d1_request_approval_bulk(
     if already:
         parts.append(f"{already}건 이미 요청됨")
     if ok:
-        return _d1_redirect(
-            d1_board=d1_board,
-            d1_partner_id=d1_partner_id,
-            filter_status=filter_status,
-            page=page,
-            message=" · ".join(parts),
-        )
+        return _d1_redirect(**keep, message=" · ".join(parts))
     return _d1_redirect(
-        d1_board=d1_board,
-        d1_partner_id=d1_partner_id,
-        filter_status=filter_status,
-        page=page,
+        **keep,
         error=" · ".join(parts) if parts else "작업허가 승인요청된 항목이 없습니다.",
     )
 
@@ -10522,14 +10504,68 @@ async def _d1_default_partner_redirect(
     return RedirectResponse("/admin/d1?" + urlencode(params), status_code=303)
 
 
+def _d1_text_filter(q: str, priority: str, date_from: str, date_to: str):
+    """D-1 검색어·우선순위·등록일 기간 조건 (정비접수 목록과 같은 기준)."""
+    q_val = (q or "").strip().lower()
+    pri_val = (priority or "").strip()
+    start = end = None
+    try:
+        if (date_from or "").strip():
+            start = datetime.fromisoformat(date_from.strip()).replace(tzinfo=None)
+    except ValueError:
+        start = None
+    try:
+        if (date_to or "").strip():
+            end = datetime.fromisoformat(date_to.strip()).replace(
+                tzinfo=None, hour=23, minute=59, second=59, microsecond=999999
+            )
+    except ValueError:
+        end = None
+
+    def _ok(w: WorkOrder) -> bool:
+        if pri_val in ("normal", "high") and str(
+            getattr(w.priority, "value", w.priority) or ""
+        ) != pri_val:
+            return False
+        created = w.created_at.replace(tzinfo=None) if w.created_at else None
+        if start and (not created or created < start):
+            return False
+        if end and (not created or created > end):
+            return False
+        if q_val:
+            eq = w.equipment
+            hay = " ".join(
+                str(v or "")
+                for v in (
+                    w.title,
+                    w.description,
+                    w.action,
+                    w.assignee_name,
+                    w.requester_name,
+                    eq.code if eq else "",
+                    eq.name if eq else "",
+                )
+            ).lower()
+            if q_val not in hay:
+                return False
+        return True
+
+    return _ok
+
+
 @app.get("/admin/d1")
 async def d1_list(
     request: Request,
     status: list[str] = Query(default=[]),
     view: str = "",
-    partner_id: int = 0,
+    partner_id: str = "",
     board: list[str] = Query(default=[]),
-    page: int = Query(1),
+    page: str = "1",
+    per_page: str = "",
+    q: str = "",
+    priority: str = "",
+    date_from: str = "",
+    date_to: str = "",
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -10537,10 +10573,17 @@ async def d1_list(
     tomorrow = today + timedelta(days=1)
     status_vals = _parse_wo_status_filters(status)
     view_partner = (view or "").strip().lower() == "partner"
-    try:
-        partner_sel = int(partner_id or 0)
-    except (TypeError, ValueError):
-        partner_sel = 0
+    partner_sel = _query_int(partner_id)
+    q = (q or "").strip()
+    priority = priority if priority in ("normal", "high") else ""
+    date_from = (date_from or "").strip()
+    date_to = (date_to or "").strip()
+    text_ok = _d1_text_filter(q, priority, date_from, date_to)
+    per_page_val = _query_int(per_page)
+    if per_page_val not in WO_PAGE_SIZES:
+        per_page_val = _query_int(request.cookies.get("d1_per_page"))
+    if per_page_val not in WO_PAGE_SIZES:
+        per_page_val = LIST_PAGE_SIZE
 
     scope_redir = _d1_partner_scope_redirect(
         user, partner_sel, status=status, board=board
@@ -10617,7 +10660,11 @@ async def d1_list(
         await db.commit()
 
     def _apply_status(items: list) -> list:
-        return [w for w in items if _wo_matches_status_filter(w, status_vals)]
+        return [
+            w
+            for w in items
+            if _wo_matches_status_filter(w, status_vals) and text_ok(w)
+        ]
 
     def _apply_partner(items: list) -> list:
         if not partner_sel:
@@ -10665,6 +10712,21 @@ async def d1_list(
         "completed": "정비완료항목",
     }
     board_select_urls = _d1_board_select_urls(status_vals, partner_sel)
+    from urllib.parse import urlencode as _urlencode
+
+    extra_params = [
+        (k, v)
+        for k, v in (
+            ("q", q),
+            ("priority", priority),
+            ("date_from", date_from),
+            ("date_to", date_to),
+        )
+        if v
+    ]
+    if extra_params:
+        extra_qs = _urlencode(extra_params)
+        board_select_urls = {k: f"{u}&{extra_qs}" for k, u in board_select_urls.items()}
 
     selected_works: list = []
     seen_ids: set[int] = set()
@@ -10721,7 +10783,7 @@ async def d1_list(
             if partner_sel != 0:
                 by_partner[name] = _sort_orders_today_receipt_first(by_partner[name], today)
             flat_orders.extend(by_partner[name])
-        pager = _paginate(flat_orders, page)
+        pager = _paginate(flat_orders, page, per_page_val)
         page_ids = {int(w.id) for w in pager["items"]}
         for name in ordered_names:
             items = by_partner[name]
@@ -10740,7 +10802,7 @@ async def d1_list(
             )
         board_orders = pager["items"]
     elif boards:
-        pager = _paginate(selected_works, page)
+        pager = _paginate(selected_works, page, per_page_val)
         board_orders = pager["items"]
         # 페이지에 포함된 항목만 구분해 섹션 표시 (전체항목일 때 유형별 묶음)
         if board_mode == "all":
@@ -10791,7 +10853,7 @@ async def d1_list(
                 }
             )
     else:
-        pager = _paginate([], page)
+        pager = _paginate([], page, per_page_val)
         board_orders = []
 
     partner_counts: dict[int, int] = {}
@@ -10814,6 +10876,22 @@ async def d1_list(
     if partner_sel > 0:
         await mark_maint_seen(db, user.id, "d1_partner", partner_id=partner_sel)
         await db.commit()
+
+    default_board = "receipt" if partner_sel else "today"
+    list_params: list[tuple[str, str]] = (
+        [("view", "partner")]
+        if view_partner
+        else [("board", board_mode or default_board)]
+    )
+    list_params.extend(("status", s) for s in status_vals)
+    if partner_sel:
+        list_params.append(("partner_id", str(partner_sel)))
+    list_params.extend(extra_params)
+    page_base = "/admin/d1?" + _urlencode(list_params) + "&page="
+    reset_params: list[tuple[str, str]] = [("board", board_mode or default_board)]
+    if partner_sel:
+        reset_params.append(("partner_id", str(partner_sel)))
+    reset_url = "/admin/d1?" + _urlencode(reset_params)
 
     return templates.TemplateResponse(
         request,
@@ -10851,7 +10929,14 @@ async def d1_list(
                 "board": board_mode,
                 "board_mode": board_mode,
                 "page": pager["page"] if pager else 1,
+                "q": q,
+                "priority": priority,
+                "date_from": date_from,
+                "date_to": date_to,
             },
+            "page_base": page_base,
+            "reset_url": reset_url,
+            "page_sizes": WO_PAGE_SIZES,
             "partners": partners,
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
@@ -10864,8 +10949,12 @@ async def d1_export(
     request: Request,
     status: list[str] = Query(default=[]),
     view: str = "",
-    partner_id: int = 0,
+    partner_id: str = "",
     board: list[str] = Query(default=[]),
+    q: str = "",
+    priority: str = "",
+    date_from: str = "",
+    date_to: str = "",
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -10874,10 +10963,8 @@ async def d1_export(
     tomorrow = today + timedelta(days=1)
     status_vals = _parse_wo_status_filters(status)
     view_partner = (view or "").strip().lower() == "partner"
-    try:
-        partner_sel = int(partner_id or 0)
-    except (TypeError, ValueError):
-        partner_sel = 0
+    partner_sel = _query_int(partner_id)
+    text_ok = _d1_text_filter(q, priority, date_from, date_to)
 
     scope_redir = _d1_partner_scope_redirect(
         user, partner_sel, status=status, board=board
@@ -10940,7 +11027,7 @@ async def d1_export(
     ).scalars().unique().all()
 
     def _ok(w: WorkOrder) -> bool:
-        if not _wo_matches_status_filter(w, status_vals):
+        if not _wo_matches_status_filter(w, status_vals) or not text_ok(w):
             return False
         pid = int(w.partner_id or 0)
         if partner_sel == -1 and pid != 0:

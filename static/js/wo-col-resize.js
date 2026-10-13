@@ -130,7 +130,7 @@
       Array.prototype.forEach.call(ths, function (th, i) {
         if (isHidden(i)) widths[i] = clamp(parseInt(th.getAttribute('data-col-w') || '', 10) || 120);
       });
-      if (share === 'follow') {
+      if (share === 'follow' && !version) {
         keys.forEach(function (k, i) {
           if (FOLLOW_DEFAULTS[k]) widths[i] = FOLLOW_DEFAULTS[k];
         });
