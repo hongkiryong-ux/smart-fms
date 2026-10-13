@@ -416,10 +416,22 @@ async def user_own_partner_id(db: AsyncSession, user: User | None) -> int | None
     return None
 
 
+NAV_HIDDEN_PARTNER_NAMES = {"포스코와이드", "poscowide"}
+
+
+def _nav_partner_hidden(name: str | None) -> bool:
+    key = (name or "").replace("(주)", "").replace("㈜", "").replace("주식회사", "")
+    key = "".join(key.split()).casefold()
+    return key in NAV_HIDDEN_PARTNER_NAMES
+
+
 def filter_nav_partners_for_user(user: User | None, partners: list[dict]) -> list[dict]:
-    """사이드바 D-1 협력사 목록 — 협력사 제한 시 내 회사만."""
+    """사이드바 D-1 협력사 목록 — 협력사 제한 시 내 회사만.
+
+    포스코와이드는 메뉴에서만 감춘다(업체·정비 데이터와 D-1 화면 선택지는 그대로).
+    """
     if not d1_partner_nav_restricted(user):
-        return partners
+        return [p for p in partners if not _nav_partner_hidden(p.get("name"))]
     if user is None:
         return []
     if user.partner_id:
