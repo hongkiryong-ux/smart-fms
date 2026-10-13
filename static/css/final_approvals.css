@@ -121,6 +121,12 @@
   border-color: #b9cdf3;
 }
 
+/* 일괄 처리 줄 (선택 전에는 버튼 비활성) */
+.fa-bulk .wo2-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* 반려 */
 .fa-btn-red-line {
   color: #d92d2d;

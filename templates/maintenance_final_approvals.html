@@ -3,7 +3,7 @@
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
 <link rel="stylesheet" href="/static/css/d1_plans.css?v=1" />
-<link rel="stylesheet" href="/static/css/final_approvals.css?v=1" />
+<link rel="stylesheet" href="/static/css/final_approvals.css?v=2" />
 <link rel="stylesheet" href="/static/css/maint_scope.css?v=1" />
 {% endblock %}
 {% import "_maint_scope.html" as ms %}
@@ -132,12 +132,13 @@
   <form id="final-approval-bulk-form" method="post" action="{{ base }}/approve-selected">
     {{ keep_fa() }}
   </form>
-  <div class="wo-bulk-bar wo2-bulk" id="final-approval-bulk-bar" hidden>
+  {% set has_pending = orders|selectattr('completion_approval_pending')|list|length > 0 %}
+  <div class="wo-bulk-bar wo2-bulk fa-bulk" id="final-approval-bulk-bar"{% if not has_pending %} hidden{% endif %}>
     <span class="wo-bulk-count">선택 <strong id="final-approval-count">0</strong>건</span>
-    <span class="wo-bulk-hint">완료 내용과 조치내용을 확인한 뒤 승인하세요.</span>
+    <span class="wo-bulk-hint" id="fa-bulk-hint">승인대기 항목을 체크(맨 위 체크박스는 전체 선택)한 뒤 일괄 최종승인하세요.</span>
     <button type="submit" form="final-approval-bulk-form" class="wo2-btn wo2-btn-blue" id="final-approval-submit" disabled>선택 항목 일괄 최종승인</button>
-    <button type="button" class="wo2-btn wo2-btn-line fa-btn-red-line" id="fa-bulk-reject">선택 항목 반려</button>
-    <button type="button" class="wo2-btn wo2-btn-line" id="fa-bulk-clear">선택 해제</button>
+    <button type="button" class="wo2-btn wo2-btn-line fa-btn-red-line" id="fa-bulk-reject" disabled>선택 항목 반려</button>
+    <button type="button" class="wo2-btn wo2-btn-line" id="fa-bulk-clear" disabled>선택 해제</button>
   </div>
   {% endif %}
 
@@ -397,8 +398,10 @@
   var checks = Array.prototype.slice.call(document.querySelectorAll('.final-approval-row-check'));
   var count = document.getElementById('final-approval-count');
   var submit = document.getElementById('final-approval-submit');
-  var bulkBar = document.getElementById('final-approval-bulk-bar');
   var form = document.getElementById('final-approval-bulk-form');
+  var bulkReject = document.getElementById('fa-bulk-reject');
+  var clearBtn = document.getElementById('fa-bulk-clear');
+  var bulkHint = document.getElementById('fa-bulk-hint');
 
   function selectedChecks() {
     return checks.filter(function (item) { return item.checked; });
@@ -406,8 +409,12 @@
   function syncSelection() {
     var selected = selectedChecks().length;
     if (count) count.textContent = String(selected);
-    if (submit) submit.disabled = selected < 1;
-    if (bulkBar) bulkBar.hidden = selected < 1;
+    [submit, bulkReject, clearBtn].forEach(function (b) { if (b) b.disabled = selected < 1; });
+    if (bulkHint) {
+      bulkHint.textContent = selected
+        ? '완료 내용과 조치내용을 확인한 뒤 승인하세요.'
+        : '승인대기 항목을 체크(맨 위 체크박스는 전체 선택)한 뒤 일괄 최종승인하세요.';
+    }
     if (selectAll) {
       selectAll.checked = checks.length > 0 && selected === checks.length;
       selectAll.indeterminate = selected > 0 && selected < checks.length;
@@ -438,7 +445,6 @@
       if (!confirm('이 항목을 정비완료로 최종승인할까요?')) event.preventDefault();
     });
   });
-  var clearBtn = document.getElementById('fa-bulk-clear');
   if (clearBtn) {
     clearBtn.addEventListener('click', function () {
       checks.forEach(function (c) { c.checked = false; });
@@ -470,7 +476,6 @@
       openReject([btn.getAttribute('data-wo-id')], '대상: ' + (btn.getAttribute('data-label') || ''));
     });
   });
-  var bulkReject = document.getElementById('fa-bulk-reject');
   if (bulkReject) {
     bulkReject.addEventListener('click', function () {
       var ids = selectedChecks().map(function (c) { return c.value; });
