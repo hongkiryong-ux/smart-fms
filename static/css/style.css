@@ -4751,6 +4751,7 @@ body.users-col-resizing {
   color: #047857;
   font-weight: 600;
 }
+.process-done-msg.wo-reject-msg { color: #c62828; }
 
 /* 정비 목록 — 항목당 한 줄 */
 .wo-list-head {

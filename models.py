@@ -1315,6 +1315,11 @@ class WorkOrder(Base):
     completion_requested_at = Column(DateTime, nullable=True)
     completion_approved_by = Column(String(100), nullable=True)
     completion_approved_at = Column(DateTime, nullable=True)
+    # 최종승인 반려 → 진행으로 되돌려 협력사가 다시 완료요청
+    completion_rejected = Column(Boolean, default=False)
+    completion_rejected_by = Column(String(100), nullable=True)
+    completion_rejected_at = Column(DateTime, nullable=True)
+    completion_reject_reason = Column(Text, nullable=True)
     # 협력사별 엑셀(시트명=업체명) 잠재위험·안전대책
     hazard_content = Column(Text, nullable=True)
     safety_measures = Column(Text, nullable=True)

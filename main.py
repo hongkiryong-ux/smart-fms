@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -8037,9 +8037,11 @@ async def work_order_status(
         wo.completion_requested_at = now
         wo.completion_approved_by = None
         wo.completion_approved_at = None
+        wo.completion_rejected = False
         wo.completed_at = None
     elif status == "completed":
         wo.completion_approval_pending = False
+        wo.completion_rejected = False
         wo.completed_at = now
         await _ensure_maintenance_history(db, wo)
     elif status != "completed":
@@ -8047,8 +8049,10 @@ async def work_order_status(
         if status in ("received", "in_progress"):
             wo.completed_at = None
             wo.completion_approval_pending = False
-            wo.completion_requested_by = None
-            wo.completion_requested_at = None
+            # 반려 건은 최종승인 화면 「반려」 탭에 요청자·요청일시를 남긴다
+            if not getattr(wo, "completion_rejected", False):
+                wo.completion_requested_by = None
+                wo.completion_requested_at = None
             wo.completion_approved_by = None
             wo.completion_approved_at = None
 
@@ -8667,10 +8671,12 @@ async def work_order_advance(
             wo.completion_requested_at = now
             wo.completion_approved_by = None
             wo.completion_approved_at = None
+            wo.completion_rejected = False
             wo.completed_at = None
         else:
             wo.status = WorkOrderStatus.completed
             wo.completion_approval_pending = False
+            wo.completion_rejected = False
             wo.completed_at = now
             await _ensure_maintenance_history(db, wo)
     await db.commit()
@@ -8685,14 +8691,205 @@ def _can_access_completion_approval(user: User) -> bool:
     )
 
 
+FA_BASE = "/admin/maintenance-final-approvals"
+FA_TABS = ("all", "pending", "done", "rejected")
+FA_KEEP_KEYS = ("tab", "q", "partner_id", "date_from", "date_to")
+
+
+def _fa_filters(
+    tab: str = "",
+    q: str = "",
+    partner_id: str | int = "",
+    date_from: str = "",
+    date_to: str = "",
+) -> dict:
+    def _iso(raw: str) -> str:
+        try:
+            return date.fromisoformat((raw or "").strip()).isoformat()
+        except ValueError:
+            return ""
+
+    tab = (tab or "").strip()
+    return {
+        "tab": tab if tab in FA_TABS else "pending",
+        "q": (q or "").strip()[:100],
+        "partner_id": _query_int(str(partner_id or "")),
+        "date_from": _iso(date_from),
+        "date_to": _iso(date_to),
+    }
+
+
+def _fa_keep_qs(f: dict, *, with_tab: bool = True) -> str:
+    pairs = []
+    for k in FA_KEEP_KEYS:
+        if k == "tab" and not with_tab:
+            continue
+        v = f.get(k)
+        if v:
+            pairs.append((k, str(v)))
+    return urlencode(pairs)
+
+
+def _fa_state(wo: WorkOrder) -> str:
+    if getattr(wo, "completion_approval_pending", False):
+        return "pending"
+    if getattr(wo, "completion_rejected", False):
+        return "rejected"
+    return "done"
+
+
+def _fa_kst_date(dt: datetime | None) -> date | None:
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(KST).date()
+
+
+async def _fa_board_data(db: AsyncSession, f: dict) -> dict:
+    """최종승인 화면 목록: 승인대기 + 최종승인 이력 + 반려."""
+    stmt = (
+        select(WorkOrder)
+        .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
+        .outerjoin(Partner, WorkOrder.partner_id == Partner.id)
+        .where(
+            WorkOrder.is_active == True,  # noqa: E712
+            or_(
+                WorkOrder.completion_approval_pending == True,  # noqa: E712
+                WorkOrder.completion_rejected == True,  # noqa: E712
+                WorkOrder.completion_approved_at.is_not(None),
+            ),
+        )
+        .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
+    )
+    if f["q"]:
+        like = f"%{f['q']}%"
+        stmt = stmt.where(
+            or_(
+                WorkOrder.title.ilike(like),
+                WorkOrder.description.ilike(like),
+                WorkOrder.action.ilike(like),
+                WorkOrder.completion_requested_by.ilike(like),
+                Equipment.code.ilike(like),
+                Equipment.name.ilike(like),
+                Partner.name.ilike(like),
+            )
+        )
+    if f["partner_id"]:
+        stmt = stmt.where(WorkOrder.partner_id == f["partner_id"])
+    rows = (await db.execute(stmt)).scalars().unique().all()
+
+    d_from = date.fromisoformat(f["date_from"]) if f["date_from"] else None
+    d_to = date.fromisoformat(f["date_to"]) if f["date_to"] else None
+    if d_from or d_to:
+        def _in_range(wo: WorkOrder) -> bool:
+            d = _fa_kst_date(wo.completion_requested_at)
+            if not d:
+                return False
+            return (not d_from or d >= d_from) and (not d_to or d <= d_to)
+
+        rows = [wo for wo in rows if _in_range(wo)]
+
+    far_past = datetime(1970, 1, 1)
+    pending = sorted(
+        (wo for wo in rows if _fa_state(wo) == "pending"),
+        key=lambda wo: (wo.completion_requested_at or far_past, wo.id),
+    )
+    rejected = sorted(
+        (wo for wo in rows if _fa_state(wo) == "rejected"),
+        key=lambda wo: (wo.completion_rejected_at or far_past, wo.id),
+        reverse=True,
+    )
+    done = sorted(
+        (wo for wo in rows if _fa_state(wo) == "done"),
+        key=lambda wo: (wo.completion_approved_at or far_past, wo.id),
+        reverse=True,
+    )
+    today = _today_kst()
+    week_start = today - timedelta(days=today.weekday())
+    return {
+        "pending": pending,
+        "done": done,
+        "rejected": rejected,
+        "all": pending + rejected + done,
+        "today_requests": sum(
+            1 for wo in rows if _fa_kst_date(wo.completion_requested_at) == today
+        ),
+        "week_approved": sum(
+            1
+            for wo in done
+            if (_fa_kst_date(wo.completion_approved_at) or date.min) >= week_start
+        ),
+    }
+
+
+def _fa_excel_response(orders: list):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment
+
+    labels = {"pending": "승인대기", "done": "승인완료", "rejected": "반려"}
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "정비완료 최종승인"
+    ws.append(
+        [
+            "설비코드", "설비명", "정비내용", "협력사", "조치내용", "완료 요청자",
+            "요청일시", "작업허가", "진행상태", "최종승인자", "최종승인일시",
+            "반려자", "반려일시", "반려사유",
+        ]
+    )
+    for wo in orders:
+        eq = wo.equipment
+        state = _fa_state(wo)
+        ws.append(
+            [
+                eq.code if eq else "",
+                eq.name if eq else "",
+                (wo.description or wo.title or "").strip(),
+                wo.partner.name if wo.partner else "",
+                wo.action or "",
+                wo.completion_requested_by or "",
+                _fmt_kst(wo.completion_requested_at) if wo.completion_requested_at else "",
+                "허가완료" if wo.work_permitted else "",
+                labels[state],
+                wo.completion_approved_by or "" if state == "done" else "",
+                _fmt_kst(wo.completion_approved_at)
+                if state == "done" and wo.completion_approved_at
+                else "",
+                wo.completion_rejected_by or "" if state == "rejected" else "",
+                _fmt_kst(wo.completion_rejected_at)
+                if state == "rejected" and wo.completion_rejected_at
+                else "",
+                wo.completion_reject_reason or "" if state == "rejected" else "",
+            ]
+        )
+        ws.cell(row=ws.max_row, column=14).alignment = Alignment(wrap_text=True, vertical="top")
+    for col, width in (("C", 36), ("E", 30), ("N", 36)):
+        ws.column_dimensions[col].width = width
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
+    filename = quote(f"정비완료최종승인_{stamp}.xlsx")
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
 def _completion_approval_redirect(
     *,
     q: str = "",
     page: int | str = 1,
     message: str = "",
     error: str = "",
+    keep: str = "",
 ) -> RedirectResponse:
     params: dict[str, str] = {}
+    for k, v in parse_qsl(keep or ""):
+        if k in FA_KEEP_KEYS and v:
+            params[k] = v
     if q.strip():
         params["q"] = q.strip()
     try:
@@ -8715,46 +8912,33 @@ def _completion_approval_redirect(
 @app.get("/admin/maintenance-final-approvals")
 async def maintenance_final_approvals(
     request: Request,
+    tab: str = "",
     q: str = "",
-    page: int = Query(1),
+    partner_id: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    page: str = "1",
+    per_page: str = "",
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    """협력사가 완료 요청한 정비의 최종승인 목록."""
+    """협력사가 완료 요청한 정비의 최종승인 목록 (승인대기·승인완료·반려)."""
     if not _can_access_completion_approval(user):
         raise HTTPException(403, "정비완료 최종승인 메뉴 접근 권한이 없습니다.")
 
-    q_value = q.strip()
-    stmt = (
-        select(WorkOrder)
-        .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
-        .where(
-            WorkOrder.is_active == True,  # noqa: E712
-            WorkOrder.completion_approval_pending == True,  # noqa: E712
-        )
-        .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
-    )
-    if q_value:
-        like = f"%{q_value}%"
-        stmt = stmt.where(
-            or_(
-                WorkOrder.title.ilike(like),
-                WorkOrder.description.ilike(like),
-                WorkOrder.action.ilike(like),
-                WorkOrder.completion_requested_by.ilike(like),
-                Equipment.code.ilike(like),
-                Equipment.name.ilike(like),
-            )
-        )
-    pending_orders = (
+    f = _fa_filters(tab, q, partner_id, date_from, date_to)
+    data = await _fa_board_data(db, f)
+    per_page_val = _query_int(per_page)
+    if per_page_val not in WO_PAGE_SIZES:
+        per_page_val = _query_int(request.cookies.get("fa_per_page"))
+    if per_page_val not in WO_PAGE_SIZES:
+        per_page_val = LIST_PAGE_SIZE
+    pager = _paginate(data[f["tab"]], page, per_page_val)
+    partners = (
         await db.execute(
-            stmt.order_by(
-                WorkOrder.completion_requested_at.asc().nullsfirst(),
-                WorkOrder.id.asc(),
-            )
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)  # noqa: E712
         )
-    ).scalars().unique().all()
-    pager = _paginate(list(pending_orders), page)
+    ).scalars().all()
     return templates.TemplateResponse(
         request,
         "maintenance_final_approvals.html",
@@ -8762,11 +8946,129 @@ async def maintenance_final_approvals(
             "user": user,
             "orders": pager["items"],
             "pager": pager,
-            "q": q_value,
+            "filters": f,
+            "tab": f["tab"],
+            "q": f["q"],
+            "keep_qs": _fa_keep_qs(f),
+            "filter_qs": _fa_keep_qs(f, with_tab=False),
+            "counts": {
+                "pending": len(data["pending"]),
+                "done": len(data["done"]),
+                "rejected": len(data["rejected"]),
+                "all": len(data["all"]),
+                "today_requests": data["today_requests"],
+                "week_approved": data["week_approved"],
+            },
+            "partners": partners,
+            "page_sizes": WO_PAGE_SIZES,
+            "today_iso": _today_kst().isoformat(),
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
         },
     )
+
+
+@app.get("/admin/maintenance-final-approvals/export")
+async def maintenance_final_approvals_export(
+    tab: str = "",
+    q: str = "",
+    partner_id: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    if not _can_access_completion_approval(user):
+        raise HTTPException(403, "정비완료 최종승인 메뉴 접근 권한이 없습니다.")
+    f = _fa_filters(tab, q, partner_id, date_from, date_to)
+    data = await _fa_board_data(db, f)
+    return _fa_excel_response(data[f["tab"]])
+
+
+def _fa_form_ids(form) -> list[int]:
+    ids: list[int] = []
+    for raw in form.getlist("wo_ids"):
+        try:
+            wo_id = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if wo_id > 0 and wo_id not in ids:
+            ids.append(wo_id)
+    return ids
+
+
+@app.post("/admin/maintenance-final-approvals/reject-selected")
+async def maintenance_final_reject_selected(
+    request: Request,
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """완료 요청 반려: 최종승인 대기에서 빼고 진행으로 되돌려 협력사가 다시 완료요청하게 한다."""
+    if not _can_access_completion_approval(user):
+        raise HTTPException(403, "정비완료 최종승인 권한이 없습니다.")
+    form = await request.form()
+    keep = str(form.get("fa_keep") or "")
+    page = str(form.get("page") or "1")
+    reason = str(form.get("reason") or "").strip()[:1000]
+    ids = _fa_form_ids(form)
+    if not ids:
+        return _completion_approval_redirect(keep=keep, page=page, error="반려할 항목을 선택하세요.")
+    if not reason:
+        return _completion_approval_redirect(keep=keep, page=page, error="반려 사유를 입력하세요.")
+
+    now = datetime.utcnow()
+    rejecter = _wo_approver_label(user)
+    done = 0
+    for wo_id in ids:
+        wo = await db.get(WorkOrder, wo_id)
+        if not wo or not wo.is_active or not getattr(wo, "completion_approval_pending", False):
+            continue
+        wo.completion_approval_pending = False
+        wo.completion_rejected = True
+        wo.completion_rejected_by = rejecter
+        wo.completion_rejected_at = now
+        wo.completion_reject_reason = reason
+        wo.status = WorkOrderStatus.in_progress
+        wo.completed_at = None
+        done += 1
+    if not done:
+        return _completion_approval_redirect(
+            keep=keep,
+            page=page,
+            error="선택한 항목이 이미 처리되었거나 최종승인 대기 상태가 아닙니다.",
+        )
+    await db.commit()
+    message = f"{done}건의 완료요청을 반려했습니다. (진행상태 '진행'으로 되돌림)"
+    if done < len(ids):
+        message += f" ({len(ids) - done}건은 이미 처리되어 제외)"
+    return _completion_approval_redirect(keep=keep, page=page, message=message)
+
+
+@app.post("/admin/maintenance-final-approvals/{wo_id}/save")
+async def maintenance_final_save_action(
+    wo_id: int,
+    action: str = Form(""),
+    fa_keep: str = Form(""),
+    page: str = Form("1"),
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """최종승인 화면에서 조치내용 수정."""
+    if not _can_access_completion_approval(user):
+        raise HTTPException(403, "정비완료 최종승인 권한이 없습니다.")
+    wo = await db.get(WorkOrder, wo_id)
+    if not wo or not wo.is_active:
+        raise HTTPException(404)
+    wo.action = action.strip() or None
+    record = (
+        await db.execute(
+            select(MaintenanceRecord).where(MaintenanceRecord.work_order_id == wo.id)
+        )
+    ).scalar_one_or_none()
+    if record and not record.is_manual:
+        record.action = wo.action
+    await db.commit()
+    return _completion_approval_redirect(keep=fa_keep, page=page, message="조치내용을 저장했습니다.")
 
 
 @app.post("/admin/maintenance-final-approvals/approve-selected")
@@ -8781,20 +9083,13 @@ async def maintenance_final_approval_selected(
 
     form = await request.form()
     q = str(form.get("q") or "")
+    keep = str(form.get("fa_keep") or "")
     page = str(form.get("page") or "1")
-    selected_ids: list[int] = []
-    seen: set[int] = set()
-    for raw in form.getlist("wo_ids"):
-        try:
-            work_order_id = int(raw)
-        except (TypeError, ValueError):
-            continue
-        if work_order_id > 0 and work_order_id not in seen:
-            seen.add(work_order_id)
-            selected_ids.append(work_order_id)
+    selected_ids = _fa_form_ids(form)
     if not selected_ids:
         return _completion_approval_redirect(
             q=q,
+            keep=keep,
             page=page,
             error="최종승인할 항목을 선택하세요.",
         )
@@ -8823,6 +9118,7 @@ async def maintenance_final_approval_selected(
     if not approved_count:
         return _completion_approval_redirect(
             q=q,
+            keep=keep,
             page=page,
             error="선택한 항목이 이미 처리되었거나 최종승인 대기 상태가 아닙니다.",
         )
@@ -8832,6 +9128,7 @@ async def maintenance_final_approval_selected(
         message += f" ({skipped_count}건은 이미 처리되어 제외)"
     return _completion_approval_redirect(
         q=q,
+        keep=keep,
         page=page,
         message=message,
     )

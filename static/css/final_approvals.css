@@ -1,0 +1,171 @@
+/* 정비완료 최종승인 — work_orders.css·d1_plans.css 위에 덧씌움 */
+
+.fa-kpis .k-total .wo2-kpi-ico { background: #e3edff; color: #1d5fd6; }
+
+.fa-tabs {
+  margin: 0;
+  padding: 0;
+  border-top: none;
+}
+.fa-tabs .d1-tab {
+  height: 36px;
+  padding: 0 1rem;
+  border-radius: 999px;
+}
+.fa-card .wo2-list-head {
+  align-items: center;
+}
+
+/* 표 열 너비 (d1_plans.css 값보다 우선) */
+.fa-list-table th.c-sel,
+.fa-list-table th.c-no { width: 40px; }
+.fa-list-table th.c-view { width: 56px; }
+.fa-list-table th.c-eq { width: 144px; }
+.fa-list-table th.c-req { width: 150px; }
+.fa-list-table th.c-partner { width: 84px; }
+.fa-list-table th.c-action { width: 150px; }
+.fa-list-table th.c-person { width: 68px; }
+.fa-list-table th.c-time { width: 112px; }
+.fa-list-table th.c-permit { width: 74px; }
+.fa-list-table th.c-state { width: 74px; }
+.fa-list-table th.c-btn { width: 52px; }
+.fa-list-table th.c-final { width: 70px; }
+.fa-list-table th.c-reject { width: 56px; }
+.fa-list-table th.c-detail { width: 44px; }
+.fa-list-table td.c-eq,
+.fa-list-table td.c-partner,
+.fa-list-table td.c-action {
+  text-overflow: ellipsis;
+}
+.fa-list-table td.c-time {
+  font-size: 0.78rem;
+  color: #374151;
+}
+.fa-list-table .d1-eq-code {
+  text-decoration: none;
+}
+.fa-list-table .d1-eq-code:hover {
+  text-decoration: underline;
+}
+.fa-list-table tr.fa-row-done td {
+  background: #f6fbf8;
+}
+.fa-list-table tbody tr.fa-row-done:hover td {
+  background: #eef7f2;
+}
+.fa-list-table tr.is-dirty td.c-action {
+  box-shadow: inset 0 -2px 0 #f0a020;
+}
+
+.fa-action-input {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  padding: 0 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  color: #1f2937;
+  text-overflow: ellipsis;
+}
+.fa-action-input:hover,
+.fa-action-input:focus {
+  border-color: #d6dbe3;
+  background: #fff;
+}
+
+/* 작업허가·진행상태 배지 */
+.fa-chip {
+  display: inline-block;
+  padding: 0.18rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.fa-chip.c-ok { background: #dcf5e6; color: #15803d; }
+.fa-chip.c-wait { background: #fff1de; color: #d9770a; }
+.fa-chip.c-rej { background: #fde4e4; color: #d92d2d; }
+
+/* 빈 목록 안내 */
+.fa-list-table td.fa-empty-cell {
+  height: auto;
+  padding: 2.6rem 1rem !important;
+  white-space: normal;
+}
+.fa-list-table tbody tr:hover td.fa-empty-cell {
+  background: #fff;
+}
+.fa-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  color: #6b7280;
+  font-size: 0.86rem;
+}
+.fa-empty > svg {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 0.3rem;
+}
+.fa-empty strong {
+  color: #111827;
+  font-size: 1rem;
+}
+.fa-empty-btn {
+  margin-top: 0.6rem;
+  color: #1d5fd6;
+  border-color: #b9cdf3;
+}
+
+/* 반려 */
+.fa-btn-red-line {
+  color: #d92d2d;
+  border-color: #f2b8b8;
+}
+.fa-btn-red {
+  background: #e53935;
+  color: #fff;
+  border: none;
+}
+.fa-btn-red:hover {
+  background: #c62828;
+}
+.fa-reject-dialog {
+  width: min(520px, calc(100vw - 2rem));
+}
+.fa-reject-dialog .eq-dialog-top {
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.9rem 1.1rem 0.7rem;
+  border-bottom: 1px solid #eef0f3;
+}
+.fa-reject-dialog .eq-dialog-top strong {
+  font-size: 1rem;
+}
+.fa-reject-dialog .eq-popup-body {
+  padding: 0.9rem 1.1rem 1.1rem;
+}
+.fa-reject-dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.fa-reject-target {
+  margin: 0 0 0.4rem;
+  font-weight: 700;
+  color: #111827;
+  word-break: break-all;
+}
+.fa-reject-lead {
+  margin: 0 0 0.8rem;
+  font-size: 0.84rem;
+}
+.fa-reject-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}

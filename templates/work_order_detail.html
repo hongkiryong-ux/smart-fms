@@ -45,6 +45,13 @@
       <span class="step-label">정비완료</span>
     </li>
   </ol>
+  {% if wo.completion_rejected and not wo.completion_approval_pending %}
+  <p class="process-done-msg wo-reject-msg">
+    정비완료 요청이 반려되었습니다{% if wo.completion_reject_reason %} — 사유: {{ wo.completion_reject_reason }}{% endif %}
+    ({{ wo.completion_rejected_by or '-' }}{% if wo.completion_rejected_at %} · {{ fmt_kst(wo.completion_rejected_at) }}{% endif %}).
+    보완 후 다시 완료 요청해 주세요.
+  </p>
+  {% endif %}
   {% if wo.completion_approval_pending %}
   <p class="process-done-msg">
     협력사가 정비완료를 요청했습니다. 시설섹션 또는 정비섹션의 최종승인을 기다리고 있습니다.
@@ -88,6 +95,10 @@
       {% if wo.completion_approved_at %}
       <dt>최종승인</dt>
       <dd>{{ wo.completion_approved_by or '-' }} · {{ fmt_kst(wo.completion_approved_at) }}</dd>
+      {% endif %}
+      {% if wo.completion_rejected and wo.completion_rejected_at %}
+      <dt>완료 반려</dt>
+      <dd>{{ wo.completion_rejected_by or '-' }} · {{ fmt_kst(wo.completion_rejected_at) }}{% if wo.completion_reject_reason %} · {{ wo.completion_reject_reason }}{% endif %}</dd>
       {% endif %}
       <dt>작업 승인자</dt>
       <dd>

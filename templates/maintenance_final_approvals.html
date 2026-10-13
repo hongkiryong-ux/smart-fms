@@ -1,136 +1,416 @@
 {% extends "base.html" %}
 {% block title %}정비완료 최종승인{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
+<link rel="stylesheet" href="/static/css/d1_plans.css?v=1" />
+<link rel="stylesheet" href="/static/css/final_approvals.css?v=1" />
+{% endblock %}
+
+{% macro keep_fa() -%}
+<input type="hidden" name="fa_keep" value="{{ keep_qs }}" />
+<input type="hidden" name="page" value="{{ pager.page }}" />
+{%- endmacro %}
+
 {% block content %}
-<header class="page-header">
-  <h1>정비완료 최종승인</h1>
-  <p>협력사가 완료 요청한 정비를 선택하여 한 번에 최종승인합니다.</p>
+{% set base = '/admin/maintenance-final-approvals' %}
+{% set ftail = ('&' ~ filter_qs) if filter_qs else '' %}
+{% set can_edit = user_can_edit(user) %}
+
+<header class="wo2-head">
+  <div class="wo2-head-title">
+    <h1>정비완료 최종승인</h1>
+    <p>협력사가 완료 요청한 정비를 선택하여 한 번에 최종승인합니다.</p>
+  </div>
+  <div class="wo2-head-right">
+    <nav class="wo2-crumb" aria-label="현재 위치">
+      <a href="/admin/dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z" fill="currentColor"/></svg>Home</a>
+      <span aria-hidden="true">›</span>
+      <span>정비관리</span>
+      <span aria-hidden="true">›</span>
+      <strong>정비완료 최종승인</strong>
+    </nav>
+    <button type="button" class="wo2-help-btn" data-open-dialog="fa-help-dialog"><span aria-hidden="true">?</span> 도움말</button>
+  </div>
 </header>
 
 {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
 {% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
 
-<section class="card card-wide">
-  <div class="wo-list-head">
-    <h2>
-      최종승인 대기
-      <small class="text-muted">({{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small>
-    </h2>
+<section class="wo2-kpis fa-kpis" aria-label="최종승인 현황">
+  <a class="wo2-kpi k-total{% if tab == 'pending' %} is-on{% endif %}" href="{{ base }}?tab=pending{{ ftail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><path d="M7 3.5h10M7 20.5h10M8 3.5c0 4.5 8 4.5 8 8.5s-8 4-8 8.5M16 3.5c0 4.5-8 4.5-8 8.5s8 4 8 8.5"/></svg></span>
+    <span class="wo2-kpi-txt"><span>승인대기</span><b>{{ counts.pending }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-done{% if tab == 'done' %} is-on{% endif %}" href="{{ base }}?tab=done{{ ftail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="m8.5 12.3 2.4 2.4 4.6-4.9"/></svg></span>
+    <span class="wo2-kpi-txt"><span>승인완료</span><b>{{ counts.done }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-rej{% if tab == 'rejected' %} is-on{% endif %}" href="{{ base }}?tab=rejected{{ ftail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="m9 9 6 6M15 9l-6 6"/></svg></span>
+    <span class="wo2-kpi-txt"><span>반려</span><b>{{ counts.rejected }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-prog" href="{{ base }}?tab=all&date_from={{ today_iso }}&date_to={{ today_iso }}" title="오늘 완료요청된 항목 보기">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.5-.5-2.4z"/></svg></span>
+    <span class="wo2-kpi-txt"><span>금일 완료요청</span><b>{{ counts.today_requests }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-sched" href="{{ base }}?tab=done{{ ftail }}" title="이번 주(월~일) 최종승인 건수">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8.5 3v4M15.5 3v4M8 13h2M11 13h2M14 13h2M8 16.5h2M11 16.5h2M14 16.5h2"/></svg></span>
+    <span class="wo2-kpi-txt"><span>이번주 승인</span><b>{{ counts.week_approved }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-recv{% if tab == 'all' %} is-on{% endif %}" href="{{ base }}?tab=all{{ ftail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h4"/></svg></span>
+    <span class="wo2-kpi-txt"><span>전체</span><b>{{ counts.all }}<small>건</small></b></span>
+  </a>
+</section>
+
+<form method="get" action="{{ base }}" class="wo2-filter" id="fa-filter-form">
+  <div class="wo2-search">
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="설비코드·정비내용·협력사·완료요청자 검색" aria-label="검색어" />
+    <button type="submit" aria-label="검색"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
+  </div>
+  <label class="wo2-fl">기간</label>
+  <input type="date" name="date_from" value="{{ filters.date_from }}" class="wo2-date" title="완료요청일 시작" />
+  <span class="wo2-tilde">~</span>
+  <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo2-date" title="완료요청일 종료" />
+  <label class="wo2-fl" for="fa-f-tab">진행상태</label>
+  <select name="tab" id="fa-f-tab" class="wo2-sel">
+    <option value="all"{% if tab == 'all' %} selected{% endif %}>전체</option>
+    <option value="pending"{% if tab == 'pending' %} selected{% endif %}>승인대기</option>
+    <option value="done"{% if tab == 'done' %} selected{% endif %}>승인완료</option>
+    <option value="rejected"{% if tab == 'rejected' %} selected{% endif %}>반려</option>
+  </select>
+  <label class="wo2-fl" for="fa-f-partner">협력사</label>
+  <select name="partner_id" id="fa-f-partner" class="wo2-sel">
+    <option value="">전체</option>
+    {% for p in partners %}
+    <option value="{{ p.id }}"{% if filters.partner_id == p.id %} selected{% endif %}>{{ p.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="wo2-btn wo2-btn-navy">검색</button>
+  <a class="wo2-btn wo2-btn-line" href="{{ base }}?tab={{ tab }}">초기화</a>
+</form>
+
+<section class="wo2-card fa-card">
+  <div class="wo2-list-head">
+    <div class="d1-tabs fa-tabs" role="group" aria-label="진행상태">
+      <a class="d1-tab{% if tab == 'all' %} is-on{% endif %}" href="{{ base }}?tab=all{{ ftail }}">전체 <b>{{ counts.all }}</b></a>
+      <a class="d1-tab{% if tab == 'pending' %} is-on{% endif %}" href="{{ base }}?tab=pending{{ ftail }}">승인대기 <b>{{ counts.pending }}</b></a>
+      <a class="d1-tab{% if tab == 'done' %} is-on{% endif %}" href="{{ base }}?tab=done{{ ftail }}">승인완료 <b>{{ counts.done }}</b></a>
+      <a class="d1-tab{% if tab == 'rejected' %} is-on{% endif %}" href="{{ base }}?tab=rejected{{ ftail }}">반려 <b>{{ counts.rejected }}</b></a>
+    </div>
+    <div class="wo2-list-right">
+      <a class="wo2-btn wo2-btn-line" href="{{ base }}/export?{{ keep_qs }}">
+        <svg class="wo2-xls" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" fill="#1d7a46"/><path d="m8 7.5 8 9M16 7.5l-8 9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+        Excel 내보내기
+      </a>
+      <button type="button" class="wo2-btn wo2-btn-line" onclick="location.reload()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg> 새로고침
+      </button>
+      <select class="wo2-sel" id="fa-per-page" aria-label="페이지당 표시 건수">
+        {% for n in page_sizes %}
+        <option value="{{ n }}"{% if pager.per_page == n %} selected{% endif %}>{{ n }}개씩 보기</option>
+        {% endfor %}
+      </select>
+      <div class="wo2-colset">
+        <button type="button" class="wo2-btn wo2-btn-line" id="fa-colset-btn" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg> 열 설정
+        </button>
+        <div class="wo2-colset-menu" id="fa-colset-menu" hidden>
+          <div class="wo2-colset-title">표시할 열</div>
+          <div id="fa-colset-list"></div>
+          <button type="button" class="wo2-colset-reset" id="fa-colset-reset">기본값으로 (열 너비 포함)</button>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <form method="get" action="/admin/maintenance-final-approvals" class="wo-filter-bar">
-    <input
-      type="search"
-      name="q"
-      value="{{ q }}"
-      placeholder="설비·정비내용·조치내용·완료요청자 검색"
-      class="wo-filter-q"
-    />
-    <button type="submit" class="btn btn-sm btn-primary">검색</button>
-    <a href="/admin/maintenance-final-approvals" class="btn btn-sm btn-secondary">초기화</a>
+  {% if can_edit %}
+  <form id="final-approval-bulk-form" method="post" action="{{ base }}/approve-selected">
+    {{ keep_fa() }}
   </form>
-
-  {% if user_can_edit(user) %}
-  <form id="final-approval-bulk-form" method="post" action="/admin/maintenance-final-approvals/approve-selected">
-    <input type="hidden" name="q" value="{{ q }}" />
-    <input type="hidden" name="page" value="{{ pager.page }}" />
-  </form>
-  <div class="wo-bulk-bar" id="final-approval-bulk-bar">
+  <div class="wo-bulk-bar wo2-bulk" id="final-approval-bulk-bar" hidden>
     <span class="wo-bulk-count">선택 <strong id="final-approval-count">0</strong>건</span>
     <span class="wo-bulk-hint">완료 내용과 조치내용을 확인한 뒤 승인하세요.</span>
-    <button type="submit" form="final-approval-bulk-form" class="btn btn-sm btn-primary" id="final-approval-submit" disabled>
-      선택 항목 일괄 최종승인
-    </button>
+    <button type="submit" form="final-approval-bulk-form" class="wo2-btn wo2-btn-blue" id="final-approval-submit" disabled>선택 항목 일괄 최종승인</button>
+    <button type="button" class="wo2-btn wo2-btn-line fa-btn-red-line" id="fa-bulk-reject">선택 항목 반려</button>
+    <button type="button" class="wo2-btn wo2-btn-line" id="fa-bulk-clear">선택 해제</button>
   </div>
   {% endif %}
 
-  <div class="table-scroll">
-    <table class="data-table wo-list-table">
-      <thead>
-        <tr>
-          <th class="wo-sel-col">
-            {% if user_can_edit(user) %}
-            <input type="checkbox" id="final-approval-select-all" title="현재 페이지 전체 선택" aria-label="현재 페이지 전체 선택" />
-            {% endif %}
-          </th>
-          <th>설비</th>
-          <th>정비내용</th>
-          <th>협력사</th>
-          <th>조치내용</th>
-          <th>완료 요청자</th>
-          <th>요청일시</th>
-          <th>작업허가</th>
-          <th>상세</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for wo in orders %}
-        <tr>
-          <td class="wo-sel-col">
-            {% if user_can_edit(user) %}
-            <input
-              type="checkbox"
-              class="final-approval-row-check"
-              name="wo_ids"
-              value="{{ wo.id }}"
-              form="final-approval-bulk-form"
-              aria-label="{{ wo.description or wo.title }} 선택"
-            />
-            {% endif %}
-          </td>
-          <td class="wo-eq-cell">
-            {% if wo.equipment %}
-            <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
-              <code>{{ wo.equipment.code }}</code>
-              <span class="wo-eq-name">{{ wo.equipment.name }}</span>
-            </div>
-            {% else %}-{% endif %}
-          </td>
-          <td class="wo-req-cell" title="{{ wo.description or wo.title }}">
-            <span class="wo-req-text">{{ wo.description or wo.title }}</span>
-          </td>
-          <td>{{ wo.partner.name if wo.partner else '-' }}</td>
-          <td>{{ wo.action or '-' }}</td>
-          <td>{{ wo.completion_requested_by or '-' }}</td>
-          <td class="wo-date">{{ fmt_kst(wo.completion_requested_at) if wo.completion_requested_at else '-' }}</td>
-          <td>
-            {% if wo.work_permitted %}
-            <span class="badge badge-wo">시설 승인완료</span>
-            {% else %}
-            <span class="text-muted">해당 없음</span>
-            {% endif %}
-          </td>
-          <td><a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
-        </tr>
-        {% else %}
-        <tr><td colspan="9" class="empty">최종승인 대기 중인 정비가 없습니다.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  {% set start_no = (pager.page - 1) * pager.per_page %}
+  <div class="wo2-table-wrap">
+  <table class="wo-list-table wo2-table d1-list-table fa-list-table" id="fa-list-table" data-col-version="fav1">
+    <thead>
+      <tr>
+        <th data-col="_sel" data-col-fixed="1" data-col-label="선택" class="c-sel">
+          {% if can_edit %}<input type="checkbox" id="final-approval-select-all" title="승인대기 전체 선택" aria-label="승인대기 전체 선택" />{% endif %}
+        </th>
+        <th data-col="no" data-col-label="No." class="c-no">No.</th>
+        <th data-col="상세보기" data-col-label="상세(앞)" class="c-view">상세</th>
+        <th data-col="설비코드" data-col-label="설비코드" class="c-eq">설비코드</th>
+        <th data-col="정비내용" data-col-fixed="1" data-col-label="정비내용" class="c-req">정비내용</th>
+        <th data-col="협력사" data-col-label="협력사" class="c-partner">협력사</th>
+        <th data-col="조치내용" data-col-label="조치내용" class="c-action">조치내용</th>
+        <th data-col="완료요청자" data-col-label="완료 요청자" class="c-person">완료<wbr> 요청자</th>
+        <th data-col="요청일시" data-col-label="요청일시" class="c-time">요청일시</th>
+        <th data-col="작업허가" data-col-label="작업허가" class="c-permit">작업허가</th>
+        <th data-col="진행상태" data-col-label="진행상태" class="c-state">진행상태</th>
+        <th data-col="저장" data-col-label="저장" class="c-btn">저장</th>
+        <th data-col="최종승인" data-col-label="최종승인" class="c-final">최종승인</th>
+        <th data-col="반려" data-col-label="반려" class="c-reject">반려</th>
+        <th data-col="상세" data-col-label="상세(뒤)" class="c-detail">상세</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for wo in orders %}
+      {% if wo.completion_approval_pending %}{% set st = 'pending' %}{% elif wo.completion_rejected %}{% set st = 'rejected' %}{% else %}{% set st = 'done' %}{% endif %}
+      <tr class="fa-row-{{ st }}" data-wo-id="{{ wo.id }}">
+        <td class="c-sel">
+          {% if can_edit and st == 'pending' %}
+          <input type="checkbox"
+                 class="final-approval-row-check"
+                 name="wo_ids"
+                 value="{{ wo.id }}"
+                 form="final-approval-bulk-form"
+                 aria-label="{{ wo.description or wo.title }} 선택" />
+          {% endif %}
+        </td>
+        <td class="c-no">{{ start_no + loop.index }}</td>
+        <td class="c-view"><a class="wo2-pill-link" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
+        <td class="c-eq" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
+          {% if wo.equipment %}<a class="d1-eq-code" href="/admin/work-orders/{{ wo.id }}">{{ wo.equipment.code }}</a>{% else %}-{% endif %}
+        </td>
+        <td class="c-req" title="{{ wo.description or wo.title }}">{{ wo.description or wo.title }}</td>
+        <td class="c-partner" title="{{ wo.partner.name if wo.partner else '' }}">{{ wo.partner.name if wo.partner else '-' }}</td>
+        <td class="c-action">
+          {% if can_edit %}
+          <input type="text" name="action" form="fa-save-{{ wo.id }}" class="fa-action-input"
+                 value="{{ wo.action or '' }}" placeholder="조치내용" title="{{ wo.action or '' }}" />
+          {% else %}
+          <span title="{{ wo.action or '' }}">{{ wo.action or '-' }}</span>
+          {% endif %}
+        </td>
+        <td class="c-person" title="{{ wo.completion_requested_by or '' }}">{{ (wo.completion_requested_by or '-').split(' (')[0] }}</td>
+        <td class="c-time" title="{{ fmt_kst(wo.completion_requested_at) if wo.completion_requested_at else '' }}">{{ fmt_kst(wo.completion_requested_at)[:16] if wo.completion_requested_at else '-' }}</td>
+        <td class="c-permit">
+          {% if wo.work_permitted %}<span class="fa-chip c-ok" title="{{ wo.work_permitted_by or '' }}">허가완료</span>{% else %}<span class="text-muted">해당 없음</span>{% endif %}
+        </td>
+        <td class="c-state">
+          {% if st == 'pending' %}<span class="fa-chip c-wait">승인대기</span>
+          {% elif st == 'done' %}<span class="fa-chip c-ok" title="{{ wo.completion_approved_by or '' }}{% if wo.completion_approved_at %} · {{ fmt_kst(wo.completion_approved_at) }}{% endif %}">승인완료</span>
+          {% else %}<span class="fa-chip c-rej" title="{{ wo.completion_rejected_by or '' }}{% if wo.completion_rejected_at %} · {{ fmt_kst(wo.completion_rejected_at) }}{% endif %}{% if wo.completion_reject_reason %}&#10;사유: {{ wo.completion_reject_reason }}{% endif %}">반려</span>{% endif %}
+        </td>
+        <td class="c-btn">
+          {% if can_edit %}
+          <form method="post" action="{{ base }}/{{ wo.id }}/save" id="fa-save-{{ wo.id }}" class="inline-form">
+            {{ keep_fa() }}
+            <button type="submit" class="wo2-mini b-navy">저장</button>
+          </form>
+          {% else %}-{% endif %}
+        </td>
+        <td class="c-final">
+          {% if st == 'pending' and can_edit %}
+          <form method="post" action="{{ base }}/approve-selected" class="inline-form fa-approve-one">
+            {{ keep_fa() }}
+            <input type="hidden" name="wo_ids" value="{{ wo.id }}" />
+            <button type="submit" class="wo2-mini b-blue">승인</button>
+          </form>
+          {% elif st == 'done' %}
+          <span class="wo2-mini b-done" title="{{ wo.completion_approved_by or '' }}{% if wo.completion_approved_at %} · {{ fmt_kst(wo.completion_approved_at) }}{% endif %}">승인완료</span>
+          {% else %}<span class="text-muted">-</span>{% endif %}
+        </td>
+        <td class="c-reject">
+          {% if st == 'pending' and can_edit %}
+          <button type="button" class="wo2-mini b-red fa-reject-open" data-wo-id="{{ wo.id }}" data-label="{{ (wo.equipment.code ~ ' ') if wo.equipment else '' }}{{ wo.description or wo.title }}">반려</button>
+          {% else %}<span class="text-muted">-</span>{% endif %}
+        </td>
+        <td class="c-detail"><a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="15" class="fa-empty-cell">
+          <div class="fa-empty">
+            <svg viewBox="0 0 96 96" aria-hidden="true">
+              <circle cx="48" cy="48" r="44" fill="#eef2f7"/>
+              <rect x="28" y="22" width="34" height="44" rx="4" fill="#fff" stroke="#9aa6b8" stroke-width="2.5"/>
+              <path d="M35 33h20M35 41h20M35 49h12" stroke="#9aa6b8" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="60" cy="58" r="10" fill="#fff" stroke="#5b6b82" stroke-width="3"/>
+              <path d="m67.5 65.5 8 8" stroke="#5b6b82" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+            <strong>표시할 데이터가 없습니다.</strong>
+            <span>{% if tab == 'pending' and not filter_qs %}최종승인 대기 중인 정비가 없습니다.{% else %}검색 조건을 변경하거나 다른 탭을 선택해 주세요.{% endif %}</span>
+            <a class="wo2-btn wo2-btn-line fa-empty-btn" href="{{ base }}?tab={{ tab }}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg> 데이터 다시 검색하기
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   </div>
 
-  {% set qs = [] %}
-  {% if q %}{% set _ = qs.append('q=' ~ (q|urlencode)) %}{% endif %}
-  {% set base_url = '/admin/maintenance-final-approvals' ~ (('?' ~ qs|join('&')) if qs else '') %}
-  {% include "partials/pager.html" %}
+  {% set page_base = base ~ '?' ~ keep_qs ~ '&page=' %}
+  <div class="wo2-foot">
+    <span></span>
+    <nav class="wo2-pager" aria-label="페이지">
+      {% if pager.has_prev %}<a class="pg-arrow" href="{{ page_base }}{{ pager.page - 1 }}" aria-label="이전">‹</a>{% else %}<span class="pg-arrow is-off">‹</span>{% endif %}
+      {% if pager.page_numbers and pager.page_numbers[0] > 1 %}
+      <a href="{{ page_base }}1">1</a>{% if pager.page_numbers[0] > 2 %}<span class="pg-gap">…</span>{% endif %}
+      {% endif %}
+      {% for p in pager.page_numbers %}
+      {% if p == pager.page %}<span class="is-on" aria-current="page">{{ p }}</span>{% else %}<a href="{{ page_base }}{{ p }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+      {% if pager.page_numbers and pager.page_numbers[-1] < pager.total_pages %}
+      {% if pager.page_numbers[-1] < pager.total_pages - 1 %}<span class="pg-gap">…</span>{% endif %}<a href="{{ page_base }}{{ pager.total_pages }}">{{ pager.total_pages }}</a>
+      {% endif %}
+      {% if pager.has_next %}<a class="pg-arrow" href="{{ page_base }}{{ pager.page + 1 }}" aria-label="다음">›</a>{% else %}<span class="pg-arrow is-off">›</span>{% endif %}
+    </nav>
+    <span class="wo2-range">
+      {% if pager.total %}총 {{ pager.total }}건 중 {{ start_no + 1 }}-{{ start_no + orders|length }}건{% else %}총 0건{% endif %}
+    </span>
+  </div>
 </section>
+
+{% if can_edit %}
+<dialog class="eq-dialog fa-reject-dialog" id="fa-reject-dialog">
+  <form method="post" action="{{ base }}/reject-selected" id="fa-reject-form">
+    <div class="eq-dialog-top">
+      <strong>완료요청 반려</strong>
+      <button type="button" class="link-action" id="fa-reject-close">닫기</button>
+    </div>
+    <div class="eq-popup-body">
+      {{ keep_fa() }}
+      <div id="fa-reject-ids"></div>
+      <p class="fa-reject-target" id="fa-reject-target"></p>
+      <p class="text-muted fa-reject-lead">반려하면 진행상태가 「진행」으로 돌아가고, 협력사가 보완 후 다시 완료요청할 수 있습니다. 사유는 정비 상세 화면에 표시됩니다.</p>
+      <label class="fac-risk-label" for="fa-reject-reason">반려 사유</label>
+      <textarea id="fa-reject-reason" name="reason" rows="4" maxlength="1000" required placeholder="예) 조치 사진 누락, 조치내용 보완 필요"></textarea>
+      <div class="fa-reject-actions">
+        <button type="button" class="btn btn-secondary" id="fa-reject-cancel">취소</button>
+        <button type="submit" class="btn fa-btn-red">반려</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+<dialog id="fa-help-dialog" class="eq-dialog wo2-help-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <button type="submit" class="btn btn-sm btn-secondary">닫기</button>
+  </form>
+  <div class="eq-popup-body">
+    <h2 class="wo2-help-title">정비완료 최종승인 사용 방법</h2>
+    <ol class="wo2-help-list">
+      <li><b>목록 구분</b> — 카드나 탭(전체·승인대기·승인완료·반려)을 눌러 목록을 바꿉니다. 「금일 완료요청」 카드는 오늘 완료요청된 항목을 보여 줍니다.</li>
+      <li><b>검색</b> — 검색어·완료요청 기간·진행상태·협력사로 좁혀 봅니다.</li>
+      <li><b>최종승인</b> — 행의 「승인」 또는 체크박스로 여러 건을 고른 뒤 「선택 항목 일괄 최종승인」을 누르면 정비완료로 처리되고 설비 정비이력에 등록됩니다.</li>
+      <li><b>반려</b> — 「반려」를 누르고 사유를 입력하면 진행상태가 「진행」으로 돌아가 협력사가 보완 후 다시 완료요청합니다.</li>
+      <li><b>조치내용 저장</b> — 조치내용 칸을 고친 뒤 「저장」을 누릅니다.</li>
+      <li><b>보기 설정</b> — 「열 설정」에서 열을 켜고 끌 수 있고, 머리줄 경계를 끌어 열 너비를 바꿀 수 있습니다.</li>
+    </ol>
+  </div>
+</dialog>
+
 <script>
 (function () {
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-open-dialog]');
+    if (!btn) return;
+    var el = document.getElementById(btn.getAttribute('data-open-dialog'));
+    if (el && typeof el.showModal === 'function') {
+      e.preventDefault();
+      el.showModal();
+    }
+  });
+
+  var filterForm = document.getElementById('fa-filter-form');
+  if (filterForm) {
+    filterForm.querySelectorAll('select, input[type="date"]').forEach(function (el) {
+      el.addEventListener('change', function () { filterForm.submit(); });
+    });
+  }
+
+  var perPage = document.getElementById('fa-per-page');
+  if (perPage) {
+    perPage.addEventListener('change', function () {
+      document.cookie = 'fa_per_page=' + perPage.value + '; path=/admin/maintenance-final-approvals; max-age=31536000; samesite=lax';
+      var u = new URL(location.href);
+      u.searchParams.set('per_page', perPage.value);
+      u.searchParams.delete('page');
+      location.href = u.toString();
+    });
+  }
+
+  document.querySelectorAll('.fa-action-input').forEach(function (el) {
+    el.addEventListener('input', function () {
+      var tr = el.closest('tr');
+      if (tr) tr.classList.add('is-dirty');
+    });
+  });
+
+  var colBtn = document.getElementById('fa-colset-btn');
+  var colMenu = document.getElementById('fa-colset-menu');
+  var colList = document.getElementById('fa-colset-list');
+  var colTable = document.getElementById('fa-list-table');
+  function buildColMenu() {
+    if (!colTable || !colTable.woCols) return;
+    colList.innerHTML = '';
+    colTable.woCols.columns().forEach(function (c) {
+      if (c.fixed) return;
+      var lab = document.createElement('label');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !c.hidden;
+      cb.addEventListener('change', function () { colTable.woCols.setHidden(c.index, !cb.checked); });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(' ' + c.label));
+      colList.appendChild(lab);
+    });
+  }
+  if (colBtn && colMenu) {
+    colBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (colMenu.hidden) buildColMenu();
+      colMenu.hidden = !colMenu.hidden;
+      colBtn.setAttribute('aria-expanded', colMenu.hidden ? 'false' : 'true');
+    });
+    document.addEventListener('click', function (e) {
+      if (!colMenu.hidden && !e.target.closest('.wo2-colset')) {
+        colMenu.hidden = true;
+        colBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('fa-colset-reset').addEventListener('click', function () {
+      if (colTable && colTable.woCols) colTable.woCols.reset();
+    });
+  }
+
   var selectAll = document.getElementById('final-approval-select-all');
   var checks = Array.prototype.slice.call(document.querySelectorAll('.final-approval-row-check'));
   var count = document.getElementById('final-approval-count');
   var submit = document.getElementById('final-approval-submit');
+  var bulkBar = document.getElementById('final-approval-bulk-bar');
   var form = document.getElementById('final-approval-bulk-form');
 
+  function selectedChecks() {
+    return checks.filter(function (item) { return item.checked; });
+  }
   function syncSelection() {
-    var selected = checks.filter(function (item) { return item.checked; }).length;
+    var selected = selectedChecks().length;
     if (count) count.textContent = String(selected);
     if (submit) submit.disabled = selected < 1;
+    if (bulkBar) bulkBar.hidden = selected < 1;
     if (selectAll) {
       selectAll.checked = checks.length > 0 && selected === checks.length;
       selectAll.indeterminate = selected > 0 && selected < checks.length;
+      selectAll.disabled = checks.length === 0;
     }
+    checks.forEach(function (c) {
+      var tr = c.closest('tr');
+      if (tr) tr.classList.toggle('wo-row-selected', c.checked);
+    });
   }
-
   if (selectAll) {
     selectAll.addEventListener('change', function () {
       checks.forEach(function (item) { item.checked = selectAll.checked; });
@@ -140,13 +420,64 @@
   checks.forEach(function (item) { item.addEventListener('change', syncSelection); });
   if (form) {
     form.addEventListener('submit', function (event) {
-      var selected = checks.filter(function (item) { return item.checked; }).length;
+      var selected = selectedChecks().length;
       if (!selected || !confirm('선택한 ' + selected + '건을 정비완료로 최종승인할까요?')) {
         event.preventDefault();
       }
     });
   }
+  document.querySelectorAll('.fa-approve-one').forEach(function (f) {
+    f.addEventListener('submit', function (event) {
+      if (!confirm('이 항목을 정비완료로 최종승인할까요?')) event.preventDefault();
+    });
+  });
+  var clearBtn = document.getElementById('fa-bulk-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      checks.forEach(function (c) { c.checked = false; });
+      syncSelection();
+    });
+  }
+
+  var rejDialog = document.getElementById('fa-reject-dialog');
+  var rejIds = document.getElementById('fa-reject-ids');
+  var rejTarget = document.getElementById('fa-reject-target');
+  var rejReason = document.getElementById('fa-reject-reason');
+  function openReject(ids, label) {
+    if (!rejDialog || !ids.length) return;
+    rejIds.innerHTML = '';
+    ids.forEach(function (id) {
+      var inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'wo_ids';
+      inp.value = id;
+      rejIds.appendChild(inp);
+    });
+    rejTarget.textContent = label;
+    rejReason.value = '';
+    rejDialog.showModal();
+    rejReason.focus();
+  }
+  document.querySelectorAll('.fa-reject-open').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      openReject([btn.getAttribute('data-wo-id')], '대상: ' + (btn.getAttribute('data-label') || ''));
+    });
+  });
+  var bulkReject = document.getElementById('fa-bulk-reject');
+  if (bulkReject) {
+    bulkReject.addEventListener('click', function () {
+      var ids = selectedChecks().map(function (c) { return c.value; });
+      if (!ids.length) { alert('반려할 항목을 선택하세요.'); return; }
+      openReject(ids, '대상: 선택한 ' + ids.length + '건');
+    });
+  }
+  ['fa-reject-close', 'fa-reject-cancel'].forEach(function (id) {
+    var b = document.getElementById(id);
+    if (b) b.addEventListener('click', function () { rejDialog.close(); });
+  });
+
   syncSelection();
 })();
 </script>
+<script src="/static/js/wo-col-resize.js?v=4"></script>
 {% endblock %}

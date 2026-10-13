@@ -286,6 +286,18 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_approved_at TIMESTAMP WITHOUT TIME ZONE"
         )
         await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_rejected BOOLEAN DEFAULT FALSE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_rejected_by VARCHAR(100)"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_rejected_at TIMESTAMP WITHOUT TIME ZONE"
+        )
+        await _exec(
+            "ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS completion_reject_reason TEXT"
+        )
+        await _exec(
             "UPDATE work_orders SET approval_requested = FALSE WHERE approval_requested IS NULL"
         )
         await _exec(
@@ -607,6 +619,10 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE work_orders ADD COLUMN completion_requested_at DATETIME",
             "ALTER TABLE work_orders ADD COLUMN completion_approved_by VARCHAR(100)",
             "ALTER TABLE work_orders ADD COLUMN completion_approved_at DATETIME",
+            "ALTER TABLE work_orders ADD COLUMN completion_rejected BOOLEAN DEFAULT 0",
+            "ALTER TABLE work_orders ADD COLUMN completion_rejected_by VARCHAR(100)",
+            "ALTER TABLE work_orders ADD COLUMN completion_rejected_at DATETIME",
+            "ALTER TABLE work_orders ADD COLUMN completion_reject_reason TEXT",
             "ALTER TABLE work_orders ADD COLUMN requester_name VARCHAR(100)",
             "ALTER TABLE work_orders ADD COLUMN hazard_content TEXT",
             "ALTER TABLE work_orders ADD COLUMN safety_measures TEXT",
