@@ -7423,6 +7423,14 @@ async def equipment_type_create(
 WO_PAGE_SIZES = (10, 20, 50, 100)
 
 
+def _query_int(raw: str | None) -> int:
+    """필터 select의 '전체'(빈 값) 등 숫자가 아닌 값은 0."""
+    try:
+        return int(str(raw or "").strip() or 0)
+    except ValueError:
+        return 0
+
+
 def _wo_list_conditions(
     q_val: str,
     priority_val: str,
@@ -7476,11 +7484,11 @@ async def work_orders_list(
     status: list[str] = Query(default=[]),
     priority: str = "",
     site_id: int = Query(0),
-    partner_id: int = Query(0),
+    partner_id: str = "",
     date_from: str = "",
     date_to: str = "",
-    page: int = Query(1),
-    per_page: int = Query(0),
+    page: str = "1",
+    per_page: str = "",
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -7491,15 +7499,12 @@ async def work_orders_list(
         status_vals = ["received"]
     priority_val = (priority or "").strip()
     site_id_val = int(site_id or 0)
-    partner_id_val = int(partner_id or 0)
+    partner_id_val = _query_int(partner_id)
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
-    per_page_val = int(per_page or 0)
+    per_page_val = _query_int(per_page)
     if per_page_val not in WO_PAGE_SIZES:
-        try:
-            per_page_val = int(request.cookies.get("wo_per_page") or 0)
-        except ValueError:
-            per_page_val = 0
+        per_page_val = _query_int(request.cookies.get("wo_per_page"))
     if per_page_val not in WO_PAGE_SIZES:
         per_page_val = LIST_PAGE_SIZE
 
@@ -7641,7 +7646,7 @@ async def work_orders_export(
     status: list[str] = Query(default=[]),
     priority: str = "",
     site_id: int = Query(0),
-    partner_id: int = Query(0),
+    partner_id: str = "",
     date_from: str = "",
     date_to: str = "",
     user: User = Depends(require_login),
@@ -7663,7 +7668,7 @@ async def work_orders_export(
                     int(site_id or 0),
                     (date_from or "").strip(),
                     (date_to or "").strip(),
-                    int(partner_id or 0),
+                    _query_int(partner_id),
                 )
             )
         )
