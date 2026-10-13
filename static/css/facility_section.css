@@ -1,0 +1,104 @@
+/* 작업허가/승인(시설섹션) — work_orders.css·d1_plans.css 위에 덧씌움 */
+
+.fac-kpis .k-done .wo2-kpi-ico { background: #dcf5e6; color: #18a058; }
+
+/* 목록 머리의 탭 (둥근 알약형) */
+.fac-tabs {
+  margin: 0;
+  padding: 0;
+  border-top: none;
+}
+.fac-tabs .d1-tab {
+  height: 36px;
+  padding: 0 1rem;
+  border-radius: 999px;
+}
+.fac-card .wo2-list-head {
+  align-items: center;
+}
+
+/* 표 열 너비 (d1_plans.css 값보다 우선) */
+.fac-list-table th.c-sel,
+.fac-list-table th.c-no { width: 40px; }
+.fac-list-table th.c-kind { width: 64px; }
+.fac-list-table th.c-eq { width: 92px; }
+.fac-list-table th.c-req { width: 150px; }
+.fac-list-table th.c-person { width: 60px; }
+.fac-list-table th.c-date { width: 84px; }
+.fac-list-table th.c-partner { width: 90px; }
+.fac-list-table th.c-seg { width: 104px; }
+.fac-list-table th.c-action { width: 100px; }
+.fac-list-table th.c-btn { width: 52px; }
+.fac-list-table th.c-permit { width: 90px; }
+.fac-list-table th.c-detail { width: 50px; }
+.fac-list-table th.c-risk { width: 140px; }
+.fac-list-table td.c-partner {
+  text-overflow: ellipsis;
+}
+.fac-list-table .c-permit .wo2-mini {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fac-list-table tr.wo-d1-approved td {
+  background: #f6fbf8;
+}
+.fac-list-table tbody tr.wo-d1-approved:hover td {
+  background: #eef7f2;
+}
+
+/* 구분 배지 */
+.fac-k-before { background: #e3edff; color: #1d5fd6; }
+.fac-k-today { background: #dcf5e6; color: #15803d; }
+.fac-k-sched { background: #fff1de; color: #d9770a; }
+.fac-grade {
+  display: inline-block;
+  margin-right: 0.3rem;
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  background: #fde4e4;
+  color: #d92d2d;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* 빈 목록 안내 */
+.fac-list-table td.fac-empty-cell {
+  height: auto;
+  padding: 2.6rem 1rem !important;
+  white-space: normal;
+}
+.fac-list-table tbody tr:hover td.fac-empty-cell {
+  background: #fff;
+}
+.fac-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  color: #6b7280;
+  font-size: 0.86rem;
+}
+.fac-empty > svg {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 0.3rem;
+}
+.fac-empty strong {
+  color: #111827;
+  font-size: 1rem;
+}
+.fac-empty-btn {
+  margin-top: 0.6rem;
+  color: #1d5fd6;
+  border-color: #b9cdf3;
+}
+
+/* 협력사별 안전대책 기본값 창 */
+.fac-defaults-dialog {
+  width: min(920px, calc(100vw - 2rem));
+}
+.fac-defaults-lead {
+  margin: 0 0 0.8rem;
+  font-size: 0.86rem;
+}

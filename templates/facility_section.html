@@ -1,35 +1,331 @@
 {% extends "base.html" %}
 {% block title %}작업허가/승인(시설섹션){% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
+<link rel="stylesheet" href="/static/css/d1_plans.css?v=1" />
+<link rel="stylesheet" href="/static/css/facility_section.css?v=1" />
+{% endblock %}
+
+{% macro keep_fac() -%}
+<input type="hidden" name="board" value="{{ board }}" />
+<input type="hidden" name="page" value="{{ pager.page if pager else 1 }}" />
+<input type="hidden" name="fac_keep" value="{{ keep_qs }}" />
+{%- endmacro %}
+
 {% block content %}
-<header class="page-header">
-  <h1>작업허가/승인(시설섹션)</h1>
-  <p>
-    오늘 {{ today }} · 협력사 승인요청 항목 ·
-    <strong>하루전·당일·정비예정</strong> 개별/일괄 승인(작업허가)
-    · 잠재위험·안전대책 기본값(협력사별) 확인/수정 후 승인
-    {% if partner_risk_file %} · 엑셀 참고: {{ partner_risk_file }}{% endif %}
-  </p>
+{% set qs_tail = ('&' ~ keep_qs) if keep_qs else '' %}
+{% set total_count = day_before_works|length + today_works|length + scheduled_works|length %}
+
+<header class="wo2-head">
+  <div class="wo2-head-title">
+    <h1>작업허가/승인(시설섹션)</h1>
+    <p>협력사 승인요청 항목 · 하루전·당일·정비예정 개별 · 일괄 승인(작업허가) · 잠재위험·안전대책 기본값(협력사별) 확인/수정 후 승인{% if partner_risk_file %} · 엑셀 참고: {{ partner_risk_file }}{% endif %}</p>
+  </div>
+  <div class="wo2-head-right">
+    <nav class="wo2-crumb" aria-label="현재 위치">
+      <a href="/admin/dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z" fill="currentColor"/></svg>Home</a>
+      <span aria-hidden="true">›</span>
+      <span>정비관리</span>
+      <span aria-hidden="true">›</span>
+      <strong>작업허가/승인(시설섹션)</strong>
+    </nav>
+    <button type="button" class="wo2-help-btn" data-open-dialog="fac-help-dialog"><span aria-hidden="true">?</span> 도움말</button>
+  </div>
 </header>
 
-{% if flash_error %}
-<div class="alert alert-error">{{ flash_error }}</div>
-{% endif %}
-{% if flash_message %}
-<div class="alert alert-ok">{{ flash_message }}</div>
-{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
+
+{% set kpi_keep = [] %}
+{% for k in ['q', 'status', 'partner_id', 'date_from', 'date_to'] %}{% if filters[k] %}{% set _ = kpi_keep.append(k ~ '=' ~ (filters[k]|string|urlencode)) %}{% endif %}{% endfor %}
+{% set kpi_tail = ('&' ~ kpi_keep|join('&')) if kpi_keep else '' %}
+<section class="wo2-kpis d1-kpis fac-kpis" aria-label="작업허가 현황">
+  <a class="wo2-kpi k-total{% if board == 'day_before' and not filters.permit %} is-on{% endif %}" href="/admin/facility-section?board=day_before{{ kpi_tail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8.5 3v4M15.5 3v4M9.5 14.5h5M13 12.5l2 2-2 2"/></svg></span>
+    <span class="wo2-kpi-txt"><span>하루전 작업</span><b>{{ day_before_works|length }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-done{% if board == 'today' and not filters.permit %} is-on{% endif %}" href="/admin/facility-section?board=today{{ kpi_tail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8.5 3v4M15.5 3v4M8 13h2M11 13h2M14 13h2M8 16.5h2M11 16.5h2"/></svg></span>
+    <span class="wo2-kpi-txt"><span>당일 작업</span><b>{{ today_works|length }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-tmr{% if board == 'scheduled' and not filters.permit %} is-on{% endif %}" href="/admin/facility-section?board=scheduled{{ kpi_tail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8.5 3v4M15.5 3v4M8 13h2M11 13h2M14 13h2M8 16.5h2M11 16.5h2M14 16.5h2"/></svg></span>
+    <span class="wo2-kpi-txt"><span>정비 예정작업</span><b>{{ scheduled_works|length }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-wait{% if filters.permit == 'pending' %} is-on{% endif %}" href="/admin/facility-section?board=all&permit=pending{{ kpi_tail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="m8.5 12.3 2.4 2.4 4.6-4.9"/></svg></span>
+    <span class="wo2-kpi-txt"><span>승인대기</span><b>{{ permit_counts.pending }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-rej{% if filters.permit == 'done' %} is-on{% endif %}" href="/admin/facility-section?board=all&permit=done{{ kpi_tail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.8v5M12 16.2v.1"/></svg></span>
+    <span class="wo2-kpi-txt"><span>승인완료</span><b>{{ permit_counts.done }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-recv{% if board == 'all' and not filters.permit %} is-on{% endif %}" href="/admin/facility-section?board=all{{ kpi_tail }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h4"/></svg></span>
+    <span class="wo2-kpi-txt"><span>전체</span><b>{{ total_count }}<small>건</small></b></span>
+  </a>
+</section>
+
+<form method="get" action="/admin/facility-section" class="wo2-filter" id="fac-filter-form">
+  <input type="hidden" name="board" value="{{ board }}" />
+  {% if filters.permit %}<input type="hidden" name="permit" value="{{ filters.permit }}" />{% endif %}
+  <div class="wo2-search">
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="설비코드·정비의뢰내용·의뢰자·협력사 검색" aria-label="검색어" />
+    <button type="submit" aria-label="검색"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
+  </div>
+  <label class="wo2-fl">기간</label>
+  <input type="date" name="date_from" value="{{ filters.date_from }}" class="wo2-date" title="예정일 시작" />
+  <span class="wo2-tilde">~</span>
+  <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo2-date" title="예정일 종료" />
+  <label class="wo2-fl" for="fac-f-status">진행상태</label>
+  <select name="status" id="fac-f-status" class="wo2-sel">
+    <option value="">전체</option>
+    <option value="received"{% if filters.status == 'received' %} selected{% endif %}>의뢰</option>
+    <option value="in_progress"{% if filters.status == 'in_progress' %} selected{% endif %}>진행</option>
+  </select>
+  <label class="wo2-fl" for="fac-f-partner">협력사</label>
+  <select name="partner_id" id="fac-f-partner" class="wo2-sel">
+    <option value="">전체</option>
+    {% for p in partners %}
+    <option value="{{ p.id }}"{% if filters.partner_id == p.id %} selected{% endif %}>{{ p.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="wo2-btn wo2-btn-navy">검색</button>
+  <a class="wo2-btn wo2-btn-line" href="/admin/facility-section{% if board != 'day_before' %}?board={{ board }}{% endif %}">초기화</a>
+</form>
+
+<section class="wo2-card fac-card">
+  <div class="wo2-list-head">
+    <div class="d1-tabs fac-tabs" role="group" aria-label="작업 구분">
+      <a class="d1-tab{% if board == 'day_before' %} is-on{% endif %}" href="/admin/facility-section?board=day_before{{ qs_tail }}">하루전 작업 <b>{{ day_before_works|length }}</b></a>
+      <a class="d1-tab{% if board == 'today' %} is-on{% endif %}" href="/admin/facility-section?board=today{{ qs_tail }}">당일 작업 <b>{{ today_works|length }}</b></a>
+      <a class="d1-tab{% if board == 'scheduled' %} is-on{% endif %}" href="/admin/facility-section?board=scheduled{{ qs_tail }}">정비 예정작업 <b>{{ scheduled_works|length }}</b></a>
+      <a class="d1-tab{% if board == 'all' %} is-on{% endif %}" href="/admin/facility-section?board=all{{ qs_tail }}">전체 <b>{{ total_count }}</b></a>
+    </div>
+    <div class="wo2-list-right">
+      {% if user_can_edit(user) and partner_defaults %}
+      <button type="button" class="wo2-btn wo2-btn-line" data-open-dialog="fac-defaults-dialog" title="협력사별 잠재위험·안전대책 기본값 수정·저장">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 5 6v5.5c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg> 안전대책 기본값
+      </button>
+      {% endif %}
+      <a class="wo2-btn wo2-btn-line" id="fac-excel-btn" href="/admin/facility-section/export?board={{ board }}{{ qs_tail }}">
+        <svg class="wo2-xls" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" fill="#1d7a46"/><path d="m8 7.5 8 9M16 7.5l-8 9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+        Excel 내보내기
+      </a>
+      <button type="button" class="wo2-btn wo2-btn-line fac-refresh" onclick="location.reload()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg> 새로고침
+      </button>
+      <select class="wo2-sel" id="fac-per-page" aria-label="페이지당 표시 건수">
+        {% for n in page_sizes %}
+        <option value="{{ n }}"{% if pager and pager.per_page == n %} selected{% endif %}>{{ n }}개씩 보기</option>
+        {% endfor %}
+      </select>
+      <div class="wo2-colset">
+        <button type="button" class="wo2-btn wo2-btn-line" id="fac-colset-btn" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg> 열 설정
+        </button>
+        <div class="wo2-colset-menu" id="fac-colset-menu" hidden>
+          <div class="wo2-colset-title">표시할 열</div>
+          <div id="fac-colset-list"></div>
+          <button type="button" class="wo2-colset-reset" id="fac-colset-reset">기본값으로 (열 너비 포함)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if user_can_edit(user) %}
+  <div class="wo-bulk-bar wo2-bulk" id="fac-bulk-bar" hidden>
+    <span class="wo-bulk-count">선택 <strong id="fac-bulk-count">0</strong>건</span>
+    <span class="wo-bulk-hint">미승인 항목을 다중선택한 뒤 일괄승인하세요</span>
+    <button type="button" class="wo2-btn wo2-btn-blue" id="fac-bulk-approve-btn">선택 항목 일괄승인</button>
+    <button type="button" class="wo2-btn wo2-btn-line" id="fac-bulk-clear">선택 해제</button>
+  </div>
+  <form id="fac-bulk-form" method="post" action="/admin/facility-section/permit-bulk">
+    {{ keep_fac() }}
+  </form>
+  {% endif %}
+
+  {% set show_sel = user_can_edit(user) %}
+  {% set page_n = pager.page if pager else 1 %}
+  {% set start_no = ((pager.page - 1) * pager.per_page) if pager else 0 %}
+
+  <div class="wo2-table-wrap">
+  <table class="wo-list-table wo2-table d1-list-table fac-list-table" id="fac-list-table" data-col-version="fv1">
+    <thead>
+      <tr>
+        <th data-col="_sel" data-col-fixed="1" data-col-label="선택" class="c-sel">
+          {% if show_sel %}<input type="checkbox" id="fac-select-all" title="미승인 전체 선택" aria-label="미승인 전체 선택" />{% endif %}
+        </th>
+        <th data-col="no" data-col-label="No." class="c-no">No.</th>
+        <th data-col="구분" data-col-label="구분" class="c-kind">구분</th>
+        <th data-col="설비코드" data-col-label="설비코드" class="c-eq">설비코드</th>
+        <th data-col="정비의뢰내용" data-col-fixed="1" data-col-label="정비의뢰내용" class="c-req">정비의뢰내용</th>
+        <th data-col="의뢰자" data-col-label="의뢰자" class="c-person">의뢰자</th>
+        <th data-col="예정일" data-col-label="예정일" class="c-date">예정일</th>
+        <th data-col="협력사" data-col-label="협력사" class="c-partner">협력사</th>
+        <th data-col="승인요청자" data-col-label="승인요청자" class="c-person">승인<wbr>요청자</th>
+        <th data-col="진행단계" data-col-label="진행" class="c-seg">진행</th>
+        <th data-col="조치내용" data-col-label="조치내용" class="c-action">조치내용</th>
+        <th data-col="저장" data-col-label="저장" class="c-btn">저장</th>
+        <th data-col="승인" data-col-label="승인" class="c-permit">승인</th>
+        <th data-col="상세" data-col-label="상세" class="c-detail">상세</th>
+        <th data-col="잠재위험·안전대책" data-col-label="잠재위험·안전대책" class="c-risk">잠재위험·안전대책</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for wo in orders %}
+      {% set st = wo.status.value %}
+      {% set is_day_before = wo.scheduled_date == tomorrow %}
+      {% set is_today = wo.scheduled_date == today %}
+      <tr class="{% if wo.work_permitted %}wo-d1-approved{% endif %}{% if is_day_before %} fac-row-day-before{% endif %}"
+          data-wo-id="{{ wo.id }}">
+        <td class="c-sel">
+          {% if show_sel and not wo.work_permitted %}
+          <input type="checkbox"
+                 class="fac-row-check"
+                 name="wo_ids"
+                 value="{{ wo.id }}"
+                 form="fac-bulk-form"
+                 title="일괄승인 대상" />
+          {% elif wo.work_permitted %}
+          <span class="wo-sel-done" title="이미 승인됨">✓</span>
+          {% endif %}
+        </td>
+        <td class="c-no">{{ start_no + loop.index }}</td>
+        <td class="c-kind">
+          {% if is_day_before %}<span class="wo2-tag fac-k-before">하루전</span>
+          {% elif is_today %}<span class="wo2-tag fac-k-today">당일</span>
+          {% else %}<span class="wo2-tag fac-k-sched">정비예정</span>{% endif %}
+        </td>
+        <td class="c-eq" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
+          {% if wo.equipment %}<span class="d1-eq-code">{{ wo.equipment.code }}</span>{% else %}-{% endif %}
+        </td>
+        <td class="c-req" title="{{ wo.description or wo.title }}">{{ wo.description or wo.title }}</td>
+        <td class="c-person" title="{{ wo.requester_name or wo.assignee_name or '' }}">{{ wo.requester_name or wo.assignee_name or '-' }}</td>
+        <td class="c-date">{{ wo.scheduled_date or '-' }}</td>
+        <td class="c-partner" title="{{ wo.partner.name if wo.partner else '' }}">{{ wo.partner.name if wo.partner else '-' }}</td>
+        <td class="c-person" title="{{ wo.approval_requested_by or '' }}">{{ (wo.approval_requested_by or '-').split(' (')[0] }}</td>
+        <td class="c-seg">
+          <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form" id="fac-form-{{ wo.id }}">
+            <input type="hidden" name="redirect" value="facility" />
+            <input type="hidden" name="d1_board" value="{{ board }}" />
+            <input type="hidden" name="page" value="{{ page_n }}" />
+            <input type="hidden" name="fac_keep" value="{{ keep_qs }}" />
+            <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
+            <input type="hidden" name="scheduled_date" value="{{ wo.scheduled_date or '' }}" />
+            <div class="wo-step-btns d1-seg" role="radiogroup" aria-label="진행상태">
+              <label class="wo-step-btn{% if st in ['received','assigned'] %} is-on{% endif %}">
+                <input type="radio" name="status" value="received" {% if st in ['received','assigned'] %}checked{% endif %} />
+                <span>의뢰</span>
+              </label>
+              <label class="wo-step-btn{% if st == 'in_progress' %} is-on{% endif %}">
+                <input type="radio" name="status" value="in_progress" {% if st == 'in_progress' %}checked{% endif %} />
+                <span>진행</span>
+              </label>
+              <label class="wo-step-btn{% if st in ['completed','verified','closed'] %} is-on{% endif %}">
+                <input type="radio" name="status" value="completed" {% if st in ['completed','verified','closed'] %}checked{% endif %} />
+                <span>완료</span>
+              </label>
+            </div>
+          </form>
+        </td>
+        <td class="c-action">
+          <input type="text"
+                 name="action"
+                 form="fac-form-{{ wo.id }}"
+                 class="wo-action-input wo2-cell-input"
+                 value="{{ wo.action or '' }}"
+                 placeholder="조치내용"
+                 title="{{ wo.action or '' }}" />
+        </td>
+        <td class="c-btn">
+          <button type="submit" form="fac-form-{{ wo.id }}" class="wo2-mini b-navy">저장</button>
+        </td>
+        <td class="c-permit">
+          {% if wo.work_permitted %}
+          {% set perm_name = wo.work_permitted_by.split(' (')[0] if wo.work_permitted_by else '' %}
+          <form method="post" action="/admin/facility-section/{{ wo.id }}/unpermit" class="inline-form"
+                onsubmit="return confirm('승인을 취소할까요?');">
+            {{ keep_fac() }}
+            <button type="submit" class="wo2-mini b-done" title="{{ wo.work_permitted_by or '승인됨' }}{% if wo.work_permitted_at %} · {{ fmt_kst(wo.work_permitted_at) }}{% endif %} (클릭하면 승인 취소)">승인됨{% if perm_name %}/{{ perm_name }}{% endif %}</button>
+          </form>
+          {% elif user_can_edit(user) %}
+          <button type="button" class="wo2-mini b-blue fac-permit-open" data-wo-id="{{ wo.id }}">승인</button>
+          {% else %}
+          <span class="text-muted">미승인</span>
+          {% endif %}
+        </td>
+        <td class="c-detail"><a class="wo2-pill-link" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
+        {% set risk_row = fac_risk_by_wo.get(wo.id|string) if fac_risk_by_wo else none %}
+        <td class="c-risk fac-risk-cell" data-wo-id="{{ wo.id }}"
+            title="{% if risk_row %}{% if risk_row.grade %}[{{ risk_row.grade }}] {% endif %}잠재위험: {{ risk_row.hazard or '-' }}&#10;안전대책: {{ risk_row.safety or '-' }}{% endif %}">
+          {% if risk_row and (risk_row.hazard or risk_row.safety) %}
+          {% if risk_row.grade %}<span class="fac-grade">{{ risk_row.grade }}</span>{% endif %}{{ risk_row.hazard }}{% if risk_row.hazard and risk_row.safety %} / {% endif %}{{ risk_row.safety }}
+          {% else %}
+          <span class="text-muted" title="시트명과 협력사명이 일치하는 엑셀 행이 없습니다">-</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="15" class="fac-empty-cell">
+          <div class="fac-empty">
+            <svg viewBox="0 0 96 96" aria-hidden="true">
+              <circle cx="48" cy="48" r="44" fill="#eef2f7"/>
+              <rect x="28" y="22" width="34" height="44" rx="4" fill="#fff" stroke="#9aa6b8" stroke-width="2.5"/>
+              <path d="M35 33h20M35 41h20M35 49h12" stroke="#9aa6b8" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="60" cy="58" r="10" fill="#fff" stroke="#5b6b82" stroke-width="3"/>
+              <path d="m67.5 65.5 8 8" stroke="#5b6b82" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+            <strong>표시할 데이터가 없습니다.</strong>
+            <span>검색 조건을 변경하거나 다른 탭을 선택해 주세요.</span>
+            <a class="wo2-btn wo2-btn-line fac-empty-btn" href="/admin/facility-section{% if board != 'day_before' %}?board={{ board }}{% endif %}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg> 데이터 다시 검색하기
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  {% if pager %}
+  {% set page_base = '/admin/facility-section?board=' ~ board ~ qs_tail ~ '&page=' %}
+  <div class="wo2-foot">
+    <span></span>
+    <nav class="wo2-pager" aria-label="페이지">
+      {% if pager.has_prev %}<a class="pg-arrow" href="{{ page_base }}{{ pager.page - 1 }}" aria-label="이전">‹</a>{% else %}<span class="pg-arrow is-off">‹</span>{% endif %}
+      {% if pager.page_numbers and pager.page_numbers[0] > 1 %}
+      <a href="{{ page_base }}1">1</a>{% if pager.page_numbers[0] > 2 %}<span class="pg-gap">…</span>{% endif %}
+      {% endif %}
+      {% for p in pager.page_numbers %}
+      {% if p == pager.page %}<span class="is-on" aria-current="page">{{ p }}</span>{% else %}<a href="{{ page_base }}{{ p }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+      {% if pager.page_numbers and pager.page_numbers[-1] < pager.total_pages %}
+      {% if pager.page_numbers[-1] < pager.total_pages - 1 %}<span class="pg-gap">…</span>{% endif %}<a href="{{ page_base }}{{ pager.total_pages }}">{{ pager.total_pages }}</a>
+      {% endif %}
+      {% if pager.has_next %}<a class="pg-arrow" href="{{ page_base }}{{ pager.page + 1 }}" aria-label="다음">›</a>{% else %}<span class="pg-arrow is-off">›</span>{% endif %}
+    </nav>
+    <span class="wo2-range">
+      {% if pager.total %}총 {{ pager.total }}건 중 {{ start_no + 1 }}-{{ start_no + orders|length }}건{% else %}총 0건{% endif %}
+    </span>
+  </div>
+  {% endif %}
+</section>
 
 {% if user_can_edit(user) and partner_defaults %}
-<section class="card fac-risk-defaults-card">
-  <details class="fac-risk-defaults" id="fac-risk-defaults">
-    <summary>
-      협력사별 잠재위험·안전대책 <strong>기본값</strong> 수정·저장
-      <small class="text-muted">(승인 모달에 미리 채워지는 내용 · DB에 저장되면 엑셀보다 우선)</small>
-    </summary>
+<dialog class="eq-dialog fac-defaults-dialog" id="fac-defaults-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <strong>협력사별 잠재위험·안전대책 기본값</strong>
+    <button type="submit" class="btn btn-sm btn-secondary">닫기</button>
+  </form>
+  <div class="eq-popup-body">
+    <p class="text-muted fac-defaults-lead">승인 창에 미리 채워지는 내용입니다. DB에 저장되면 엑셀보다 우선합니다.</p>
     <div class="fac-risk-defaults-body">
       {% for p in partner_defaults %}
       <form method="post" action="/admin/facility-section/partner-risk-defaults" class="fac-risk-default-form">
-        <input type="hidden" name="board" value="{{ board }}" />
-        <input type="hidden" name="page" value="{{ pager.page if pager else 1 }}" />
+        {{ keep_fac() }}
         <input type="hidden" name="partner_id" value="{{ p.id }}" />
         <div class="fac-risk-default-head">
           <strong>{{ p.name }}</strong>
@@ -47,211 +343,27 @@
       </form>
       {% endfor %}
     </div>
-  </details>
-</section>
+  </div>
+</dialog>
 {% endif %}
 
-<section class="card">
-  <div class="wo-list-head">
-    <h2>
-      시설 작업 목록
-      <small class="text-muted">
-        (하루전 {{ day_before_works|length }} · 당일 {{ today_works|length }} · 정비예정 {{ scheduled_works|length }}
-        {% if pager %} · 이 목록 {{ pager.total }}건{% if pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %}{% endif %})
-      </small>
-    </h2>
-  </div>
-
-  <div class="d1-board-btns" role="group" aria-label="시설섹션 보드" style="margin-bottom:0.75rem">
-    <a class="d1-board-btn{% if board == 'day_before' %} is-on{% endif %}"
-       href="/admin/facility-section?board=day_before">
-      하루전 작업 <small>({{ day_before_works|length }})</small>
-    </a>
-    <a class="d1-board-btn{% if board == 'today' %} is-on{% endif %}"
-       href="/admin/facility-section?board=today">
-      당일 작업 <small>({{ today_works|length }})</small>
-    </a>
-    <a class="d1-board-btn{% if board == 'scheduled' %} is-on{% endif %}"
-       href="/admin/facility-section?board=scheduled">
-      정비예정작업 <small>({{ scheduled_works|length }})</small>
-    </a>
-    <a class="d1-board-btn{% if board == 'all' %} is-on{% endif %}"
-       href="/admin/facility-section?board=all">
-      전체 <small>({{ day_before_works|length + today_works|length + scheduled_works|length }})</small>
-    </a>
-  </div>
-
-  {% if user_can_edit(user) %}
-  <div class="wo-bulk-bar" id="fac-bulk-bar" hidden>
-    <span class="wo-bulk-count">선택 <strong id="fac-bulk-count">0</strong>건</span>
-    <span class="wo-bulk-hint">미승인 항목을 다중선택한 뒤 일괄승인하세요</span>
-    <button type="button" class="btn btn-sm btn-primary" id="fac-bulk-approve-btn">
-      선택 항목 일괄승인
-    </button>
-    <button type="button" class="btn btn-sm btn-secondary" id="fac-bulk-clear">선택 해제</button>
-  </div>
-  <form id="fac-bulk-form" method="post" action="/admin/facility-section/permit-bulk">
-    <input type="hidden" name="board" value="{{ board }}" />
-    <input type="hidden" name="page" value="{{ pager.page if pager else 1 }}" />
+<dialog id="fac-help-dialog" class="eq-dialog wo2-help-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <button type="submit" class="btn btn-sm btn-secondary">닫기</button>
   </form>
-  {% endif %}
-
-  {% set list_orders = orders %}
-  {% set show_sel = user_can_edit(user) %}
-  {% set page_n = pager.page if pager else 1 %}
-
-  <div class="table-scroll">
-  <table class="data-table wo-list-table wo-list-compact" id="fac-list-table">
-    <thead>
-      <tr>
-        {% if show_sel %}
-        <th class="wo-sel-col">
-          <input type="checkbox" id="fac-select-all" title="미승인 전체 선택" aria-label="미승인 전체 선택" />
-        </th>
-        {% endif %}
-        <th>구분</th>
-        <th class="wo-eq-col-head">설비</th>
-        <th>정비의뢰내용</th>
-        <th>정비의뢰자</th>
-        <th>예정일</th>
-        <th>협력사</th>
-        <th>승인요청자</th>
-        <th>진행</th>
-        <th>조치내용</th>
-        <th>저장</th>
-        <th>승인</th>
-        <th>상세</th>
-        <th class="fac-risk-col-head">잠재위험·안전대책</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for wo in list_orders %}
-      {% set st = wo.status.value %}
-      {% set is_day_before = wo.scheduled_date == tomorrow %}
-      {% set is_today = wo.scheduled_date == today %}
-      {% set is_scheduled = not is_day_before and not is_today %}
-      <tr class="{% if wo.work_permitted %}wo-d1-approved{% endif %}{% if is_day_before %} fac-row-day-before{% endif %}"
-          data-wo-id="{{ wo.id }}">
-        {% if show_sel %}
-        <td class="wo-sel-col">
-          {% if not wo.work_permitted %}
-          <input type="checkbox"
-                 class="fac-row-check"
-                 name="wo_ids"
-                 value="{{ wo.id }}"
-                 form="fac-bulk-form"
-                 title="일괄승인 대상" />
-          {% else %}
-          <span class="wo-sel-done" title="이미 승인됨">✓</span>
-          {% endif %}
-        </td>
-        {% endif %}
-        <td>
-          {% if is_day_before %}<span class="badge badge-wo">하루전</span>
-          {% elif is_today %}<span class="badge badge-urgent">당일</span>
-          {% else %}<span class="badge">정비예정</span>{% endif %}
-        </td>
-        <td class="wo-eq-cell">
-          {% if wo.equipment %}
-          <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
-            <code>{{ wo.equipment.code }}</code>
-            <span class="wo-eq-name">{{ wo.equipment.name }}</span>
-          </div>
-          {% else %}-{% endif %}
-        </td>
-        <td class="wo-req-cell" title="{{ wo.description or wo.title }}">
-          <span class="wo-req-text">
-            {% if wo.work_permitted %}<span class="badge badge-urgent">승인</span> {% endif %}
-            {{ wo.description or wo.title }}
-          </span>
-        </td>
-        <td class="wo-approver-cell" title="{{ wo.requester_name or wo.assignee_name or '' }}">
-          <span class="wo-approver">{{ wo.requester_name or wo.assignee_name or '-' }}</span>
-        </td>
-        <td class="wo-date">{{ wo.scheduled_date or '-' }}</td>
-        <td>{{ wo.partner.name if wo.partner else '-' }}</td>
-        <td class="wo-approver-cell" title="{{ wo.approval_requested_by or '' }}">
-          <span class="wo-approver">{{ wo.approval_requested_by or '-' }}</span>
-        </td>
-        <td>
-          <form method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form" id="fac-form-{{ wo.id }}">
-            <input type="hidden" name="redirect" value="facility" />
-            <input type="hidden" name="d1_board" value="{{ board }}" />
-            <input type="hidden" name="page" value="{{ page_n }}" />
-            <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
-            <input type="hidden" name="scheduled_date" value="{{ wo.scheduled_date or '' }}" />
-            <div class="wo-step-btns" role="radiogroup" aria-label="진행상태">
-              <label class="wo-step-btn{% if st in ['received','assigned'] %} is-on{% endif %}">
-                <input type="radio" name="status" value="received" {% if st in ['received','assigned'] %}checked{% endif %} />
-                <span>의뢰</span>
-              </label>
-              <label class="wo-step-btn{% if st == 'in_progress' %} is-on{% endif %}">
-                <input type="radio" name="status" value="in_progress" {% if st == 'in_progress' %}checked{% endif %} />
-                <span>진행</span>
-              </label>
-              <label class="wo-step-btn{% if st in ['completed','verified','closed'] %} is-on{% endif %}">
-                <input type="radio" name="status" value="completed" {% if st in ['completed','verified','closed'] %}checked{% endif %} />
-                <span>완료</span>
-              </label>
-            </div>
-          </form>
-        </td>
-        <td>
-          <input type="text"
-                 name="action"
-                 form="fac-form-{{ wo.id }}"
-                 class="wo-action-input"
-                 value="{{ wo.action or '' }}"
-                 placeholder="조치내용"
-                 title="{{ wo.action or '' }}" />
-        </td>
-        <td>
-          <button type="submit" form="fac-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
-        </td>
-        <td class="wo-d1-cell">
-          {% if wo.work_permitted %}
-          {% set perm_name = wo.work_permitted_by.split(' (')[0] if wo.work_permitted_by else '' %}
-          <form method="post" action="/admin/facility-section/{{ wo.id }}/unpermit" class="inline-form"
-                onsubmit="return confirm('승인을 취소할까요?');">
-            <input type="hidden" name="board" value="{{ board }}" />
-            <input type="hidden" name="page" value="{{ page_n }}" />
-            <button type="submit" class="btn btn-sm btn-secondary" title="{{ wo.work_permitted_by or '승인됨' }}{% if wo.work_permitted_at %} · {{ fmt_kst(wo.work_permitted_at) }}{% endif %}">승인됨{% if perm_name %}/{{ perm_name }}{% endif %}</button>
-          </form>
-          {% elif user_can_edit(user) %}
-          <button type="button"
-                  class="btn btn-sm btn-primary fac-permit-open"
-                  data-wo-id="{{ wo.id }}">승인</button>
-          {% else %}
-          <span class="text-muted">미승인</span>
-          {% endif %}
-        </td>
-        <td><a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a></td>
-        {% set risk_row = fac_risk_by_wo.get(wo.id|string) if fac_risk_by_wo else none %}
-        <td class="fac-risk-cell" data-wo-id="{{ wo.id }}">
-          {% if risk_row and (risk_row.hazard or risk_row.safety) %}
-          <div class="fac-risk-preview" title="잠재위험 / 안전대책">
-            {% if risk_row.grade %}<span class="badge fac-risk-grade">{{ risk_row.grade }}</span>{% endif %}
-            <div class="fac-risk-h">{{ risk_row.hazard }}</div>
-            <div class="fac-risk-s">{{ risk_row.safety }}</div>
-          </div>
-          {% else %}
-          <span class="text-muted" title="시트명과 협력사명이 일치하는 엑셀 행이 없습니다">-</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="{% if show_sel %}14{% else %}13{% endif %}" class="empty">
-          표시할 항목이 없습니다.
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="eq-popup-body">
+    <h2 class="wo2-help-title">작업허가/승인(시설섹션) 사용 방법</h2>
+    <ol class="wo2-help-list">
+      <li><b>작업 구분</b> — 카드나 탭(하루전·당일·정비 예정작업·전체)을 눌러 목록을 바꿉니다. 「승인대기」·「승인완료」 카드는 전체 작업 중 해당 항목만 보여 줍니다.</li>
+      <li><b>검색</b> — 검색어·예정일 기간·진행상태·협력사로 좁혀 봅니다. 「초기화」는 현재 탭만 남기고 조건을 지웁니다.</li>
+      <li><b>개별 승인</b> — 「승인」을 누르면 잠재위험·안전대책 확인 창이 열리고, 확인·수정 후 승인하면 진행상태가 「진행」으로 바뀝니다.</li>
+      <li><b>일괄 승인</b> — 체크박스로 여러 건을 고른 뒤 「선택 항목 일괄승인」을 누릅니다.</li>
+      <li><b>승인 취소</b> — 「승인됨/이름」을 누르면 작업허가를 취소합니다.</li>
+      <li><b>안전대책 기본값</b> — 협력사별 잠재위험·안전대책 기본값을 저장하면 다음 승인 창에 미리 채워집니다.</li>
+      <li><b>보기 설정</b> — 「열 설정」에서 열을 켜고 끌 수 있고, 머리줄 경계를 끌어 열 너비를 바꿀 수 있습니다.</li>
+    </ol>
   </div>
-  {% set base_url = '/admin/facility-section' ~ ('?board=' ~ board if board != 'day_before' else '') %}
-  {% include "partials/pager.html" %}
-</section>
+</dialog>
 
 {% if user_can_edit(user) %}
 <dialog class="eq-dialog fac-risk-dialog" id="fac-risk-dialog">
@@ -266,8 +378,7 @@
         {% if partner_risk_file %}<br />엑셀 참고파일: {{ partner_risk_file }}{% endif %}
       </p>
       <div id="fac-risk-single-fields">
-        <input type="hidden" name="board" value="{{ board }}" />
-        <input type="hidden" name="page" value="{{ page_n }}" />
+        {{ keep_fac() }}
         <input type="hidden" name="risk_confirmed" value="1" />
         <input type="hidden" name="partner_id" id="fac-risk-partner-id" value="" />
         <label class="fac-risk-label">협력사 <span id="fac-risk-partner">-</span></label>
@@ -285,8 +396,7 @@
         </label>
       </div>
       <div id="fac-risk-bulk-fields" hidden>
-        <input type="hidden" name="board" value="{{ board }}" />
-        <input type="hidden" name="page" value="{{ page_n }}" />
+        {{ keep_fac() }}
         <input type="hidden" name="risk_confirmed" value="1" />
         <div id="fac-risk-bulk-list" class="fac-risk-bulk-list"></div>
         <label class="fac-risk-save-default">
@@ -307,15 +417,88 @@
 <script id="fac-risk-data" type="application/json">{{ fac_risk_by_wo|default({})|tojson }}</script>
 <script>
 (function () {
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-open-dialog]');
+    if (!btn) return;
+    var el = document.getElementById(btn.getAttribute('data-open-dialog'));
+    if (el && typeof el.showModal === 'function') {
+      e.preventDefault();
+      el.showModal();
+    }
+  });
+
+  var filterForm = document.getElementById('fac-filter-form');
+  if (filterForm) {
+    filterForm.querySelectorAll('select, input[type="date"]').forEach(function (el) {
+      el.addEventListener('change', function () { filterForm.submit(); });
+    });
+  }
+
+  var perPage = document.getElementById('fac-per-page');
+  if (perPage) {
+    perPage.addEventListener('change', function () {
+      document.cookie = 'fac_per_page=' + perPage.value + '; path=/admin/facility-section; max-age=31536000; samesite=lax';
+      var u = new URL(location.href);
+      u.searchParams.set('per_page', perPage.value);
+      u.searchParams.delete('page');
+      location.href = u.toString();
+    });
+  }
+
   document.querySelectorAll('.wo-step-btns').forEach(function (group) {
     group.querySelectorAll('input[type="radio"]').forEach(function (radio) {
       radio.addEventListener('change', function () {
         group.querySelectorAll('.wo-step-btn').forEach(function (lab) {
           lab.classList.toggle('is-on', lab.querySelector('input').checked);
         });
+        var tr = group.closest('tr');
+        if (tr) tr.classList.add('is-dirty');
       });
     });
   });
+  document.querySelectorAll('.fac-list-table .wo-action-input').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var tr = el.closest('tr');
+      if (tr) tr.classList.add('is-dirty');
+    });
+  });
+
+  var colBtn = document.getElementById('fac-colset-btn');
+  var colMenu = document.getElementById('fac-colset-menu');
+  var colList = document.getElementById('fac-colset-list');
+  var colTable = document.getElementById('fac-list-table');
+  function buildColMenu() {
+    if (!colTable || !colTable.woCols) return;
+    colList.innerHTML = '';
+    colTable.woCols.columns().forEach(function (c) {
+      if (c.fixed) return;
+      var lab = document.createElement('label');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !c.hidden;
+      cb.addEventListener('change', function () { colTable.woCols.setHidden(c.index, !cb.checked); });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(' ' + c.label));
+      colList.appendChild(lab);
+    });
+  }
+  if (colBtn && colMenu) {
+    colBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (colMenu.hidden) buildColMenu();
+      colMenu.hidden = !colMenu.hidden;
+      colBtn.setAttribute('aria-expanded', colMenu.hidden ? 'false' : 'true');
+    });
+    document.addEventListener('click', function (e) {
+      if (!colMenu.hidden && !e.target.closest('.wo2-colset')) {
+        colMenu.hidden = true;
+        colBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('fac-colset-reset').addEventListener('click', function () {
+      if (colTable && colTable.woCols) colTable.woCols.reset();
+    });
+  }
 
   var bulkBar = document.getElementById('fac-bulk-bar');
   var bulkCount = document.getElementById('fac-bulk-count');
@@ -369,6 +552,7 @@
     if (selectAll) {
       selectAll.checked = checks.length > 0 && selected.length === checks.length;
       selectAll.indeterminate = selected.length > 0 && selected.length < checks.length;
+      selectAll.disabled = checks.length === 0;
     }
     checks.forEach(function (c) {
       var tr = c.closest('tr');
@@ -545,5 +729,5 @@
   syncBulkBar();
 })();
 </script>
-<script src="/static/js/wo-col-resize.js?v=2"></script>
+<script src="/static/js/wo-col-resize.js?v=4"></script>
 {% endblock %}

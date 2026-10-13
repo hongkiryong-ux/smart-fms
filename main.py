@@ -7955,6 +7955,7 @@ async def work_order_status(
     d1_board: str = Form(""),
     d1_partner_id: str = Form(""),
     d1_view: str = Form(""),
+    fac_keep: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -8066,7 +8067,7 @@ async def work_order_status(
         )
     if redirect == "facility":
         fac_board = (d1_board or "day_before").strip() or "day_before"
-        return _facility_redirect(board=fac_board, page=page)
+        return _facility_redirect(board=fac_board, page=page, keep=fac_keep)
     if redirect == "list":
         qs = _wo_list_redirect_params(
             q=q,
@@ -11084,21 +11085,47 @@ def _facility_sql_gate():
     )
 
 
-@app.get("/admin/facility-section")
-async def facility_section_list(
-    request: Request,
-    board: str = Query("day_before"),
-    page: int = Query(1),
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
-):
-    """정비관리(시설섹션): 승인요청된 하루전·당일·정비예정 작업."""
+FAC_KEEP_KEYS = ("q", "status", "partner_id", "date_from", "date_to", "permit")
+
+
+def _facility_filters(
+    q: str = "",
+    status: str = "",
+    partner_id: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    permit: str = "",
+) -> dict:
+    """시설섹션 검색 조건 정리 (빈 값·잘못된 값은 무시)."""
+
+    def _iso(raw: str) -> str:
+        try:
+            return date.fromisoformat((raw or "").strip()).isoformat()
+        except ValueError:
+            return ""
+
+    st = (status or "").strip()
+    pm = (permit or "").strip()
+    return {
+        "q": (q or "").strip(),
+        "status": st if st in ("received", "in_progress") else "",
+        "partner_id": _query_int(partner_id),
+        "date_from": _iso(date_from),
+        "date_to": _iso(date_to),
+        "permit": pm if pm in ("pending", "done") else "",
+    }
+
+
+def _facility_keep_qs(f: dict) -> str:
+    from urllib.parse import urlencode
+
+    return urlencode([(k, str(f[k])) for k in FAC_KEEP_KEYS if f.get(k)])
+
+
+async def _facility_board_data(db: AsyncSession, f: dict, *, apply_risk: bool = False) -> dict:
+    """시설섹션 목록 — 조건 적용 후 하루전/당일/정비예정 분류와 승인 현황."""
     today = _today_kst()
     tomorrow = today + timedelta(days=1)
-    board_key = (board or "day_before").strip().lower()
-    if board_key not in ("day_before", "today", "scheduled", "all"):
-        board_key = "day_before"
-
     open_statuses = [
         WorkOrderStatus.received,
         WorkOrderStatus.assigned,
@@ -11123,30 +11150,120 @@ async def facility_section_list(
         )
     ).scalars().unique().all()
 
-    # 업체명=시트명 매칭 시 엑셀 잠재위험·안전대책 자동 반영
-    risk_changed = False
-    for w in rows:
-        if _wo_apply_partner_risk_from_excel(w):
-            risk_changed = True
-    if risk_changed:
-        await db.commit()
+    if apply_risk:
+        # 업체명=시트명 매칭 시 엑셀 잠재위험·안전대책 자동 반영
+        risk_changed = False
+        for w in rows:
+            if _wo_apply_partner_risk_from_excel(w):
+                risk_changed = True
+        if risk_changed:
+            await db.commit()
 
-    day_before = [w for w in rows if w.scheduled_date == tomorrow]
-    today_works = [w for w in rows if w.scheduled_date == today]
-    scheduled_works = [
-        w for w in rows if w.scheduled_date not in (today, tomorrow)
-    ]
+    q_val = f["q"].lower()
+    d_from = date.fromisoformat(f["date_from"]) if f["date_from"] else None
+    d_to = date.fromisoformat(f["date_to"]) if f["date_to"] else None
 
+    def _ok(w: WorkOrder) -> bool:
+        st = w.status.value if isinstance(w.status, WorkOrderStatus) else str(w.status or "")
+        if f["status"] == "received" and st not in ("received", "assigned"):
+            return False
+        if f["status"] == "in_progress" and st != "in_progress":
+            return False
+        if f["partner_id"] and int(w.partner_id or 0) != f["partner_id"]:
+            return False
+        if d_from and (not w.scheduled_date or w.scheduled_date < d_from):
+            return False
+        if d_to and (not w.scheduled_date or w.scheduled_date > d_to):
+            return False
+        if q_val:
+            eq = w.equipment
+            hay = " ".join(
+                str(v or "")
+                for v in (
+                    w.title,
+                    w.description,
+                    w.action,
+                    w.requester_name,
+                    w.assignee_name,
+                    w.approval_requested_by,
+                    eq.code if eq else "",
+                    eq.name if eq else "",
+                    w.partner.name if w.partner else "",
+                )
+            ).lower()
+            if q_val not in hay:
+                return False
+        return True
+
+    base = [w for w in rows if _ok(w)]
+    permit_counts = {
+        "pending": sum(1 for w in base if not w.work_permitted),
+        "done": sum(1 for w in base if w.work_permitted),
+    }
+    if f["permit"] == "pending":
+        base = [w for w in base if not w.work_permitted]
+    elif f["permit"] == "done":
+        base = [w for w in base if w.work_permitted]
+    day_before = [w for w in base if w.scheduled_date == tomorrow]
+    today_works = [w for w in base if w.scheduled_date == today]
+    scheduled_works = [w for w in base if w.scheduled_date not in (today, tomorrow)]
+    return {
+        "today": today,
+        "tomorrow": tomorrow,
+        "day_before": day_before,
+        "today_works": today_works,
+        "scheduled": scheduled_works,
+        "permit_counts": permit_counts,
+    }
+
+
+def _facility_board_list(data: dict, board_key: str) -> list:
     if board_key == "all":
-        list_all = day_before + today_works + scheduled_works
-    elif board_key == "day_before":
-        list_all = day_before
-    elif board_key == "scheduled":
-        list_all = scheduled_works
-    else:
-        list_all = today_works
+        return data["day_before"] + data["today_works"] + data["scheduled"]
+    if board_key == "day_before":
+        return data["day_before"]
+    if board_key == "scheduled":
+        return data["scheduled"]
+    return data["today_works"]
 
-    pager = _paginate(list_all, page)
+
+def _facility_board_key(board: str) -> str:
+    key = (board or "day_before").strip().lower()
+    return key if key in ("day_before", "today", "scheduled", "all") else "day_before"
+
+
+@app.get("/admin/facility-section")
+async def facility_section_list(
+    request: Request,
+    board: str = Query("day_before"),
+    page: str = "1",
+    per_page: str = "",
+    q: str = "",
+    status: str = "",
+    partner_id: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    permit: str = "",
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """정비관리(시설섹션): 승인요청된 하루전·당일·정비예정 작업."""
+    board_key = _facility_board_key(board)
+    filters = _facility_filters(q, status, partner_id, date_from, date_to, permit)
+    data = await _facility_board_data(db, filters, apply_risk=True)
+    today = data["today"]
+    tomorrow = data["tomorrow"]
+    day_before = data["day_before"]
+    today_works = data["today_works"]
+    scheduled_works = data["scheduled"]
+    list_all = _facility_board_list(data, board_key)
+
+    per_page_val = _query_int(per_page)
+    if per_page_val not in WO_PAGE_SIZES:
+        per_page_val = _query_int(request.cookies.get("fac_per_page"))
+    if per_page_val not in WO_PAGE_SIZES:
+        per_page_val = LIST_PAGE_SIZE
+    pager = _paginate(list_all, page, per_page_val)
     orders = pager["items"]
     risk_xlsx = _partner_risk_xlsx_path()
     risk_catalog = _load_partner_risk_catalog()
@@ -11218,19 +11335,50 @@ async def facility_section_list(
                     .order_by(Partner.name)
                 )
             ).scalars().all(),
+            "filters": filters,
+            "keep_qs": _facility_keep_qs(filters),
+            "permit_counts": data["permit_counts"],
+            "page_sizes": WO_PAGE_SIZES,
         },
     )
 
 
-def _facility_redirect(
-    *, board: str = "day_before", page: int | str = 1, message: str = "", error: str = ""
+@app.get("/admin/facility-section/export")
+async def facility_section_export(
+    board: str = Query("day_before"),
+    q: str = "",
+    status: str = "",
+    partner_id: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    permit: str = "",
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
 ):
-    from urllib.parse import urlencode
+    """시설섹션 화면의 현재 탭·검색 조건 결과를 Excel로 내보내기."""
+    filters = _facility_filters(q, status, partner_id, date_from, date_to, permit)
+    data = await _facility_board_data(db, filters)
+    orders = _facility_board_list(data, _facility_board_key(board))
+    return _work_orders_excel_response(orders, "시설섹션")
+
+
+def _facility_redirect(
+    *,
+    board: str = "day_before",
+    page: int | str = 1,
+    message: str = "",
+    error: str = "",
+    keep: str = "",
+):
+    from urllib.parse import parse_qsl, urlencode
 
     params: list[tuple[str, str]] = []
     b = (board or "day_before").strip() or "day_before"
     if b != "day_before":
         params.append(("board", b))
+    params.extend(
+        (k, v) for k, v in parse_qsl(keep or "") if k in FAC_KEEP_KEYS and v.strip()
+    )
     try:
         page_n = int(page or 1)
     except (TypeError, ValueError):
@@ -11263,6 +11411,7 @@ async def facility_permit_work(
     wo_id: int,
     board: str = Form("day_before"),
     page: str = Form("1"),
+    fac_keep: str = Form(""),
     hazard_content: str = Form(""),
     safety_measures: str = Form(""),
     risk_grade: str = Form(""),
@@ -11282,11 +11431,12 @@ async def facility_permit_work(
     if not wo or not wo.is_active:
         raise HTTPException(404)
     if not getattr(wo, "approval_requested", False):
-        return _facility_redirect(board=board, page=page, error="승인요청된 항목이 아닙니다.")
+        return _facility_redirect(keep=fac_keep, board=board, page=page, error="승인요청된 항목이 아닙니다.")
     if getattr(wo, "work_permitted", False):
-        return _facility_redirect(board=board, page=page, message="이미 작업허가된 항목입니다.")
+        return _facility_redirect(keep=fac_keep, board=board, page=page, message="이미 작업허가된 항목입니다.")
     if (risk_confirmed or "").strip() not in ("1", "true", "yes", "on"):
         return _facility_redirect(
+        keep=fac_keep,
             board=board,
             page=page,
             error="잠재위험 및 안전대책을 확인·수정한 뒤 승인해 주세요.",
@@ -11300,6 +11450,7 @@ async def facility_permit_work(
         wo.risk_grade = wo.risk_grade[:20]
     if not (wo.hazard_content or "").strip() or not (wo.safety_measures or "").strip():
         return _facility_redirect(
+        keep=fac_keep,
             board=board,
             page=page,
             error="잠재위험 내용과 안전작업 대책을 입력한 뒤 승인해 주세요.",
@@ -11316,6 +11467,7 @@ async def facility_permit_work(
     _wo_apply_work_permit(wo, _wo_approver_label(user))
     await db.commit()
     return _facility_redirect(
+        keep=fac_keep,
         board=board,
         page=page,
         message="작업허가 처리되었습니다. 진행상태가 '진행'으로 변경되었습니다.",
@@ -11327,6 +11479,7 @@ async def facility_save_partner_risk_defaults(
     request: Request,
     board: str = Form("day_before"),
     page: str = Form("1"),
+    fac_keep: str = Form(""),
     partner_id: int = Form(...),
     hazard_content: str = Form(""),
     safety_measures: str = Form(""),
@@ -11337,11 +11490,12 @@ async def facility_save_partner_risk_defaults(
     """협력사별 잠재위험·안전대책 기본값 저장 (승인 없이)."""
     partner = await db.get(Partner, partner_id)
     if not partner or not partner.is_active:
-        return _facility_redirect(board=board, page=page, error="협력사를 찾을 수 없습니다.")
+        return _facility_redirect(keep=fac_keep, board=board, page=page, error="협력사를 찾을 수 없습니다.")
     h = hazard_content.strip()
     s = safety_measures.strip()
     if not h or not s:
         return _facility_redirect(
+        keep=fac_keep,
             board=board,
             page=page,
             error="기본값 저장에는 잠재위험 내용과 안전작업 대책이 필요합니다.",
@@ -11354,6 +11508,7 @@ async def facility_save_partner_risk_defaults(
     )
     await db.commit()
     return _facility_redirect(
+        keep=fac_keep,
         board=board,
         page=page,
         message=f"「{partner.name}」 잠재위험·안전대책 기본값을 저장했습니다.",
@@ -11365,6 +11520,7 @@ async def facility_permit_work_bulk(
     request: Request,
     board: str = Form("day_before"),
     page: str = Form("1"),
+    fac_keep: str = Form(""),
     risk_confirmed: str = Form(""),
     save_as_default: str | None = Form(None),
     user: User = Depends(require_can_edit),
@@ -11380,9 +11536,10 @@ async def facility_permit_work_bulk(
         except (TypeError, ValueError):
             continue
     if not ids:
-        return _facility_redirect(board=board, page=page, error="작업허가할 항목을 선택하세요.")
+        return _facility_redirect(keep=fac_keep, board=board, page=page, error="작업허가할 항목을 선택하세요.")
     if (risk_confirmed or "").strip() not in ("1", "true", "yes", "on"):
         return _facility_redirect(
+        keep=fac_keep,
             board=board,
             page=page,
             error="일괄승인 전 잠재위험 및 안전대책 확인이 필요합니다.",
@@ -11438,8 +11595,9 @@ async def facility_permit_work_bulk(
             msg += f" · {skip}건 제외"
         if do_save_default:
             msg += " · 협력사 기본값 반영"
-        return _facility_redirect(board=board, page=page, message=msg)
+        return _facility_redirect(keep=fac_keep, board=board, page=page, message=msg)
     return _facility_redirect(
+        keep=fac_keep,
         board=board,
         page=page,
         error="작업허가할 수 있는 항목이 없습니다. 잠재위험·안전대책을 확인하세요.",
@@ -11451,6 +11609,7 @@ async def facility_unpermit_work(
     wo_id: int,
     board: str = Form("day_before"),
     page: str = Form("1"),
+    fac_keep: str = Form(""),
     user: User = Depends(require_can_edit),
     db: AsyncSession = Depends(get_db),
 ):
@@ -11462,7 +11621,7 @@ async def facility_unpermit_work(
     wo.work_permitted_by = None
     wo.work_permitted_at = None
     await db.commit()
-    return _facility_redirect(board=board, page=page, message="승인이 취소되었습니다.")
+    return _facility_redirect(keep=fac_keep, board=board, page=page, message="승인이 취소되었습니다.")
 
 
 @app.post("/admin/d1")
