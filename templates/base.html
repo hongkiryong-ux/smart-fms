@@ -11,9 +11,10 @@
   {% set _mui_p = request.url.path %}
   {% set maint_ui = _mui_p.startswith('/admin/work-orders') or _mui_p.startswith('/admin/d1') or _mui_p.startswith('/admin/facility-section') or _mui_p.startswith('/admin/maintenance-final-approvals') or _mui_p.startswith('/admin/maintenance-performance') or _mui_p.startswith('/admin/streetlamp') %}
   {% if maint_ui %}<link rel="stylesheet" href="/static/css/maint_ui.css?v=3" />{% endif %}
+  {% set mui_switch = maint_ui and user and user.role.value == 'system_admin' %}
 </head>
 <body{% if maint_ui %} class="mui"{% endif %}>
-  {% if maint_ui %}<script>try { if (localStorage.getItem('maintUi') === 'old') document.body.classList.remove('mui'); } catch (e) {}</script>{% endif %}
+  {% if mui_switch %}<script>try { if (localStorage.getItem('maintUi') === 'old') document.body.classList.remove('mui'); } catch (e) {}</script>{% endif %}
   {% set is_popup = request.query_params.get('popup') == '1' or qr_mode|default(false) %}
   {% if user and not is_popup %}
   {% set ilog2_path = '/inspection-logs2' in request.url.path %}
@@ -814,7 +815,7 @@
   <script src="/static/js/ilog2_grid_copy.js?v=1" defer></script>
   {% if user %}<script src="/static/js/ilog2_page_excel.js?v=1" defer></script>{% endif %}
   {% if user %}<script src="/static/js/wo_photo_resize.js?v=1" defer></script>{% endif %}
-  {% if maint_ui %}
+  {% if mui_switch %}
   <button type="button" class="mui-toggle" id="mui-toggle" title="정비관리 화면 디자인 전환"></button>
   <script>
   (function () {
