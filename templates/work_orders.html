@@ -1,310 +1,332 @@
 {% extends "base.html" %}
 {% block title %}정비접수/승인(정비섹션){% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/work_orders.css?v=3" />{% endblock %}
+
+{% macro keep_filters() -%}
+<input type="hidden" name="q" value="{{ filters.q }}" />
+<input type="hidden" name="filter_status" value="{{ filters.status }}" />
+<input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
+<input type="hidden" name="date_from" value="{{ filters.date_from }}" />
+<input type="hidden" name="date_to" value="{{ filters.date_to }}" />
+<input type="hidden" name="page" value="{{ filters.page }}" />
+<input type="hidden" name="filter_partner_id" value="{{ filters.partner_id or '' }}" />
+{%- endmacro %}
+
 {% block content %}
-<header class="page-header">
-  <h1>정비접수/승인(정비섹션)</h1>
-  <p>정비의뢰 → 정비진행 → 정비완료 · 항목별 업체 지정 후 선택 일괄승인(또는 개별 승인)으로 D-1 전송</p>
+{% set all_status = 'received,in_progress,completed' %}
+{% set qs = [] %}
+{% if filters.q %}{% set _ = qs.append('q=' ~ (filters.q|urlencode)) %}{% endif %}
+{% if filters.priority %}{% set _ = qs.append('priority=' ~ filters.priority) %}{% endif %}
+{% if filters.date_from %}{% set _ = qs.append('date_from=' ~ filters.date_from) %}{% endif %}
+{% if filters.date_to %}{% set _ = qs.append('date_to=' ~ filters.date_to) %}{% endif %}
+{% if filters.partner_id %}{% set _ = qs.append('partner_id=' ~ filters.partner_id) %}{% endif %}
+{% if filters.site_id %}{% set _ = qs.append('site_id=' ~ filters.site_id) %}{% endif %}
+{% set kpi_base = '/admin/work-orders?' ~ ((qs|join('&') ~ '&') if qs else '') %}
+{% set st_set = filters.statuses|sort|join(',') %}
+
+<header class="wo2-head">
+  <div class="wo2-head-title">
+    <h1>정비접수/승인(정비섹션)</h1>
+    <p>정비의뢰 → 정비진행 → 정비완료 → 항목별 업체 지정 후 선택 일괄승인(또는 개별 승인)으로 D-1 전송</p>
+  </div>
+  <div class="wo2-head-right">
+    <nav class="wo2-crumb" aria-label="현재 위치">
+      <a href="/admin/dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z" fill="currentColor"/></svg>Home</a>
+      <span aria-hidden="true">›</span>
+      <span>정비관리</span>
+      <span aria-hidden="true">›</span>
+      <strong>정비접수/승인</strong>
+    </nav>
+    <button type="button" class="wo2-help-btn" data-open-dialog="wo-help-dialog"><span aria-hidden="true">?</span> 도움말</button>
+  </div>
 </header>
 
-{% if flash_error %}
-<div class="alert alert-error">{{ flash_error }}</div>
-{% endif %}
-{% if flash_message %}
-<div class="alert alert-ok">{{ flash_message }}</div>
-{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
 
-<section class="card">
-  <div class="wo-list-head">
-    <h2>
-      정비 목록
-      <small class="text-muted">({{ result_count }}건{% if pager and pager.total_pages > 1 %} · {{ pager.page }}/{{ pager.total_pages }}페이지{% endif %})</small>
-    </h2>
-    <div class="row-actions">
-      <a class="btn btn-sm btn-secondary"
-         id="wo-excel-btn"
-         href="/admin/work-orders/export">Excel 내보내기</a>
-      <button type="button"
-              class="wo-add-icon"
-              data-open-dialog="wo-create-dialog"
-              title="정비의뢰 접수">
-        <span class="wo-add-plus" aria-hidden="true">＋</span>
-        <span class="wo-add-label">정비의뢰</span>
+<section class="wo2-kpis" aria-label="정비 현황">
+  <a class="wo2-kpi k-total{% if st_set == 'completed,in_progress,received' %} is-on{% endif %}" href="{{ kpi_base }}status={{ all_status }}">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h4"/></svg></span>
+    <span class="wo2-kpi-txt"><span>전체</span><b>{{ kpi.total }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-recv{% if st_set == 'received' %} is-on{% endif %}" href="{{ kpi_base }}status=received">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 12.5h8M8 16h5"/></svg></span>
+    <span class="wo2-kpi-txt"><span>정비의뢰</span><b>{{ kpi.received }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-prog{% if st_set == 'in_progress' %} is-on{% endif %}" href="{{ kpi_base }}status=in_progress">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></svg></span>
+    <span class="wo2-kpi-txt"><span>정비진행</span><b>{{ kpi.in_progress }}<small>건</small></b></span>
+  </a>
+  <a class="wo2-kpi k-done{% if st_set == 'completed' %} is-on{% endif %}" href="{{ kpi_base }}status=completed">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8 12.3 2.7 2.7L16.2 9.5"/></svg></span>
+    <span class="wo2-kpi-txt"><span>정비완료</span><b>{{ kpi.completed }}<small>건</small></b></span>
+  </a>
+  <div class="wo2-kpi k-rej" title="반려된 정비의뢰 (진행상태 무관)">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m9 9 6 6M15 9l-6 6"/></svg></span>
+    <span class="wo2-kpi-txt"><span>반려</span><b>{{ kpi.rejected }}<small>건</small></b></span>
+  </div>
+  <div class="wo2-kpi k-wait" title="D-1 승인 전(반려 제외)">
+    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5.5 19.5c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5"/></svg></span>
+    <span class="wo2-kpi-txt"><span>승인대기</span><b>{{ kpi.pending }}<small>건</small></b></span>
+  </div>
+</section>
+
+<form method="get" action="/admin/work-orders" class="wo2-filter" id="wo-filter-form">
+  {% if filters.site_id %}<input type="hidden" name="site_id" value="{{ filters.site_id }}" />{% endif %}
+  <div class="wo2-search">
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="설비코드·명칭·의뢰내용·조치·담당자 검색" aria-label="검색어" />
+    <button type="submit" aria-label="검색"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
+  </div>
+  <label class="wo2-fl">기간</label>
+  <input type="date" name="date_from" value="{{ filters.date_from }}" class="wo2-date" title="등록일 시작" />
+  <span class="wo2-tilde">~</span>
+  <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo2-date" title="등록일 종료" />
+  <label class="wo2-fl" for="wo-f-status">진행상태</label>
+  <select name="status" id="wo-f-status" class="wo2-sel">
+    <option value="{{ all_status }}"{% if st_set == 'completed,in_progress,received' %} selected{% endif %}>전체</option>
+    <option value="received"{% if st_set == 'received' %} selected{% endif %}>정비의뢰</option>
+    <option value="in_progress"{% if st_set == 'in_progress' %} selected{% endif %}>정비진행</option>
+    <option value="completed"{% if st_set == 'completed' %} selected{% endif %}>정비완료</option>
+    {% if filters.statuses|length == 2 %}
+    <option value="{{ filters.status }}" selected>{% for s in filters.statuses %}{{ {'received':'정비의뢰','in_progress':'정비진행','completed':'정비완료'}[s] }}{% if not loop.last %}+{% endif %}{% endfor %}</option>
+    {% endif %}
+  </select>
+  <label class="wo2-fl" for="wo-f-priority">우선순위</label>
+  <select name="priority" id="wo-f-priority" class="wo2-sel">
+    <option value="">전체</option>
+    <option value="high" {% if filters.priority == 'high' %}selected{% endif %}>긴급</option>
+    <option value="normal" {% if filters.priority == 'normal' %}selected{% endif %}>일반</option>
+  </select>
+  <label class="wo2-fl" for="wo-f-partner">협력사</label>
+  <select name="partner_id" id="wo-f-partner" class="wo2-sel">
+    <option value="">전체</option>
+    {% for p in partners %}
+    <option value="{{ p.id }}" {% if filters.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="wo2-btn wo2-btn-navy">검색</button>
+  <a class="wo2-btn wo2-btn-line" href="/admin/work-orders">초기화</a>
+  {% if filters.site_id and filters.site_name %}
+  <a class="wo2-chip" href="{{ '/admin/work-orders?' ~ (qs|reject('equalto', 'site_id=' ~ filters.site_id)|join('&')) }}&status={{ filters.status }}" title="사업장 필터 해제">사업장: {{ filters.site_name }} ×</a>
+  {% endif %}
+</form>
+
+<section class="wo2-card">
+  <div class="wo2-list-head">
+    <div class="wo2-list-left">
+      <span class="wo2-count">총 <b>{{ result_count }}</b>건</span>
+      <a class="wo2-btn wo2-btn-line" id="wo-excel-btn" href="/admin/work-orders/export">
+        <svg class="wo2-xls" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" fill="#1d7a46"/><path d="m8 7.5 8 9M16 7.5l-8 9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+        Excel 내보내기
+      </a>
+      <button type="button" class="wo2-btn wo2-btn-blue" data-open-dialog="wo-create-dialog" title="정비의뢰 접수">＋ 정비의뢰</button>
+    </div>
+    <div class="wo2-list-right">
+      <button type="button" class="wo2-btn wo2-btn-line" onclick="location.reload()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg> 새로고침
       </button>
+      <select class="wo2-sel" id="wo-per-page" aria-label="페이지당 표시 건수">
+        {% for n in page_sizes %}
+        <option value="{{ n }}"{% if pager.per_page == n %} selected{% endif %}>{{ n }}개씩 보기</option>
+        {% endfor %}
+      </select>
+      <div class="wo2-colset">
+        <button type="button" class="wo2-btn wo2-btn-line" id="wo-colset-btn" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg> 열 설정
+        </button>
+        <div class="wo2-colset-menu" id="wo-colset-menu" hidden>
+          <div class="wo2-colset-title">표시할 열</div>
+          <div id="wo-colset-list"></div>
+          <button type="button" class="wo2-colset-reset" id="wo-colset-reset">기본값으로 (열 너비 포함)</button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <form method="get" action="/admin/work-orders" class="wo-filter-bar" id="wo-filter-form">
-    {% if filters.site_id %}
-    <input type="hidden" name="site_id" value="{{ filters.site_id }}" />
-    {% endif %}
-    <input type="search"
-           name="q"
-           value="{{ filters.q }}"
-           placeholder="설비코드·명칭·의뢰내용·조치·담당자 검색"
-           class="wo-filter-q" />
-
-    <div class="wo-status-checks" role="group" aria-label="진행상태 필터">
-      <label class="wo-check{% if 'received' in filters.statuses %} is-on{% endif %}">
-        <input type="checkbox"
-               name="status"
-               value="received"
-               {% if 'received' in filters.statuses %}checked{% endif %} />
-        <span>정비의뢰</span>
-      </label>
-      <label class="wo-check{% if 'in_progress' in filters.statuses %} is-on{% endif %}">
-        <input type="checkbox"
-               name="status"
-               value="in_progress"
-               {% if 'in_progress' in filters.statuses %}checked{% endif %} />
-        <span>정비진행</span>
-      </label>
-      <label class="wo-check{% if 'completed' in filters.statuses %} is-on{% endif %}">
-        <input type="checkbox"
-               name="status"
-               value="completed"
-               {% if 'completed' in filters.statuses %}checked{% endif %} />
-        <span>정비완료</span>
-      </label>
-    </div>
-
-    <select name="priority" class="wo-filter-select" onchange="this.form.submit()">
-      <option value="">우선순위 전체</option>
-      <option value="high" {% if filters.priority == 'high' %}selected{% endif %}>긴급</option>
-      <option value="normal" {% if filters.priority == 'normal' %}selected{% endif %}>일반</option>
-    </select>
-    <input type="date" name="date_from" value="{{ filters.date_from }}" class="wo-filter-date" title="등록일 시작" />
-    <span class="wo-filter-tilde">~</span>
-    <input type="date" name="date_to" value="{{ filters.date_to }}" class="wo-filter-date" title="등록일 종료" />
-    <button type="submit" class="btn btn-sm btn-primary">검색</button>
-    {% if filters.site_id and filters.site_name %}
-    <a class="btn btn-sm btn-secondary wo-site-filter-chip"
-       href="/admin/work-orders{% if filters.statuses %}?status={{ filters.statuses|join('&status=') }}{% endif %}"
-       title="사업장 필터 해제">사업장: {{ filters.site_name }} ×</a>
-    {% else %}
-    <a class="btn btn-sm btn-secondary" href="/admin/work-orders">초기화</a>
-    {% endif %}
-  </form>
-
-  <div class="wo-bulk-bar" id="wo-bulk-bar" hidden>
+  <div class="wo-bulk-bar wo2-bulk" id="wo-bulk-bar" hidden>
     <span class="wo-bulk-count">선택 <strong id="wo-bulk-count">0</strong>건</span>
     <span class="wo-bulk-hint">항목별 업체를 지정한 뒤 일괄승인하세요</span>
-    <button type="submit" form="wo-bulk-form" class="btn btn-sm btn-primary" id="wo-bulk-approve-btn">
-      선택 항목 일괄승인
-    </button>
-    <button type="button" class="btn btn-sm btn-secondary" id="wo-bulk-clear">선택 해제</button>
+    <button type="submit" form="wo-bulk-form" class="wo2-btn wo2-btn-blue" id="wo-bulk-approve-btn">선택 항목 일괄승인</button>
+    <button type="button" class="wo2-btn wo2-btn-line" id="wo-bulk-clear">선택 해제</button>
   </div>
 
   <form id="wo-bulk-form" method="post" action="/admin/work-orders/approve-d1-bulk">
-    <input type="hidden" name="q" value="{{ filters.q }}" />
-    <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-    <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-    <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-    <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-    <input type="hidden" name="page" value="{{ filters.page }}" />
+    {{ keep_filters() }}
   </form>
 
-  <div class="table-scroll">
-  <table class="data-table wo-list-table wo-list-compact" data-col-share="source">
+  <div class="wo2-table-wrap">
+  <table class="wo-list-table wo2-table" data-col-share="source" data-col-version="v3">
     <thead>
       <tr>
-        <th class="wo-sel-col">
+        <th data-col="_sel" data-col-fixed="1" data-col-label="선택" class="c-sel">
           <input type="checkbox" id="wo-select-all" title="미승인 전체 선택" aria-label="미승인 전체 선택" />
         </th>
-        <th>상세</th>
-        <th class="wo-eq-col-head">설비</th>
-        <th>정비의뢰내용</th>
-        <th>정비의뢰자</th>
-        <th>등록일</th>
-        <th>예정일</th>
-        <th>우선순위</th>
-        <th>협력사</th>
-        <th>진행</th>
-        <th>조치내용</th>
-        <th>작업 승인자</th>
-        <th>최종승인자</th>
-        <th>저장</th>
-        <th>D-1</th>
-        {% if user_can_delete(user) %}<th>삭제</th>{% endif %}
+        <th data-col="no" data-col-label="No." class="c-no">No.</th>
+        <th data-col="상세" data-col-label="상세" class="c-detail">상세</th>
+        <th data-col="설비코드" data-col-label="설비코드" class="c-eq">설비코드</th>
+        <th data-col="정비의뢰내용" data-col-fixed="1" data-col-label="정비의뢰내용" class="c-req">정비의뢰내용</th>
+        <th data-col="의뢰자" data-col-label="의뢰자" class="c-person">의뢰자</th>
+        <th data-col="등록일" data-col-label="등록일" class="c-date">등록일</th>
+        <th data-col="예정일" data-col-label="예정일" class="c-sched">예정일</th>
+        <th data-col="우선순위" data-col-label="우선순위" class="c-pri">우선순위</th>
+        <th data-col="협력사" data-col-label="협력사" class="c-partner">협력사</th>
+        <th data-col="진행상태" data-col-label="진행상태" class="c-status">진행상태</th>
+        <th data-col="조치내용" data-col-label="조치내용" data-col-hidden="1" data-col-w="160" class="c-action">조치내용</th>
+        <th data-col="작업 승인자" data-col-label="작업 승인자" class="c-person">작업 승인자</th>
+        <th data-col="최종승인자" data-col-label="최종승인자" class="c-person">최종승인자</th>
+        <th data-col="저장" data-col-label="저장" class="c-btn">저장</th>
+        <th data-col="승인" data-col-label="승인" class="c-btn2">승인</th>
+        <th data-col="반려" data-col-label="반려" class="c-btn2">반려</th>
+        {% if user_can_delete(user) %}<th data-col="삭제" data-col-label="삭제" class="c-del">삭제</th>{% endif %}
       </tr>
     </thead>
     <tbody>
       {% for wo in orders %}
       {% set st = wo.status.value %}
       {% set step = 1 if st in ['received','assigned'] else (2 if st == 'in_progress' else 3) %}
-      <tr class="{% if wo.d1_approved %}wo-d1-approved{% endif %}" data-wo-id="{{ wo.id }}">
-        <td class="wo-sel-col">
+      {% set step_val = ['received','in_progress','completed'][step - 1] %}
+      <tr class="{% if wo.d1_approved %}wo-d1-approved{% endif %}{% if wo.is_rejected %} is-rejected{% endif %}" data-wo-id="{{ wo.id }}">
+        <td class="c-sel">
           {% if not wo.d1_approved and not wo.is_rejected %}
-          <input type="checkbox"
-                 class="wo-row-check"
-                 name="wo_ids"
-                 value="{{ wo.id }}"
-                 form="wo-bulk-form"
-                 data-partner-select="wo-partner-{{ wo.id }}"
-                 title="일괄승인 대상" />
+          <input type="checkbox" class="wo-row-check" name="wo_ids" value="{{ wo.id }}" form="wo-bulk-form"
+                 data-partner-select="wo-partner-{{ wo.id }}" title="일괄승인 대상" />
           {% else %}
-          <span class="wo-sel-done" title="이미 승인됨">✓</span>
+          <input type="checkbox" disabled title="{% if wo.d1_approved %}이미 승인됨{% else %}반려됨{% endif %}" />
           {% endif %}
         </td>
-        <td>
-          <a class="link-action" href="/admin/work-orders/{{ wo.id }}">상세</a>
-          {% if photo_counts and photo_counts.get(wo.id) %}<a class="wo-photo-flag" href="/admin/work-orders/{{ wo.id }}#wo-photos" title="사진 {{ photo_counts.get(wo.id) }}장">📷{{ photo_counts.get(wo.id) }}</a>{% endif %}
+        <td class="c-no">{{ (pager.page - 1) * pager.per_page + loop.index }}</td>
+        <td class="c-detail">
+          <a class="wo2-pill-link" href="/admin/work-orders/{{ wo.id }}">상세</a>
+          {% if photo_counts and photo_counts.get(wo.id) %}<a class="wo-photo-flag" href="/admin/work-orders/{{ wo.id }}#wo-photos" title="사진 {{ photo_counts.get(wo.id) }}장">📷</a>{% endif %}
         </td>
-        <td class="wo-eq-cell">
-          {% if wo.equipment %}
-          <div class="wo-eq-info" title="{{ wo.equipment.code }} {{ wo.equipment.name }}">
-            <code>{{ wo.equipment.code }}</code>
-            <span class="wo-eq-name">{{ wo.equipment.name }}</span>
-          </div>
-          {% else %}-{% endif %}
+        <td class="c-eq" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
+          {% if wo.equipment %}{{ wo.equipment.code }}{% else %}-{% endif %}
         </td>
-        <td class="wo-req-cell" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}">
-          <span class="wo-req-text">
-            {% if wo.is_rejected %}<span class="badge badge-urgent" title="{{ wo.rejection_reason or '' }}">반려</span> {% endif %}
-            {% if wo.d1_approved %}<span class="badge badge-wo">D-1</span> {% endif %}
-            {% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
+        <td class="c-req" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}{% if wo.is_rejected and wo.rejection_reason %}&#10;반려 사유: {{ wo.rejection_reason }}{% endif %}">
+          {% if wo.priority == 'high' %}<span class="wo2-urgent-dot" title="긴급"></span>{% endif %}{% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}
+        </td>
+        <td class="c-person" title="{{ wo.requester_name or wo.assignee_name or '' }}">{{ wo.requester_name or wo.assignee_name or '-' }}</td>
+        <td class="c-date">{{ fmt_kst_date(wo.created_at) }}</td>
+        <td class="c-sched">
+          <span class="wo2-date-wrap{% if not wo.scheduled_date %} is-empty{% endif %}">
+            <input type="date" name="scheduled_date" form="wo-form-{{ wo.id }}" class="wo-sched-input"
+                   value="{{ wo.scheduled_date or '' }}" title="정비 예정일" />
           </span>
         </td>
-        <td class="wo-approver-cell" title="{{ wo.requester_name or wo.assignee_name or '' }}">
-          <span class="wo-approver">{{ wo.requester_name or wo.assignee_name or '-' }}</span>
+        <td class="c-pri">
+          {% if wo.priority == 'high' %}<span class="wo2-tag t-urgent">긴급</span>{% else %}<span class="wo2-tag t-normal">일반</span>{% endif %}
         </td>
-        <td class="wo-date">{{ fmt_kst_date(wo.created_at) }}</td>
-        <td>
-          <input type="date"
-                 name="scheduled_date"
-                 form="wo-form-{{ wo.id }}"
-                 class="wo-sched-input"
-                 value="{{ wo.scheduled_date or '' }}"
-                 title="정비 예정일" />
-        </td>
-        <td>{% if wo.priority == 'high' %}<span class="badge badge-urgent">긴급</span>{% else %}일반{% endif %}</td>
-        <td>
-          <select name="partner_id"
-                  form="wo-form-{{ wo.id }}"
-                  id="wo-partner-{{ wo.id }}"
-                  class="wo-partner-select"
-                  title="협력사 (항목별 지정 후 일괄승인)">
+        <td class="c-partner">
+          <select name="partner_id" form="wo-form-{{ wo.id }}" id="wo-partner-{{ wo.id }}"
+                  class="wo-partner-select wo2-cell-sel" title="협력사 (항목별 지정 후 일괄승인)">
             <option value="0">미지정</option>
             {% for p in partners %}
             <option value="{{ p.id }}" {% if wo.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
             {% endfor %}
           </select>
         </td>
-        <td>
+        <td class="c-status">
           <form id="wo-form-{{ wo.id }}" method="post" action="/admin/work-orders/{{ wo.id }}/status" class="wo-row-form">
             <input type="hidden" name="redirect" value="list" />
-            <input type="hidden" name="q" value="{{ filters.q }}" />
-            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-            <input type="hidden" name="page" value="{{ filters.page }}" />
-            <div class="wo-step-btns" role="radiogroup" aria-label="진행상태">
-              <label class="wo-step-btn{% if step == 1 %} is-on{% endif %}">
-                <input type="radio" name="status" value="received" form="wo-form-{{ wo.id }}" {% if step == 1 %}checked{% endif %} />
-                <span>의뢰</span>
-              </label>
-              <label class="wo-step-btn{% if step == 2 %} is-on{% endif %}">
-                <input type="radio" name="status" value="in_progress" form="wo-form-{{ wo.id }}" {% if step == 2 %}checked{% endif %} />
-                <span>진행</span>
-              </label>
-              <label class="wo-step-btn{% if step == 3 %} is-on{% endif %}">
-                <input type="radio" name="status" value="completed" form="wo-form-{{ wo.id }}" {% if step == 3 %}checked{% endif %} />
-                <span>완료</span>
-              </label>
-            </div>
+            {{ keep_filters() }}
+            <select name="status" class="wo2-st-sel s-{% if wo.is_rejected %}rej{% else %}{{ step_val }}{% endif %}" aria-label="진행상태" title="진행상태 변경 후 저장">
+              {% if wo.is_rejected %}<option value="{{ step_val }}" selected data-rej="1">반려</option>{% endif %}
+              <option value="received"{% if step == 1 and not wo.is_rejected %} selected{% endif %}>의뢰</option>
+              <option value="in_progress"{% if step == 2 and not wo.is_rejected %} selected{% endif %}>진행</option>
+              <option value="completed"{% if step == 3 and not wo.is_rejected %} selected{% endif %}>완료</option>
+            </select>
           </form>
         </td>
-        <td>
-          <input type="text"
-                 name="action"
-                 form="wo-form-{{ wo.id }}"
-                 class="wo-action-input"
-                 value="{{ wo.action or '' }}"
-                 placeholder="조치내용"
-                 title="{{ wo.action or '' }}" />
+        <td class="c-action">
+          <input type="text" name="action" form="wo-form-{{ wo.id }}" class="wo-action-input wo2-cell-input"
+                 value="{{ wo.action or '' }}" placeholder="조치내용" title="{{ wo.action or '' }}" />
         </td>
-        <td class="wo-approver-cell" title="{{ wo.approved_by or '' }}">
-          {% if wo.d1_approved %}
-          <span class="wo-approver">{{ wo.approved_by or '-' }}</span>
-          {% else %}
-          <span class="text-muted">-</span>
-          {% endif %}
+        <td class="c-person" title="{{ wo.approved_by or '' }}">{% if wo.d1_approved %}{{ wo.approved_by or '-' }}{% else %}-{% endif %}</td>
+        <td class="c-person" title="{{ wo.completion_approved_by or '' }}{% if wo.completion_approved_at %} · {{ fmt_kst(wo.completion_approved_at) }}{% endif %}">{{ wo.completion_approved_by or '-' }}</td>
+        <td class="c-btn">
+          <button type="submit" form="wo-form-{{ wo.id }}" class="wo2-mini b-navy">저장</button>
         </td>
-        <td class="wo-approver-cell" title="{{ wo.completion_approved_by or '' }}{% if wo.completion_approved_at %} · {{ fmt_kst(wo.completion_approved_at) }}{% endif %}">
-          <span class="wo-approver">{{ wo.completion_approved_by or '-' }}</span>
-        </td>
-        <td>
-          <button type="submit" form="wo-form-{{ wo.id }}" class="btn btn-sm btn-primary">저장</button>
-        </td>
-        <td class="wo-d1-cell">
+        <td class="c-btn2">
           {% if wo.d1_approved %}
           <form method="post" action="/admin/work-orders/{{ wo.id }}/unapprove-d1" class="inline-form"
                 onsubmit="return confirm('D-1 승인을 취소할까요?');">
             <input type="hidden" name="redirect" value="list" />
-            <input type="hidden" name="q" value="{{ filters.q }}" />
-            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-            <input type="hidden" name="page" value="{{ filters.page }}" />
-            <button type="submit" class="btn btn-sm btn-secondary" title="승인 취소">승인됨</button>
+            {{ keep_filters() }}
+            <button type="submit" class="wo2-mini b-done" title="클릭하면 승인 취소">승인됨</button>
           </form>
-          {% elif wo.is_rejected %}
-          <span class="badge badge-urgent wo-rejected-badge" title="{{ wo.rejection_reason or '반려됨' }}">반려됨</span>
-          {% else %}
-          <div class="wo-d1-actions">
-            <form method="post"
-                  action="/admin/work-orders/{{ wo.id }}/approve-d1"
-                  class="inline-form wo-approve-form"
-                  data-partner-select="wo-partner-{{ wo.id }}">
-              <input type="hidden" name="redirect" value="list" />
-              <input type="hidden" name="q" value="{{ filters.q }}" />
-              <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-              <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-              <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-              <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-              <input type="hidden" name="page" value="{{ filters.page }}" />
-              <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
-              <button type="submit" class="btn btn-sm btn-primary">승인</button>
-            </form>
-            <button type="button"
-                    class="btn btn-sm btn-danger wo-reject-open"
-                    data-wo-id="{{ wo.id }}"
-                    title="반려">반려</button>
-          </div>
+          {% elif not wo.is_rejected %}
+          <form method="post" action="/admin/work-orders/{{ wo.id }}/approve-d1"
+                class="inline-form wo-approve-form" data-partner-select="wo-partner-{{ wo.id }}">
+            <input type="hidden" name="redirect" value="list" />
+            {{ keep_filters() }}
+            <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
+            <button type="submit" class="wo2-mini b-blue">승인</button>
+          </form>
+          {% endif %}
+        </td>
+        <td class="c-btn2">
+          {% if wo.is_rejected %}
+          <span class="wo2-mini b-rejected" title="{{ wo.rejection_reason or '반려됨' }}">반려됨</span>
+          {% elif not wo.d1_approved %}
+          <button type="button" class="wo2-mini b-red wo-reject-open" data-wo-id="{{ wo.id }}" title="반려">반려</button>
           {% endif %}
         </td>
         {% if user_can_delete(user) %}
-        <td>
+        <td class="c-del">
           <form method="post" action="/admin/work-orders/{{ wo.id }}/delete" class="inline-form"
                 onsubmit="return confirm('이 정비의뢰를 삭제할까요?');">
             <input type="hidden" name="redirect" value="list" />
-            <input type="hidden" name="q" value="{{ filters.q }}" />
-            <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-            <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-            <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-            <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-            <input type="hidden" name="page" value="{{ filters.page }}" />
-            <button type="submit" class="link-action link-danger">삭제</button>
+            {{ keep_filters() }}
+            <button type="submit" class="wo2-del">삭제</button>
           </form>
         </td>
         {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{% if user_can_delete(user) %}16{% else %}15{% endif %}" class="empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
+      <tr><td colspan="{% if user_can_delete(user) %}18{% else %}17{% endif %}" class="wo2-empty">조건에 맞는 정비의뢰가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
-  {% set qs = [] %}
-  {% for s in filters.statuses %}{% set _ = qs.append('status=' ~ s) %}{% endfor %}
-  {% if filters.q %}{% set _ = qs.append('q=' ~ (filters.q|urlencode)) %}{% endif %}
-  {% if filters.priority %}{% set _ = qs.append('priority=' ~ filters.priority) %}{% endif %}
-  {% if filters.date_from %}{% set _ = qs.append('date_from=' ~ filters.date_from) %}{% endif %}
-  {% if filters.date_to %}{% set _ = qs.append('date_to=' ~ filters.date_to) %}{% endif %}
-  {% set base_url = '/admin/work-orders' ~ (('?' ~ qs|join('&')) if qs else '') %}
-  {% include "partials/pager.html" %}
+
+  {% set page_base = '/admin/work-orders?' ~ ((qs|join('&') ~ '&') if qs else '') ~ 'status=' ~ filters.status ~ '&page=' %}
+  <div class="wo2-foot">
+    <span></span>
+    <nav class="wo2-pager" aria-label="페이지">
+      {% if pager.has_prev %}<a class="pg-arrow" href="{{ page_base }}{{ pager.page - 1 }}" aria-label="이전">‹</a>{% else %}<span class="pg-arrow is-off">‹</span>{% endif %}
+      {% if pager.page_numbers and pager.page_numbers[0] > 1 %}
+      <a href="{{ page_base }}1">1</a>{% if pager.page_numbers[0] > 2 %}<span class="pg-gap">…</span>{% endif %}
+      {% endif %}
+      {% for p in pager.page_numbers %}
+      {% if p == pager.page %}<span class="is-on" aria-current="page">{{ p }}</span>{% else %}<a href="{{ page_base }}{{ p }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+      {% if pager.page_numbers and pager.page_numbers[-1] < pager.total_pages %}
+      {% if pager.page_numbers[-1] < pager.total_pages - 1 %}<span class="pg-gap">…</span>{% endif %}<a href="{{ page_base }}{{ pager.total_pages }}">{{ pager.total_pages }}</a>
+      {% endif %}
+      {% if pager.has_next %}<a class="pg-arrow" href="{{ page_base }}{{ pager.page + 1 }}" aria-label="다음">›</a>{% else %}<span class="pg-arrow is-off">›</span>{% endif %}
+    </nav>
+    <span class="wo2-range">
+      {% if result_count %}총 {{ result_count }}건 중 {{ (pager.page - 1) * pager.per_page + 1 }}-{{ (pager.page - 1) * pager.per_page + orders|length }}건{% else %}총 0건{% endif %}
+    </span>
+  </div>
 </section>
+
+<dialog id="wo-help-dialog" class="eq-dialog wo2-help-dialog">
+  <form method="dialog" class="eq-dialog-top">
+    <button type="submit" class="btn btn-sm btn-secondary">닫기</button>
+  </form>
+  <div class="eq-popup-body">
+    <h2 class="wo2-help-title">정비접수/승인 사용 방법</h2>
+    <ol class="wo2-help-list">
+      <li><b>정비의뢰 접수</b> — 「＋ 정비의뢰」에서 건물·설비·의뢰내용을 입력합니다. 협력사를 고르면 D-1 잠재위험·안전대책을 함께 지정할 수 있습니다.</li>
+      <li><b>업체 지정</b> — 목록의 「협력사」 칸에서 항목별 업체를 고릅니다.</li>
+      <li><b>승인 (D-1 전송)</b> — 행의 「승인」 버튼으로 개별 승인하거나, 체크박스로 여러 건을 고른 뒤 「선택 항목 일괄승인」을 누릅니다. 업체 미지정 항목은 승인에서 제외됩니다.</li>
+      <li><b>진행상태·예정일 변경</b> — 「진행상태」(의뢰/진행/완료)나 예정일·협력사를 바꾼 뒤 「저장」을 누릅니다.</li>
+      <li><b>반려</b> — 「반려」에서 사유를 입력하면 접수자에게 알림이 갑니다. 「승인됨」을 누르면 D-1 승인을 취소합니다.</li>
+      <li><b>보기 설정</b> — 「열 설정」에서 조치내용 등 열을 켜고 끌 수 있고, 머리줄 경계를 끌어 열 너비를 바꿀 수 있습니다.</li>
+    </ol>
+  </div>
+</dialog>
 
 <dialog id="wo-create-dialog" class="eq-dialog wo-create-dialog">
   <form method="dialog" class="eq-dialog-top">
@@ -375,12 +397,7 @@
       <label for="wo-reject-reason">반려 사유</label>
       <textarea id="wo-reject-reason" name="reason" rows="4" required placeholder="반려 사유를 입력하세요"></textarea>
       <input type="hidden" name="redirect" value="list" />
-      <input type="hidden" name="q" value="{{ filters.q }}" />
-      <input type="hidden" name="filter_status" value="{{ filters.status }}" />
-      <input type="hidden" name="filter_priority" value="{{ filters.priority }}" />
-      <input type="hidden" name="date_from" value="{{ filters.date_from }}" />
-      <input type="hidden" name="date_to" value="{{ filters.date_to }}" />
-      <input type="hidden" name="page" value="{{ filters.page }}" />
+      {{ keep_filters() }}
       <div class="wo-reject-actions">
         <button type="button" class="btn btn-secondary wo-reject-close">취소</button>
         <button type="submit" class="btn btn-danger">반려</button>
@@ -436,6 +453,7 @@
     if (woCreatePartner.value && woCreatePartner.value !== '0') fillWoCreateRisk(woCreateForm, woCreatePartner.value);
   }
 
+  /* 검색 필터: 선택·기간 변경 시 바로 조회, Excel은 현재 필터 그대로 */
   var filterForm = document.getElementById('wo-filter-form');
   var excelBtn = document.getElementById('wo-excel-btn');
   function syncExcelHref() {
@@ -444,25 +462,81 @@
     excelBtn.href = '/admin/work-orders/export' + (qs ? ('?' + qs) : '');
   }
   if (filterForm) {
-    filterForm.querySelectorAll('input[name="status"]').forEach(function (cb) {
-      cb.addEventListener('change', function () { filterForm.submit(); });
-    });
-    filterForm.querySelectorAll('input[name="date_from"], input[name="date_to"]').forEach(function (el) {
+    filterForm.querySelectorAll('select, input[type="date"]').forEach(function (el) {
       el.addEventListener('change', function () { filterForm.submit(); });
     });
     syncExcelHref();
   }
 
-  // 진행 버튼 하이라이트
-  document.querySelectorAll('.wo-step-btns').forEach(function (group) {
-    group.querySelectorAll('input[type="radio"]').forEach(function (radio) {
-      radio.addEventListener('change', function () {
-        group.querySelectorAll('.wo-step-btn').forEach(function (lab) {
-          lab.classList.toggle('is-on', lab.querySelector('input').checked);
-        });
-      });
+  /* 페이지당 건수 (쿠키로 기억 → 저장·승인 후에도 유지) */
+  var perPage = document.getElementById('wo-per-page');
+  if (perPage) {
+    perPage.addEventListener('change', function () {
+      document.cookie = 'wo_per_page=' + perPage.value + '; path=/admin/work-orders; max-age=31536000; samesite=lax';
+      var u = new URL(location.href);
+      u.searchParams.set('per_page', perPage.value);
+      u.searchParams.delete('page');
+      location.href = u.toString();
+    });
+  }
+
+  /* 진행상태 색상 */
+  document.querySelectorAll('.wo2-st-sel').forEach(function (sel) {
+    sel.addEventListener('change', function () {
+      var opt = sel.options[sel.selectedIndex];
+      sel.className = sel.className.replace(/\bs-\S+/, 's-' + (opt && opt.getAttribute('data-rej') ? 'rej' : sel.value));
+      sel.closest('tr').classList.add('is-dirty');
     });
   });
+  /* 값이 바뀐 행은 저장 버튼 강조 */
+  document.querySelectorAll('.wo2-table [form^="wo-form-"]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var tr = el.closest('tr');
+      if (tr) tr.classList.add('is-dirty');
+      if (el.type === 'date') {
+        var w = el.closest('.wo2-date-wrap');
+        if (w) w.classList.toggle('is-empty', !el.value);
+      }
+    });
+  });
+
+  /* 열 설정 */
+  var colBtn = document.getElementById('wo-colset-btn');
+  var colMenu = document.getElementById('wo-colset-menu');
+  var colList = document.getElementById('wo-colset-list');
+  var table = document.querySelector('.wo2-table');
+  function buildColMenu() {
+    if (!table || !table.woCols) return;
+    colList.innerHTML = '';
+    table.woCols.columns().forEach(function (c) {
+      if (c.fixed) return;
+      var lab = document.createElement('label');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !c.hidden;
+      cb.addEventListener('change', function () { table.woCols.setHidden(c.index, !cb.checked); });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(' ' + c.label));
+      colList.appendChild(lab);
+    });
+  }
+  if (colBtn && colMenu) {
+    colBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (colMenu.hidden) buildColMenu();
+      colMenu.hidden = !colMenu.hidden;
+      colBtn.setAttribute('aria-expanded', colMenu.hidden ? 'false' : 'true');
+    });
+    document.addEventListener('click', function (e) {
+      if (!colMenu.hidden && !e.target.closest('.wo2-colset')) {
+        colMenu.hidden = true;
+        colBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('wo-colset-reset').addEventListener('click', function () {
+      if (table && table.woCols) table.woCols.reset();
+    });
+  }
 
   // 승인 시 현재 선택한 협력사 값을 함께 전송
   document.querySelectorAll('.wo-approve-form').forEach(function (form) {
@@ -514,6 +588,7 @@
     if (selectAll) {
       selectAll.checked = checks.length > 0 && selected.length === checks.length;
       selectAll.indeterminate = selected.length > 0 && selected.length < checks.length;
+      selectAll.disabled = checks.length === 0;
     }
     checks.forEach(function (c) {
       var tr = c.closest('tr');
@@ -628,5 +703,5 @@
   });
 })();
 </script>
-<script src="/static/js/wo-col-resize.js?v=2"></script>
+<script src="/static/js/wo-col-resize.js?v=3"></script>
 {% endblock %}

@@ -7420,6 +7420,55 @@ async def equipment_type_create(
 # ── Work Orders (CMMS) ─────────────────────────────────────────────────
 
 
+WO_PAGE_SIZES = (10, 20, 50, 100)
+
+
+def _wo_list_conditions(
+    q_val: str,
+    priority_val: str,
+    site_id_val: int,
+    date_from_val: str,
+    date_to_val: str,
+    partner_id_val: int = 0,
+) -> list:
+    """정비접수 목록·KPI·Excel 공통 조건 (진행상태 제외). Equipment outer join 전제."""
+    conds = [
+        WorkOrder.is_active == True,
+        WorkOrder.completion_approval_pending.is_not(True),
+    ]
+    if q_val:
+        like = f"%{q_val}%"
+        conds.append(
+            or_(
+                WorkOrder.title.ilike(like),
+                WorkOrder.description.ilike(like),
+                WorkOrder.action.ilike(like),
+                WorkOrder.assignee_name.ilike(like),
+                Equipment.code.ilike(like),
+                Equipment.name.ilike(like),
+            )
+        )
+    if priority_val in ("normal", "high"):
+        conds.append(WorkOrder.priority == priority_val)
+    if site_id_val > 0:
+        conds.append(WorkOrder.site_id == site_id_val)
+    if partner_id_val > 0:
+        conds.append(WorkOrder.partner_id == partner_id_val)
+    if date_from_val:
+        try:
+            conds.append(WorkOrder.created_at >= datetime.fromisoformat(date_from_val).replace(tzinfo=None))
+        except ValueError:
+            pass
+    if date_to_val:
+        try:
+            # 종료일 포함
+            end = datetime.fromisoformat(date_to_val).replace(tzinfo=None)
+            conds.append(WorkOrder.created_at < end.replace(hour=23, minute=59, second=59, microsecond=999999))
+        except ValueError:
+            pass
+    return conds
+
+
 @app.get("/admin/work-orders")
 async def work_orders_list(
     request: Request,
@@ -7427,9 +7476,11 @@ async def work_orders_list(
     status: list[str] = Query(default=[]),
     priority: str = "",
     site_id: int = Query(0),
+    partner_id: int = Query(0),
     date_from: str = "",
     date_to: str = "",
     page: int = Query(1),
+    per_page: int = Query(0),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -7440,61 +7491,51 @@ async def work_orders_list(
         status_vals = ["received"]
     priority_val = (priority or "").strip()
     site_id_val = int(site_id or 0)
+    partner_id_val = int(partner_id or 0)
     date_from_val = (date_from or "").strip()
     date_to_val = (date_to or "").strip()
+    per_page_val = int(per_page or 0)
+    if per_page_val not in WO_PAGE_SIZES:
+        try:
+            per_page_val = int(request.cookies.get("wo_per_page") or 0)
+        except ValueError:
+            per_page_val = 0
+    if per_page_val not in WO_PAGE_SIZES:
+        per_page_val = LIST_PAGE_SIZE
+
+    base_conds = _wo_list_conditions(
+        q_val, priority_val, site_id_val, date_from_val, date_to_val, partner_id_val
+    )
+    kpi = {"total": 0, "received": 0, "in_progress": 0, "completed": 0, "rejected": 0, "pending": 0}
+    for st, rejected, approved in (
+        await db.execute(
+            select(WorkOrder.status, WorkOrder.is_rejected, WorkOrder.d1_approved)
+            .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
+            .where(and_(*base_conds))
+        )
+    ).all():
+        kpi["total"] += 1
+        sv = st.value if hasattr(st, "value") else str(st or "")
+        if sv in ("received", "assigned"):
+            kpi["received"] += 1
+        elif sv == "in_progress":
+            kpi["in_progress"] += 1
+        elif sv in ("completed", "verified", "closed"):
+            kpi["completed"] += 1
+        if rejected:
+            kpi["rejected"] += 1
+        elif not approved:
+            kpi["pending"] += 1
 
     stmt = (
         select(WorkOrder)
         .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
         .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
-        .where(
-            WorkOrder.is_active == True,
-            WorkOrder.completion_approval_pending.is_not(True),
-        )
+        .where(and_(*base_conds))
     )
-    filters = []
-
-    if q_val:
-        like = f"%{q_val}%"
-        filters.append(
-            or_(
-                WorkOrder.title.ilike(like),
-                WorkOrder.description.ilike(like),
-                WorkOrder.action.ilike(like),
-                WorkOrder.assignee_name.ilike(like),
-                Equipment.code.ilike(like),
-                Equipment.name.ilike(like),
-            )
-        )
-
     status_f = _wo_status_sql_filter(status_vals)
     if status_f is not None:
-        filters.append(status_f)
-
-    if priority_val in ("normal", "high"):
-        filters.append(WorkOrder.priority == priority_val)
-
-    if site_id_val > 0:
-        filters.append(WorkOrder.site_id == site_id_val)
-
-    if date_from_val:
-        try:
-            filters.append(
-                WorkOrder.created_at
-                >= datetime.fromisoformat(date_from_val).replace(tzinfo=None)
-            )
-        except ValueError:
-            pass
-    if date_to_val:
-        try:
-            # 종료일 포함 (다음날 0시 미만)
-            end = datetime.fromisoformat(date_to_val).replace(tzinfo=None)
-            filters.append(WorkOrder.created_at < end.replace(hour=23, minute=59, second=59, microsecond=999999))
-        except ValueError:
-            pass
-
-    if filters:
-        stmt = stmt.where(and_(*filters))
+        stmt = stmt.where(status_f)
 
     all_orders = list(
         (
@@ -7506,7 +7547,7 @@ async def work_orders_list(
             )
         ).scalars().unique().all()
     )
-    pager = _paginate(all_orders, page)
+    pager = _paginate(all_orders, page, per_page_val)
     orders = pager["items"]
 
     partners = (
@@ -7579,10 +7620,13 @@ async def work_orders_list(
                 "priority": priority_val,
                 "site_id": site_id_val,
                 "site_name": (filter_site.name if filter_site else ""),
+                "partner_id": partner_id_val,
                 "date_from": date_from_val,
                 "date_to": date_to_val,
                 "page": pager["page"],
             },
+            "kpi": kpi,
+            "page_sizes": WO_PAGE_SIZES,
             "result_count": pager["total"],
             "default_assignee": _wo_person_label(user),
             "flash_message": request.query_params.get("message") or "",
@@ -7597,69 +7641,36 @@ async def work_orders_export(
     status: list[str] = Query(default=[]),
     priority: str = "",
     site_id: int = Query(0),
+    partner_id: int = Query(0),
     date_from: str = "",
     date_to: str = "",
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     """정비관리 목록(현재 필터) Excel 내보내기."""
-    q_val = (q or "").strip()
     status_vals = _parse_wo_status_filters(status)
     if not status_vals:
         status_vals = ["received"]
-    priority_val = (priority or "").strip()
-    site_id_val = int(site_id or 0)
-    date_from_val = (date_from or "").strip()
-    date_to_val = (date_to or "").strip()
-
     stmt = (
         select(WorkOrder)
         .outerjoin(Equipment, WorkOrder.equipment_id == Equipment.id)
         .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
         .where(
-            WorkOrder.is_active == True,
-            WorkOrder.completion_approval_pending.is_not(True),
+            and_(
+                *_wo_list_conditions(
+                    (q or "").strip(),
+                    (priority or "").strip(),
+                    int(site_id or 0),
+                    (date_from or "").strip(),
+                    (date_to or "").strip(),
+                    int(partner_id or 0),
+                )
+            )
         )
     )
-    filters = []
-    if q_val:
-        like = f"%{q_val}%"
-        filters.append(
-            or_(
-                WorkOrder.title.ilike(like),
-                WorkOrder.description.ilike(like),
-                WorkOrder.action.ilike(like),
-                WorkOrder.assignee_name.ilike(like),
-                Equipment.code.ilike(like),
-                Equipment.name.ilike(like),
-            )
-        )
     status_f = _wo_status_sql_filter(status_vals)
     if status_f is not None:
-        filters.append(status_f)
-    if priority_val in ("normal", "high"):
-        filters.append(WorkOrder.priority == priority_val)
-    if site_id_val > 0:
-        filters.append(WorkOrder.site_id == site_id_val)
-    if date_from_val:
-        try:
-            filters.append(
-                WorkOrder.created_at
-                >= datetime.fromisoformat(date_from_val).replace(tzinfo=None)
-            )
-        except ValueError:
-            pass
-    if date_to_val:
-        try:
-            end = datetime.fromisoformat(date_to_val).replace(tzinfo=None)
-            filters.append(
-                WorkOrder.created_at
-                < end.replace(hour=23, minute=59, second=59, microsecond=999999)
-            )
-        except ValueError:
-            pass
-    if filters:
-        stmt = stmt.where(and_(*filters))
+        stmt = stmt.where(status_f)
 
     orders = (
         await db.execute(
