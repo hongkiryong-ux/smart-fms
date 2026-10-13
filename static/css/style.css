@@ -5654,6 +5654,47 @@ body.wo-col-resizing {
   margin-bottom: 0.9rem;
   max-width: 34rem;
 }
+.lib-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.lib-page-header-abs {
+  position: relative;
+  padding-right: 7rem;
+}
+.lib-page-header-abs .lib-settings-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.lib-settings-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.lib-manage-dialog {
+  width: min(820px, calc(100vw - 2rem));
+}
+.lib-manage-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1.1rem 0.4rem;
+}
+.lib-manage-top h2 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+.lib-manage-body {
+  padding: 0.5rem 1.1rem 1.1rem;
+  overflow: auto;
+}
+#lib-manage .lib-cat-table .lib-inline-form {
+  margin: 0;
+  max-width: none;
+}
 .lib-cat-table .lib-inline-form {
   margin: 0;
 }

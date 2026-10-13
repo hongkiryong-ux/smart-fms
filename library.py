@@ -35,6 +35,9 @@ def _require_admin(user: User) -> None:
         raise HTTPException(403, "시스템관리자만 하위메뉴를 관리할 수 있습니다.")
 
 
+LIB_MANAGE_URL = "/admin/library?manage=1"
+
+
 def _back(url: str, *, message: str = "", error: str = "") -> RedirectResponse:
     sep = "&" if "?" in url else "?"
     if message:
@@ -197,12 +200,12 @@ async def library_category_create(
     _require_admin(user)
     nm = _clean_name(name, 100)
     if not nm:
-        return _back("/admin/library", error="하위메뉴 이름을 입력하세요.")
+        return _back(LIB_MANAGE_URL, error="하위메뉴 이름을 입력하세요.")
     max_order = (await db.execute(select(func.max(LibraryCategory.sort_order)))).scalar() or 0
     db.add(LibraryCategory(name=nm, sort_order=int(max_order) + 1, created_by=_person(user)))
     await db.commit()
     invalidate_nav_cache()
-    return _back("/admin/library", message=f"하위메뉴 「{nm}」을 추가했습니다.")
+    return _back(LIB_MANAGE_URL, message=f"하위메뉴 「{nm}」을 추가했습니다.")
 
 
 @router.post("/admin/library/categories/{category_id}/rename")
@@ -216,11 +219,11 @@ async def library_category_rename(
     cat = await _get_category(db, category_id)
     nm = _clean_name(name, 100)
     if not nm:
-        return _back("/admin/library", error="하위메뉴 이름을 입력하세요.")
+        return _back(LIB_MANAGE_URL, error="하위메뉴 이름을 입력하세요.")
     cat.name = nm
     await db.commit()
     invalidate_nav_cache()
-    return _back("/admin/library", message="하위메뉴 이름을 변경했습니다.")
+    return _back(LIB_MANAGE_URL, message="하위메뉴 이름을 변경했습니다.")
 
 
 @router.post("/admin/library/categories/{category_id}/move")
@@ -246,7 +249,7 @@ async def library_category_move(
             c.sort_order = order
         await db.commit()
         invalidate_nav_cache()
-    return _back("/admin/library")
+    return _back(LIB_MANAGE_URL)
 
 
 @router.post("/admin/library/categories/{category_id}/delete")
@@ -265,7 +268,7 @@ async def library_category_delete(
     await db.delete(cat)
     await db.commit()
     invalidate_nav_cache()
-    return _back("/admin/library", message=f"하위메뉴 「{name}」을 삭제했습니다.")
+    return _back(LIB_MANAGE_URL, message=f"하위메뉴 「{name}」을 삭제했습니다.")
 
 
 # ---------------------------------------------------------------- 하위메뉴 화면 (폴더·자료)
@@ -341,6 +344,7 @@ async def library_category_view(
             "query": query,
             "search_results": search_results,
             "can_create": can_create(user),
+            "is_admin": _is_admin(user),
             "can_manage_folder": (lambda f: _can_manage_folder(user, f)),
             "can_delete_file": (lambda f: _can_delete_file(user, f)),
             "max_file_mb": MAX_FILE_BYTES // (1024 * 1024),

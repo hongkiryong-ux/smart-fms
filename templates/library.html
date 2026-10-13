@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% block title %}자료실{% endblock %}
 {% block content %}
-<header class="page-header">
-  <h1>자료실</h1>
-  <p>하위메뉴를 선택해 폴더별 자료를 확인·등록합니다.</p>
+<header class="page-header lib-page-header">
+  <div>
+    <h1>자료실</h1>
+    <p>하위메뉴를 선택해 폴더별 자료를 확인·등록합니다.</p>
+  </div>
+  {% if is_admin %}
+  <button type="button" class="btn btn-secondary lib-settings-btn" data-lib-manage-open title="하위메뉴 추가·이름 변경·순서·삭제 (시스템관리자)">⚙ 설정</button>
+  {% endif %}
 </header>
 
 {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
@@ -25,55 +30,83 @@
     {% endfor %}
   </ul>
   {% else %}
-  <p class="text-muted">등록된 하위메뉴가 없습니다.{% if is_admin %} 아래에서 하위메뉴를 추가하세요.{% else %} 시스템관리자에게 하위메뉴 추가를 요청하세요.{% endif %}</p>
+  <p class="text-muted">등록된 하위메뉴가 없습니다.{% if is_admin %} 우측 상단 「⚙ 설정」에서 하위메뉴를 추가하세요.{% else %} 시스템관리자에게 하위메뉴 추가를 요청하세요.{% endif %}</p>
   {% endif %}
 </section>
 
 {% if is_admin %}
-<section class="card" id="lib-manage">
-  <h2>하위메뉴 관리 <small class="text-muted">(시스템관리자)</small></h2>
-  <form method="post" action="/admin/library/categories" class="lib-inline-form">
-    <input type="text" name="name" maxlength="100" placeholder="새 하위메뉴 이름 (예: 도면, 매뉴얼, 법규)" required />
-    <button type="submit" class="btn btn-primary">하위메뉴 추가</button>
-  </form>
-  {% if categories %}
-  <table class="data-table lib-cat-table">
-    <thead>
-      <tr><th style="width:5rem;">순서</th><th>이름</th><th style="width:9rem;">폴더/자료</th><th style="width:7rem;">삭제</th></tr>
-    </thead>
-    <tbody>
-      {% for c in categories %}
-      <tr>
-        <td>
-          <div class="row-actions">
-          <form method="post" action="/admin/library/categories/{{ c.id }}/move" class="inline-form">
-            <input type="hidden" name="direction" value="up" />
-            <button type="submit" class="link-action" title="위로"{% if loop.first %} disabled{% endif %}>▲</button>
-          </form>
-          <form method="post" action="/admin/library/categories/{{ c.id }}/move" class="inline-form">
-            <input type="hidden" name="direction" value="down" />
-            <button type="submit" class="link-action" title="아래로"{% if loop.last %} disabled{% endif %}>▼</button>
-          </form>
-          </div>
-        </td>
-        <td>
-          <form method="post" action="/admin/library/categories/{{ c.id }}/rename" class="lib-inline-form">
-            <input type="text" name="name" value="{{ c.name }}" maxlength="100" required />
-            <button type="submit" class="btn btn-sm btn-secondary">이름 변경</button>
-          </form>
-        </td>
-        <td>{{ folder_counts.get(c.id, 0) }} / {{ file_counts.get(c.id, 0) }}</td>
-        <td>
-          <form method="post" action="/admin/library/categories/{{ c.id }}/delete" class="inline-form"
-                onsubmit="return confirm('「{{ c.name }}」 하위메뉴를 삭제할까요?\n안에 있는 폴더 {{ folder_counts.get(c.id, 0) }}개와 자료 {{ file_counts.get(c.id, 0) }}개가 모두 삭제됩니다.');">
-            <button type="submit" class="link-action link-danger">삭제</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-</section>
+<dialog id="lib-manage" class="eq-dialog lib-manage-dialog" aria-labelledby="lib-manage-title">
+  <div class="lib-manage-top">
+    <h2 id="lib-manage-title">하위메뉴 설정 <small class="text-muted">(시스템관리자)</small></h2>
+    <button type="button" class="btn btn-sm btn-secondary" data-lib-manage-close>닫기</button>
+  </div>
+  <div class="eq-popup-body lib-manage-body">
+    <form method="post" action="/admin/library/categories" class="lib-inline-form">
+      <input type="text" name="name" maxlength="100" placeholder="새 하위메뉴 이름 (예: 도면, 매뉴얼, 법규)" required />
+      <button type="submit" class="btn btn-primary">하위메뉴 추가</button>
+    </form>
+    {% if categories %}
+    <table class="data-table lib-cat-table">
+      <thead>
+        <tr><th style="width:5rem;">순서</th><th>이름</th><th style="width:9rem;">폴더/자료</th><th style="width:7rem;">삭제</th></tr>
+      </thead>
+      <tbody>
+        {% for c in categories %}
+        <tr>
+          <td>
+            <div class="row-actions">
+            <form method="post" action="/admin/library/categories/{{ c.id }}/move" class="inline-form">
+              <input type="hidden" name="direction" value="up" />
+              <button type="submit" class="link-action" title="위로"{% if loop.first %} disabled{% endif %}>▲</button>
+            </form>
+            <form method="post" action="/admin/library/categories/{{ c.id }}/move" class="inline-form">
+              <input type="hidden" name="direction" value="down" />
+              <button type="submit" class="link-action" title="아래로"{% if loop.last %} disabled{% endif %}>▼</button>
+            </form>
+            </div>
+          </td>
+          <td>
+            <form method="post" action="/admin/library/categories/{{ c.id }}/rename" class="lib-inline-form">
+              <input type="text" name="name" value="{{ c.name }}" maxlength="100" required />
+              <button type="submit" class="btn btn-sm btn-secondary">이름 변경</button>
+            </form>
+          </td>
+          <td>{{ folder_counts.get(c.id, 0) }} / {{ file_counts.get(c.id, 0) }}</td>
+          <td>
+            <form method="post" action="/admin/library/categories/{{ c.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('「{{ c.name }}」 하위메뉴를 삭제할까요?\n안에 있는 폴더 {{ folder_counts.get(c.id, 0) }}개와 자료 {{ file_counts.get(c.id, 0) }}개가 모두 삭제됩니다.');">
+              <button type="submit" class="link-action link-danger">삭제</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">아직 하위메뉴가 없습니다. 위에서 이름을 입력해 추가하세요.</p>
+    {% endif %}
+  </div>
+</dialog>
+<script>
+(function () {
+  var dlg = document.getElementById('lib-manage');
+  if (!dlg) return;
+  function open() {
+    if (typeof dlg.showModal === 'function') { if (!dlg.open) dlg.showModal(); }
+    else dlg.setAttribute('open', 'open');
+  }
+  document.querySelectorAll('[data-lib-manage-open]').forEach(function (b) { b.addEventListener('click', open); });
+  dlg.querySelectorAll('[data-lib-manage-close]').forEach(function (b) {
+    b.addEventListener('click', function () { dlg.close ? dlg.close() : dlg.removeAttribute('open'); });
+  });
+  dlg.addEventListener('close', function () {
+    if (location.search.indexOf('manage=1') >= 0 || location.hash === '#lib-manage') {
+      history.replaceState(null, '', location.pathname);
+    }
+  });
+  var params = new URLSearchParams(location.search);
+  if (params.get('manage') === '1' || location.hash === '#lib-manage') open();
+})();
+</script>
 {% endif %}
 {% endblock %}
