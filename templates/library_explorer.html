@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+{% block title %}자료실{% if category %} · {{ category.name }}{% endif %}{% if current %} · {{ current.name }}{% endif %}{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/library_explorer.css?v=1" />{% endblock %}
+
+{% macro folder_svg(cls='') -%}
+<svg class="lx-fold {{ cls }}" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 6.2c0-.9.7-1.7 1.6-1.7h5.1c.4 0 .8.2 1.1.5l1.6 1.6h8c.9 0 1.6.7 1.6 1.6v9.9c0 .9-.7 1.6-1.6 1.6H4.1c-.9 0-1.6-.7-1.6-1.6z" fill="#E9B23A"/><path d="M2.5 9.1c0-.9.7-1.6 1.6-1.6h15.8c.9 0 1.6.7 1.6 1.6v8.7c0 .9-.7 1.6-1.6 1.6H4.1c-.9 0-1.6-.7-1.6-1.6z" fill="#FFCF4D"/></svg>
+{%- endmacro %}
+
+{% macro item_icon(it, cls='') -%}
+{% if it.icon == 'folder' %}{{ folder_svg(cls) }}{% else %}<span class="lx-fi lx-k-{{ it.icon }} {{ cls }}" aria-hidden="true"><b>{{ it.ext or '?' }}</b></span>{% endif %}
+{%- endmacro %}
+
+{% macro tree_items(nodes, depth) -%}
+<ul class="lx-tree-list" role="group">
+  {% for n in nodes %}
+  <li class="lx-tnode{% if n.open %} is-open{% endif %}">
+    <div class="lx-trow{% if n.active %} is-active{% endif %}" style="--d:{{ depth }}">
+      {% if n.children %}<button type="button" class="lx-caret" aria-label="하위 폴더 펼치기/접기"></button>{% else %}<span class="lx-caret is-empty"></span>{% endif %}
+      <a href="{{ n.url }}" title="{{ n.name }}">{{ folder_svg() }}<span>{{ n.name }}</span></a>
+    </div>
+    {% if n.children %}{{ tree_items(n.children, depth + 1) }}{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+
+{% block content %}
+{% set can_new_folder = category and can_create %}
+{% set can_upload = current and can_create %}
+{% set has_settings = can_new_folder or can_upload or can_manage_current or is_admin %}
+<header class="lx-header">
+  <div class="lx-title">
+    <h1>자료실</h1>
+    <p>폴더를 선택하여 자료를 확인하거나 새 자료를 업로드할 수 있습니다.</p>
+  </div>
+  <div class="lx-header-right">
+    <nav class="lx-crumb" aria-label="현재 위치">
+      <a href="/admin/dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z" fill="currentColor"/></svg>Home</a>
+      {% for a in address %}
+      <span class="lx-crumb-sep" aria-hidden="true">›</span>
+      {% if loop.last %}<span aria-current="page">{{ a.name }}</span>{% else %}<a href="{{ a.url }}">{{ a.name }}</a>{% endif %}
+      {% endfor %}
+    </nav>
+    {% if has_settings %}
+    <div class="lx-settings">
+      <button type="button" class="btn btn-secondary lx-settings-btn" id="lx-settings-btn" aria-haspopup="true" aria-expanded="false">⚙ 설정 <span aria-hidden="true">▾</span></button>
+      <div class="lx-settings-menu" id="lx-settings-menu" role="menu" hidden>
+        {% if can_new_folder %}
+        <button type="button" role="menuitem" data-open-dialog="lx-dlg-folder">{{ folder_svg('lx-mi-ico') }}새 폴더 만들기</button>
+        {% endif %}
+        {% if can_upload %}
+        <button type="button" role="menuitem" data-open-dialog="lx-dlg-upload"><span class="lx-mi-ico lx-mi-txt">⤒</span>자료 업로드</button>
+        {% endif %}
+        {% if can_manage_current %}
+        <div class="lx-menu-sep"></div>
+        <div class="lx-menu-label">현재 폴더 「{{ current.name }}」</div>
+        <button type="button" role="menuitem" data-rename-url="/admin/library/folder/{{ current.id }}/rename" data-rename-name="{{ current.name }}" data-rename-stay="1"><span class="lx-mi-ico lx-mi-txt">✎</span>이름 변경</button>
+        <form method="post" action="/admin/library/folder/{{ current.id }}/delete"
+              onsubmit="return confirm('현재 폴더 「{{ current.name }}」를 삭제할까요?\n안의 하위 폴더와 자료도 함께 삭제됩니다.');">
+          <button type="submit" role="menuitem" class="is-danger"><span class="lx-mi-ico lx-mi-txt">🗑</span>폴더 삭제</button>
+        </form>
+        {% endif %}
+        {% if is_admin %}
+        <div class="lx-menu-sep"></div>
+        <button type="button" role="menuitem" data-lib-manage-open><span class="lx-mi-ico lx-mi-txt">☰</span>하위메뉴 관리 <small>(시스템관리자)</small></button>
+        {% endif %}
+        {% if not category %}
+        <p class="lx-menu-hint">하위메뉴(섹션)에 들어가면 이 메뉴에서 폴더를 만들 수 있습니다.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</header>
+
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
+
+<section class="lx-card" id="lx-card">
+  <div class="lx-toolbar">
+    <div class="lx-nav">
+      <button type="button" class="lx-navbtn" onclick="history.back()" title="뒤로" aria-label="뒤로">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7" /></svg>
+      </button>
+      <button type="button" class="lx-navbtn" onclick="history.forward()" title="앞으로" aria-label="앞으로">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+      </button>
+      {% if up_url %}
+      <a class="lx-navbtn" href="{{ up_url }}" title="상위 폴더" aria-label="상위 폴더">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+      </a>
+      {% else %}
+      <span class="lx-navbtn is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6" /></svg></span>
+      {% endif %}
+    </div>
+    <nav class="lx-address" aria-label="주소">
+      {{ folder_svg('lx-addr-ico') }}
+      {% for a in address %}
+      {% if not loop.first %}<span class="lx-addr-sep" aria-hidden="true">›</span>{% endif %}
+      <a href="{{ a.url }}"{% if loop.last %} aria-current="page"{% endif %}>{{ a.name }}</a>
+      {% endfor %}
+    </nav>
+    <form class="lx-search" method="get" action="{% if category %}/admin/library/category/{{ category.id }}{% else %}/admin/library{% endif %}" role="search">
+      {% if current %}<input type="hidden" name="folder" value="{{ current.id }}" />{% endif %}
+      <input type="search" name="q" value="{{ query }}" placeholder="자료명으로 검색하세요." aria-label="자료 검색" />
+      <button type="submit" title="검색" aria-label="검색"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg></button>
+    </form>
+    <div class="lx-views" role="group" aria-label="보기 방식">
+      <button type="button" class="lx-viewbtn" data-view="list" title="목록 보기" aria-label="목록 보기">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="1.2" /><circle cx="4.5" cy="12" r="1.2" /><circle cx="4.5" cy="18" r="1.2" /></svg>
+      </button>
+      <button type="button" class="lx-viewbtn" data-view="grid" title="큰 아이콘 보기" aria-label="큰 아이콘 보기">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.2" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2" /></svg>
+      </button>
+    </div>
+    {% if can_upload %}
+    <button type="button" class="btn btn-primary lx-upload-btn" data-open-dialog="lx-dlg-upload">＋ 업로드</button>
+    {% else %}
+    <button type="button" class="btn btn-primary lx-upload-btn" disabled
+            title="{% if not can_create %}자료 등록 권한이 없습니다.{% else %}폴더를 연 뒤 업로드할 수 있습니다.{% endif %}">＋ 업로드</button>
+    {% endif %}
+  </div>
+
+  <div class="lx-body">
+    <aside class="lx-tree" aria-label="폴더 트리">
+      <ul class="lx-tree-list lx-tree-top">
+        <li class="lx-tnode is-open">
+          <div class="lx-trow{% if not category %} is-active{% endif %}" style="--d:0">
+            <button type="button" class="lx-caret" aria-label="하위 폴더 펼치기/접기"></button>
+            <a href="/admin/library">{{ folder_svg() }}<span>자료실</span></a>
+          </div>
+          {{ tree_items(tree, 1) }}
+        </li>
+      </ul>
+    </aside>
+
+    <section class="lx-pane" id="lx-pane"{% if can_upload %} data-drop-upload{% endif %}>
+      <div class="lx-pane-head">
+        <div class="lx-pane-title">
+          {% if query %}<span class="lx-pane-ico lx-pane-ico-search" aria-hidden="true">🔍</span>{% else %}{{ folder_svg('lx-pane-ico') }}{% endif %}
+          <div>
+            <h2>{{ heading }}</h2>
+            <p>{{ summary }}{% if query %} · <a href="{{ address[-1].url }}">검색 지우기</a>{% endif %}</p>
+          </div>
+        </div>
+        <div class="lx-selbar" id="lx-selbar" hidden>
+          <span id="lx-selcount">0개 선택</span>
+          <button type="submit" form="lx-bulk" class="btn btn-sm btn-danger"
+                  onclick="return confirm('선택한 항목을 삭제할까요?\n폴더를 선택한 경우 안의 하위 폴더와 자료도 함께 삭제됩니다.');">선택 삭제</button>
+        </div>
+      </div>
+      <form id="lx-bulk" method="post" action="/admin/library/bulk-delete">
+        <input type="hidden" name="back" value="{{ back_url }}" />
+      </form>
+
+      {% if items %}
+      <div class="lx-scroll">
+        <table class="lx-table" id="lx-table">
+          <thead>
+            <tr>
+              <th class="lx-c-chk"><input type="checkbox" id="lx-chk-all" aria-label="전체 선택" /></th>
+              <th class="lx-c-name"><button type="button" class="lx-sort" data-sort="name">이름 <span class="lx-sort-ind" aria-hidden="true">↕</span></button></th>
+              <th class="lx-c-date"><button type="button" class="lx-sort" data-sort="ts">수정일 <span class="lx-sort-ind" aria-hidden="true"></span></button></th>
+              <th class="lx-c-type"><button type="button" class="lx-sort" data-sort="type">유형 <span class="lx-sort-ind" aria-hidden="true"></span></button></th>
+              <th class="lx-c-size"><button type="button" class="lx-sort" data-sort="size">크기 <span class="lx-sort-ind" aria-hidden="true"></span></button></th>
+              <th class="lx-c-act">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in items %}
+            <tr class="lx-row" data-kind="{{ it.kind }}" data-name="{{ it.name }}" data-ts="{{ it.sort_ts }}" data-type="{{ it.type }}" data-size="{{ it.size }}"
+                data-href="{{ it.url }}"{% if it.kind == 'file' %} data-target="_blank"{% endif %}>
+              <td class="lx-c-chk">
+                {% if it.kind == 'folder' and it.can_delete %}
+                <input type="checkbox" class="lx-chk" name="folder_ids" value="{{ it.id }}" form="lx-bulk" aria-label="{{ it.name }} 선택" />
+                {% elif it.kind == 'file' and it.can_delete %}
+                <input type="checkbox" class="lx-chk" name="file_ids" value="{{ it.id }}" form="lx-bulk" aria-label="{{ it.name }} 선택" />
+                {% else %}
+                <input type="checkbox" disabled aria-hidden="true" tabindex="-1" />
+                {% endif %}
+              </td>
+              <td class="lx-c-name">
+                <a class="lx-name" href="{{ it.url }}"{% if it.kind == 'file' %} target="_blank" rel="noopener"{% endif %} title="{{ it.name }}">
+                  {{ item_icon(it) }}<span class="lx-name-txt">{{ it.name }}</span>
+                </a>
+                {% if it.location %}<a class="lx-sub" href="{{ it.location_url }}">📁 {{ it.location }}</a>
+                {% elif it.note %}<span class="lx-sub" title="{{ it.note }}">{{ it.note }}</span>
+                {% elif it.meta %}<span class="lx-sub">{{ it.meta }}</span>{% endif %}
+              </td>
+              <td class="lx-c-date">{{ it.modified or '-' }}</td>
+              <td class="lx-c-type">{{ it.type }}</td>
+              <td class="lx-c-size">{{ it.size_label }}</td>
+              <td class="lx-c-act">
+                <button type="button" class="lx-more" aria-label="{{ it.name }} 관리 메뉴" title="관리">⋮</button>
+                <div class="lx-menu-src" hidden>
+                  {% if it.kind == 'file' %}
+                  <a href="{{ it.url }}" target="_blank" rel="noopener">미리보기</a>
+                  <a href="{{ it.download_url }}">다운로드</a>
+                  {% if it.location_url %}<a href="{{ it.location_url }}">파일 위치 열기</a>{% endif %}
+                  {% if it.by %}<span class="lx-menu-info">등록 {{ it.by }}</span>{% endif %}
+                  {% if it.can_delete %}
+                  <form method="post" action="/admin/library/file/{{ it.id }}/delete" onsubmit="return confirm('「{{ it.name }}」을 삭제할까요?');">
+                    <button type="submit" class="is-danger">삭제</button>
+                  </form>
+                  {% endif %}
+                  {% elif it.kind == 'folder' %}
+                  <a href="{{ it.url }}">열기</a>
+                  {% if it.can_manage %}
+                  <button type="button" data-rename-url="/admin/library/folder/{{ it.id }}/rename" data-rename-name="{{ it.name }}" data-rename-stay="0">이름 변경</button>
+                  {% endif %}
+                  {% if it.can_delete %}
+                  <form method="post" action="/admin/library/folder/{{ it.id }}/delete" onsubmit="return confirm('폴더 「{{ it.name }}」를 삭제할까요?\n안의 하위 폴더와 자료도 함께 삭제됩니다.');">
+                    <button type="submit" class="is-danger">삭제</button>
+                  </form>
+                  {% endif %}
+                  {% else %}
+                  <a href="{{ it.url }}">열기</a>
+                  {% if is_admin %}<button type="button" data-lib-manage-open>하위메뉴 관리</button>{% endif %}
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <ul class="lx-grid" id="lx-grid">
+          {% for it in items %}
+          <li>
+            <a class="lx-tile" href="{{ it.url }}"{% if it.kind == 'file' %} target="_blank" rel="noopener"{% endif %} title="{{ it.name }}{% if it.modified %} · {{ it.modified }}{% endif %}">
+              {{ item_icon(it, 'lx-tile-ico') }}
+              <span class="lx-tile-name">{{ it.name }}</span>
+              <span class="lx-tile-meta">{% if it.kind == 'file' %}{{ it.size_label }}{% else %}{{ it.meta }}{% endif %}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% else %}
+      <div class="lx-empty">
+        {{ folder_svg('lx-empty-ico') }}
+        {% if query %}
+        <p>「{{ query }}」에 해당하는 자료가 없습니다.</p>
+        {% elif not category %}
+        <p>등록된 하위메뉴가 없습니다.{% if is_admin %} 상단 「⚙ 설정 › 하위메뉴 관리」에서 추가하세요.{% else %} 시스템관리자에게 하위메뉴 추가를 요청하세요.{% endif %}</p>
+        {% elif current %}
+        <p>이 폴더는 비어 있습니다.</p>
+        {% if can_upload %}<p class="lx-empty-hint">「＋ 업로드」를 누르거나 파일을 이곳에 끌어다 놓으면 등록됩니다.</p>{% endif %}
+        {% else %}
+        <p>아직 폴더가 없습니다.</p>
+        {% if can_new_folder %}<p class="lx-empty-hint">상단 「⚙ 설정 › 새 폴더 만들기」로 폴더를 만드세요.</p>{% endif %}
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if can_upload %}
+      <div class="lx-drop" id="lx-drop" hidden><div>여기에 놓으면 「{{ current.name }}」에 업로드합니다</div></div>
+      {% endif %}
+    </section>
+  </div>
+  <div class="lx-status">
+    {% if can_upload %}파일을 목록에 끌어다 놓으면 업로드됩니다 · 파일당 최대 {{ max_file_mb }}MB, 한 번에 {{ max_files }}개{% elif category and not current %}폴더를 열면 자료를 업로드할 수 있습니다{% else %}더블클릭으로 폴더를 열 수 있습니다{% endif %}
+  </div>
+</section>
+
+<div class="lx-pop" id="lx-pop" role="menu" hidden></div>
+
+{% if can_new_folder %}
+<dialog id="lx-dlg-folder" class="eq-dialog lx-dialog" aria-labelledby="lx-dlg-folder-title">
+  <form method="post" action="/admin/library/category/{{ category.id }}/folders">
+    <div class="lib-manage-top"><h2 id="lx-dlg-folder-title">새 폴더 만들기</h2></div>
+    <div class="lib-manage-body">
+      <p class="lx-dlg-loc">위치: {% for a in address %}{% if not loop.first %} › {% endif %}{{ a.name }}{% endfor %}</p>
+      <input type="hidden" name="parent_id" value="{{ current.id if current else 0 }}" />
+      <input type="text" name="name" maxlength="200" placeholder="폴더 이름" required autofocus class="lx-dlg-input" />
+      <div class="lx-dlg-actions">
+        <button type="button" class="btn btn-secondary" data-close-dialog>취소</button>
+        <button type="submit" class="btn btn-primary">만들기</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+<dialog id="lx-dlg-rename" class="eq-dialog lx-dialog" aria-labelledby="lx-dlg-rename-title">
+  <form method="post" action="">
+    <div class="lib-manage-top"><h2 id="lx-dlg-rename-title">폴더 이름 변경</h2></div>
+    <div class="lib-manage-body">
+      <input type="hidden" name="stay" value="0" />
+      <input type="text" name="name" maxlength="200" required class="lx-dlg-input" />
+      <div class="lx-dlg-actions">
+        <button type="button" class="btn btn-secondary" data-close-dialog>취소</button>
+        <button type="submit" class="btn btn-primary">변경</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+{% if can_upload %}
+<dialog id="lx-dlg-upload" class="eq-dialog lx-dialog" aria-labelledby="lx-dlg-upload-title">
+  <form method="post" action="/admin/library/folder/{{ current.id }}/files" enctype="multipart/form-data">
+    <div class="lib-manage-top"><h2 id="lx-dlg-upload-title">자료 업로드 <small class="text-muted">· {{ current.name }}</small></h2></div>
+    <div class="lib-manage-body">
+      <label class="lx-filepick" id="lx-filepick">
+        <input type="file" name="files" multiple required id="lx-file-input" />
+        <span id="lx-filepick-txt">파일을 선택하거나 여기로 끌어다 놓으세요</span>
+      </label>
+      <input type="text" name="note" maxlength="500" placeholder="메모 (선택)" class="lx-dlg-input" />
+      <p class="lx-dlg-hint">파일당 최대 {{ max_file_mb }}MB · 한 번에 최대 {{ max_files }}개</p>
+      <div class="lx-dlg-actions">
+        <button type="button" class="btn btn-secondary" data-close-dialog>취소</button>
+        <button type="submit" class="btn btn-primary">업로드</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+{% if is_admin %}
+<dialog id="lib-manage" class="eq-dialog lib-manage-dialog" aria-labelledby="lib-manage-title">
+  <div class="lib-manage-top">
+    <h2 id="lib-manage-title">하위메뉴 설정 <small class="text-muted">(시스템관리자)</small></h2>
+    <button type="button" class="btn btn-sm btn-secondary" data-close-dialog>닫기</button>
+  </div>
+  <div class="eq-popup-body lib-manage-body">
+    <form method="post" action="/admin/library/categories" class="lib-inline-form">
+      <input type="text" name="name" maxlength="100" placeholder="새 하위메뉴 이름 (예: 도면, 매뉴얼, 법규)" required />
+      <button type="submit" class="btn btn-primary">하위메뉴 추가</button>
+    </form>
+    {% if categories %}
+    <table class="data-table lib-cat-table">
+      <thead>
+        <tr><th style="width:5rem;">순서</th><th>이름</th><th style="width:9rem;">폴더/자료</th><th style="width:7rem;">삭제</th></tr>
+      </thead>
+      <tbody>
+        {% for c in categories %}
+        <tr>
+          <td>
+            <div class="row-actions">
+            <form method="post" action="/admin/library/categories/{{ c.id }}/move" class="inline-form">
+              <input type="hidden" name="direction" value="up" />
+              <button type="submit" class="link-action" title="위로"{% if loop.first %} disabled{% endif %}>▲</button>
+            </form>
+            <form method="post" action="/admin/library/categories/{{ c.id }}/move" class="inline-form">
+              <input type="hidden" name="direction" value="down" />
+              <button type="submit" class="link-action" title="아래로"{% if loop.last %} disabled{% endif %}>▼</button>
+            </form>
+            </div>
+          </td>
+          <td>
+            <form method="post" action="/admin/library/categories/{{ c.id }}/rename" class="lib-inline-form">
+              <input type="text" name="name" value="{{ c.name }}" maxlength="100" required />
+              <button type="submit" class="btn btn-sm btn-secondary">이름 변경</button>
+            </form>
+          </td>
+          <td>{{ folder_counts.get(c.id, 0) }} / {{ file_counts.get(c.id, 0) }}</td>
+          <td>
+            <form method="post" action="/admin/library/categories/{{ c.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('「{{ c.name }}」 하위메뉴를 삭제할까요?\n안에 있는 폴더 {{ folder_counts.get(c.id, 0) }}개와 자료 {{ file_counts.get(c.id, 0) }}개가 모두 삭제됩니다.');">
+              <button type="submit" class="link-action link-danger">삭제</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">아직 하위메뉴가 없습니다. 위에서 이름을 입력해 추가하세요.</p>
+    {% endif %}
+  </div>
+</dialog>
+{% endif %}
+
+<script>
+(function () {
+  function openDlg(dlg) {
+    if (!dlg) return;
+    if (typeof dlg.showModal === 'function') { if (!dlg.open) dlg.showModal(); }
+    else dlg.setAttribute('open', 'open');
+  }
+  function closeDlg(dlg) { if (dlg) { dlg.close ? dlg.close() : dlg.removeAttribute('open'); } }
+
+  /* ⚙ 설정 드롭다운 */
+  var sBtn = document.getElementById('lx-settings-btn');
+  var sMenu = document.getElementById('lx-settings-menu');
+  function closeSettings() { if (sMenu && !sMenu.hidden) { sMenu.hidden = true; sBtn.setAttribute('aria-expanded', 'false'); } }
+  if (sBtn && sMenu) {
+    sBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      sMenu.hidden = !sMenu.hidden;
+      sBtn.setAttribute('aria-expanded', sMenu.hidden ? 'false' : 'true');
+    });
+  }
+
+  /* ⋮ 항목 메뉴 (표 밖에 고정 위치로 띄워 잘리지 않게) */
+  var pop = document.getElementById('lx-pop');
+  var popOwner = null;
+  function closePop() { pop.hidden = true; pop.innerHTML = ''; popOwner = null; }
+  document.querySelectorAll('.lx-more').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeSettings();
+      if (popOwner === btn) { closePop(); return; }
+      var src = btn.parentNode.querySelector('.lx-menu-src');
+      pop.innerHTML = src.innerHTML;
+      pop.hidden = false;
+      popOwner = btn;
+      var r = btn.getBoundingClientRect();
+      var w = pop.offsetWidth, h = pop.offsetHeight;
+      var left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+      var top = r.bottom + 4;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+      pop.style.left = left + 'px';
+      pop.style.top = top + 'px';
+    });
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.lx-settings')) closeSettings();
+    if (!pop.hidden && !e.target.closest('#lx-pop')) closePop();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeSettings(); if (!pop.hidden) closePop(); } });
+  window.addEventListener('scroll', function () { if (!pop.hidden) closePop(); }, true);
+  window.addEventListener('resize', function () { if (!pop.hidden) closePop(); });
+
+  /* 대화상자 열기/닫기 (설정 메뉴·⋮ 메뉴 공용 위임) */
+  var renameDlg = document.getElementById('lx-dlg-rename');
+  var manageDlg = document.getElementById('lib-manage');
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-open-dialog],[data-rename-url],[data-lib-manage-open],[data-close-dialog]') : null;
+    if (!t) return;
+    if (t.hasAttribute('data-close-dialog')) { closeDlg(t.closest('dialog')); return; }
+    closeSettings(); if (!pop.hidden) closePop();
+    if (t.hasAttribute('data-lib-manage-open')) { openDlg(manageDlg); return; }
+    if (t.hasAttribute('data-rename-url')) {
+      var f = renameDlg.querySelector('form');
+      f.action = t.getAttribute('data-rename-url');
+      f.elements.name.value = t.getAttribute('data-rename-name') || '';
+      f.elements.stay.value = t.getAttribute('data-rename-stay') || '0';
+      openDlg(renameDlg);
+      setTimeout(function () { f.elements.name.select(); }, 30);
+      return;
+    }
+    openDlg(document.getElementById(t.getAttribute('data-open-dialog')));
+  });
+  document.querySelectorAll('dialog.lx-dialog').forEach(function (d) {
+    d.addEventListener('click', function (e) { if (e.target === d) closeDlg(d); });
+  });
+  if (manageDlg) {
+    manageDlg.addEventListener('close', function () {
+      if (location.search.indexOf('manage=1') >= 0 || location.hash === '#lib-manage') {
+        history.replaceState(null, '', location.pathname);
+      }
+    });
+    var params = new URLSearchParams(location.search);
+    if (params.get('manage') === '1' || location.hash === '#lib-manage') openDlg(manageDlg);
+  }
+
+  /* 폴더 트리 펼치기/접기 */
+  document.querySelectorAll('.lx-tree .lx-caret:not(.is-empty)').forEach(function (c) {
+    c.addEventListener('click', function () { c.closest('.lx-tnode').classList.toggle('is-open'); });
+  });
+  var activeRow = document.querySelector('.lx-tree .lx-trow.is-active');
+  if (activeRow && activeRow.scrollIntoView) activeRow.scrollIntoView({ block: 'nearest' });
+
+  /* 목록/큰 아이콘 보기 */
+  var card = document.getElementById('lx-card');
+  function setView(v) {
+    card.classList.toggle('is-grid', v === 'grid');
+    document.querySelectorAll('.lx-viewbtn').forEach(function (b) {
+      b.classList.toggle('is-active', b.getAttribute('data-view') === v);
+      b.setAttribute('aria-pressed', b.getAttribute('data-view') === v ? 'true' : 'false');
+    });
+  }
+  var view = 'list';
+  try { view = localStorage.getItem('lib.view') === 'grid' ? 'grid' : 'list'; } catch (e) {}
+  setView(view);
+  document.querySelectorAll('.lx-viewbtn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-view');
+      setView(v);
+      try { localStorage.setItem('lib.view', v); } catch (e) {}
+    });
+  });
+
+  /* 행 더블클릭으로 열기 */
+  document.querySelectorAll('.lx-row').forEach(function (row) {
+    row.addEventListener('dblclick', function (e) {
+      if (e.target.closest('input,button,a,form')) return;
+      var href = row.getAttribute('data-href');
+      if (!href) return;
+      if (row.getAttribute('data-target') === '_blank') window.open(href, '_blank', 'noopener');
+      else location.href = href;
+    });
+  });
+
+  /* 정렬 (폴더 먼저) */
+  var table = document.getElementById('lx-table');
+  if (table) {
+    var tbody = table.tBodies[0];
+    var sortKey = 'name', sortDir = 1;
+    function kindRank(r) { return r.getAttribute('data-kind') === 'file' ? 1 : 0; }
+    function applySort() {
+      var rows = Array.prototype.slice.call(tbody.rows);
+      rows.sort(function (a, b) {
+        var k = kindRank(a) - kindRank(b);
+        if (k) return k;
+        var va = a.getAttribute('data-' + sortKey), vb = b.getAttribute('data-' + sortKey);
+        var c;
+        if (sortKey === 'ts' || sortKey === 'size') c = (parseFloat(va) || 0) - (parseFloat(vb) || 0);
+        else c = String(va).localeCompare(String(vb), 'ko', { numeric: true, sensitivity: 'base' });
+        return c * sortDir;
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+      table.querySelectorAll('.lx-sort').forEach(function (b) {
+        var ind = b.querySelector('.lx-sort-ind');
+        var on = b.getAttribute('data-sort') === sortKey;
+        b.classList.toggle('is-on', on);
+        ind.textContent = on ? (sortDir > 0 ? '▲' : '▼') : '';
+      });
+    }
+    table.querySelectorAll('.lx-sort').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-sort');
+        if (k === sortKey) sortDir = -sortDir; else { sortKey = k; sortDir = (k === 'ts' || k === 'size') ? -1 : 1; }
+        applySort();
+      });
+    });
+
+    /* 체크박스 선택 → 선택 삭제 */
+    var all = document.getElementById('lx-chk-all');
+    var selbar = document.getElementById('lx-selbar');
+    var selcount = document.getElementById('lx-selcount');
+    var chks = Array.prototype.slice.call(table.querySelectorAll('.lx-chk'));
+    function syncSel() {
+      var n = chks.filter(function (c) { return c.checked; }).length;
+      selbar.hidden = n === 0;
+      selcount.textContent = n + '개 선택';
+      all.checked = n > 0 && n === chks.length;
+      all.indeterminate = n > 0 && n < chks.length;
+      chks.forEach(function (c) { c.closest('tr').classList.toggle('is-selected', c.checked); });
+    }
+    all.disabled = chks.length === 0;
+    all.addEventListener('change', function () { chks.forEach(function (c) { c.checked = all.checked; }); syncSel(); });
+    chks.forEach(function (c) { c.addEventListener('change', syncSel); });
+  }
+
+  /* 업로드: 파일 선택 표시 + 목록에 끌어다 놓기 */
+  var input = document.getElementById('lx-file-input');
+  var pickTxt = document.getElementById('lx-filepick-txt');
+  function showPicked() {
+    if (!input || !pickTxt) return;
+    var n = input.files ? input.files.length : 0;
+    pickTxt.textContent = n ? (n === 1 ? input.files[0].name : input.files[0].name + ' 외 ' + (n - 1) + '개') : '파일을 선택하거나 여기로 끌어다 놓으세요';
+  }
+  if (input) input.addEventListener('change', showPicked);
+  var pane = document.querySelector('[data-drop-upload]');
+  var drop = document.getElementById('lx-drop');
+  if (pane && drop && input) {
+    var depth = 0;
+    function hasFiles(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
+    pane.addEventListener('dragenter', function (e) { if (!hasFiles(e)) return; e.preventDefault(); depth++; drop.hidden = false; });
+    pane.addEventListener('dragover', function (e) { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+    pane.addEventListener('dragleave', function () { depth = Math.max(0, depth - 1); if (!depth) drop.hidden = true; });
+    pane.addEventListener('drop', function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0; drop.hidden = true;
+      try { input.files = e.dataTransfer.files; } catch (err) { return; }
+      showPicked();
+      openDlg(document.getElementById('lx-dlg-upload'));
+    });
+    var pick = document.getElementById('lx-filepick');
+    pick.addEventListener('dragover', function (e) { e.preventDefault(); pick.classList.add('is-over'); });
+    pick.addEventListener('dragleave', function () { pick.classList.remove('is-over'); });
+    pick.addEventListener('drop', function (e) {
+      e.preventDefault(); pick.classList.remove('is-over');
+      try { input.files = e.dataTransfer.files; } catch (err) {}
+      showPicked();
+    });
+  }
+})();
+</script>
+{% endblock %}

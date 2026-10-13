@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import mimetypes
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -67,6 +68,42 @@ def _fmt_size(n: int | None) -> str:
 
 templates.env.filters.setdefault("lib_size", _fmt_size)
 
+_KST = timezone(timedelta(hours=9))
+
+_FILE_TYPES: tuple[tuple[tuple[str, ...], str, str], ...] = (
+    (("pdf",), "PDF 문서", "pdf"),
+    (("xls", "xlsx", "xlsm", "csv"), "Excel 문서", "xls"),
+    (("doc", "docx"), "Word 문서", "doc"),
+    (("hwp", "hwpx"), "한글 문서", "hwp"),
+    (("ppt", "pptx"), "PowerPoint 문서", "ppt"),
+    (("jpg", "jpeg", "png", "gif", "webp", "bmp"), "이미지", "img"),
+    (("dwg", "dxf"), "CAD 도면", "cad"),
+    (("zip", "7z", "rar"), "압축 파일", "zip"),
+    (("txt", "log"), "텍스트", "txt"),
+)
+
+
+def _fmt_dt(dt: datetime | None) -> str:
+    if dt is None:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_KST).strftime("%Y-%m-%d %H:%M")
+
+
+def _file_type(name: str) -> tuple[str, str, str]:
+    """(표시 유형, 아이콘 종류, 확장자)."""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    for exts, label, kind in _FILE_TYPES:
+        if ext in exts:
+            return label, kind, ext
+    return (f"{ext.upper()} 파일" if ext else "파일"), "etc", ext
+
+
+def _latest(*values: datetime | None) -> datetime | None:
+    vals = [v for v in values if v is not None]
+    return max(vals) if vals else None
+
 
 def _can_manage_folder(user: User, folder: LibraryFolder) -> bool:
     return can_edit(user) or (folder.created_by_user_id is not None and folder.created_by_user_id == user.id)
@@ -123,70 +160,245 @@ async def _delete_folders(db: AsyncSession, folder_ids: list[int]) -> None:
     await db.execute(delete(LibraryFolder).where(LibraryFolder.id.in_(folder_ids)))
 
 
-async def _folder_stats(db: AsyncSession, folder_ids: list[int]) -> dict[int, dict]:
-    """폴더별 직속 하위폴더 수·파일 수."""
-    stats = {fid: {"folders": 0, "files": 0} for fid in folder_ids}
-    if not folder_ids:
-        return stats
-    for pid, n in (
-        await db.execute(
-            select(LibraryFolder.parent_id, func.count(LibraryFolder.id))
-            .where(LibraryFolder.parent_id.in_(folder_ids))
-            .group_by(LibraryFolder.parent_id)
-        )
-    ).all():
-        stats[int(pid)]["folders"] = int(n)
-    for fid, n in (
-        await db.execute(
-            select(LibraryFile.folder_id, func.count(LibraryFile.id))
-            .where(LibraryFile.folder_id.in_(folder_ids))
-            .group_by(LibraryFile.folder_id)
-        )
-    ).all():
-        stats[int(fid)]["files"] = int(n)
-    return stats
-
-
 # ---------------------------------------------------------------- 자료실 홈
 
-@router.get("/admin/library")
-async def library_home(
+def _file_item(user: User, f: LibraryFile, cat_id: int, location: str = "") -> dict:
+    label, kind, ext = _file_type(f.original_name)
+    return {
+        "kind": "file",
+        "id": f.id,
+        "name": f.original_name,
+        "url": f"/admin/library/file/{f.id}?inline=1",
+        "download_url": f"/admin/library/file/{f.id}",
+        "modified": _fmt_dt(f.created_at),
+        "sort_ts": f.created_at.timestamp() if f.created_at else 0,
+        "type": label,
+        "icon": kind,
+        "ext": ext[:4].upper(),
+        "size": f.file_size or 0,
+        "size_label": _fmt_size(f.file_size),
+        "note": f.note or "",
+        "by": f.uploaded_by or "",
+        "location": location,
+        "can_delete": _can_delete_file(user, f),
+    }
+
+
+async def _render_explorer(
     request: Request,
-    user: User = Depends(require_login),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession,
+    user: User,
+    *,
+    cat: LibraryCategory | None = None,
+    current: LibraryFolder | None = None,
+    q: str = "",
 ):
+    """윈도우 탐색기형 자료실 — 왼쪽 폴더 트리 · 오른쪽 목록 (홈/하위메뉴/폴더 공용)."""
     cats = (
         await db.execute(select(LibraryCategory).order_by(LibraryCategory.sort_order, LibraryCategory.id))
     ).scalars().all()
-    folder_counts = dict(
-        (
-            await db.execute(
-                select(LibraryFolder.category_id, func.count(LibraryFolder.id)).group_by(LibraryFolder.category_id)
+    all_folders = (
+        await db.execute(select(LibraryFolder).order_by(LibraryFolder.name, LibraryFolder.id))
+    ).scalars().all()
+    folder_by_id = {f.id: f for f in all_folders}
+    children: dict[tuple[int, int | None], list[LibraryFolder]] = {}
+    for f in all_folders:
+        children.setdefault((f.category_id, f.parent_id), []).append(f)
+
+    folder_counts: dict[int, int] = {}
+    for f in all_folders:
+        folder_counts[f.category_id] = folder_counts.get(f.category_id, 0) + 1
+    file_rows = (
+        await db.execute(
+            select(LibraryFile.folder_id, func.count(LibraryFile.id), func.max(LibraryFile.created_at))
+            .group_by(LibraryFile.folder_id)
+        )
+    ).all()
+    files_in_folder = {int(fid): int(n) for fid, n, _ in file_rows}
+    latest_in_folder = {int(fid): ts for fid, _, ts in file_rows}
+    file_counts: dict[int, int] = {}
+    latest_in_cat: dict[int, datetime | None] = {}
+    for fid, n in files_in_folder.items():
+        fd = folder_by_id.get(fid)
+        if fd is None:
+            continue
+        file_counts[fd.category_id] = file_counts.get(fd.category_id, 0) + n
+        latest_in_cat[fd.category_id] = _latest(latest_in_cat.get(fd.category_id), latest_in_folder.get(fid))
+
+    path_ids: set[int] = set()
+    breadcrumb = await _breadcrumb(db, current) if current else []
+    path_ids.update(b.id for b in breadcrumb)
+
+    def folder_url(f: LibraryFolder) -> str:
+        return _folder_url(f.category_id, f.id)
+
+    def tree_nodes(cat_id: int, parent_id: int | None, depth: int) -> list[dict]:
+        out = []
+        for f in children.get((cat_id, parent_id), []):
+            if depth > 30:
+                break
+            out.append(
+                {
+                    "name": f.name,
+                    "url": folder_url(f),
+                    "active": current is not None and f.id == current.id,
+                    "open": f.id in path_ids,
+                    "children": tree_nodes(cat_id, f.id, depth + 1),
+                }
             )
-        ).all()
-    )
-    file_counts = dict(
-        (
-            await db.execute(
-                select(LibraryFolder.category_id, func.count(LibraryFile.id))
-                .join(LibraryFile, LibraryFile.folder_id == LibraryFolder.id)
-                .group_by(LibraryFolder.category_id)
+        return out
+
+    tree = [
+        {
+            "name": c.name,
+            "url": f"/admin/library/category/{c.id}",
+            "active": cat is not None and c.id == cat.id and current is None,
+            "open": cat is not None and c.id == cat.id,
+            "children": tree_nodes(c.id, None, 0),
+        }
+        for c in cats
+    ]
+
+    def folder_item(f: LibraryFolder) -> dict:
+        sub = len(children.get((f.category_id, f.id), []))
+        nfiles = files_in_folder.get(f.id, 0)
+        return {
+            "kind": "folder",
+            "id": f.id,
+            "name": f.name,
+            "url": folder_url(f),
+            "modified": _fmt_dt(_latest(f.created_at, latest_in_folder.get(f.id))),
+            "sort_ts": (_latest(f.created_at, latest_in_folder.get(f.id)) or datetime(1970, 1, 1)).timestamp(),
+            "type": "폴더",
+            "icon": "folder",
+            "size": -1,
+            "size_label": "-",
+            "meta": (f"폴더 {sub} · " if sub else "") + f"자료 {nfiles}",
+            "by": f.created_by or "",
+            "can_manage": _can_manage_folder(user, f),
+            "can_delete": can_delete(user) or (_can_manage_folder(user, f) and not sub and not nfiles),
+        }
+
+    def folder_path(fid: int) -> str:
+        names, seen, cur = [], set(), folder_by_id.get(fid)
+        while cur is not None and cur.id not in seen:
+            seen.add(cur.id)
+            names.append(cur.name)
+            cur = folder_by_id.get(cur.parent_id) if cur.parent_id else None
+        return " › ".join(reversed(names))
+
+    query = (q or "").strip()
+    items: list[dict] = []
+    if query:
+        like = f"%{query}%"
+        stmt = (
+            select(LibraryFile, LibraryFolder)
+            .join(LibraryFolder, LibraryFolder.id == LibraryFile.folder_id)
+            .where(or_(LibraryFile.original_name.ilike(like), LibraryFile.note.ilike(like)))
+            .order_by(LibraryFile.created_at.desc())
+            .limit(300)
+        )
+        if cat is not None:
+            stmt = stmt.where(LibraryFolder.category_id == cat.id)
+        cat_names = {c.id: c.name for c in cats}
+        for f, fd in (await db.execute(stmt)).all():
+            loc = f"{cat_names.get(fd.category_id, '')} › {folder_path(fd.id)}"
+            item = _file_item(user, f, fd.category_id, loc)
+            item["location_url"] = folder_url(fd)
+            items.append(item)
+        heading = f"「{query}」 검색 결과"
+        summary = f"{len(items)}개 파일"
+    elif cat is None:
+        for c in cats:
+            items.append(
+                {
+                    "kind": "category",
+                    "id": c.id,
+                    "name": c.name,
+                    "url": f"/admin/library/category/{c.id}",
+                    "modified": _fmt_dt(_latest(c.created_at, latest_in_cat.get(c.id))),
+                    "sort_ts": (_latest(c.created_at, latest_in_cat.get(c.id)) or datetime(1970, 1, 1)).timestamp(),
+                    "type": "폴더",
+                    "icon": "folder",
+                    "size": -1,
+                    "size_label": "-",
+                    "meta": f"폴더 {folder_counts.get(c.id, 0)} · 자료 {file_counts.get(c.id, 0)}",
+                    "can_delete": False,
+                }
             )
-        ).all()
-    )
+        heading = "자료실"
+        summary = f"{len(items)}개 폴더"
+    else:
+        for f in children.get((cat.id, current.id if current else None), []):
+            items.append(folder_item(f))
+        nfold = len(items)
+        if current is not None:
+            for f in (
+                await db.execute(
+                    select(LibraryFile)
+                    .where(LibraryFile.folder_id == current.id)
+                    .order_by(LibraryFile.original_name, LibraryFile.id)
+                )
+            ).scalars().all():
+                items.append(_file_item(user, f, cat.id))
+        nfile = len(items) - nfold
+        heading = current.name if current else cat.name
+        summary = f"{nfold}개 폴더" + (f" · {nfile}개 파일" if current is not None else "")
+
+    address = [{"name": "자료실", "url": "/admin/library"}]
+    if cat is not None:
+        address.append({"name": cat.name, "url": f"/admin/library/category/{cat.id}"})
+        for b in breadcrumb:
+            address.append({"name": b.name, "url": folder_url(b)})
+    if current is not None:
+        up_url = _folder_url(cat.id, current.parent_id)
+    elif cat is not None:
+        up_url = "/admin/library"
+    else:
+        up_url = ""
+
+    here_url = address[-1]["url"]
+    back_url = here_url
+    if query:
+        back_url += ("&" if "?" in here_url else "?") + f"q={quote(query)}"
     return templates.TemplateResponse(
         request,
-        "library.html",
+        "library_explorer.html",
         {
             "user": user,
+            "category": cat,
+            "current": current,
+            "tree": tree,
+            "items": items,
+            "heading": heading,
+            "summary": summary,
+            "address": address,
+            "up_url": up_url,
+            "here_url": here_url,
+            "back_url": back_url,
+            "query": query,
             "categories": cats,
             "folder_counts": folder_counts,
             "file_counts": file_counts,
             "is_admin": _is_admin(user),
+            "can_create": can_create(user),
+            "can_manage_current": current is not None and _can_manage_folder(user, current),
+            "max_file_mb": MAX_FILE_BYTES // (1024 * 1024),
+            "max_files": MAX_FILES_PER_UPLOAD,
             "flash_message": request.query_params.get("message", ""),
             "flash_error": request.query_params.get("error", ""),
         },
     )
+
+
+@router.get("/admin/library")
+async def library_home(
+    request: Request,
+    q: str = "",
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _render_explorer(request, db, user, q=q)
 
 
 # ---------------------------------------------------------------- 하위메뉴 (시스템관리자)
@@ -288,71 +500,7 @@ async def library_category_view(
         current = await db.get(LibraryFolder, folder)
         if current is None or current.category_id != cat.id:
             return RedirectResponse(_folder_url(cat.id), status_code=303)
-
-    parent_cond = LibraryFolder.parent_id == current.id if current else LibraryFolder.parent_id.is_(None)
-    subfolders = (
-        await db.execute(
-            select(LibraryFolder)
-            .where(LibraryFolder.category_id == cat.id, parent_cond)
-            .order_by(LibraryFolder.id)
-        )
-    ).scalars().all()
-    stats = await _folder_stats(db, [f.id for f in subfolders])
-
-    files: list[LibraryFile] = []
-    if current is not None:
-        files = list(
-            (
-                await db.execute(
-                    select(LibraryFile)
-                    .where(LibraryFile.folder_id == current.id)
-                    .order_by(LibraryFile.created_at.desc(), LibraryFile.id.desc())
-                )
-            ).scalars().all()
-        )
-
-    query = (q or "").strip()
-    search_results: list[tuple[LibraryFile, LibraryFolder]] = []
-    if query:
-        like = f"%{query}%"
-        search_results = list(
-            (
-                await db.execute(
-                    select(LibraryFile, LibraryFolder)
-                    .join(LibraryFolder, LibraryFolder.id == LibraryFile.folder_id)
-                    .where(
-                        LibraryFolder.category_id == cat.id,
-                        or_(LibraryFile.original_name.ilike(like), LibraryFile.note.ilike(like)),
-                    )
-                    .order_by(LibraryFile.created_at.desc())
-                    .limit(200)
-                )
-            ).all()
-        )
-
-    return templates.TemplateResponse(
-        request,
-        "library_category.html",
-        {
-            "user": user,
-            "category": cat,
-            "current": current,
-            "breadcrumb": await _breadcrumb(db, current),
-            "subfolders": subfolders,
-            "folder_stats": stats,
-            "files": files,
-            "query": query,
-            "search_results": search_results,
-            "can_create": can_create(user),
-            "is_admin": _is_admin(user),
-            "can_manage_folder": (lambda f: _can_manage_folder(user, f)),
-            "can_delete_file": (lambda f: _can_delete_file(user, f)),
-            "max_file_mb": MAX_FILE_BYTES // (1024 * 1024),
-            "max_files": MAX_FILES_PER_UPLOAD,
-            "flash_message": request.query_params.get("message", ""),
-            "flash_error": request.query_params.get("error", ""),
-        },
-    )
+    return await _render_explorer(request, db, user, cat=cat, current=current, q=q)
 
 
 @router.post("/admin/library/category/{category_id}/folders")
@@ -392,6 +540,7 @@ async def library_folder_create(
 async def library_folder_rename(
     folder_id: int,
     name: str = Form(...),
+    stay: int = Form(0),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
@@ -399,7 +548,7 @@ async def library_folder_rename(
     if not _can_manage_folder(user, folder):
         raise HTTPException(403, "폴더 이름을 바꿀 권한이 없습니다.")
     nm = _clean_name(name, 200)
-    back = _folder_url(folder.category_id, folder.parent_id)
+    back = _folder_url(folder.category_id, folder.id if stay else folder.parent_id)
     if not nm:
         return _back(back, error="폴더 이름을 입력하세요.")
     folder.name = nm
@@ -520,6 +669,48 @@ async def library_file_delete(
     await db.delete(f)
     await db.commit()
     return _back(_folder_url(folder.category_id, folder.id), message=f"「{name}」을 삭제했습니다.")
+
+
+@router.post("/admin/library/bulk-delete")
+async def library_bulk_delete(
+    folder_ids: list[int] = Form(default=[]),
+    file_ids: list[int] = Form(default=[]),
+    back: str = Form("/admin/library"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """탐색기 체크박스 선택 삭제 — 항목별 권한은 개별 삭제와 동일."""
+    back_url = back if back.startswith("/admin/library") else "/admin/library"
+    deleted = 0
+    skipped: list[str] = []
+    for fid in dict.fromkeys(file_ids):
+        f = await db.get(LibraryFile, fid)
+        if f is None:
+            continue
+        if not _can_delete_file(user, f):
+            skipped.append(f.original_name)
+            continue
+        await db.delete(f)
+        deleted += 1
+    for fid in dict.fromkeys(folder_ids):
+        folder = await db.get(LibraryFolder, fid)
+        if folder is None:
+            continue
+        ids = await _descendant_folder_ids(db, [folder.id])
+        has_content = len(ids) > 1 or bool(
+            (await db.execute(select(func.count(LibraryFile.id)).where(LibraryFile.folder_id == folder.id))).scalar()
+        )
+        if not (can_delete(user) or (_can_manage_folder(user, folder) and not has_content)):
+            skipped.append(folder.name)
+            continue
+        await _delete_folders(db, ids)
+        deleted += 1
+    await db.commit()
+    if skipped:
+        return _back(back_url, error=f"{deleted}개 삭제 · 권한이 없어 제외: {', '.join(skipped[:5])}")
+    if not deleted:
+        return _back(back_url, error="삭제할 항목을 선택하세요.")
+    return _back(back_url, message=f"{deleted}개 항목을 삭제했습니다.")
 
 
 # ---------------------------------------------------------------- 기존 계정 메뉴 권한 보정
