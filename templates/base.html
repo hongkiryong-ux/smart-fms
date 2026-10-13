@@ -385,32 +385,9 @@
       </li>
       {% endif %}
       {% if user_can_access_menu(user, 'library') %}
-      {% set lib_path = request.url.path.startswith('/admin/library') %}
-      {% set lib_parts = request.url.path.split('/') %}
-      {% set lib_cid = lib_parts[4] if lib_path and lib_parts|length > 4 and lib_parts[3] == 'category' else none %}
-      <li class="nav-expandable{% if lib_path %} is-open{% endif %}" id="nav-library">
-        <div class="nav-parent-row">
-          <a href="/admin/library"
-             class="nav-parent-link{% if lib_path and not lib_cid %} active{% endif %}">{{ nav_ico('library') }}<span class="nav-label">자료실</span></a>
-          <button type="button"
-                  class="nav-toggle"
-                  aria-expanded="{% if lib_path %}true{% else %}false{% endif %}"
-                  aria-controls="nav-library-sub"
-                  title="자료실 하위 메뉴 펼치기">
-            <span class="nav-toggle-icon" aria-hidden="true">▾</span>
-          </button>
-        </div>
-        <ul class="nav-sub" id="nav-library-sub">
-          {% for c in request.state.nav_library_categories or [] %}
-          <li>
-            <a href="/admin/library/category/{{ c.id }}"
-               class="{% if lib_cid == c.id|string %}active{% endif %}"
-               title="{{ c.name }}">{{ c.name }}</a>
-          </li>
-          {% else %}
-          <li class="nav-sub-empty">등록된 하위메뉴 없음</li>
-          {% endfor %}
-        </ul>
+      <li>
+        <a href="/admin/library"
+           class="{% if request.url.path.startswith('/admin/library') %}active{% endif %}">{{ nav_ico('library') }}<span class="nav-label">자료실</span></a>
       </li>
       {% endif %}
       {% if user_can_access_menu(user, 'partners') %}
@@ -437,7 +414,7 @@
   </nav>
   <script>
   (function () {
-    var topLevelNavIds = ['nav-sites', 'nav-equipment', 'nav-inspection-logs2', 'nav-maintenance', 'nav-library'];
+    var topLevelNavIds = ['nav-sites', 'nav-equipment', 'nav-inspection-logs2', 'nav-maintenance'];
     var nestedNavIds = ['nav-d1', 'nav-streetlamp'];
     var siteNavIds = Array.prototype.map.call(
       document.querySelectorAll('#nav-sites-sub > .nav-expandable.nav-nested[id]'),
@@ -579,7 +556,6 @@
       expandByChevronOnly: true,
       accordionGroup: topLevelNavIds,
     });
-    bindNavExpandable('nav-library', 'nav-library-open', { accordionGroup: topLevelNavIds });
     bindNavExpandable('nav-maintenance', 'nav-maint-open', {
       expandByChevronOnly: true,
       accordionGroup: topLevelNavIds,

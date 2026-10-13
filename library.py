@@ -254,6 +254,7 @@ async def _render_explorer(
             "url": f"/admin/library/category/{c.id}",
             "active": cat is not None and c.id == cat.id and current is None,
             "open": cat is not None and c.id == cat.id,
+            "section": True,
             "children": tree_nodes(c.id, None, 0),
         }
         for c in cats
