@@ -1,0 +1,185 @@
+/* 정비관리 화면 계정별 표시 범위 (나의 협력사 · 내 건물) */
+
+.ms-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ms-btn b {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #1d5fd6;
+  color: #fff;
+  font-size: 0.74rem;
+  line-height: 20px;
+  text-align: center;
+}
+.ms-btn.is-set {
+  border-color: #b9cdf3;
+  background: #f1f6ff;
+  color: #1d5fd6;
+}
+
+@media (min-width: 901px) {
+  .wo2-head-right:has(.ms-btn) {
+    flex-shrink: 0;
+  }
+}
+
+.ms-scope {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid #cfdcf5;
+  border-radius: 10px;
+  background: #f4f8ff;
+  font-size: 0.85rem;
+  color: #1f2937;
+}
+.ms-scope strong {
+  color: #1d5fd6;
+  white-space: nowrap;
+}
+.ms-scope-count {
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: #dfe9fb;
+  color: #1d5fd6;
+  font-weight: 700;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.ms-scope-names {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #4b5563;
+}
+.ms-scope-names em {
+  font-style: normal;
+}
+.ms-scope-names em + em::before {
+  content: " · ";
+  color: #9ca3af;
+}
+
+.ms-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #1d5fd6;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ms-link:hover {
+  text-decoration: underline;
+}
+
+.ms-dialog {
+  width: min(560px, calc(100vw - 2rem));
+}
+.ms-dialog .ms-top {
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.9rem 1.1rem 0.7rem;
+  border-bottom: 1px solid #eef0f3;
+}
+.ms-dialog .ms-top strong {
+  font-size: 1rem;
+}
+.ms-dialog .ms-body {
+  padding: 0.9rem 1.1rem 1.1rem;
+}
+.ms-sub {
+  margin: 0 0 0.75rem;
+  font-size: 0.84rem;
+  color: #6b7280;
+}
+.ms-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.6rem;
+}
+.ms-search {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  margin: 0;
+  padding: 0 0.6rem;
+  border: 1px solid #d6dbe3;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.85rem;
+}
+.ms-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem 0.8rem;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border: 1px solid #eef0f3;
+  border-radius: 8px;
+}
+.ms-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.35rem;
+  border-radius: 6px;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.ms-opt[hidden] {
+  display: none;
+}
+.ms-opt:hover {
+  background: #f5f7fa;
+}
+.ms-opt input {
+  margin: 0;
+}
+.ms-opt span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ms-opt small {
+  margin-left: 0.35rem;
+  color: #9ca3af;
+  font-size: 0.74rem;
+}
+.ms-empty {
+  grid-column: 1 / -1;
+  margin: 0.6rem 0;
+  color: #6b7280;
+  text-align: center;
+}
+.ms-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+.ms-picked {
+  margin-right: auto;
+  font-size: 0.82rem;
+  color: #6b7280;
+}

@@ -90,6 +90,7 @@ from database import (
 )
 from init_data import seed_if_empty
 from ilog2_notes import notes_rows as ilog2_notes_rows
+from maint_scope import parse_id_set, scoped_building_ids, scoped_partner_ids, wo_in_buildings
 import onlyoffice as oo
 from server_status import collect_server_status
 from access_log import (
@@ -7438,12 +7439,15 @@ def _wo_list_conditions(
     date_from_val: str,
     date_to_val: str,
     partner_id_val: int = 0,
+    my_partner_ids: set[int] | None = None,
 ) -> list:
     """정비접수 목록·KPI·Excel 공통 조건 (진행상태 제외). Equipment outer join 전제."""
     conds = [
         WorkOrder.is_active == True,
         WorkOrder.completion_approval_pending.is_not(True),
     ]
+    if my_partner_ids:
+        conds.append(WorkOrder.partner_id.in_(my_partner_ids))
     if q_val:
         like = f"%{q_val}%"
         conds.append(
@@ -7508,8 +7512,10 @@ async def work_orders_list(
     if per_page_val not in WO_PAGE_SIZES:
         per_page_val = LIST_PAGE_SIZE
 
+    my_partner_ids = await scoped_partner_ids(db, user)
     base_conds = _wo_list_conditions(
-        q_val, priority_val, site_id_val, date_from_val, date_to_val, partner_id_val
+        q_val, priority_val, site_id_val, date_from_val, date_to_val, partner_id_val,
+        my_partner_ids,
     )
     kpi = {"total": 0, "received": 0, "in_progress": 0, "completed": 0, "rejected": 0, "pending": 0}
     for st, rejected, approved in (
@@ -7614,6 +7620,8 @@ async def work_orders_list(
             "photo_counts": photo_counts,
             "pager": pager,
             "partners": partners,
+            "my_partner_ids": my_partner_ids,
+            "scope_partners": [p for p in partners if p.id in my_partner_ids],
             "partner_risk_by_id": _partner_risk_by_id(partners),
             "buildings": buildings,
             "equipment_opts": equipment_opts,
@@ -7669,6 +7677,7 @@ async def work_orders_export(
                     (date_from or "").strip(),
                     (date_to or "").strip(),
                     _query_int(partner_id),
+                    await scoped_partner_ids(db, user),
                 )
             )
         )
@@ -7686,6 +7695,37 @@ async def work_orders_export(
         )
     ).scalars().unique().all()
     return _work_orders_excel_response(orders, "정비관리")
+
+
+@app.post("/admin/work-orders/my-partners")
+async def work_orders_my_partners_save(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """정비접수 화면에 표시할 '나의 협력사' 저장 (모두 해제하면 전체)."""
+    form = await request.form()
+    picked = parse_id_set(form.getlist("partner_ids"))
+    if picked:
+        picked = set(
+            (
+                await db.execute(
+                    select(Partner.id).where(
+                        Partner.id.in_(picked), Partner.is_active == True  # noqa: E712
+                    )
+                )
+            ).scalars().all()
+        )
+    db_user = await db.get(User, user.id)
+    if not db_user:
+        raise HTTPException(404)
+    db_user.wo_partner_ids = sorted(picked) or None
+    await db.commit()
+    from maint_nav_badges import _badge_cache
+
+    _badge_cache.pop(user.id, None)
+    msg = f"나의 협력사 {len(picked)}곳의 정비만 표시합니다." if picked else "전체 협력사의 정비를 표시합니다."
+    return RedirectResponse(f"/admin/work-orders?message={quote(msg)}", status_code=303)
 
 
 @app.post("/admin/work-orders")
@@ -8746,7 +8786,27 @@ def _fa_kst_date(dt: datetime | None) -> date | None:
     return dt.astimezone(KST).date()
 
 
-async def _fa_board_data(db: AsyncSession, f: dict) -> dict:
+async def _maint_building_scope_ctx(db: AsyncSession, my_building_ids: set[int]) -> dict:
+    """정비관리 화면 '내 건물 설정' 대화상자·표시 범위 안내용."""
+    buildings = (
+        await db.execute(
+            select(Building)
+            .join(Site, Building.site_id == Site.id)
+            .where(Building.is_active == True, Site.is_active == True)  # noqa: E712
+            .options(selectinload(Building.site))
+            .order_by(Site.name, Building.name)
+        )
+    ).scalars().all()
+    return {
+        "my_building_ids": my_building_ids,
+        "scope_buildings": [b for b in buildings if b.id in my_building_ids],
+        "all_buildings": buildings,
+    }
+
+
+async def _fa_board_data(
+    db: AsyncSession, f: dict, *, building_ids: set[int] | None = None
+) -> dict:
     """최종승인 화면 목록: 승인대기 + 최종승인 이력 + 반려."""
     stmt = (
         select(WorkOrder)
@@ -8777,6 +8837,8 @@ async def _fa_board_data(db: AsyncSession, f: dict) -> dict:
         )
     if f["partner_id"]:
         stmt = stmt.where(WorkOrder.partner_id == f["partner_id"])
+    if building_ids:
+        stmt = stmt.where(wo_in_buildings(building_ids))
     rows = (await db.execute(stmt)).scalars().unique().all()
 
     d_from = date.fromisoformat(f["date_from"]) if f["date_from"] else None
@@ -8927,7 +8989,8 @@ async def maintenance_final_approvals(
         raise HTTPException(403, "정비완료 최종승인 메뉴 접근 권한이 없습니다.")
 
     f = _fa_filters(tab, q, partner_id, date_from, date_to)
-    data = await _fa_board_data(db, f)
+    my_building_ids = await scoped_building_ids(db, user)
+    data = await _fa_board_data(db, f, building_ids=my_building_ids)
     per_page_val = _query_int(per_page)
     if per_page_val not in WO_PAGE_SIZES:
         per_page_val = _query_int(request.cookies.get("fa_per_page"))
@@ -8964,6 +9027,7 @@ async def maintenance_final_approvals(
             "today_iso": _today_kst().isoformat(),
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
+            **(await _maint_building_scope_ctx(db, my_building_ids)),
         },
     )
 
@@ -8981,7 +9045,9 @@ async def maintenance_final_approvals_export(
     if not _can_access_completion_approval(user):
         raise HTTPException(403, "정비완료 최종승인 메뉴 접근 권한이 없습니다.")
     f = _fa_filters(tab, q, partner_id, date_from, date_to)
-    data = await _fa_board_data(db, f)
+    data = await _fa_board_data(
+        db, f, building_ids=await scoped_building_ids(db, user)
+    )
     return _fa_excel_response(data[f["tab"]])
 
 
@@ -11419,7 +11485,13 @@ def _facility_keep_qs(f: dict) -> str:
     return urlencode([(k, str(f[k])) for k in FAC_KEEP_KEYS if f.get(k)])
 
 
-async def _facility_board_data(db: AsyncSession, f: dict, *, apply_risk: bool = False) -> dict:
+async def _facility_board_data(
+    db: AsyncSession,
+    f: dict,
+    *,
+    apply_risk: bool = False,
+    building_ids: set[int] | None = None,
+) -> dict:
     """시설섹션 목록 — 조건 적용 후 하루전/당일/정비예정 분류와 승인 현황."""
     today = _today_kst()
     tomorrow = today + timedelta(days=1)
@@ -11428,13 +11500,13 @@ async def _facility_board_data(db: AsyncSession, f: dict, *, apply_risk: bool = 
         WorkOrderStatus.assigned,
         WorkOrderStatus.in_progress,
     ]
+    conds = [WorkOrder.status.in_(open_statuses), *_facility_sql_gate()]
+    if building_ids:
+        conds.append(wo_in_buildings(building_ids))
     rows = (
         await db.execute(
             select(WorkOrder)
-            .where(
-                WorkOrder.status.in_(open_statuses),
-                *_facility_sql_gate(),
-            )
+            .where(*conds)
             .options(
                 selectinload(WorkOrder.equipment),
                 selectinload(WorkOrder.partner),
@@ -11547,7 +11619,10 @@ async def facility_section_list(
     """정비관리(시설섹션): 승인요청된 하루전·당일·정비예정 작업."""
     board_key = _facility_board_key(board)
     filters = _facility_filters(q, status, partner_id, date_from, date_to, permit)
-    data = await _facility_board_data(db, filters, apply_risk=True)
+    my_building_ids = await scoped_building_ids(db, user)
+    data = await _facility_board_data(
+        db, filters, apply_risk=True, building_ids=my_building_ids
+    )
     today = data["today"]
     tomorrow = data["tomorrow"]
     day_before = data["day_before"]
@@ -11636,6 +11711,7 @@ async def facility_section_list(
             "keep_qs": _facility_keep_qs(filters),
             "permit_counts": data["permit_counts"],
             "page_sizes": WO_PAGE_SIZES,
+            **(await _maint_building_scope_ctx(db, my_building_ids)),
         },
     )
 
@@ -11654,7 +11730,9 @@ async def facility_section_export(
 ):
     """시설섹션 화면의 현재 탭·검색 조건 결과를 Excel로 내보내기."""
     filters = _facility_filters(q, status, partner_id, date_from, date_to, permit)
-    data = await _facility_board_data(db, filters)
+    data = await _facility_board_data(
+        db, filters, building_ids=await scoped_building_ids(db, user)
+    )
     orders = _facility_board_list(data, _facility_board_key(board))
     return _work_orders_excel_response(orders, "시설섹션")
 
@@ -12037,19 +12115,7 @@ def _pm_match_filters(
 
 def _pm_user_building_ids(user: User) -> set[int]:
     """계정에 지정된 PM 담당 건물 id (비어 있으면 전체 건물)."""
-    raw = getattr(user, "pm_building_ids", None)
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except ValueError:
-            raw = None
-    out: set[int] = set()
-    for v in raw or []:
-        try:
-            out.add(int(v))
-        except (TypeError, ValueError):
-            continue
-    return out
+    return parse_id_set(getattr(user, "pm_building_ids", None))
 
 
 templates.env.globals["user_building_ids"] = _pm_user_building_ids
@@ -22231,10 +22297,15 @@ async def pm_my_buildings_save(
         picked = (_pm_user_building_ids(db_user) - scope) | (picked & scope)
     db_user.pm_building_ids = sorted(picked) or None
     await db.commit()
+    from maint_nav_badges import _badge_cache
+
+    _badge_cache.pop(user.id, None)
     msg = f"내 건물 {shown}곳만 표시합니다." if shown else "전체 건물을 표시합니다."
     next_page = {
         "ilog2": "/admin/inspection-logs2",
         "equipment": "/admin/equipment",
+        "facility": "/admin/facility-section",
+        "final_approvals": "/admin/maintenance-final-approvals",
     }.get(str(form.get("next", "")))
     if next_page:
         return RedirectResponse(f"{next_page}?message={quote(msg)}", status_code=303)

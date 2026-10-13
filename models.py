@@ -134,6 +134,8 @@ class User(Base):
     menu_access = Column(JSON, nullable=True)
     # 점검(PM) 담당 건물 id 목록 (비어 있으면 전체 건물 표시)
     pm_building_ids = Column(JSON, nullable=True)
+    # 정비접수 화면 '나의 협력사' id 목록 (비어 있으면 전체 협력사 표시)
+    wo_partner_ids = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     # 위험성평가 AI — 계정별 개인 키 (다른 사용자와 공유하지 않음)
     openai_api_key = Column(String(200), nullable=True)

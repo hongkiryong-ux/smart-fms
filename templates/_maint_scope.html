@@ -1,0 +1,99 @@
+{# 정비관리 화면 계정별 표시 범위 (나의 협력사 · 내 건물) #}
+
+{% macro scope_btn(dialog_id, label, count, icon='building') -%}
+<button type="button" class="wo2-help-btn ms-btn{% if count %} is-set{% endif %}" data-open-dialog="{{ dialog_id }}">
+  {% if icon == 'partner' %}
+  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.7 5.5-4.7s4.9 1.7 5.5 4.7"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.8 14.6c2.4-.3 4.3 1.1 4.8 3.9"/></svg>
+  {% else %}
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+  {% endif %}
+  {{ label }}{% if count %} <b>{{ count }}</b>{% endif %}
+</button>
+{%- endmacro %}
+
+{% macro scope_bar(dialog_id, title, items) -%}
+{% if items %}
+<div class="ms-scope">
+  <strong>{{ title }}</strong>
+  <span class="ms-scope-count">{{ items|length }}곳</span>
+  <span class="ms-scope-names">{% for it in items %}<em>{{ it.name }}</em>{% endfor %}</span>
+  <button type="button" class="ms-link" data-open-dialog="{{ dialog_id }}">변경</button>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro scope_dialog(dialog_id, title, desc, action, field, options, selected, next='', show_site=false) -%}
+<dialog id="{{ dialog_id }}" class="eq-dialog ms-dialog">
+  <form method="post" action="{{ action }}" class="ms-form">
+    {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
+    <div class="eq-dialog-top ms-top">
+      <strong>{{ title }}</strong>
+      <button type="button" class="link-action" data-ms-close>닫기</button>
+    </div>
+    <div class="eq-popup-body ms-body">
+      <p class="ms-sub">{{ desc }}</p>
+      <div class="ms-tools">
+        <input type="search" class="ms-search" placeholder="이름 검색" aria-label="이름 검색" />
+        <button type="button" class="ms-link" data-ms-all="1">전체 선택</button>
+        <button type="button" class="ms-link" data-ms-all="0">모두 해제</button>
+      </div>
+      <div class="ms-list">
+        {% for o in options %}
+        <label class="ms-opt">
+          <input type="checkbox" name="{{ field }}" value="{{ o.id }}"{% if o.id in selected %} checked{% endif %} />
+          <span>{{ o.name }}{% if show_site and o.site %}<small>{{ o.site.name }}</small>{% endif %}</span>
+        </label>
+        {% else %}
+        <p class="ms-empty">등록된 항목이 없습니다.</p>
+        {% endfor %}
+      </div>
+      <div class="ms-actions">
+        <span class="ms-picked" data-ms-picked></span>
+        <button type="button" class="btn btn-secondary" data-ms-close>취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+{%- endmacro %}
+
+{% macro scope_script() -%}
+<script>
+(function () {
+  document.querySelectorAll('.ms-dialog').forEach(function (dlg) {
+    var boxes = Array.prototype.slice.call(dlg.querySelectorAll('.ms-opt input[type="checkbox"]'));
+    var picked = dlg.querySelector('[data-ms-picked]');
+    var search = dlg.querySelector('.ms-search');
+    function sync() {
+      var n = boxes.filter(function (b) { return b.checked; }).length;
+      if (picked) picked.textContent = n ? n + '곳 선택' : '선택 없음 (전체 표시)';
+    }
+    function visible(b) { return !b.closest('.ms-opt').hidden; }
+    dlg.querySelectorAll('[data-ms-all]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var on = btn.getAttribute('data-ms-all') === '1';
+        boxes.forEach(function (b) { if (visible(b)) b.checked = on; });
+        sync();
+      });
+    });
+    dlg.querySelectorAll('[data-ms-close]').forEach(function (btn) {
+      btn.addEventListener('click', function () { dlg.close(); });
+    });
+    boxes.forEach(function (b) { b.addEventListener('change', sync); });
+    if (search) {
+      search.addEventListener('input', function () {
+        var kw = search.value.trim().toLowerCase();
+        boxes.forEach(function (b) {
+          var opt = b.closest('.ms-opt');
+          opt.hidden = !!kw && opt.textContent.toLowerCase().indexOf(kw) < 0;
+        });
+      });
+      search.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') e.preventDefault();
+      });
+    }
+    sync();
+  });
+})();
+</script>
+{%- endmacro %}

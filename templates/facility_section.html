@@ -4,7 +4,9 @@
 <link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
 <link rel="stylesheet" href="/static/css/d1_plans.css?v=1" />
 <link rel="stylesheet" href="/static/css/facility_section.css?v=1" />
+<link rel="stylesheet" href="/static/css/maint_scope.css?v=1" />
 {% endblock %}
+{% import "_maint_scope.html" as ms %}
 
 {% macro keep_fac() -%}
 <input type="hidden" name="board" value="{{ board }}" />
@@ -29,12 +31,14 @@
       <span aria-hidden="true">›</span>
       <strong>작업허가/승인(시설섹션)</strong>
     </nav>
+    {{ ms.scope_btn('fac-my-buildings', '내 건물 설정', my_building_ids|length) }}
     <button type="button" class="wo2-help-btn" data-open-dialog="fac-help-dialog"><span aria-hidden="true">?</span> 도움말</button>
   </div>
 </header>
 
 {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
 {% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
+{{ ms.scope_bar('fac-my-buildings', '내 건물 정비만 표시 중', scope_buildings) }}
 
 {% set kpi_keep = [] %}
 {% for k in ['q', 'status', 'partner_id', 'date_from', 'date_to'] %}{% if filters[k] %}{% set _ = kpi_keep.append(k ~ '=' ~ (filters[k]|string|urlencode)) %}{% endif %}{% endfor %}
@@ -361,9 +365,12 @@
       <li><b>승인 취소</b> — 「승인됨/이름」을 누르면 작업허가를 취소합니다.</li>
       <li><b>안전대책 기본값</b> — 협력사별 잠재위험·안전대책 기본값을 저장하면 다음 승인 창에 미리 채워집니다.</li>
       <li><b>보기 설정</b> — 「열 설정」에서 열을 켜고 끌 수 있고, 머리줄 경계를 끌어 열 너비를 바꿀 수 있습니다.</li>
+      <li><b>내 건물</b> — 「내 건물 설정」에서 담당 건물을 고르면 해당 건물 설비의 작업만 보입니다. 점검(PM)·점검일지·설비관리의 내 건물 설정과 같은 값입니다.</li>
     </ol>
   </div>
 </dialog>
+
+{{ ms.scope_dialog('fac-my-buildings', '내 건물 설정', '선택한 건물에 있는 설비의 작업만 이 계정의 작업허가/승인 화면(목록·현황·Excel)에 표시됩니다. 점검(PM)·점검일지·설비관리 화면과 같은 설정이며, 모두 해제하면 전체 건물이 보입니다.', '/admin/pm/my-buildings', 'building_ids', all_buildings, my_building_ids, next='facility', show_site=true) }}
 
 {% if user_can_edit(user) %}
 <dialog class="eq-dialog fac-risk-dialog" id="fac-risk-dialog">
@@ -730,4 +737,5 @@
 })();
 </script>
 <script src="/static/js/wo-col-resize.js?v=4"></script>
+{{ ms.scope_script() }}
 {% endblock %}

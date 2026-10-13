@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from maint_scope import scoped_building_ids, scoped_partner_ids, wo_in_buildings
 from models import AppSetting, User, UserRole, WorkOrder, WorkOrderStatus
 
 KST = ZoneInfo("Asia/Seoul")
@@ -197,16 +198,20 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
     seen = await get_maint_seen(db, user.id)
     today = _today_kst()
 
+    my_building_ids = await scoped_building_ids(db, user)
+
     work_orders_count = 0
     if can_access_menu(user, "work_orders"):
+        wo_conds = [
+            WorkOrder.is_active == True,  # noqa: E712
+            WorkOrder.status.in_(_WO_REQUEST),
+            WorkOrder.d1_approved.is_(False),
+        ]
+        my_partner_ids = await scoped_partner_ids(db, user)
+        if my_partner_ids:
+            wo_conds.append(WorkOrder.partner_id.in_(my_partner_ids))
         wo_rows = (
-            await db.execute(
-                select(WorkOrder).where(
-                    WorkOrder.is_active == True,  # noqa: E712
-                    WorkOrder.status.in_(_WO_REQUEST),
-                    WorkOrder.d1_approved.is_(False),
-                )
-            )
+            await db.execute(select(WorkOrder).where(*wo_conds))
         ).scalars().all()
         for wo in wo_rows:
             if _is_unseen(getattr(wo, "created_at", None), seen.get("work_orders")):
@@ -214,16 +219,17 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
 
     facility_count = 0
     if can_access_menu(user, "facility_section"):
+        fac_conds = [
+            WorkOrder.is_active == True,  # noqa: E712
+            WorkOrder.status.in_(_WO_OPEN),
+            WorkOrder.partner_id.is_not(None),
+            WorkOrder.approval_requested.is_(True),
+            WorkOrder.work_permitted.is_(False),
+        ]
+        if my_building_ids:
+            fac_conds.append(wo_in_buildings(my_building_ids))
         fac_rows = (
-            await db.execute(
-                select(WorkOrder).where(
-                    WorkOrder.is_active == True,  # noqa: E712
-                    WorkOrder.status.in_(_WO_OPEN),
-                    WorkOrder.partner_id.is_not(None),
-                    WorkOrder.approval_requested.is_(True),
-                    WorkOrder.work_permitted.is_(False),
-                )
-            )
+            await db.execute(select(WorkOrder).where(*fac_conds))
         ).scalars().all()
         for wo in fac_rows:
             event_at = getattr(wo, "approval_requested_at", None) or getattr(
@@ -262,13 +268,14 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         can_access_menu(user, "work_orders")
         or can_access_menu(user, "facility_section")
     ):
+        final_conds = [
+            WorkOrder.is_active == True,  # noqa: E712
+            WorkOrder.completion_approval_pending == True,  # noqa: E712
+        ]
+        if my_building_ids:
+            final_conds.append(wo_in_buildings(my_building_ids))
         final_rows = (
-            await db.execute(
-                select(WorkOrder.id).where(
-                    WorkOrder.is_active == True,  # noqa: E712
-                    WorkOrder.completion_approval_pending == True,  # noqa: E712
-                )
-            )
+            await db.execute(select(WorkOrder.id).where(*final_conds))
         ).all()
         final_approvals_count = len(final_rows)
 
