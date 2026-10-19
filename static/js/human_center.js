@@ -59,14 +59,32 @@
     });
   }
 
+  const mulTouched = document.getElementById("hc-mul-touched");
+  let mulEditSeq = 0;
+
+  const autoTargets = {};
+  form.querySelectorAll(".hc-auto-today[data-auto-src]").forEach(function (target) {
+    autoTargets[target.dataset.autoSrc] = target;
+  });
+
+  function autoFillFrom(source) {
+    const target = source && autoTargets[source.name];
+    if (!target) return;
+    const value = String(source.value || "").trim();
+    if (!value || target.value === value) return;
+    target.value = value;
+  }
+
   function applyServerData(data) {
     if (!data || !data.utility) return;
     Object.keys(data.utility).forEach(function (id) {
       const row = form.querySelector('.hc-utility-row[data-utility="' + id + '"]');
       if (!row) return;
       const values = data.utility[id] || {};
+      const today = row.querySelector('[name="u__' + id + '__today"]');
       const daily = row.querySelector('[name="u__' + id + '__daily"]');
       const monthly = row.querySelector('[name="u__' + id + '__monthly"]');
+      if (today && today !== document.activeElement && values.today != null) today.value = values.today;
       if (daily) daily.value = values.daily || "";
       if (monthly) monthly.value = values.monthly || "";
       syncMonthBase(row);
@@ -74,7 +92,7 @@
     if (data.multipliers) {
       Object.keys(data.multipliers).forEach(function (key) {
         const input = form.querySelector('[name="mul__' + key + '"]');
-        if (input) input.value = data.multipliers[key] || "";
+        if (input && input !== document.activeElement) input.value = data.multipliers[key] || "";
       });
     }
     calcUtility();
@@ -87,6 +105,7 @@
     }
     saving = true;
     setStatus("저장 중…", "saving");
+    const sentMulSeq = mulEditSeq;
     try {
       const response = await fetch(form.action, {
         method: "POST",
@@ -96,6 +115,7 @@
       });
       if (!response.ok) throw new Error("save failed");
       const result = await response.json();
+      if (mulTouched && sentMulSeq === mulEditSeq) mulTouched.value = "";
       applyServerData(result.data);
       setStatus("저장됨", "saved");
     } catch (_error) {
@@ -146,10 +166,22 @@
 
   form.querySelectorAll(".hc-utility-row").forEach(syncMonthBase);
 
+  function markMulTouched(el) {
+    if (!mulTouched || !el.classList.contains("hc-mul")) return;
+    mulEditSeq += 1;
+    mulTouched.value = "1";
+  }
+
+  function afterCellChange(el) {
+    markPrevManual(el);
+    markMulTouched(el);
+    autoFillFrom(el);
+  }
+
   form.querySelectorAll(".hc-cell").forEach(function (el) {
     if (el.readOnly) return;
     el.addEventListener("input", function () {
-      markPrevManual(el);
+      afterCellChange(el);
       notifyDirty();
     });
     el.addEventListener("blur", function () {
@@ -247,7 +279,7 @@
           const val = String(raw).trim();
           if (el.value !== val) {
             el.value = val;
-            markPrevManual(el);
+            afterCellChange(el);
             changed = true;
           }
           endR = Math.max(endR, anchorPos.row + dr);
@@ -267,7 +299,7 @@
         if (!isEditableCell(el)) return;
         if (el.value !== "") {
           el.value = "";
-          markPrevManual(el);
+          afterCellChange(el);
           changed = true;
         }
       });

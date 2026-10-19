@@ -68,6 +68,30 @@ def _default_multipliers(schema: dict | None = None) -> dict[str, str]:
     return {str(k): str(v) for k, v in defaults.items()}
 
 
+def _auto_today_map(schema: dict | None = None) -> dict[str, dict]:
+    schema = schema or load_schema()
+    return dict((schema.get("utility") or {}).get("auto_today") or {})
+
+
+def _cell(data: dict | None, section: str, time_key: str, field: str) -> str:
+    return str((((data or {}).get(section) or {}).get(time_key) or {}).get(field) or "").strip()
+
+
+def apply_auto_today(out: dict, existing: dict | None) -> None:
+    """전기실 첫 시간 지침 → UTILITY 금일지침. 원본이 바뀌었거나 금일지침이 비었을 때만 채워 수기값을 보존."""
+    for uid, src in _auto_today_map().items():
+        row = (out.get("utility") or {}).get(uid)
+        if row is None:
+            continue
+        section, time_key, field = src.get("section"), src.get("time"), src.get("field")
+        new_src = _cell(out, section, time_key, field)
+        if not new_src:
+            continue
+        old_src = _cell(existing, section, time_key, field)
+        if new_src != old_src or not str(row.get("today") or "").strip():
+            row["today"] = new_src
+
+
 def _time_block(fields: list[dict], times: list[str]) -> dict[str, dict[str, str]]:
     return {
         t: {**{f["id"]: "" for f in fields}, "time": ""}
@@ -208,7 +232,9 @@ def parse_daily_form(form) -> dict:
             continue
         raw = (value or "").strip() if isinstance(value, str) else str(value or "")
         parts = key.split("__")
-        if key.startswith("mul__") and len(parts) == 2:
+        if key == "mul_touched":
+            data["_mul_touched"] = raw == "1"
+        elif key.startswith("mul__") and len(parts) == 2:
             if parts[1] in data["multipliers"]:
                 data["multipliers"][parts[1]] = raw
         elif key.startswith("u__") and len(parts) == 3:
@@ -301,8 +327,15 @@ async def finalize_daily_save(
     existing: dict,
     posted: dict,
 ) -> dict:
-    monthly = await _monthly_base(session, building_id, log_date)
     posted = deepcopy(posted or {})
+    # 배율은 건물 공통값: 사용자가 배율 칸을 고친 저장만 반영·전 날짜에 전파하고,
+    # 그 외 저장은 오래 열어 둔 화면의 옛 배율이 덮어쓰지 않도록 저장된 값을 유지한다.
+    mul_touched = bool(posted.pop("_mul_touched", False))
+    if mul_touched:
+        await spread_multipliers(session, building_id, log_date, posted.get("multipliers") or {})
+    else:
+        posted.pop("multipliers", None)
+    monthly = await _monthly_base(session, building_id, log_date)
     existing_utility = (existing or {}).get("utility") or {}
     for uid, values in (posted.get("utility") or {}).items():
         if "prev" not in values:
@@ -310,7 +343,66 @@ async def finalize_daily_save(
         old_value = str((existing_utility.get(uid) or {}).get("prev") or "")
         if str(values.get("prev") or "") != old_value:
             values["prev_manual"] = True
-    return merge_daily_save(existing, posted, monthly)
+    out = merge_daily_save(existing, posted, monthly)
+    apply_auto_today(out, existing)
+    return recompute_daily(out, monthly)
+
+
+async def spread_multipliers(
+    session: AsyncSession, building_id: int, log_date: date, multipliers: dict
+) -> None:
+    """전력량 배율을 같은 건물의 다른 모든 날짜에도 동일하게 적용."""
+    allowed = set(_default_multipliers())
+    values = {
+        str(k): str(v).strip()
+        for k, v in (multipliers or {}).items()
+        if str(k) in allowed and str(v).strip() != ""
+    }
+    if not values:
+        return
+    rows = (
+        await session.execute(
+            select(HumanCenterDaily).where(
+                HumanCenterDaily.building_id == building_id,
+                HumanCenterDaily.log_date != log_date,
+            )
+        )
+    ).scalars().all()
+    now = datetime.utcnow()
+    for row in rows:
+        data = deepcopy(row.data or {})
+        current = data.get("multipliers") if isinstance(data.get("multipliers"), dict) else {}
+        if all(str(current.get(k) or "") == v for k, v in values.items()):
+            continue
+        data["multipliers"] = {**current, **values}
+        row.data = data
+        row.updated_at = now
+    await session.flush()
+
+
+async def _current_multipliers(
+    session: AsyncSession, building_id: int, log_date: date
+) -> dict[str, str]:
+    """새 날짜에 쓸 배율: 가장 가까운 이전 날짜, 없으면 이후 날짜의 배율."""
+    for cond, order in (
+        (HumanCenterDaily.log_date < log_date, HumanCenterDaily.log_date.desc()),
+        (HumanCenterDaily.log_date > log_date, HumanCenterDaily.log_date.asc()),
+    ):
+        row = (
+            await session.execute(
+                select(HumanCenterDaily)
+                .where(HumanCenterDaily.building_id == building_id, cond)
+                .order_by(order)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if row and isinstance((row.data or {}).get("multipliers"), dict):
+            return {
+                str(k): str(v)
+                for k, v in row.data["multipliers"].items()
+                if str(v or "").strip()
+            }
+    return {}
 
 
 async def get_or_create_daily(
@@ -323,7 +415,9 @@ async def get_or_create_daily(
             row.data = synced
             await session.flush()
         return row
-    data, _ = await sync_prev_values(session, building_id, log_date, empty_daily_payload())
+    initial = empty_daily_payload()
+    initial["multipliers"].update(await _current_multipliers(session, building_id, log_date))
+    data, _ = await sync_prev_values(session, building_id, log_date, initial)
     row = HumanCenterDaily(building_id=building_id, log_date=log_date, data=data)
     session.add(row)
     await session.flush()

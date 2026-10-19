@@ -65,10 +65,12 @@
   </div>
   {% endif %}
 
-  <p class="text-muted hc-hint">원본 양식 레이아웃 · 노란 칸=전일지침(수기 가능) · 금일지침→다음날 자동 반영 · 전력 배율 설정 · 드래그·엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
+  <p class="text-muted hc-hint">원본 양식 레이아웃 · 노란 칸=전일지침(수기 가능) · 금일지침→다음날 자동 반영 · 전력 금일지침=전기실 첫 시간 지침 자동 입력(수기 수정 가능) · 전력 배율(전 날짜 공통) · 드래그·엑셀 붙여넣기 · Delete 삭제 · 자동 저장</p>
 
   <form method="post" action="{{ save_url }}" id="hc-daily-form" class="hc-daily-form">
     <input type="hidden" name="log_date" value="{{ log_date.isoformat() }}" />
+    <input type="hidden" name="mul_touched" id="hc-mul-touched" value="" />
+    {% set auto_today = schema.utility.auto_today or {} %}
 
     {# ═══ 1. UTILITY 사용량 ═══ #}
     <div class="hc-sheet">
@@ -78,7 +80,7 @@
         <strong>전력량 배율</strong>
         <label>본관 <input class="hc-cell hc-mul" name="mul__power_main" value="{{ multipliers.get('power_main','1') }}" /></label>
         <label>신관 <input class="hc-cell hc-mul" name="mul__power_new" value="{{ multipliers.get('power_new','1') }}" /></label>
-        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율</span>
+        <span class="text-muted">일사용량 = (금일지침 − 전일지침) × 배율 · 배율을 바꾸면 모든 날짜에 함께 적용됩니다</span>
       </div>
       <div class="hc-table-wrap">
         <table class="hc-excel hc-utility-table">
@@ -99,7 +101,7 @@
               {% if loop.first %}<th rowspan="4" class="hc-cat">전 력</th><th rowspan="3" class="hc-sub">본 관</th>{% endif %}
               <th class="hc-sub">전력량(KWH) · {{ row.label }}</th>
               <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
-              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td>{% set src = auto_today.get(row.id) %}<input class="hc-cell{% if src %} hc-auto-today{% endif %}" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}"{% if src %} data-auto-src="{{ src.input }}" title="{{ '본관' if src.section == 'electrical_main' else '신관' }} 전기실 첫 시간 지침이 자동 입력됩니다 (수기 수정 가능)"{% endif %} /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
               <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
@@ -111,7 +113,7 @@
               <th class="hc-sub">신 관</th>
               <th class="hc-sub">전력량(KWH)</th>
               <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
-              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td>{% set src = auto_today.get(row.id) %}<input class="hc-cell{% if src %} hc-auto-today{% endif %}" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}"{% if src %} data-auto-src="{{ src.input }}" title="{{ '본관' if src.section == 'electrical_main' else '신관' }} 전기실 첫 시간 지침이 자동 입력됩니다 (수기 수정 가능)"{% endif %} /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
               <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
@@ -122,7 +124,7 @@
               {% if loop.first %}<th rowspan="2" class="hc-cat">중온수</th><th rowspan="2" class="hc-sub">본 관</th>{% endif %}
               <th class="hc-sub">{{ row.label }}</th>
               <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
-              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td>{% set src = auto_today.get(row.id) %}<input class="hc-cell{% if src %} hc-auto-today{% endif %}" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}"{% if src %} data-auto-src="{{ src.input }}" title="{{ '본관' if src.section == 'electrical_main' else '신관' }} 전기실 첫 시간 지침이 자동 입력됩니다 (수기 수정 가능)"{% endif %} /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
               <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
@@ -133,7 +135,7 @@
             <tr class="hc-utility-row" data-utility="{{ row.id }}" data-multiplier="1">
               <th class="hc-cat">급 수</th><th class="hc-sub">본 관</th><th class="hc-sub">유량(㎥)</th>
               <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
-              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td>{% set src = auto_today.get(row.id) %}<input class="hc-cell{% if src %} hc-auto-today{% endif %}" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}"{% if src %} data-auto-src="{{ src.input }}" title="{{ '본관' if src.section == 'electrical_main' else '신관' }} 전기실 첫 시간 지침이 자동 입력됩니다 (수기 수정 가능)"{% endif %} /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
               <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
@@ -143,7 +145,7 @@
             <tr class="hc-utility-row" data-utility="{{ row.id }}" data-multiplier="1">
               <th class="hc-cat">가 스</th><th class="hc-sub">본 관</th><th class="hc-sub">유량(㎥)</th>
               <td class="hc-yellow"><input class="hc-cell hc-prev" name="u__{{ row.id }}__prev" value="{{ item.get('prev','') }}" /><input class="hc-prev-flag" type="hidden" name="u__{{ row.id }}__prev_manual" value="{{ '1' if item.get('prev_manual') else '' }}" /></td>
-              <td><input class="hc-cell" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}" /></td>
+              <td>{% set src = auto_today.get(row.id) %}<input class="hc-cell{% if src %} hc-auto-today{% endif %}" name="u__{{ row.id }}__today" value="{{ item.get('today','') }}"{% if src %} data-auto-src="{{ src.input }}" title="{{ '본관' if src.section == 'electrical_main' else '신관' }} 전기실 첫 시간 지침이 자동 입력됩니다 (수기 수정 가능)"{% endif %} /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__daily" value="{{ item.get('daily','') }}" readonly /></td>
               <td><input class="hc-cell hc-readonly" name="u__{{ row.id }}__monthly" value="{{ item.get('monthly','') }}" readonly /></td>
               <td><input class="hc-cell hc-note" name="u__{{ row.id }}__remark" value="{{ item.get('remark','') }}" /></td>
@@ -371,7 +373,7 @@
   </form>
 </section>
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-{% if can_write %}<script src="/static/js/human_center.js?v=1"></script>{% endif %}
+{% if can_write %}<script src="/static/js/human_center.js?v=2"></script>{% endif %}
 
 {% elif tab == 'monthly' %}
 <section class="card card-wide">

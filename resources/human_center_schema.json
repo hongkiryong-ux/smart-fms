@@ -67,7 +67,13 @@
       "hotwater_flow",
       "water",
       "gas"
-    ]
+    ],
+    "auto_today": {
+      "power_main_mid": {"section": "electrical_main", "time": "t1", "field": "mid_kwh", "input": "em__t1__mid_kwh"},
+      "power_main_peak": {"section": "electrical_main", "time": "t1", "field": "peak_kwh", "input": "em__t1__peak_kwh"},
+      "power_main_off": {"section": "electrical_main", "time": "t1", "field": "off_kwh", "input": "em__t1__off_kwh"},
+      "power_new": {"section": "electrical_new", "time": "t1", "field": "active_kwh", "input": "en__t1__active_kwh"}
+    }
   },
   "electrical_main": {
     "title": "본관 전기실",
