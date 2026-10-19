@@ -1,31 +1,6 @@
 {% extends "base.html" %}
 {% block title %}사업장/건물{% endblock %}
-{% block head_extra %}
-{% if sites_tabs and view_mode == 'grid' %}
-<link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
-<link rel="stylesheet" href="/static/css/sites_main.css?v=4" />
-{% endif %}
-{% endblock %}
 {% block content %}
-{% if sites_tabs and view_mode == 'grid' %}
-<header class="wo2-head">
-  <div class="wo2-head-title">
-    <h1>사업장 / 건물 관리</h1>
-    <p>광양운영그룹의 사업장을 선택하여 건물 정보와 설비 현황을 확인할 수 있습니다.</p>
-  </div>
-  <div class="wo2-head-right">
-    <nav class="wo2-crumb" aria-label="현재 위치">
-      <a href="/admin/dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z" fill="currentColor"/></svg>Home</a>
-      <span aria-hidden="true">›</span>
-      <strong>사업장/건물 관리</strong>
-    </nav>
-    <a class="wo2-help-btn st-manage-btn" href="/admin/sites?view=list" title="사업장·건물 추가·수정·삭제">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 사업장 관리
-    </a>
-    <button type="button" class="wo2-help-btn" data-open-dialog="st-help-dialog"><span aria-hidden="true">?</span> 도움말</button>
-  </div>
-</header>
-{% else %}
 <header class="page-header">
   <h1>사업장 / 건물 관리</h1>
   {% if selected_site %}
@@ -41,7 +16,6 @@
   <p>사업장별 건물을 관리합니다. 건물을 클릭하면 층·구역을 확인할 수 있습니다.</p>
   {% endif %}
 </header>
-{% endif %}
 
 {% if error %}
 <div class="alert alert-error">{{ error }}</div>
@@ -49,69 +23,39 @@
 
 {# ── 사업장 탭 + 사진 1장 (메인) ── #}
 {% if sites_tabs and view_mode == 'grid' %}
-{% set kpi = sites_main.kpi %}
-<section class="wo2-kpis st-kpis" aria-label="사업장 현황">
-  <div class="wo2-kpi k-total">
-    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><path d="M3.5 21V9.5l5-3v14.5M8.5 21V4h7v17M15.5 21v-11l5 2.5V21M2.5 21h19"/><path d="M11 7.5h2M11 11h2M11 14.5h2"/></svg></span>
-    <span class="wo2-kpi-txt"><span>총 사업장</span><b>{{ "{:,}".format(kpi.sites) }}<small>개</small></b></span>
-  </div>
-  <div class="wo2-kpi k-total">
-    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 7h2M13 7h2M9 10.5h2M13 10.5h2M9 14h2M13 14h2M10.5 21v-3h3v3"/></svg></span>
-    <span class="wo2-kpi-txt"><span>총 건물</span><b>{{ "{:,}".format(kpi.buildings) }}<small>개</small></b></span>
-  </div>
-  <div class="wo2-kpi k-done">
-    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 12.5h8M8 16h8"/></svg></span>
-    <span class="wo2-kpi-txt"><span>총 층</span><b>{{ "{:,}".format(kpi.floors) }}<small>개</small></b></span>
-  </div>
-  <div class="wo2-kpi k-total">
-    <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></svg></span>
-    <span class="wo2-kpi-txt"><span>총 설비</span><b>{{ "{:,}".format(kpi.equipment) }}<small>개</small></b></span>
-  </div>
-</section>
-
-<section class="st-board sites-tabs-card"
+<section class="card sites-tabs-card"
          id="sites-tabs-root"
          data-can-edit="{{ '1' if user_can_edit(user) else '0' }}">
-  {% if sites_tabs.tabs %}
-  <div class="st-bar">
-    <nav class="st-tabs sites-region-tabs" role="tablist" aria-label="사업장 선택">
-      {% for tab in sites_tabs.tabs %}
-      <button type="button"
-              class="st-tab sites-region-tab{% if loop.first %} is-active{% endif %}"
-              role="tab"
-              id="sites-tab-{{ tab.site_id }}"
-              aria-selected="{{ 'true' if loop.first else 'false' }}"
-              aria-controls="sites-panel-{{ tab.site_id }}"
-              data-site-id="{{ tab.site_id }}">{{ tab.site_name }}</button>
-      {% endfor %}
-    </nav>
-    <div class="st-bar-right">
-      <button type="button" class="st-list-toggle" id="st-list-toggle" aria-pressed="false" title="사업장의 건물 목록(층·설비·담당자) 펼치기">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
-        목록보기
-      </button>
-    </div>
-  </div>
-
-  <div class="st-photo-tools">
-    <p class="text-muted sites-tabs-hint" id="sites-tabs-hint">
-      사업장 탭에 마우스를 올리면 해당 사업장으로, 사진 위에 마우스를 올리면 안내도로 바뀝니다. (클릭·터치로도 전환) 안내도의 건물 이름을 누르면 건물 현황으로 이동합니다.
-    </p>
-    <p class="site-map-edit-hint" id="sites-tabs-edit-hint" hidden>
-      <strong>수정 모드:</strong> 현재 탭의 <strong>사진 업로드</strong>로 이미지를 바꿉니다. (안내도 사진과는 별개입니다)
-    </p>
+  <div class="sites-tabs-toolbar">
+    <a class="btn btn-sm btn-secondary" href="/admin/sites?view=list">사업장 목록</a>
     {% if user_can_edit(user) %}
-    <span class="st-photo-tool-btns">
-      <button type="button" class="btn btn-sm btn-secondary" id="sites-tab-edit-btn">사진 변경</button>
-      <button type="button" class="btn btn-sm btn-primary" id="sites-tab-done-btn" hidden>완료</button>
-    </span>
+    <button type="button" class="btn btn-sm btn-secondary" id="sites-tab-edit-btn">사진 변경</button>
+    <button type="button" class="btn btn-sm btn-primary" id="sites-tab-done-btn" hidden>완료</button>
     {% endif %}
   </div>
+  <p class="text-muted sites-tabs-hint" id="sites-tabs-hint">
+    상단 사업장에 마우스를 올리면 해당 사업장 사진으로, 사진 위에 마우스를 올리면 안내도로 바뀝니다. 다른 사업장에 올리면 다시 그 사업장 사진이 나옵니다. (클릭·터치로도 전환)
+    안내도 위치·사진 설정은 왼쪽 메뉴에서 사업장을 직접 선택하세요.
+  </p>
+  <p class="site-map-edit-hint" id="sites-tabs-edit-hint" hidden>
+    <strong>수정 모드:</strong> 현재 탭의 <strong>사진 업로드</strong>로 이미지를 바꿉니다. (안내도 사진과는 별개입니다)
+  </p>
+
+  {% if sites_tabs.tabs %}
+  <nav class="sites-region-tabs" role="tablist" aria-label="사업장 선택">
+    {% for tab in sites_tabs.tabs %}
+    <button type="button"
+            class="sites-region-tab{% if loop.first %} is-active{% endif %}"
+            role="tab"
+            id="sites-tab-{{ tab.site_id }}"
+            aria-selected="{{ 'true' if loop.first else 'false' }}"
+            aria-controls="sites-panel-{{ tab.site_id }}"
+            data-site-id="{{ tab.site_id }}">{{ tab.site_name }}</button>
+    {% endfor %}
+  </nav>
 
   <div class="sites-tab-panels">
     {% for tab in sites_tabs.tabs %}
-    {% set items = sites_main.by_site.get(tab.site_id, []) %}
-    {% set tot = sites_main.site_totals.get(tab.site_id, {'buildings': 0, 'floors': 0, 'equipment': 0}) %}
     <div class="sites-tab-panel{% if loop.first %} is-active{% endif %}{% if not tab.has_image %} is-no-image{% endif %}"
          role="tabpanel"
          id="sites-panel-{{ tab.site_id }}"
@@ -123,15 +67,6 @@
          data-map-data-url="{{ tab.map_data_url }}"
          data-mode="photo"
          {% if not loop.first %}hidden{% endif %}>
-      <div class="st-site-strip">
-        <strong>{{ tab.site_name }}</strong>
-        <span>건물 <b>{{ tot.buildings }}</b>개</span>
-        <span>층 <b>{{ tot.floors }}</b>개</span>
-        <span>설비 <b>{{ "{:,}".format(tot.equipment) }}</b>개</span>
-        <a class="st-strip-link" href="{{ tab.map_url }}">안내도 바로가기 설정 ›</a>
-      </div>
-
-      <div class="st-photo-area">
       <script type="application/json" class="sites-inline-map-data">{{ {'image': tab.map_image, 'has_image': tab.map_has_image, 'title': tab.map_title, 'hotspots': []} | tojson }}</script>
       <div class="sites-photo-single">
         <div class="sites-photo-card-wrap">
@@ -187,52 +122,6 @@
           <span class="sites-photo-label">{{ tab.site_name }}</span>
         </div>
       </div>
-      </div>
-
-      <div class="st-list" hidden>
-      {% if items %}
-        <table class="st-table">
-          <thead>
-            <tr>
-              <th class="c-no">No.</th>
-              <th class="c-name">건물명</th>
-              <th class="c-code">코드</th>
-              <th class="c-num">층</th>
-              <th class="c-num">설비</th>
-              <th class="c-mgr">담당자</th>
-              <th class="c-act">관리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for b in items %}
-            <tr>
-              <td class="c-no">{{ loop.index }}</td>
-              <td class="c-name"><a href="/admin/buildings/{{ b.id }}">{{ b.name }}</a></td>
-              <td class="c-code">{{ b.code or '-' }}</td>
-              <td class="c-num">{{ b.floors }}</td>
-              <td class="c-num">{{ "{:,}".format(b.equipment) }}</td>
-              <td class="c-mgr">{{ b.manager or '-' }}</td>
-              <td class="c-act">
-                <a class="link-action" href="/admin/buildings/{{ b.id }}">상세</a>
-                {% if user_can_edit(user) %}<a class="link-action" href="/admin/buildings/{{ b.id }}/edit">수정</a>{% endif %}
-                {% if user_can_delete(user) %}
-                <form method="post" action="/admin/buildings/{{ b.id }}/delete" class="inline-form"
-                      onsubmit="return confirm('건물 「{{ b.name }}」을(를) 삭제할까요?');">
-                  <button type="submit" class="link-action link-danger">삭제</button>
-                </form>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% else %}
-      <div class="st-empty">
-        <strong>등록된 건물이 없습니다.</strong>
-        <span>「사업장 관리」에서 건물을 추가하면 이곳에 표시됩니다.</span>
-      </div>
-      {% endif %}
-      </div>
     </div>
     {% endfor %}
   </div>
@@ -241,77 +130,6 @@
   {% endif %}
 </section>
 
-<dialog id="st-help-dialog" class="eq-dialog wo2-help-dialog">
-  <form method="dialog" class="eq-dialog-top">
-    <button type="submit" class="btn btn-sm btn-secondary">닫기</button>
-  </form>
-  <div class="eq-popup-body">
-    <h2 class="wo2-help-title">사업장 / 건물 관리 사용 방법</h2>
-    <ol class="wo2-help-list">
-      <li><b>사업장 선택</b> — 위쪽 사업장 탭을 누르거나 마우스를 올리면 그 사업장 사진이 보입니다.</li>
-      <li><b>사업장 사진·안내도</b> — 사진에 마우스를 올리거나 누르면 안내도로 바뀝니다. 안내도의 건물 이름을 누르면 건물 현황으로 이동합니다. 「사진 변경」으로 사업장 사진을 바꿀 수 있습니다.</li>
-      <li><b>목록보기</b> — 오른쪽 「목록보기」를 누르면 사진 아래에 건물 목록(층·설비·담당자)이 펼쳐지고, 건물 상세·수정·삭제를 할 수 있습니다.</li>
-      <li><b>안내도 바로가기 설정</b> — 사업장 이름 줄의 「안내도 바로가기 설정」에서 안내도 사진과 건물 위치를 편집합니다.</li>
-      <li><b>사업장 관리</b> — 오른쪽 위 「사업장 관리」에서 사업장·건물을 추가·수정·삭제합니다.</li>
-    </ol>
-  </div>
-</dialog>
-
-<script>
-(function () {
-  var root = document.getElementById('sites-tabs-root');
-  if (!root) return;
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-open-dialog]');
-    if (!btn) return;
-    var el = document.getElementById(btn.getAttribute('data-open-dialog'));
-    if (el && typeof el.showModal === 'function') { e.preventDefault(); el.showModal(); }
-  });
-
-  function store(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
-  function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
-
-  var listBtn = document.getElementById('st-list-toggle');
-  function setList(on) {
-    if (listBtn) {
-      listBtn.classList.toggle('is-on', on);
-      listBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    }
-    root.querySelectorAll('.st-list').forEach(function (el) { el.hidden = !on; });
-    store('sitesMainList', on ? '1' : '0');
-  }
-  if (listBtn) {
-    listBtn.addEventListener('click', function () { setList(!listBtn.classList.contains('is-on')); });
-  }
-  setList(load('sitesMainList') === '1');
-
-  function fitPhoto() {
-    var slot = root.querySelector('.sites-tab-panel:not([hidden]) .sites-display-slot');
-    if (!slot) return;
-    var lists = Array.prototype.slice.call(root.querySelectorAll('.st-list'));
-    var shown = lists.map(function (el) { return !el.hidden; });
-    lists.forEach(function (el) { el.hidden = true; });
-    var top = slot.getBoundingClientRect().top + window.scrollY;
-    var below = root.getBoundingClientRect().bottom - slot.getBoundingClientRect().bottom;
-    lists.forEach(function (el, i) { el.hidden = !shown[i]; });
-    for (var el = root; el && el !== document.documentElement; el = el.parentElement) {
-      var cs = getComputedStyle(el);
-      below += (parseFloat(cs.marginBottom) || 0) + (el === root ? 0 : (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0));
-    }
-    var h = Math.floor(window.innerHeight - top - below - 4);
-    root.style.setProperty('--st-photo-h', Math.max(260, h) + 'px');
-  }
-  var fitTimer = null;
-  function queueFit() { clearTimeout(fitTimer); fitTimer = setTimeout(fitPhoto, 120); }
-  window.addEventListener('resize', queueFit);
-  window.addEventListener('load', fitPhoto);
-  root.querySelectorAll('.st-tab').forEach(function (t) {
-    t.addEventListener('click', queueFit);
-    t.addEventListener('mouseenter', queueFit);
-  });
-  fitPhoto();
-})();
-</script>
 <script src="/static/js/site_map_hover_preview.js?v=20260918b" defer></script>
 <script src="/static/js/site_tabs_editor.js?v=20261012h" defer></script>
 
