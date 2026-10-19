@@ -3,7 +3,7 @@
 {% block head_extra %}
 {% if sites_tabs and view_mode == 'grid' %}
 <link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
-<link rel="stylesheet" href="/static/css/sites_main.css?v=2" />
+<link rel="stylesheet" href="/static/css/sites_main.css?v=4" />
 {% endif %}
 {% endblock %}
 {% block content %}
@@ -284,6 +284,32 @@
     listBtn.addEventListener('click', function () { setList(!listBtn.classList.contains('is-on')); });
   }
   setList(load('sitesMainList') === '1');
+
+  function fitPhoto() {
+    var slot = root.querySelector('.sites-tab-panel:not([hidden]) .sites-display-slot');
+    if (!slot) return;
+    var lists = Array.prototype.slice.call(root.querySelectorAll('.st-list'));
+    var shown = lists.map(function (el) { return !el.hidden; });
+    lists.forEach(function (el) { el.hidden = true; });
+    var top = slot.getBoundingClientRect().top + window.scrollY;
+    var below = root.getBoundingClientRect().bottom - slot.getBoundingClientRect().bottom;
+    lists.forEach(function (el, i) { el.hidden = !shown[i]; });
+    for (var el = root; el && el !== document.documentElement; el = el.parentElement) {
+      var cs = getComputedStyle(el);
+      below += (parseFloat(cs.marginBottom) || 0) + (el === root ? 0 : (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0));
+    }
+    var h = Math.floor(window.innerHeight - top - below - 4);
+    root.style.setProperty('--st-photo-h', Math.max(260, h) + 'px');
+  }
+  var fitTimer = null;
+  function queueFit() { clearTimeout(fitTimer); fitTimer = setTimeout(fitPhoto, 120); }
+  window.addEventListener('resize', queueFit);
+  window.addEventListener('load', fitPhoto);
+  root.querySelectorAll('.st-tab').forEach(function (t) {
+    t.addEventListener('click', queueFit);
+    t.addEventListener('mouseenter', queueFit);
+  });
+  fitPhoto();
 })();
 </script>
 <script src="/static/js/site_map_hover_preview.js?v=20260918b" defer></script>
