@@ -53,7 +53,7 @@
 }
 
 .st-bar-right { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
-.st-photo-toggle {
+.st-list-toggle {
   display: inline-flex;
   align-items: center;
   gap: .35rem;
@@ -61,42 +61,18 @@
   background: #fff;
   color: #475569;
   border-radius: 8px;
-  padding: .45rem .75rem;
+  padding: .45rem .8rem;
   font-size: .86rem;
   font-weight: 600;
   cursor: pointer;
 }
-.st-photo-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
-.st-photo-toggle:hover,
-.st-photo-toggle[aria-pressed="true"] { border-color: #1d5fd6; color: #1d5fd6; background: #eef4ff; }
+.st-list-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.st-list-toggle:hover { border-color: #1d5fd6; color: #1d5fd6; }
+.st-list-toggle.is-on { background: #1d5fd6; border-color: #1d5fd6; color: #fff; }
 
-.st-view {
-  display: inline-flex;
-  border: 1px solid #d6dde8;
-  border-radius: 8px;
-  overflow: hidden;
-}
-.st-view-btn {
-  appearance: none;
-  border: 0;
-  background: #fff;
-  color: #64748b;
-  padding: .45rem .85rem;
-  font-size: .86rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.st-view-btn + .st-view-btn { border-left: 1px solid #d6dde8; }
-.st-view-btn.is-on { background: #1d5fd6; color: #fff; }
-
-/* 사업장 사진·안내도 (토글) */
-.st-photo-tools,
-.st-photo-area { display: none; }
-#sites-tabs-root.show-photo .st-photo-tools,
-#sites-tabs-root.is-editing .st-photo-tools { display: flex; }
-#sites-tabs-root.show-photo .st-photo-area,
-#sites-tabs-root.is-editing .st-photo-area { display: block; }
+/* 사업장 사진·안내도 */
 .st-photo-tools {
+  display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: .5rem 1rem;
@@ -129,109 +105,10 @@
 .st-strip-link { margin-left: auto; color: #64748b; font-size: .84rem; text-decoration: none; }
 .st-strip-link:hover { color: #1d5fd6; }
 
-/* 건물 카드 */
-.st-cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.1rem;
-}
-.st-cards[hidden], .st-list[hidden] { display: none !important; }
-.st-card {
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-  border: 1.5px solid #e3e8f0;
-  border-radius: 14px;
-  overflow: hidden;
-  transition: border-color .15s, box-shadow .15s, transform .15s;
-}
-.st-card:hover,
-.st-card:focus-within {
-  border-color: #1d5fd6;
-  box-shadow: 0 8px 22px rgba(29, 95, 214, .14);
-  transform: translateY(-2px);
-}
-.st-card-photo {
-  position: relative;
-  display: block;
-  aspect-ratio: 16 / 9;
-  background: #eef2f7;
-  overflow: hidden;
-}
-.st-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
-.st-card:hover .st-card-photo img { transform: scale(1.03); }
-.st-card-photo.is-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #e8eef8, #f4f7fb);
-}
-.st-card-photo.is-empty svg { width: 54px; height: 54px; fill: none; stroke: #a9b6c9; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
-
-.st-no {
-  position: absolute;
-  top: .7rem;
-  left: .7rem;
-  min-width: 30px;
-  height: 30px;
-  padding: 0 .35rem;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-weight: 800;
-  font-size: .95rem;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, .25);
-}
-.st-no-1 { background: #f59e0b; }
-.st-no-2 { background: #ef4444; }
-.st-no-3 { background: #eab308; }
-.st-no-4 { background: #f97316; }
-.st-no-5 { background: #2563eb; }
-.st-no-6 { background: #7c3aed; }
-
-.st-card-body { padding: .85rem 1rem .9rem; }
-.st-card-name {
-  display: block;
-  color: #0f172a;
-  font-size: 1.08rem;
-  font-weight: 800;
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.st-card-name:hover { color: #1d5fd6; }
-.st-card-meta {
-  display: flex;
-  align-items: center;
-  gap: .9rem;
-  margin-top: .45rem;
-  color: #64748b;
-  font-size: .88rem;
-}
-.st-card-meta > span { display: inline-flex; align-items: center; gap: .3rem; }
-.st-card-meta svg { width: 16px; height: 16px; fill: none; stroke: #94a3b8; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
-.st-card-meta b { color: #1e293b; }
-.st-card-go {
-  margin-left: auto;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 1px solid #d6dde8;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748b;
-  flex-shrink: 0;
-  transition: background .15s, color .15s, border-color .15s;
-}
-.st-card-go svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.st-card:hover .st-card-go { background: #1d5fd6; border-color: #1d5fd6; color: #fff; }
-
 /* 목록보기 */
 .st-list { overflow-x: auto; border: 1px solid #e3e8f0; border-radius: 12px; }
+.st-list[hidden] { display: none !important; }
+.st-list:has(> .st-empty) { border: 0; }
 .st-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .st-table th {
   background: #f5f7fb;
@@ -265,9 +142,7 @@
 }
 .st-empty strong { color: #334155; font-size: 1rem; }
 
-@media (max-width: 1200px) { .st-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) {
-  .st-cards { grid-template-columns: 1fr; }
   .st-bar-right { width: 100%; justify-content: flex-end; }
   .st-strip-link { margin-left: 0; }
 }

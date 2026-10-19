@@ -4252,7 +4252,7 @@ async def dashboard_server_status_compat(
 
 
 async def _sites_main_data(db: AsyncSession, sites: list) -> dict:
-    """사업장/건물 메인: 사업장별 건물 카드(사진·층·설비 수)와 전체 현황."""
+    """사업장/건물 메인: 사업장별 건물 목록(층·설비 수)과 전체 현황."""
     site_ids = [int(s.id) for s in sites] or [-1]
     buildings = (
         await db.execute(
@@ -4294,7 +4294,6 @@ async def _sites_main_data(db: AsyncSession, sites: list) -> dict:
                 "name": b.name,
                 "code": b.code or "",
                 "manager": b.manager_name or "",
-                "photo_url": (b.photo_url or "").strip(),
                 "floors": floor_counts.get(b.id, 0),
                 "equipment": eq_counts.get(b.id, 0),
             }
