@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/static/css/style.css?v=20261013lib" />
   {% block head_extra %}{% endblock %}
   {% set _mui_p = request.url.path %}
-  {% set maint_ui = _mui_p.startswith('/admin/work-orders') or _mui_p.startswith('/admin/d1') or _mui_p.startswith('/admin/facility-section') or _mui_p.startswith('/admin/maintenance-final-approvals') or _mui_p.startswith('/admin/maintenance-performance') or _mui_p.startswith('/admin/streetlamp') %}
+  {% set maint_ui = _mui_p.startswith('/admin/work-orders') or _mui_p.startswith('/admin/d1') or _mui_p.startswith('/admin/facility-section') or _mui_p.startswith('/admin/maintenance-final-approvals') or _mui_p.startswith('/admin/maintenance-performance') or _mui_p.startswith('/admin/maintenance/settings') or _mui_p.startswith('/admin/streetlamp') %}
   {% if maint_ui %}<link rel="stylesheet" href="/static/css/maint_ui.css?v=3" />{% endif %}
   {% set mui_switch = maint_ui and user and user.role.value == 'system_admin' %}
 </head>
@@ -28,7 +28,8 @@
   {% set mperf_path = request.url.path.startswith('/admin/maintenance-performance') %}
   {% set srv_path = '/admin/server' in request.url.path %}
   {% set mdash_path = request.url.path.startswith('/admin/maintenance/dashboard') %}
-  {% set maint_path = mdash_path or wo_path or d1_path or fac_path or final_approval_path or mperf_path or sl_path %}
+  {% set mset_path = request.url.path.startswith('/admin/maintenance/settings') %}
+  {% set maint_path = mdash_path or wo_path or d1_path or fac_path or final_approval_path or mperf_path or sl_path or mset_path %}
   {% set can_wo = user_can_access_menu(user, 'work_orders') %}
   {% set can_d1 = user_can_access_menu(user, 'd1') %}
   {% set can_fac = user_can_access_menu(user, 'facility_section') %}
@@ -368,6 +369,12 @@
                 <a href="/status" target="_blank" rel="noopener">진행상황 확인(시민)</a>
               </li>
             </ul>
+          </li>
+          {% endif %}
+          {% if can_final_approval and user.role.value != 'viewer' %}
+          <li>
+            <a href="/admin/maintenance/settings"
+               class="{% if mset_path %}active{% endif %}"><span class="nav-label">설정</span></a>
           </li>
           {% endif %}
         </ul>

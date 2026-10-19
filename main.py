@@ -1354,6 +1354,12 @@ async def lifespan(app: FastAPI):
             from work_order_photos import register_scheduler as register_wo_photo_scheduler
 
             register_wo_photo_scheduler(scheduler, AsyncSessionLocal, KST)
+            try:
+                from maint_mail import reschedule as reschedule_maint_mail
+
+                await reschedule_maint_mail(scheduler, AsyncSessionLocal)
+            except Exception as e:
+                print(f"[startup] maint mail scheduler skip: {e}", flush=True)
             scheduler.start()
         except Exception as e:
             print(f"[startup] streetlamp scheduler skip: {e}", flush=True)
@@ -9049,6 +9055,137 @@ async def maintenance_final_approvals_export(
         db, f, building_ids=await scoped_building_ids(db, user)
     )
     return _fa_excel_response(data[f["tab"]])
+
+
+MSET_BASE = "/admin/maintenance/settings"
+
+
+def _can_access_maint_settings(user: User) -> bool:
+    return user.role != UserRole.viewer and _can_access_completion_approval(user)
+
+
+def _mset_redirect(message: str = "", error: str = "") -> RedirectResponse:
+    pairs = [(k, v) for k, v in (("message", message), ("error", error)) if v]
+    return RedirectResponse(
+        MSET_BASE + (f"?{urlencode(pairs)}" if pairs else ""), status_code=303
+    )
+
+
+@app.get(MSET_BASE)
+async def maintenance_settings_page(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """정비관리 설정: 협력사 접수 정비의뢰 일일 메일."""
+    import maint_mail
+
+    if not _can_access_maint_settings(user):
+        raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
+    settings = await maint_mail.load_settings(db)
+    partners = (
+        await db.execute(
+            select(Partner).where(Partner.is_active == True).order_by(Partner.name)  # noqa: E712
+        )
+    ).scalars().all()
+    since, until = maint_mail.window_for(settings, datetime.utcnow())
+    preview = await maint_mail.fetch_receipts(db, since, until)
+    return templates.TemplateResponse(
+        request,
+        "maintenance_settings.html",
+        {
+            "user": user,
+            "s": settings,
+            "partners": partners,
+            "preview": preview,
+            "window_from": maint_mail.fmt_kst(since),
+            "window_to": maint_mail.fmt_kst(until),
+            "next_run": maint_mail.next_run_label(getattr(app.state, "scheduler", None)),
+            "mail_configured": maint_mail.mail_configured(),
+            "can_edit": can_edit(user),
+            "flash_message": request.query_params.get("message") or "",
+            "flash_error": request.query_params.get("error") or "",
+        },
+    )
+
+
+@app.post(MSET_BASE)
+async def maintenance_settings_save(
+    request: Request,
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    import maint_mail
+
+    if not _can_access_maint_settings(user):
+        raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
+    form = await request.form()
+    to_ok, to_bad = maint_mail.parse_emails(str(form.get("to") or ""))
+    partner_to: dict[str, str] = {}
+    bad_all = list(to_bad)
+    for key, raw in form.multi_items():
+        if not key.startswith("partner_to_"):
+            continue
+        pid = key[len("partner_to_"):]
+        if not pid.isdigit():
+            continue
+        ok, bad = maint_mail.parse_emails(str(raw or ""))
+        bad_all += bad
+        if ok:
+            partner_to[pid] = ", ".join(ok)
+    if bad_all:
+        return _mset_redirect(error="메일 주소 형식이 올바르지 않습니다: " + ", ".join(bad_all[:5]))
+    hhmm = str(form.get("send_time") or "").strip()
+    try:
+        hour, minute = (int(x) for x in hhmm.split(":")[:2])
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError
+    except ValueError:
+        return _mset_redirect(error="발송 시각을 확인하세요 (예: 17:00).")
+    enabled = form.get("enabled") == "1"
+    per_partner = form.get("per_partner") == "1"
+    if enabled and not to_ok and not per_partner:
+        return _mset_redirect(error="자동 발송을 켜려면 통합 수신 주소를 입력하거나 협력사별 발송을 켜세요.")
+    await maint_mail.save_settings(
+        db,
+        enabled=enabled,
+        hour=hour,
+        minute=minute,
+        to=", ".join(to_ok),
+        per_partner=per_partner,
+        partner_to=partner_to,
+        send_empty=form.get("send_empty") == "1",
+    )
+    await db.commit()
+    scheduler = getattr(app.state, "scheduler", None)
+    if scheduler is not None:
+        try:
+            await maint_mail.reschedule(scheduler, AsyncSessionLocal)
+        except Exception as e:
+            return _mset_redirect(error=f"설정은 저장했지만 스케줄 등록에 실패했습니다: {e}")
+    msg = (
+        f"저장되었습니다. 매일 {hour:02d}:{minute:02d}(KST)에 자동 발송합니다."
+        if enabled
+        else "저장되었습니다. 자동 발송은 꺼져 있습니다."
+    )
+    return _mset_redirect(message=msg)
+
+
+@app.post(MSET_BASE + "/test-send")
+async def maintenance_settings_test_send(
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    import maint_mail
+
+    if not _can_access_maint_settings(user):
+        raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
+    if not maint_mail.mail_configured():
+        return _mset_redirect(
+            error="서버에 메일 발송 설정(RESEND_API_KEY 또는 SMTP_HOST)이 없어 보낼 수 없습니다."
+        )
+    ok, msg = await maint_mail.run_send(db, test=True)
+    return _mset_redirect(message=msg) if ok else _mset_redirect(error=msg)
 
 
 def _fa_form_ids(form) -> list[int]:
