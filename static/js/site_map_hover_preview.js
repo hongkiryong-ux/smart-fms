@@ -45,18 +45,82 @@
     el.classList.remove("is-visible");
   }
 
+  function clampRange(v, lo, hi) {
+    return Math.max(lo, Math.min(v, Math.max(lo, hi)));
+  }
+
+  /* 팝업이 바로가기(anchor)를 가리지 않도록 위·아래·오른쪽·왼쪽 중 들어가는 쪽에 두고,
+     어느 쪽에도 원래 크기로 안 들어가면 가장 넓은 쪽에 맞춰 축소한다. */
   function placeNear(anchor) {
     var el = ensureTip();
+    var img = el.querySelector(".site-map-photo-preview-img");
+    el.style.width = "";
+    if (img) img.style.height = "";
+
     var rect = anchor.getBoundingClientRect();
     var tipRect = el.getBoundingClientRect();
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
     var gap = 10;
-    var left = rect.left + rect.width / 2 - tipRect.width / 2;
-    var top = rect.top - tipRect.height - gap;
-    if (top < 8) {
-      top = rect.bottom + gap;
+    var edge = 8;
+    var w = tipRect.width;
+    var h = tipRect.height;
+    var imgH = img ? img.getBoundingClientRect().height : h;
+    var nameH = Math.max(0, h - imgH);
+
+    var space = {
+      top: rect.top - gap - edge,
+      bottom: vh - rect.bottom - gap - edge,
+      right: vw - rect.right - gap - edge,
+      left: rect.left - gap - edge,
+    };
+    var fullW = vw - edge * 2;
+    var fullH = vh - edge * 2;
+
+    function scaleFor(side) {
+      if (!imgH || !w) return 0;
+      if (side === "top" || side === "bottom") {
+        return Math.min(1, (space[side] - nameH) / imgH, fullW / w);
+      }
+      return Math.min(1, space[side] / w, (fullH - nameH) / imgH);
     }
-    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
-    top = Math.max(8, Math.min(top, window.innerHeight - tipRect.height - 8));
+
+    var order = ["top", "bottom", "right", "left"];
+    var side = null;
+    var scale = 1;
+    for (var i = 0; i < order.length; i++) {
+      if (scaleFor(order[i]) >= 1) {
+        side = order[i];
+        break;
+      }
+    }
+    if (!side) {
+      side = order[0];
+      scale = scaleFor(side);
+      for (var j = 1; j < order.length; j++) {
+        var s = scaleFor(order[j]);
+        if (s > scale) {
+          scale = s;
+          side = order[j];
+        }
+      }
+      scale = Math.max(0.25, scale);
+      el.style.width = Math.floor(w * scale) + "px";
+      if (img) img.style.height = Math.floor(imgH * scale) + "px";
+      tipRect = el.getBoundingClientRect();
+      w = tipRect.width;
+      h = tipRect.height;
+    }
+
+    var left;
+    var top;
+    if (side === "top" || side === "bottom") {
+      left = clampRange(rect.left + rect.width / 2 - w / 2, edge, vw - w - edge);
+      top = side === "top" ? rect.top - gap - h : rect.bottom + gap;
+    } else {
+      top = clampRange(rect.top + rect.height / 2 - h / 2, edge, vh - h - edge);
+      left = side === "right" ? rect.right + gap : rect.left - gap - w;
+    }
     el.style.left = Math.round(left) + "px";
     el.style.top = Math.round(top) + "px";
   }
