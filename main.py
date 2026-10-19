@@ -4251,6 +4251,74 @@ async def dashboard_server_status_compat(
 # ── Sites & Hierarchy ─────────────────────────────────────────────────
 
 
+async def _sites_main_data(db: AsyncSession, sites: list) -> dict:
+    """사업장/건물 메인: 사업장별 건물 카드(사진·층·설비 수)와 전체 현황."""
+    site_ids = [int(s.id) for s in sites] or [-1]
+    buildings = (
+        await db.execute(
+            select(Building).where(
+                Building.is_active == True,  # noqa: E712
+                Building.site_id.in_(site_ids),
+            )
+        )
+    ).scalars().all()
+    bld_ids = [b.id for b in buildings] or [-1]
+    floor_counts = {
+        bid: int(cnt)
+        for bid, cnt in (
+            await db.execute(
+                select(Floor.building_id, func.count(Floor.id))
+                .where(Floor.building_id.in_(bld_ids), Floor.is_active.is_not(False))
+                .group_by(Floor.building_id)
+            )
+        ).all()
+    }
+    eq_counts = {
+        bid: int(cnt)
+        for bid, cnt in (
+            await db.execute(
+                select(Floor.building_id, func.count(Equipment.id))
+                .select_from(Equipment)
+                .join(Zone, Zone.id == Equipment.zone_id)
+                .join(Floor, Floor.id == Zone.floor_id)
+                .where(Equipment.is_active == True, Floor.building_id.in_(bld_ids))  # noqa: E712
+                .group_by(Floor.building_id)
+            )
+        ).all()
+    }
+    by_site: dict[int, list[dict]] = {int(s.id): [] for s in sites}
+    for b in sorted(buildings, key=lambda x: _building_sort_key(x.name)):
+        by_site.setdefault(int(b.site_id), []).append(
+            {
+                "id": b.id,
+                "name": b.name,
+                "code": b.code or "",
+                "manager": b.manager_name or "",
+                "photo_url": (b.photo_url or "").strip(),
+                "floors": floor_counts.get(b.id, 0),
+                "equipment": eq_counts.get(b.id, 0),
+            }
+        )
+    site_totals = {
+        sid: {
+            "buildings": len(items),
+            "floors": sum(i["floors"] for i in items),
+            "equipment": sum(i["equipment"] for i in items),
+        }
+        for sid, items in by_site.items()
+    }
+    return {
+        "by_site": by_site,
+        "site_totals": site_totals,
+        "kpi": {
+            "sites": len(sites),
+            "buildings": len(buildings),
+            "floors": sum(floor_counts.values()),
+            "equipment": sum(eq_counts.values()),
+        },
+    }
+
+
 @app.get("/admin/sites")
 async def sites_list(
     request: Request,
@@ -4283,6 +4351,7 @@ async def sites_list(
 
     site_map = None
     sites_tabs = None
+    sites_main = None
     view_mode = view_hint
 
     if selected_site is None:
@@ -4291,6 +4360,7 @@ async def sites_list(
         else:
             view_mode = "grid"
             sites_tabs = await build_sites_tabs_payload(db, all_sites)
+            sites_main = await _sites_main_data(db, all_sites)
     elif site_has_map(selected_site):
         if view_mode not in ("map", "list"):
             view_mode = "map"
@@ -4332,6 +4402,7 @@ async def sites_list(
             "site_id": site_id,
             "site_map": site_map,
             "sites_tabs": sites_tabs,
+            "sites_main": sites_main,
             "view_mode": view_mode,
             "error": error or "",
         },
