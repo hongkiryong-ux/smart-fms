@@ -2,10 +2,19 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import os
 import re
+import ssl
 from datetime import datetime, timedelta, timezone
+from email.header import Header
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import formataddr
 from io import BytesIO
 from zoneinfo import ZoneInfo
 
@@ -42,6 +51,28 @@ DEFAULTS: dict[str, str] = {
     "last_result": "",
     "last_result_at": "",
 }
+
+# 공식 발신 계정 — server: 서버 환경변수(RESEND_API_KEY/SMTP_*) 사용
+SENDER_DEFAULTS: dict[str, str] = {
+    "sender_mode": "server",
+    "sender_name": "Smart FMS",
+    "sender_addr": "",
+    "reply_to": "",
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": "465",
+    "smtp_security": "ssl",
+    "smtp_user": "",
+    "smtp_password": "",
+    "resend_key": "",
+}
+SENDER_MODES = ("server", "smtp", "resend")
+SECRET_KEYS = ("smtp_password", "resend_key")
+SMTP_PRESETS = (
+    ("gmail", "Gmail", "smtp.gmail.com", 465, "ssl"),
+    ("naver", "네이버", "smtp.naver.com", 465, "ssl"),
+    ("daum", "다음", "smtp.daum.net", 465, "ssl"),
+    ("office365", "Outlook/Office 365", "smtp.office365.com", 587, "starttls"),
+)
 
 STATUS_LABELS = {
     "received": "정비의뢰",
@@ -82,7 +113,7 @@ async def _get(session: AsyncSession, key: str) -> str:
     ).scalar_one_or_none()
     if row and row.value is not None:
         return row.value
-    return DEFAULTS.get(key, "")
+    return DEFAULTS.get(key, SENDER_DEFAULTS.get(key, ""))
 
 
 async def _set(session: AsyncSession, key: str, value: str) -> None:
@@ -306,23 +337,222 @@ def build_body(rows: list[dict], since_utc: datetime, until_utc: datetime, partn
     return "\n".join(lines)
 
 
-def mail_configured() -> bool:
-    return bool(os.environ.get("RESEND_API_KEY", "").strip() or os.environ.get("SMTP_HOST", "").strip())
+def _secret_keys() -> tuple[bytes, bytes]:
+    base = (os.environ.get("APP_SECRET_KEY") or "change_this_secret_in_prod").encode()
+    return (
+        hmac.new(base, b"maint-mail-enc", hashlib.sha256).digest(),
+        hmac.new(base, b"maint-mail-mac", hashlib.sha256).digest(),
+    )
 
 
-def _send_sync(to_addr: str, subject: str, body: str, data: bytes, fname: str) -> None:
-    from streetlamp.reporting import _send_email_sync
+def _keystream(key: bytes, nonce: bytes, n: int) -> bytes:
+    out = bytearray()
+    i = 0
+    while len(out) < n:
+        out += hmac.new(key, nonce + i.to_bytes(4, "big"), hashlib.sha256).digest()
+        i += 1
+    return bytes(out[:n])
 
-    _send_email_sync(to_addr, subject, body, data, fname)
+
+def seal_secret(plain: str) -> str:
+    """비밀번호·API 키 DB 저장용 암호화 (APP_SECRET_KEY 기반, 변조 검증 포함)."""
+    if not plain:
+        return ""
+    enc, mac = _secret_keys()
+    nonce = os.urandom(16)
+    data = plain.encode("utf-8")
+    ct = bytes(a ^ b for a, b in zip(data, _keystream(enc, nonce, len(data))))
+    tag = hmac.new(mac, nonce + ct, hashlib.sha256).digest()[:16]
+    return "v1:" + base64.urlsafe_b64encode(nonce + tag + ct).decode("ascii")
 
 
-async def _deliver(to_addr: str, subject: str, body: str, data: bytes, fname: str) -> str | None:
+def open_secret(token: str) -> str | None:
+    """복호화 실패(APP_SECRET_KEY 변경 등) 시 None."""
+    if not token:
+        return ""
+    if not token.startswith("v1:"):
+        return None
+    try:
+        raw = base64.urlsafe_b64decode(token[3:].encode("ascii"))
+    except ValueError:
+        return None
+    nonce, tag, ct = raw[:16], raw[16:32], raw[32:]
+    enc, mac = _secret_keys()
+    if not hmac.compare_digest(tag, hmac.new(mac, nonce + ct, hashlib.sha256).digest()[:16]):
+        return None
+    try:
+        return bytes(a ^ b for a, b in zip(ct, _keystream(enc, nonce, len(ct)))).decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+async def load_sender(session: AsyncSession) -> dict:
+    raw = {k: await _get(session, k) for k in SENDER_DEFAULTS}
+    mode = raw["sender_mode"] if raw["sender_mode"] in SENDER_MODES else "server"
+    out = {
+        "mode": mode,
+        "name": raw["sender_name"].strip(),
+        "addr": raw["sender_addr"].strip(),
+        "reply_to": raw["reply_to"].strip(),
+        "smtp_host": raw["smtp_host"].strip(),
+        "smtp_port": _clamp_int(raw["smtp_port"], 1, 65535, 465),
+        "smtp_security": "starttls" if raw["smtp_security"] == "starttls" else "ssl",
+        "smtp_user": raw["smtp_user"].strip(),
+    }
+    for key in SECRET_KEYS:
+        val = open_secret(raw[key])
+        out[key] = val or ""
+        out[key + "_set"] = bool(raw[key])
+        out[key + "_broken"] = val is None
+    return out
+
+
+def sender_status(sender: dict) -> tuple[bool, str]:
+    """(발송 가능 여부, 화면 안내 문구)."""
+    mode = sender["mode"]
+    if mode == "smtp":
+        missing = [
+            label
+            for label, ok in (
+                ("SMTP 서버", sender["smtp_host"]),
+                ("계정(아이디)", sender["smtp_user"]),
+                ("비밀번호", sender["smtp_password"]),
+            )
+            if not ok
+        ]
+        if sender["smtp_password_broken"]:
+            return False, "저장된 비밀번호를 읽을 수 없습니다. 비밀번호를 다시 입력하세요."
+        if missing:
+            return False, "공식 계정 설정이 덜 됐습니다: " + ", ".join(missing)
+        return True, f"공식 계정 {sender_from(sender)} (SMTP {sender['smtp_host']})"
+    if mode == "resend":
+        if sender["resend_key_broken"]:
+            return False, "저장된 Resend API 키를 읽을 수 없습니다. 다시 입력하세요."
+        if not sender["resend_key"] or not sender["addr"]:
+            return False, "Resend API 키와 발신 주소를 모두 입력하세요."
+        return True, f"공식 계정 {sender_from(sender)} (Resend)"
+    if os.environ.get("RESEND_API_KEY", "").strip() or os.environ.get("SMTP_HOST", "").strip():
+        return True, "서버 기본 발신 설정(환경변수) 사용"
+    return False, "발신 계정이 없습니다. 아래 「공식 발신 계정」을 설정하세요."
+
+
+def sender_from(sender: dict) -> str:
+    addr = sender["addr"] or (sender["smtp_user"] if sender["mode"] == "smtp" else "")
+    name = sender["name"]
+    return f"{name} <{addr}>" if name and addr else addr
+
+
+def mail_configured(sender: dict) -> bool:
+    return sender_status(sender)[0]
+
+
+def _mime(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> tuple[str, MIMEMultipart]:
+    from_addr = sender["addr"] or sender["smtp_user"]
+    msg = MIMEMultipart()
+    msg["Subject"] = str(Header(subject, "utf-8"))
+    msg["From"] = formataddr((sender["name"], from_addr), charset="utf-8") if sender["name"] else from_addr
+    msg["To"] = to_addr
+    if sender["reply_to"]:
+        msg["Reply-To"] = sender["reply_to"]
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+    part = MIMEApplication(data, _subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    part.add_header("Content-Disposition", "attachment", filename=("utf-8", "", fname))
+    msg.attach(part)
+    return from_addr, msg
+
+
+def _send_smtp(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> None:
+    from streetlamp.reporting import _SMTPForceIPv4, _SMTPSSLForceIPv4
+
+    from_addr, msg = _mime(sender, to_addr, subject, body, data, fname)
+    host, port = sender["smtp_host"], sender["smtp_port"]
+    timeout = 60.0
+    if sender["smtp_security"] == "ssl":
+        smtp = _SMTPSSLForceIPv4(host, port, timeout=timeout, context=ssl.create_default_context())
+    else:
+        smtp = _SMTPForceIPv4(host, port, timeout=timeout)
+    with smtp:
+        if sender["smtp_security"] == "starttls":
+            smtp.starttls(context=ssl.create_default_context())
+        smtp.login(sender["smtp_user"], "".join(sender["smtp_password"].split()))
+        refused = smtp.sendmail(from_addr, [to_addr], msg.as_string())
+        if refused:
+            raise RuntimeError(f"수신 거부: {refused}")
+
+
+def _send_resend(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> None:
+    import httpx
+
+    payload = {
+        "from": sender_from(sender),
+        "to": [to_addr],
+        "subject": subject,
+        "text": body,
+        "attachments": [{"filename": fname, "content": base64.b64encode(data).decode("ascii")}],
+    }
+    if sender["reply_to"]:
+        payload["reply_to"] = sender["reply_to"]
+    with httpx.Client(timeout=60.0) as client:
+        r = client.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {sender['resend_key']}"},
+            json=payload,
+        )
+    if r.status_code >= 400:
+        raise RuntimeError(f"Resend HTTP {r.status_code}: {r.text[:300]}")
+
+
+def _send_sync(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> None:
+    if sender["mode"] == "smtp":
+        _send_smtp(sender, to_addr, subject, body, data, fname)
+    elif sender["mode"] == "resend":
+        _send_resend(sender, to_addr, subject, body, data, fname)
+    else:
+        from streetlamp.reporting import _send_email_sync
+
+        _send_email_sync(to_addr, subject, body, data, fname)
+
+
+async def _deliver(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> str | None:
     """성공 시 None, 실패 시 오류 문구."""
     try:
-        await asyncio.to_thread(_send_sync, to_addr, subject, body, data, fname)
+        await asyncio.to_thread(_send_sync, sender, to_addr, subject, body, data, fname)
         return None
     except Exception as e:  # noqa: BLE001 — 수신자별 실패를 모아 안내
         return f"{to_addr}: {type(e).__name__} {str(e)[:200]}"
+
+
+async def save_sender(session: AsyncSession, form: dict[str, str]) -> None:
+    """form: SENDER_DEFAULTS 키. 비밀값은 비어 있으면 기존 값 유지."""
+    for key in SENDER_DEFAULTS:
+        if key not in form:
+            continue
+        val = (form[key] or "").strip()
+        if key in SECRET_KEYS:
+            if val:
+                await _set(session, key, seal_secret(val))
+            continue
+        await _set(session, key, val)
+
+
+async def send_sender_test(session: AsyncSession, to_addr: str) -> tuple[bool, str]:
+    sender = await load_sender(session)
+    ok, status = sender_status(sender)
+    if not ok:
+        return False, status
+    now = fmt_kst(datetime.utcnow(), "%Y-%m-%d %H:%M")
+    body = (
+        "Smart FMS 정비관리 공식 발신 계정 연결 테스트 메일입니다.\n"
+        f"발신: {sender_from(sender) or '서버 기본 발신'}\n"
+        f"시각(KST): {now}\n\n"
+        "이 메일을 받으셨다면 협력사 접수 메일이 같은 계정으로 발송됩니다."
+    )
+    err = await _deliver(
+        sender, to_addr, "[Smart FMS] 발신 계정 연결 테스트", body, build_xlsx([]), "연결테스트.xlsx"
+    )
+    if err:
+        return False, "발송 실패 — " + err
+    return True, f"{to_addr} 로 테스트 메일을 보냈습니다. 받은편지함(또는 스팸함)을 확인하세요."
 
 
 async def run_send(
@@ -330,6 +560,7 @@ async def run_send(
 ) -> tuple[bool, str]:
     """설정대로 발송 → (실패 없음 여부, 안내 문구). test=True 이면 집계 구간·발송기록을 바꾸지 않음."""
     settings = await load_settings(session)
+    sender = await load_sender(session)
     now = now_utc or datetime.utcnow()
     since, until = window_for(settings, now)
     rows = await fetch_receipts(session, since, until)
@@ -348,7 +579,7 @@ async def run_send(
             subject = f"{tag}[정비관리] 협력사 접수 정비의뢰 {len(rows)}건 ({day})"
             body = build_body(rows, since, until)
             for addr in combined_to:
-                err = await _deliver(addr, subject, body, data, f"협력사접수_{stamp}.xlsx")
+                err = await _deliver(sender, addr, subject, body, data, f"협력사접수_{stamp}.xlsx")
                 if err:
                     errors.append(err)
                 else:
@@ -371,7 +602,7 @@ async def run_send(
             body = build_body(items, since, until, partner_name=name)
             for addr in addrs:
                 safe = re.sub(r'[\\/:*?"<>|\s]+', "_", name)
-                err = await _deliver(addr, subject, body, data, f"{safe}_접수_{stamp}.xlsx")
+                err = await _deliver(sender, addr, subject, body, data, f"{safe}_접수_{stamp}.xlsx")
                 if err:
                     errors.append(err)
                 else:

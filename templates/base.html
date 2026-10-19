@@ -371,12 +371,6 @@
             </ul>
           </li>
           {% endif %}
-          {% if can_final_approval and user.role.value != 'viewer' %}
-          <li>
-            <a href="/admin/maintenance/settings"
-               class="{% if mset_path %}active{% endif %}"><span class="nav-label">설정</span></a>
-          </li>
-          {% endif %}
         </ul>
       </li>
       {% endif %}

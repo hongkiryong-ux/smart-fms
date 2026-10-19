@@ -8,7 +8,24 @@
 @media (max-width: 1100px) {
   .ms-grid { grid-template-columns: 1fr; }
 }
+.ms-col { display: grid; gap: 1rem; min-width: 0; }
 .ms-card { padding-bottom: 1rem; }
+.ms-card [data-mode][hidden] { display: none !important; }
+.ms-state.is-warn { background: #fdecec; color: #b42318; }
+.ms-modes { flex-direction: row; flex-wrap: wrap; gap: 0.4rem 1.1rem; padding-top: 0.5rem; }
+.ms-inline { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+.ms-inline .wo2-sel { max-width: none; }
+.ms-host { flex: 1 1 160px; width: auto; }
+.ms-port { flex: 0 0 72px; width: 72px; }
+.ms-test {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.7rem;
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+.ms-test .ms-input { flex: 1; }
 .ms-card-head {
   display: flex;
   align-items: center;

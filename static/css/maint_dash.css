@@ -14,6 +14,14 @@
 .md-crumb { display: flex; gap: .4rem; font-size: .8rem; color: #94a3b8; }
 .md-crumb a { color: #64748b; text-decoration: none; }
 .md-crumb strong { color: #334155; }
+.md-head-right { display: flex; align-items: center; gap: .9rem; margin-left: auto; }
+.md-settings-btn {
+  display: inline-flex; align-items: center; gap: .4rem; height: 36px; padding: 0 .9rem;
+  border: 1px solid #d6dbe3; border-radius: 8px; background: #fff; color: #1f2937;
+  font-size: .85rem; font-weight: 700; text-decoration: none; white-space: nowrap;
+}
+.md-settings-btn:hover { background: #f5f7fa; border-color: #c4ccd8; }
+.md-settings-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
 .md-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1rem; align-items: start; }
 .md-main, .md-side { display: grid; gap: 1rem; min-width: 0; }

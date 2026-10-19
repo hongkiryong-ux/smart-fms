@@ -2,7 +2,7 @@
 {% block title %}정비관리 설정{% endblock %}
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
-<link rel="stylesheet" href="/static/css/maint_settings.css?v=1" />
+<link rel="stylesheet" href="/static/css/maint_settings.css?v=2" />
 {% endblock %}
 
 {% block content %}
@@ -16,20 +16,111 @@
     <nav class="wo2-crumb" aria-label="현재 위치">
       <a href="/admin/dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z" fill="currentColor"/></svg>Home</a>
       <span aria-hidden="true">›</span>
-      <span>정비관리</span>
+      <a href="/admin/maintenance/dashboard">정비관리</a>
       <span aria-hidden="true">›</span>
       <strong>설정</strong>
     </nav>
+    <a class="wo2-btn wo2-btn-line" href="/admin/maintenance/dashboard">← 정비관리</a>
   </div>
 </header>
 
 {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
 {% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
-{% if not mail_configured %}
-<div class="alert alert-error">서버에 메일 발송 설정(RESEND_API_KEY 또는 SMTP_HOST 환경변수)이 없어 실제 발송이 되지 않습니다. 서버 관리자에게 설정을 요청하세요.</div>
-{% endif %}
 
 <div class="ms-grid">
+ <div class="ms-col">
+  <section class="wo2-card ms-card" id="ms-sender">
+    <div class="ms-card-head">
+      <h2>공식 발신 계정</h2>
+      <span class="ms-state {{ 'is-on' if sender_ok else 'is-warn' }}">{{ '발송 가능' if sender_ok else '설정 필요' }}</span>
+    </div>
+    <p class="ms-desc">협력사에 가는 메일의 <b>보내는 사람</b>입니다. FMS 공식 메일 계정(예: Gmail·회사 메일)을 만들어 연결하면 그 계정 이름으로 발송됩니다.<br />
+      현재: <b>{{ sender_msg }}</b></p>
+
+    {% if can_sender %}
+    <form method="post" action="/admin/maintenance/settings/sender" class="ms-form" autocomplete="off">
+      <div class="ms-row">
+        <span class="ms-label">발신 방식</span>
+        <div class="ms-field ms-modes">
+          <label class="ms-check"><input type="radio" name="sender_mode" value="smtp"{% if sender.mode == 'smtp' %} checked{% endif %} /> 공식 메일 계정(SMTP)</label>
+          <label class="ms-check"><input type="radio" name="sender_mode" value="resend"{% if sender.mode == 'resend' %} checked{% endif %} /> Resend(회사 도메인)</label>
+          <label class="ms-check"><input type="radio" name="sender_mode" value="server"{% if sender.mode == 'server' %} checked{% endif %} /> 서버 기본 설정</label>
+        </div>
+      </div>
+      <div class="ms-row">
+        <label class="ms-label" for="ms-sname">보내는 이름</label>
+        <div class="ms-field">
+          <input type="text" id="ms-sname" name="sender_name" class="ms-input" maxlength="60" value="{{ sender.name }}" placeholder="Smart FMS" />
+          <span class="ms-hint">받는 사람 메일함에 표시되는 이름 (예: POSCO WIDE Smart FMS)</span>
+        </div>
+      </div>
+      <div class="ms-row" data-mode="smtp resend">
+        <label class="ms-label" for="ms-saddr">발신 주소</label>
+        <div class="ms-field">
+          <input type="email" id="ms-saddr" name="sender_addr" class="ms-input" value="{{ sender.addr }}" placeholder="fms@poscowide.com" />
+          <span class="ms-hint" data-mode="smtp">비우면 계정(아이디) 주소로 보냅니다. Gmail·네이버는 계정 주소와 같아야 합니다.</span>
+          <span class="ms-hint" data-mode="resend">Resend에서 도메인 인증을 마친 주소만 쓸 수 있습니다.</span>
+        </div>
+      </div>
+      <div class="ms-row" data-mode="smtp">
+        <label class="ms-label" for="ms-preset">메일 서비스</label>
+        <div class="ms-field">
+          <div class="ms-inline">
+            <select id="ms-preset" class="wo2-sel">
+              <option value="">직접 입력</option>
+              {% for key, label, host, port, sec in smtp_presets %}
+              <option value="{{ key }}" data-host="{{ host }}" data-port="{{ port }}" data-sec="{{ sec }}"{% if sender.smtp_host == host %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" name="smtp_host" id="ms-host" class="ms-input ms-host" value="{{ sender.smtp_host }}" placeholder="smtp.gmail.com" aria-label="SMTP 서버" />
+            <input type="text" name="smtp_port" id="ms-port" class="ms-input ms-port" value="{{ sender.smtp_port }}" inputmode="numeric" aria-label="포트" />
+            <select name="smtp_security" id="ms-sec" class="wo2-sel" aria-label="보안 연결">
+              <option value="ssl"{% if sender.smtp_security == 'ssl' %} selected{% endif %}>SSL</option>
+              <option value="starttls"{% if sender.smtp_security == 'starttls' %} selected{% endif %}>STARTTLS</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="ms-row" data-mode="smtp">
+        <label class="ms-label" for="ms-suser">계정(아이디)</label>
+        <div class="ms-field">
+          <input type="email" id="ms-suser" name="smtp_user" class="ms-input" value="{{ sender.smtp_user }}" placeholder="smartfms.official@gmail.com" autocomplete="off" />
+        </div>
+      </div>
+      <div class="ms-row" data-mode="smtp">
+        <label class="ms-label" for="ms-spw">앱 비밀번호</label>
+        <div class="ms-field">
+          <input type="password" id="ms-spw" name="smtp_password" class="ms-input" autocomplete="new-password"
+                 placeholder="{{ '저장됨 — 바꿀 때만 입력' if sender.smtp_password_set and not sender.smtp_password_broken else '앱 비밀번호 16자리' }}" />
+          <span class="ms-hint">Gmail은 2단계 인증을 켠 뒤 「앱 비밀번호」를 만들어 넣으세요. 비밀번호는 암호화해 저장하며 화면에 다시 표시하지 않습니다.</span>
+        </div>
+      </div>
+      <div class="ms-row" data-mode="resend">
+        <label class="ms-label" for="ms-rkey">Resend API 키</label>
+        <div class="ms-field">
+          <input type="password" id="ms-rkey" name="resend_key" class="ms-input" autocomplete="new-password"
+                 placeholder="{{ '저장됨 — 바꿀 때만 입력' if sender.resend_key_set and not sender.resend_key_broken else 're_로 시작하는 키' }}" />
+        </div>
+      </div>
+      <div class="ms-row">
+        <label class="ms-label" for="ms-reply">회신 주소</label>
+        <div class="ms-field">
+          <input type="email" id="ms-reply" name="reply_to" class="ms-input" value="{{ sender.reply_to }}" placeholder="(선택) 협력사가 답장하면 받을 주소" />
+        </div>
+      </div>
+      <div class="ms-actions">
+        <button type="submit" class="wo2-btn wo2-btn-navy">발신 계정 저장</button>
+      </div>
+    </form>
+    <form method="post" action="/admin/maintenance/settings/sender-test" class="ms-test">
+      <input type="email" name="test_to" class="ms-input" required placeholder="테스트 메일 받을 주소" value="{{ user.email or '' }}" />
+      <button type="submit" class="wo2-btn wo2-btn-line">연결 테스트</button>
+    </form>
+    {% else %}
+    <p class="ms-hint">발신 계정은 시스템관리자만 변경할 수 있습니다.</p>
+    {% endif %}
+  </section>
+
   <section class="wo2-card ms-card">
     <div class="ms-card-head">
       <h2>협력사 접수 메일 자동 발송</h2>
@@ -111,6 +202,8 @@
     </dl>
   </section>
 
+ </div>
+
   <section class="wo2-card ms-card">
     <div class="ms-card-head">
       <h2>다음 메일 미리보기</h2>
@@ -147,6 +240,29 @@
   var cb = document.getElementById('ms-per-partner');
   var box = document.getElementById('ms-partners');
   if (cb && box) cb.addEventListener('change', function () { box.hidden = !cb.checked; });
+
+  var sender = document.getElementById('ms-sender');
+  if (!sender) return;
+  function syncMode() {
+    var on = sender.querySelector('input[name="sender_mode"]:checked');
+    var mode = on ? on.value : 'server';
+    sender.querySelectorAll('[data-mode]').forEach(function (el) {
+      el.hidden = el.getAttribute('data-mode').split(' ').indexOf(mode) < 0;
+    });
+  }
+  sender.querySelectorAll('input[name="sender_mode"]').forEach(function (r) {
+    r.addEventListener('change', syncMode);
+  });
+  syncMode();
+
+  var preset = document.getElementById('ms-preset');
+  if (preset) preset.addEventListener('change', function () {
+    var opt = preset.options[preset.selectedIndex];
+    if (!opt.value) return;
+    document.getElementById('ms-host').value = opt.getAttribute('data-host');
+    document.getElementById('ms-port').value = opt.getAttribute('data-port');
+    document.getElementById('ms-sec').value = opt.getAttribute('data-sec');
+  });
 })();
 </script>
 {% endblock %}

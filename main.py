@@ -9090,6 +9090,8 @@ async def maintenance_settings_page(
     ).scalars().all()
     since, until = maint_mail.window_for(settings, datetime.utcnow())
     preview = await maint_mail.fetch_receipts(db, since, until)
+    sender = await maint_mail.load_sender(db)
+    sender_ok, sender_msg = maint_mail.sender_status(sender)
     return templates.TemplateResponse(
         request,
         "maintenance_settings.html",
@@ -9101,7 +9103,12 @@ async def maintenance_settings_page(
             "window_from": maint_mail.fmt_kst(since),
             "window_to": maint_mail.fmt_kst(until),
             "next_run": maint_mail.next_run_label(getattr(app.state, "scheduler", None)),
-            "mail_configured": maint_mail.mail_configured(),
+            "sender": sender,
+            "sender_ok": sender_ok,
+            "sender_msg": sender_msg,
+            "sender_from": maint_mail.sender_from(sender),
+            "smtp_presets": maint_mail.SMTP_PRESETS,
+            "can_sender": user.role == UserRole.system_admin,
             "can_edit": can_edit(user),
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
@@ -9180,11 +9187,60 @@ async def maintenance_settings_test_send(
 
     if not _can_access_maint_settings(user):
         raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
-    if not maint_mail.mail_configured():
-        return _mset_redirect(
-            error="서버에 메일 발송 설정(RESEND_API_KEY 또는 SMTP_HOST)이 없어 보낼 수 없습니다."
-        )
+    sender_ok, sender_msg = maint_mail.sender_status(await maint_mail.load_sender(db))
+    if not sender_ok:
+        return _mset_redirect(error=sender_msg)
     ok, msg = await maint_mail.run_send(db, test=True)
+    return _mset_redirect(message=msg) if ok else _mset_redirect(error=msg)
+
+
+@app.post(MSET_BASE + "/sender")
+async def maintenance_settings_sender_save(
+    request: Request,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    """공식 발신 계정 저장 (시스템관리자)."""
+    import maint_mail
+
+    form = await request.form()
+    data = {k: str(form.get(k) or "").strip() for k in maint_mail.SENDER_DEFAULTS}
+    if data["sender_mode"] not in maint_mail.SENDER_MODES:
+        return _mset_redirect(error="발신 방식을 선택하세요.")
+    for label, key in (("발신 주소", "sender_addr"), ("회신 주소", "reply_to"), ("계정(아이디)", "smtp_user")):
+        if key == "smtp_user" and data["sender_mode"] != "smtp":
+            continue
+        if data[key]:
+            ok, bad = maint_mail.parse_emails(data[key])
+            if bad or len(ok) != 1:
+                return _mset_redirect(error=f"{label} 형식이 올바르지 않습니다: {data[key]}")
+    if data["sender_mode"] == "resend" and not data["sender_addr"]:
+        return _mset_redirect(error="Resend 방식은 발신 주소(도메인 인증된 주소)가 필요합니다.")
+    if data["smtp_port"] and not data["smtp_port"].isdigit():
+        return _mset_redirect(error="SMTP 포트는 숫자로 입력하세요.")
+    data["smtp_security"] = "starttls" if data["smtp_security"] == "starttls" else "ssl"
+    data["sender_name"] = data["sender_name"][:60]
+    await maint_mail.save_sender(db, data)
+    await db.commit()
+    ok, msg = maint_mail.sender_status(await maint_mail.load_sender(db))
+    if ok:
+        return _mset_redirect(message="발신 계정을 저장했습니다. 「연결 테스트」로 실제 발송을 확인하세요.")
+    return _mset_redirect(error="저장했지만 아직 발송할 수 없습니다: " + msg)
+
+
+@app.post(MSET_BASE + "/sender-test")
+async def maintenance_settings_sender_test(
+    request: Request,
+    user: User = Depends(require_user_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    import maint_mail
+
+    form = await request.form()
+    ok_addrs, _ = maint_mail.parse_emails(str(form.get("test_to") or ""))
+    if len(ok_addrs) != 1:
+        return _mset_redirect(error="테스트 메일을 받을 주소 하나를 입력하세요.")
+    ok, msg = await maint_mail.send_sender_test(db, ok_addrs[0])
     return _mset_redirect(message=msg) if ok else _mset_redirect(error=msg)
 
 
@@ -22345,6 +22401,7 @@ async def maintenance_dashboard(
         "maintenance_dashboard.html",
         {
             "user": user,
+            "can_maint_settings": _can_access_maint_settings(user),
             "today": today,
             "kpi": kpi,
             "type_stats": type_stats,

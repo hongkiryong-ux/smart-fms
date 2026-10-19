@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}정비관리 대시보드{% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="/static/css/maint_dash.css?v=1" />{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/maint_dash.css?v=2" />{% endblock %}
 {% block content %}
 {% set ns = namespace(qs='') %}
 {% if filters.site_id %}{% set ns.qs = ns.qs ~ '&site_id=' ~ filters.site_id %}{% endif %}
@@ -14,9 +14,17 @@
     <h1>정비관리 대시보드</h1>
     <p>설비의 안정적 운영을 위한 정비 현황을 한눈에 확인하세요.</p>
   </div>
-  <nav class="md-crumb" aria-label="위치">
-    <a href="/admin/dashboard">홈</a><span>›</span><span>정비관리</span><span>›</span><strong>대시보드</strong>
-  </nav>
+  <div class="md-head-right">
+    <nav class="md-crumb" aria-label="위치">
+      <a href="/admin/dashboard">홈</a><span>›</span><span>정비관리</span><span>›</span><strong>대시보드</strong>
+    </nav>
+    {% if can_maint_settings %}
+    <a class="md-settings-btn" href="/admin/maintenance/settings" title="협력사 메일 발송·발신 계정 설정">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      설정
+    </a>
+    {% endif %}
+  </div>
 </header>
 
 <div class="md-grid">
