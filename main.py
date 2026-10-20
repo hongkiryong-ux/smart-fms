@@ -9162,6 +9162,7 @@ async def maintenance_settings_save(
         per_partner=per_partner,
         partner_to=partner_to,
         send_empty=form.get("send_empty") == "1",
+        intro=str(form["intro"]) if "intro" in form else None,
     )
     await db.commit()
     scheduler = getattr(app.state, "scheduler", None)
@@ -9192,6 +9193,35 @@ async def maintenance_settings_test_send(
         return _mset_redirect(error=sender_msg)
     ok, msg = await maint_mail.run_send(db, test=True)
     return _mset_redirect(message=msg) if ok else _mset_redirect(error=msg)
+
+
+@app.post(MSET_BASE + "/mail-preview")
+async def maintenance_settings_mail_preview(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """입력 중인 안내 문구로 다음 통합 메일 본문 미리보기 (저장하지 않음)."""
+    import maint_mail
+
+    if not _can_access_maint_settings(user):
+        raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
+    form = await request.form()
+    settings = await maint_mail.load_settings(db)
+    intro = str(form.get("intro")) if "intro" in form else settings["intro"]
+    since, until = maint_mail.window_for(settings, datetime.utcnow())
+    rows = await maint_mail.fetch_receipts(db, since, until)
+    _, html = maint_mail.build_mail(rows, since, until, intro=intro)
+    day = maint_mail.fmt_kst(until, "%Y-%m-%d")
+    page = (
+        '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>메일 본문 미리보기</title></head>'
+        '<body style="margin:0;background:#eef1f5;padding:24px;">'
+        '<div style="max-width:1200px;margin:0 auto;background:#fff;border-radius:10px;padding:24px;'
+        'box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto;">'
+        f'<p style="margin:0 0 16px;font:13px sans-serif;color:#6b7280;">제목: [정비관리] 협력사 접수 정비의뢰 {len(rows)}건 ({day}) · 첨부: 협력사접수_*.xlsx</p>'
+        f"{html}</div></body></html>"
+    )
+    return HTMLResponse(page)
 
 
 @app.post(MSET_BASE + "/sender")

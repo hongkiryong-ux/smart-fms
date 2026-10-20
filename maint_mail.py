@@ -46,6 +46,11 @@ DEFAULTS: dict[str, str] = {
     "per_partner": "0",
     "partner_to": "{}",
     "send_empty": "0",
+    "intro": (
+        "안녕하십니까, Smart FMS 정비관리입니다.\n"
+        "{날짜} 기준 {협력사}에 접수된 정비의뢰 {건수}건을 아래와 같이 안내드립니다.\n"
+        "작업 일정을 확인하시고 진행 부탁드립니다. 감사합니다."
+    ),
     "last_sent_utc": "",
     "last_run_date": "",
     "last_result": "",
@@ -150,6 +155,7 @@ async def load_settings(session: AsyncSession) -> dict:
         "per_partner": _truthy(raw["per_partner"]),
         "partner_to": {str(k): str(v) for k, v in partner_to.items()},
         "send_empty": _truthy(raw["send_empty"]),
+        "intro": raw["intro"],
         "last_sent_utc": raw["last_sent_utc"],
         "last_run_date": raw["last_run_date"],
         "last_result": raw["last_result"],
@@ -167,7 +173,10 @@ async def save_settings(
     per_partner: bool,
     partner_to: dict[str, str],
     send_empty: bool,
+    intro: str | None = None,
 ) -> None:
+    if intro is not None:
+        await _set(session, "intro", intro.strip()[:2000])
     await _set(session, "enabled", "1" if enabled else "0")
     await _set(session, "hour", str(max(0, min(23, hour))))
     await _set(session, "minute", str(max(0, min(59, minute))))
@@ -298,43 +307,128 @@ def build_xlsx(rows: list[dict]) -> bytes:
     return buf.getvalue()
 
 
-def build_body(rows: list[dict], since_utc: datetime, until_utc: datetime, partner_name: str = "") -> str:
-    head = f"[{partner_name}] " if partner_name else ""
-    lines = [
-        f"{head}협력사 접수 정비의뢰 현황",
-        f"집계 구간(KST): {fmt_kst(since_utc)} ~ {fmt_kst(until_utc)}",
-        f"접수 건수: {len(rows)}건",
-        "",
-    ]
+INTRO_PLACEHOLDERS = ("{협력사}", "{건수}", "{날짜}", "{기간}")
+FOOTER = "※ Smart FMS 정비관리에서 자동 발송된 메일입니다. 상세 내역은 첨부 엑셀 파일에도 있습니다."
+
+# 본문 표 컬럼 (라벨, 키, html 최소폭)
+BODY_COLUMNS = (
+    ("No", "id", 30),
+    ("접수일시", "approved_at", 92),
+    ("예정일", "scheduled_date", 74),
+    ("우선순위", "priority", 44),
+    ("위치", "location", 90),
+    ("설비", "_eq", 100),
+    ("정비제목", "title", 120),
+    ("정비내용", "description", 180),
+    ("작업유형", "work_type", 48),
+    ("의뢰자", "requester", 48),
+    ("진행상태", "status", 56),
+)
+
+
+def render_intro(template: str, *, partner_name: str, count: int, day: str, period: str) -> str:
+    out = (template or "").strip()
+    for key, val in (
+        ("{협력사}", partner_name or "협력사"),
+        ("{건수}", str(count)),
+        ("{날짜}", day),
+        ("{기간}", period),
+    ):
+        out = out.replace(key, val)
+    return out
+
+
+def _eq_label(r: dict) -> str:
+    return " ".join(x for x in (r.get("eq_code"), r.get("eq_name")) if x)
+
+
+def _cell(r: dict, key: str) -> str:
+    return _eq_label(r) if key == "_eq" else str(r.get(key) or "")
+
+
+def _group(rows: list[dict]) -> dict[str, list[dict]]:
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        groups.setdefault(r["partner_name"], []).append(r)
+    return groups
+
+
+def build_mail(
+    rows: list[dict],
+    since_utc: datetime,
+    until_utc: datetime,
+    *,
+    partner_name: str = "",
+    intro: str = "",
+) -> tuple[str, str]:
+    """(텍스트 본문, HTML 본문) — 안내 문구 + 접수 내역 전체."""
+    from html import escape
+
+    period = f"{fmt_kst(since_utc)} ~ {fmt_kst(until_utc)}"
+    day = fmt_kst(until_utc, "%Y-%m-%d")
+    intro_txt = render_intro(
+        intro, partner_name=partner_name or "협력사", count=len(rows), day=day, period=period
+    )
+    title = f"{'[' + partner_name + '] ' if partner_name else ''}협력사 접수 정비의뢰 내역"
+    groups = _group(rows)
+
+    # 텍스트
+    lines: list[str] = []
+    if intro_txt:
+        lines += [intro_txt, ""]
+    lines += [f"■ {title}", f"집계 구간(KST): {period}", f"접수 건수: {len(rows)}건", ""]
     if not rows:
         lines.append("해당 구간에 협력사로 접수된 정비의뢰가 없습니다.")
-    else:
-        groups: dict[str, list[dict]] = {}
-        for r in rows:
-            groups.setdefault(r["partner_name"], []).append(r)
-        for name, items in groups.items():
-            if not partner_name:
-                lines.append(f"■ {name} ({len(items)}건)")
-            for r in items:
-                eq = " ".join(x for x in (r["eq_code"], r["eq_name"]) if x)
-                meta = " · ".join(
-                    x
-                    for x in (
-                        r["approved_at"],
-                        f"예정 {r['scheduled_date']}" if r["scheduled_date"] else "",
-                        r["priority"],
-                        r["location"],
-                        eq,
-                    )
-                    if x
-                )
-                lines.append(f"  - #{r['id']} {r['title'] or r['description'][:60]}")
-                if meta:
-                    lines.append(f"      {meta}")
+    for name, items in groups.items():
+        if not partner_name:
+            lines += [f"[{name}] {len(items)}건", ""]
+        for i, r in enumerate(items, start=1):
+            lines.append(f"{i}. #{r['id']} {r['title'] or '(제목 없음)'}")
+            for label, key, _ in BODY_COLUMNS:
+                if key in ("id", "title"):
+                    continue
+                val = _cell(r, key)
+                if not val:
+                    continue
+                if key == "description":
+                    val = val.replace("\r\n", "\n").replace("\n", "\n      ")
+                lines.append(f"   - {label}: {val}")
             lines.append("")
-        lines.append("상세 내용은 첨부 엑셀을 확인하세요.")
-    lines += ["", "※ Smart FMS 정비관리 > 설정에서 자동 발송된 메일입니다."]
-    return "\n".join(lines)
+    lines += ["", FOOTER]
+    text = "\n".join(lines)
+
+    # HTML
+    def p(s: str) -> str:
+        return escape(s).replace("\n", "<br>")
+
+    th = "padding:6px 8px;border:1px solid #d6dbe3;background:#0f2a5c;color:#fff;font-size:12px;white-space:nowrap;"
+    td = "padding:6px 8px;border:1px solid #e3e7ee;font-size:12px;vertical-align:top;color:#1f2937;"
+    parts = [
+        '<div style="font-family:\'Malgun Gothic\',\'Apple SD Gothic Neo\',sans-serif;font-size:14px;color:#1f2937;line-height:1.6;">'
+    ]
+    if intro_txt:
+        parts.append(f'<p style="margin:0 0 16px;">{p(intro_txt)}</p>')
+    parts.append(
+        f'<h3 style="margin:0 0 4px;font-size:16px;color:#0f2a5c;">{escape(title)}</h3>'
+        f'<p style="margin:0 0 12px;font-size:12px;color:#6b7280;">집계 구간(KST) {escape(period)} · 접수 <b style="color:#1d6ff2;">{len(rows)}건</b></p>'
+    )
+    if not rows:
+        parts.append('<p style="margin:0 0 12px;color:#6b7280;">해당 구간에 협력사로 접수된 정비의뢰가 없습니다.</p>')
+    for name, items in groups.items():
+        if not partner_name:
+            parts.append(f'<h4 style="margin:16px 0 6px;font-size:14px;color:#1f2937;">{escape(name)} ({len(items)}건)</h4>')
+        head = "".join(f'<th style="{th}min-width:{w}px;">{escape(label)}</th>' for label, _, w in BODY_COLUMNS)
+        body_rows = []
+        for i, r in enumerate(items):
+            bg = "#ffffff" if i % 2 == 0 else "#f7f9fc"
+            cells = "".join(f'<td style="{td}">{p(_cell(r, key)) or "-"}</td>' for _, key, _ in BODY_COLUMNS)
+            body_rows.append(f'<tr style="background:{bg};">{cells}</tr>')
+        parts.append(
+            '<table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;width:100%;margin:0 0 8px;">'
+            f"<thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
+        )
+    parts.append(f'<p style="margin:18px 0 0;font-size:12px;color:#9ca3af;">{escape(FOOTER)}</p></div>')
+    return text, "".join(parts)
 
 
 def _secret_keys() -> tuple[bytes, bytes]:
@@ -446,25 +540,35 @@ def mail_configured(sender: dict) -> bool:
     return sender_status(sender)[0]
 
 
-def _mime(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> tuple[str, MIMEMultipart]:
+def _mime(
+    sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str, html: str | None = None
+) -> tuple[str, MIMEMultipart]:
     from_addr = sender["addr"] or sender["smtp_user"]
-    msg = MIMEMultipart()
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = str(Header(subject, "utf-8"))
     msg["From"] = formataddr((sender["name"], from_addr), charset="utf-8") if sender["name"] else from_addr
     msg["To"] = to_addr
     if sender["reply_to"]:
         msg["Reply-To"] = sender["reply_to"]
-    msg.attach(MIMEText(body, "plain", "utf-8"))
+    if html:
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(body, "plain", "utf-8"))
+        alt.attach(MIMEText(html, "html", "utf-8"))
+        msg.attach(alt)
+    else:
+        msg.attach(MIMEText(body, "plain", "utf-8"))
     part = MIMEApplication(data, _subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     part.add_header("Content-Disposition", "attachment", filename=("utf-8", "", fname))
     msg.attach(part)
     return from_addr, msg
 
 
-def _send_smtp(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> None:
+def _send_smtp(
+    sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str, html: str | None = None
+) -> None:
     from streetlamp.reporting import _SMTPForceIPv4, _SMTPSSLForceIPv4
 
-    from_addr, msg = _mime(sender, to_addr, subject, body, data, fname)
+    from_addr, msg = _mime(sender, to_addr, subject, body, data, fname, html)
     host, port = sender["smtp_host"], sender["smtp_port"]
     timeout = 60.0
     if sender["smtp_security"] == "ssl":
@@ -480,7 +584,9 @@ def _send_smtp(sender: dict, to_addr: str, subject: str, body: str, data: bytes,
             raise RuntimeError(f"수신 거부: {refused}")
 
 
-def _send_resend(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> None:
+def _send_resend(
+    sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str, html: str | None = None
+) -> None:
     import httpx
 
     payload = {
@@ -490,6 +596,8 @@ def _send_resend(sender: dict, to_addr: str, subject: str, body: str, data: byte
         "text": body,
         "attachments": [{"filename": fname, "content": base64.b64encode(data).decode("ascii")}],
     }
+    if html:
+        payload["html"] = html
     if sender["reply_to"]:
         payload["reply_to"] = sender["reply_to"]
     with httpx.Client(timeout=60.0) as client:
@@ -502,21 +610,26 @@ def _send_resend(sender: dict, to_addr: str, subject: str, body: str, data: byte
         raise RuntimeError(f"Resend HTTP {r.status_code}: {r.text[:300]}")
 
 
-def _send_sync(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> None:
+def _send_sync(
+    sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str, html: str | None = None
+) -> None:
     if sender["mode"] == "smtp":
-        _send_smtp(sender, to_addr, subject, body, data, fname)
+        _send_smtp(sender, to_addr, subject, body, data, fname, html)
     elif sender["mode"] == "resend":
-        _send_resend(sender, to_addr, subject, body, data, fname)
+        _send_resend(sender, to_addr, subject, body, data, fname, html)
     else:
+        # 서버 기본 발신(가로등 공용 함수)은 텍스트 본문만 지원
         from streetlamp.reporting import _send_email_sync
 
         _send_email_sync(to_addr, subject, body, data, fname)
 
 
-async def _deliver(sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str) -> str | None:
+async def _deliver(
+    sender: dict, to_addr: str, subject: str, body: str, data: bytes, fname: str, html: str | None = None
+) -> str | None:
     """성공 시 None, 실패 시 오류 문구."""
     try:
-        await asyncio.to_thread(_send_sync, sender, to_addr, subject, body, data, fname)
+        await asyncio.to_thread(_send_sync, sender, to_addr, subject, body, data, fname, html)
         return None
     except Exception as e:  # noqa: BLE001 — 수신자별 실패를 모아 안내
         return f"{to_addr}: {type(e).__name__} {str(e)[:200]}"
@@ -577,9 +690,9 @@ async def run_send(
         if rows or settings["send_empty"]:
             data = build_xlsx(rows)
             subject = f"{tag}[정비관리] 협력사 접수 정비의뢰 {len(rows)}건 ({day})"
-            body = build_body(rows, since, until)
+            body, html = build_mail(rows, since, until, intro=settings["intro"])
             for addr in combined_to:
-                err = await _deliver(sender, addr, subject, body, data, f"협력사접수_{stamp}.xlsx")
+                err = await _deliver(sender, addr, subject, body, data, f"협력사접수_{stamp}.xlsx", html)
                 if err:
                     errors.append(err)
                 else:
@@ -599,10 +712,10 @@ async def run_send(
                 continue
             data = build_xlsx(items)
             subject = f"{tag}[정비관리] {name} 접수 정비의뢰 {len(items)}건 ({day})"
-            body = build_body(items, since, until, partner_name=name)
+            body, html = build_mail(items, since, until, partner_name=name, intro=settings["intro"])
             for addr in addrs:
                 safe = re.sub(r'[\\/:*?"<>|\s]+', "_", name)
-                err = await _deliver(sender, addr, subject, body, data, f"{safe}_접수_{stamp}.xlsx")
+                err = await _deliver(sender, addr, subject, body, data, f"{safe}_접수_{stamp}.xlsx", html)
                 if err:
                     errors.append(err)
                 else:

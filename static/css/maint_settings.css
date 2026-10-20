@@ -88,6 +88,7 @@
 .ms-input:focus,
 .ms-time:focus { outline: 2px solid #bfd5fb; border-color: #1d6ff2; }
 .ms-hint { font-size: 0.78rem; color: #6b7280; }
+.ms-hint code { padding: 0 0.25rem; border-radius: 4px; background: #eef2f7; color: #1d4ed8; font-size: 0.76rem; }
 .ms-switch,
 .ms-check {
   display: inline-flex;

@@ -2,7 +2,7 @@
 {% block title %}정비관리 설정{% endblock %}
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
-<link rel="stylesheet" href="/static/css/maint_settings.css?v=2" />
+<link rel="stylesheet" href="/static/css/maint_settings.css?v=3" />
 {% endblock %}
 
 {% block content %}
@@ -185,9 +185,19 @@
           </div>
         </div>
       </div>
+      <div class="ms-row">
+        <label class="ms-label" for="ms-intro">안내 문구</label>
+        <div class="ms-field">
+          <textarea id="ms-intro" name="intro" rows="5" maxlength="2000" class="ms-input"{% if ro %} disabled{% endif %}>{{ s.intro }}</textarea>
+          <span class="ms-hint">메일 본문 맨 위에 들어가고, 그 아래에 접수 내역 표가 출력됩니다(엑셀 첨부는 그대로).
+            치환어: <code>{협력사}</code> <code>{건수}</code> <code>{날짜}</code> <code>{기간}</code></span>
+        </div>
+      </div>
       {% if not ro %}
       <div class="ms-actions">
         <button type="submit" class="wo2-btn wo2-btn-navy">저장</button>
+        <button type="submit" class="wo2-btn wo2-btn-line" formaction="/admin/maintenance/settings/mail-preview"
+                formtarget="_blank" formnovalidate title="입력 중인 안내 문구로 다음 메일 본문을 새 창에서 봅니다 (저장 안 됨)">본문 미리보기</button>
         <button type="submit" class="wo2-btn wo2-btn-line" form="ms-test-form"
                 title="저장된 설정으로 지금 바로 보냅니다 (자동 발송 기록에는 영향 없음)">지금 테스트 발송</button>
       </div>
