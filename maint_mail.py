@@ -200,13 +200,37 @@ def _parse_utc(raw: str | None) -> datetime | None:
     return dt
 
 
-def window_for(settings: dict, now_utc: datetime) -> tuple[datetime, datetime]:
-    """직전 발송 이후 ~ 지금 (최초·장기 미발송 시 24시간 / 최대 7일)."""
+def latest_cutoff(settings: dict, now_utc: datetime) -> datetime:
+    """지금 이전(같거나 이전)의 마지막 발송 기준 시각(KST HH:MM) → naive UTC."""
+    now_k = now_utc.replace(tzinfo=timezone.utc).astimezone(KST)
+    cut = now_k.replace(hour=settings["hour"], minute=settings["minute"], second=0, microsecond=0)
+    if cut > now_k:
+        cut -= timedelta(days=1)
+    return cut.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def next_cutoff(settings: dict, now_utc: datetime) -> datetime:
+    return latest_cutoff(settings, now_utc) + timedelta(days=1)
+
+
+def window_for(settings: dict, now_utc: datetime, *, scheduled: bool = False) -> tuple[datetime, datetime]:
+    """집계 구간 [시작, 끝).
+
+    scheduled: 자동 발송 — 끝은 발송 기준 시각(늦게 실행돼도 그 시각까지만).
+    그 외(미리보기·테스트): 끝은 지금.
+    시작은 직전 발송 기준 시각(없으면 그 전 기준 시각) — 미발송 일이 있으면 이어서 포함, 최대 7일.
+    """
+    if scheduled:
+        until = latest_cutoff(settings, now_utc)
+        fallback = until - timedelta(days=1)
+    else:
+        until = now_utc
+        fallback = latest_cutoff(settings, now_utc)
     since = _parse_utc(settings.get("last_sent_utc"))
-    if since is None or since >= now_utc:
-        since = now_utc - timedelta(hours=24)
-    since = max(since, now_utc - MAX_LOOKBACK)
-    return since, now_utc
+    if since is None or since >= until:
+        since = fallback
+    since = max(since, until - MAX_LOOKBACK)
+    return since, until
 
 
 def fmt_kst(dt: datetime | None, fmt: str = "%Y-%m-%d %H:%M") -> str:
@@ -675,7 +699,7 @@ async def run_send(
     settings = await load_settings(session)
     sender = await load_sender(session)
     now = now_utc or datetime.utcnow()
-    since, until = window_for(settings, now)
+    since, until = window_for(settings, now, scheduled=not test)
     rows = await fetch_receipts(session, since, until)
     stamp = fmt_kst(until, "%Y%m%d_%H%M")
     day = fmt_kst(until, "%Y-%m-%d")
@@ -752,6 +776,10 @@ async def job_send(session_factory) -> None:
         settings = await load_settings(session)
         if not settings["enabled"]:
             return
+        now = datetime.utcnow()
+        early = (next_cutoff(settings, now) - now).total_seconds()
+        if 0 < early < 120:
+            await asyncio.sleep(early + 1)
         today = datetime.now(KST).strftime("%Y-%m-%d")
         if settings["last_run_date"] == today:
             return

@@ -126,7 +126,7 @@
       <h2>협력사 접수 메일 자동 발송</h2>
       <span class="ms-state {{ 'is-on' if s.enabled else 'is-off' }}">{{ '사용 중' if s.enabled else '꺼짐' }}</span>
     </div>
-    <p class="ms-desc">정비섹션에서 <b>협력사를 지정해 D-1 승인</b>(협력사 정비접수)한 정비의뢰 중, <b>직전 발송 이후</b> 새로 접수된 건을 모아 보냅니다. 상세 내용은 엑셀로 첨부됩니다.</p>
+    <p class="ms-desc">정비섹션에서 <b>협력사를 지정해 D-1 승인</b>(협력사 정비접수)한 정비의뢰 중, <b>전날 발송 시각부터 당일 발송 시각까지</b> 접수된 건을 모아 보냅니다(예: 16:00 설정 시 전날 16:00 ~ 당일 16:00). 상세 내용은 엑셀로 첨부됩니다.</p>
 
     <form method="post" action="/admin/maintenance/settings" id="ms-form" class="ms-form">
       <div class="ms-row">
@@ -141,7 +141,7 @@
         <div class="ms-field">
           <input type="time" id="ms-time" name="send_time" class="wo2-sel ms-time" step="60" required
                  value="{{ '%02d:%02d'|format(s.hour, s.minute) }}"{% if ro %} disabled{% endif %} />
-          <span class="ms-hint">매일 이 시각(한국시간)에 발송{% if next_run %} · 다음 예정 <b>{{ next_run }}</b>{% endif %}</span>
+          <span class="ms-hint">매일 이 시각(한국시간)에, 이 시각까지 접수된 건만 발송{% if next_run %} · 다음 예정 <b>{{ next_run }}</b>{% endif %}</span>
         </div>
       </div>
       <div class="ms-row">
@@ -219,7 +219,7 @@
       <h2>다음 메일 미리보기</h2>
       <span class="ms-count">{{ preview|length }}<small>건</small></span>
     </div>
-    <p class="ms-desc">집계 구간 {{ window_from }} ~ 지금({{ window_to }}) · 발송 시점까지 들어온 건이 함께 포함됩니다.</p>
+    <p class="ms-desc">다음 자동 발송 집계 구간 <b>{{ window_from }} ~ {{ window_end }}</b> · 지금({{ window_to }})까지 접수된 건입니다. 「지금 테스트 발송」도 이 목록을 보냅니다.</p>
     <div class="wo2-table-wrap">
       <table class="wo2-table ms-preview">
         <thead>

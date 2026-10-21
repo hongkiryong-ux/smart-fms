@@ -9088,7 +9088,8 @@ async def maintenance_settings_page(
             select(Partner).where(Partner.is_active == True).order_by(Partner.name)  # noqa: E712
         )
     ).scalars().all()
-    since, until = maint_mail.window_for(settings, datetime.utcnow())
+    now_utc = datetime.utcnow()
+    since, until = maint_mail.window_for(settings, now_utc)
     preview = await maint_mail.fetch_receipts(db, since, until)
     sender = await maint_mail.load_sender(db)
     sender_ok, sender_msg = maint_mail.sender_status(sender)
@@ -9102,6 +9103,7 @@ async def maintenance_settings_page(
             "preview": preview,
             "window_from": maint_mail.fmt_kst(since),
             "window_to": maint_mail.fmt_kst(until),
+            "window_end": maint_mail.fmt_kst(maint_mail.next_cutoff(settings, now_utc)),
             "next_run": maint_mail.next_run_label(getattr(app.state, "scheduler", None)),
             "sender": sender,
             "sender_ok": sender_ok,
