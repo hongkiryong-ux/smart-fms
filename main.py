@@ -499,6 +499,26 @@ def _parse_wo_status_filters(status: list[str] | None) -> list[str]:
     return out
 
 
+# 정비접수 KPI 반려·승인대기 보기 (진행상태 무관, status 파라미터로 전달)
+WO_FLAG_FILTERS = ("rejected", "pending")
+
+
+def _wo_flag_filter(status: list[str] | None) -> str:
+    for raw in status or []:
+        for part in str(raw).split(","):
+            if part.strip() in WO_FLAG_FILTERS:
+                return part.strip()
+    return ""
+
+
+def _wo_flag_sql(flag: str):
+    if flag == "rejected":
+        return WorkOrder.is_rejected.is_(True)
+    if flag == "pending":
+        return and_(WorkOrder.is_rejected.is_not(True), WorkOrder.d1_approved.is_not(True))
+    return None
+
+
 LIST_PAGE_SIZE = 20
 D1_BOARD_KEYS = ("today", "tomorrow", "scheduled", "completed")
 D1_ALL_BOARD_KEYS = ("receipt",) + D1_BOARD_KEYS
@@ -7503,9 +7523,12 @@ async def work_orders_list(
     db: AsyncSession = Depends(get_db),
 ):
     q_val = (q or "").strip()
+    flag_val = _wo_flag_filter(status)
     status_vals = _parse_wo_status_filters(status)
+    if flag_val:
+        status_vals = ["received", "in_progress", "completed"]
     # 처음 진입(상태 미지정) 시 정비의뢰만 표시
-    if not status_vals:
+    elif not status_vals:
         status_vals = ["received"]
     priority_val = (priority or "").strip()
     site_id_val = int(site_id or 0)
@@ -7553,6 +7576,9 @@ async def work_orders_list(
     status_f = _wo_status_sql_filter(status_vals)
     if status_f is not None:
         stmt = stmt.where(status_f)
+    flag_f = _wo_flag_sql(flag_val)
+    if flag_f is not None:
+        stmt = stmt.where(flag_f)
 
     all_orders = list(
         (
@@ -7634,8 +7660,9 @@ async def work_orders_list(
             "equipment_opts_json": json.dumps(equipment_opts, ensure_ascii=False),
             "filters": {
                 "q": q_val,
-                "status": ",".join(status_vals),
+                "status": flag_val or ",".join(status_vals),
                 "statuses": status_vals,
+                "flag": flag_val,
                 "priority": priority_val,
                 "site_id": site_id_val,
                 "site_name": (filter_site.name if filter_site else ""),
@@ -7667,8 +7694,11 @@ async def work_orders_export(
     db: AsyncSession = Depends(get_db),
 ):
     """정비관리 목록(현재 필터) Excel 내보내기."""
+    flag_val = _wo_flag_filter(status)
     status_vals = _parse_wo_status_filters(status)
-    if not status_vals:
+    if flag_val:
+        status_vals = ["received", "in_progress", "completed"]
+    elif not status_vals:
         status_vals = ["received"]
     stmt = (
         select(WorkOrder)
@@ -7691,6 +7721,9 @@ async def work_orders_export(
     status_f = _wo_status_sql_filter(status_vals)
     if status_f is not None:
         stmt = stmt.where(status_f)
+    flag_f = _wo_flag_sql(flag_val)
+    if flag_f is not None:
+        stmt = stmt.where(flag_f)
 
     orders = (
         await db.execute(

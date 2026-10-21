@@ -24,7 +24,7 @@
 {% if filters.partner_id %}{% set _ = qs.append('partner_id=' ~ filters.partner_id) %}{% endif %}
 {% if filters.site_id %}{% set _ = qs.append('site_id=' ~ filters.site_id) %}{% endif %}
 {% set kpi_base = '/admin/work-orders?' ~ ((qs|join('&') ~ '&') if qs else '') %}
-{% set st_set = filters.statuses|sort|join(',') %}
+{% set st_set = filters.flag or (filters.statuses|sort|join(',')) %}
 
 <header class="wo2-head">
   <div class="wo2-head-title">
@@ -65,14 +65,14 @@
     <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8 12.3 2.7 2.7L16.2 9.5"/></svg></span>
     <span class="wo2-kpi-txt"><span>정비완료</span><b>{{ kpi.completed }}<small>건</small></b></span>
   </a>
-  <div class="wo2-kpi k-rej" title="반려된 정비의뢰 (진행상태 무관)">
+  <a class="wo2-kpi k-rej{% if st_set == 'rejected' %} is-on{% endif %}" href="{{ kpi_base }}status=rejected" title="반려된 정비의뢰 (진행상태 무관)">
     <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m9 9 6 6M15 9l-6 6"/></svg></span>
     <span class="wo2-kpi-txt"><span>반려</span><b>{{ kpi.rejected }}<small>건</small></b></span>
-  </div>
-  <div class="wo2-kpi k-wait" title="D-1 승인 전(반려 제외)">
+  </a>
+  <a class="wo2-kpi k-wait{% if st_set == 'pending' %} is-on{% endif %}" href="{{ kpi_base }}status=pending" title="D-1 승인 전(반려 제외)">
     <span class="wo2-kpi-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5.5 19.5c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5"/></svg></span>
     <span class="wo2-kpi-txt"><span>승인대기</span><b>{{ kpi.pending }}<small>건</small></b></span>
-  </div>
+  </a>
 </section>
 
 <form method="get" action="/admin/work-orders" class="wo2-filter" id="wo-filter-form">
@@ -91,7 +91,9 @@
     <option value="received"{% if st_set == 'received' %} selected{% endif %}>정비의뢰</option>
     <option value="in_progress"{% if st_set == 'in_progress' %} selected{% endif %}>정비진행</option>
     <option value="completed"{% if st_set == 'completed' %} selected{% endif %}>정비완료</option>
-    {% if filters.statuses|length == 2 %}
+    <option value="rejected"{% if st_set == 'rejected' %} selected{% endif %}>반려</option>
+    <option value="pending"{% if st_set == 'pending' %} selected{% endif %}>승인대기</option>
+    {% if filters.statuses|length == 2 and not filters.flag %}
     <option value="{{ filters.status }}" selected>{% for s in filters.statuses %}{{ {'received':'정비의뢰','in_progress':'정비진행','completed':'정비완료'}[s] }}{% if not loop.last %}+{% endif %}{% endfor %}</option>
     {% endif %}
   </select>
