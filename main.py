@@ -524,10 +524,10 @@ D1_BOARD_KEYS = ("today", "tomorrow", "scheduled", "completed")
 D1_ALL_BOARD_KEYS = ("receipt",) + D1_BOARD_KEYS
 
 
-def _parse_d1_boards(raw: list[str] | None, *, allow_receipt: bool = False) -> list[str]:
+def _parse_d1_boards(raw: list[str] | None) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
-    allowed = set(D1_ALL_BOARD_KEYS if allow_receipt else D1_BOARD_KEYS)
+    allowed = set(D1_ALL_BOARD_KEYS)
     for item in raw or []:
         for part in str(item).split(","):
             key = part.strip().lower()
@@ -563,7 +563,7 @@ def _d1_resolve_boards(
                 flat.append(key)
     if "all" in flat:
         return list(D1_BOARD_KEYS), "all"
-    parsed = _parse_d1_boards(raw, allow_receipt=allow_receipt)
+    parsed = _parse_d1_boards(raw)
     if not parsed:
         if allow_receipt:
             return ["receipt"], "receipt"
@@ -580,7 +580,7 @@ def _d1_board_select_urls(
     """작업 구분 단일 선택 URL (전체/정비접수/오늘/내일/예정/완료)."""
     from urllib.parse import urlencode
 
-    keys = ("all",) + (D1_ALL_BOARD_KEYS if partner_id else D1_BOARD_KEYS)
+    keys = ("all",) + D1_ALL_BOARD_KEYS
     links: dict[str, str] = {}
     for key in keys:
         params: list[tuple[str, str]] = [("board", key)]
@@ -8538,10 +8538,7 @@ def _d1_redirect(
     elif board_raw == "all":
         params = [("board", "all")]
     else:
-        board_vals = _parse_d1_boards(
-            [board_raw] if board_raw else [],
-            allow_receipt=has_partner,
-        )
+        board_vals = _parse_d1_boards([board_raw] if board_raw else [])
         default_board = "receipt" if has_partner else "today"
         params = (
             [("board", board_vals[0])] if board_vals else [("board", default_board)]
