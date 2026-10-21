@@ -5542,7 +5542,17 @@ async def building_create(
     db.add(building)
     await db.flush()
     await ensure_building_default_categories(db, building)
+    # '내 건물'을 지정해 둔 등록자는 목록에 넣어야 설비관리·점검 메뉴에 바로 보임
+    db_user = await db.get(User, user.id)
+    mine = _pm_user_building_ids(db_user) if db_user else set()
+    if mine:
+        db_user.pm_building_ids = sorted(mine | {building.id})
     await db.commit()
+    if mine:
+        from maint_nav_badges import _badge_cache
+
+        _badge_cache.pop(user.id, None)
+    invalidate_nav_cache()
     return RedirectResponse(back, status_code=303)
 
 

@@ -211,6 +211,15 @@ body {
   font-size: 0.76rem;
   color: rgba(158, 182, 204, 0.55);
 }
+.nav-sub > .nav-sub-scope > a {
+  font-size: 0.74rem;
+  color: rgba(158, 182, 204, 0.8);
+  border-top: 1px dashed rgba(158, 182, 204, 0.2);
+  margin-top: 0.2rem;
+}
+.nav-sub > .nav-sub-scope > a:hover {
+  color: #fff;
+}
 .nav-sub > .nav-nested {
   margin: 0.05rem 0;
 }

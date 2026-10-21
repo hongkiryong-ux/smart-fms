@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20261013lib" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20261021eq" />
   {% block head_extra %}{% endblock %}
   {% set _mui_p = request.url.path %}
   {% set maint_ui = _mui_p.startswith('/admin/work-orders') or _mui_p.startswith('/admin/d1') or _mui_p.startswith('/admin/facility-section') or _mui_p.startswith('/admin/maintenance-final-approvals') or _mui_p.startswith('/admin/maintenance-performance') or _mui_p.startswith('/admin/maintenance/settings') or _mui_p.startswith('/admin/streetlamp') %}
@@ -238,6 +238,9 @@
           {% else %}
           <li class="nav-sub-empty">등록된 사업장 없음</li>
           {% endfor %}
+          {% if _eq_my %}
+          <li class="nav-sub-scope"><a href="/admin/equipment#my-buildings" title="설비관리 메뉴는 '내 건물'로 지정한 건물만 보입니다">내 건물만 표시 중 · 변경</a></li>
+          {% endif %}
         </ul>
       </li>
       {% endif %}
