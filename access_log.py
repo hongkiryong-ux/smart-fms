@@ -51,6 +51,7 @@ RESOURCE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/sites", "사업장/건물"),
     ("/admin/schedules", "주요설비 일정"),
     ("/admin/notices", "공지사항"),
+    ("/admin/dashboard/equipment-health", "설비 상태 현황"),
     ("/admin/dashboard", "Dashboard"),
     ("/admin/users", "계정관리"),
     ("/admin/server", "서버관리"),

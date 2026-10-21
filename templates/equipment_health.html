@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}설비 상태 · {{ status_label }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/equipment_health.css?v=1" />
+<header class="page-header">
+  <h1>설비 상태 현황 · {{ status_label }}</h1>
+  <p>대시보드 '설비 상태 현황'과 같은 기준입니다. 설비별 <b>가장 최근 점검(PM) 결과</b>가 주의·고장인 설비를 모든 건물에서 보여 줍니다.</p>
+</header>
+
+<nav class="eh-tabs" aria-label="상태 구분">
+  <a class="eh-tab" href="/admin/dashboard">‹ 대시보드</a>
+  {% for t in tabs %}
+  <a class="eh-tab{% if t.key == status %} is-on{% endif %}" href="?status={{ t.key }}">
+    <i style="background: {{ t.color }}"></i>{{ t.label }} <b>{{ t.count }}</b>
+  </a>
+  {% endfor %}
+</nav>
+
+<section class="card card-wide">
+  <table class="data-table eh-table">
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>사업장 / 건물</th>
+        <th>설비</th>
+        <th>점검 항목</th>
+        <th>최근 점검일</th>
+        <th>점검자</th>
+        <th>점검 메모</th>
+        <th>정비의뢰</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>
+          {{ r.site.name if r.site else '-' }} / {{ r.building.name if r.building else '-' }}
+          {% if my_building_ids and r.building and r.building.id not in my_building_ids %}
+          <span class="eh-note" title="'내 건물' 목록에 없어 점검(PM)·설비관리 화면에는 보이지 않습니다">내 건물 아님</span>
+          {% endif %}
+        </td>
+        <td><a href="/admin/equipment/{{ r.eq.id }}">{{ r.eq.code or '' }} {{ r.eq.name }}</a></td>
+        <td>
+          {% if r.schedule %}
+          <a href="/admin/pm?equipment_id={{ r.eq.id }}">{{ r.schedule.title or '점검' }}</a>
+          {% if not r.schedule.is_active %}<span class="eh-note">일정 삭제됨</span>{% endif %}
+          {% else %}-{% endif %}
+        </td>
+        <td>{{ r.inspected or '-' }}</td>
+        <td>{{ r.insp.inspector_name or '-' }}</td>
+        <td class="eh-memo">{{ r.insp.note or '-' }}</td>
+        <td>
+          {% if r.wo %}
+          <a href="/admin/work-orders/{{ r.wo.id }}">#{{ r.wo.id }} {{ r.wo_label }}</a>
+          {% else %}
+          <a class="eh-req" href="/admin/equipment/{{ r.eq.id }}">정비의뢰 없음 · 설비에서 의뢰</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty">{{ status_label }} 설비가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<p class="eh-foot">주의=점검 필요, 고장=정비의뢰 없음·대기, 고장(정비중)=정비의뢰 진행 중. 정비가 완료되거나 다음 점검에서 '정상'이 기록되면 정상으로 돌아갑니다.</p>
+{% endblock %}

@@ -1,0 +1,59 @@
+.eh-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.eh-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid #d8dee9;
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.86rem;
+  text-decoration: none;
+}
+.eh-tab i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.eh-tab b {
+  font-weight: 700;
+}
+.eh-tab:hover {
+  border-color: #94a3b8;
+}
+.eh-tab.is-on {
+  border-color: #1e3a8a;
+  background: #1e3a8a;
+  color: #fff;
+}
+.eh-table td {
+  vertical-align: top;
+}
+.eh-memo {
+  max-width: 320px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.eh-note {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fff4e5;
+  color: #b45309;
+  font-size: 0.72rem;
+}
+.eh-req {
+  color: #dc2626;
+}
+.eh-foot {
+  margin: 10px 2px 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}

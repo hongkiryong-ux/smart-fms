@@ -3641,9 +3641,9 @@ DASH_HEALTH_META = (
 )
 DASH_HEALTH_LINKS = {
     "normal": "/admin/equipment",
-    "caution": "/admin/pm",
-    "fault": "/admin/pm",
-    "repair": "/admin/pm?status=progress",
+    "caution": "/admin/dashboard/equipment-health?status=caution",
+    "fault": "/admin/dashboard/equipment-health?status=fault",
+    "repair": "/admin/dashboard/equipment-health?status=repair",
 }
 _DASH_WO_OPEN_KEYS = {"received", "assigned", "in_progress"}
 _DASH_WO_DONE_KEYS = {"completed", "verified", "closed"}
@@ -3665,11 +3665,12 @@ def _dash_active_equipment_ids():
     )
 
 
-async def _dashboard_equipment_health(db: AsyncSession, total: int) -> dict:
-    """설비 상태 현황 — 설비별 최신 PM 점검결과(주의/고장)와 연결 정비의뢰 상태로 분류."""
+async def _dash_health_classify(db: AsyncSession) -> dict[int, dict]:
+    """설비별 최신 PM 점검결과(주의/고장)와 연결 정비의뢰 상태 → {설비id: {key, iid, wo_id}} (정상은 제외)."""
     scope = _dash_active_equipment_ids()
     ranked = (
         select(
+            PMInspection.id.label("iid"),
             PMInspection.equipment_id.label("eid"),
             PMInspection.result.label("result"),
             PMInspection.work_order_id.label("wo_id"),
@@ -3685,7 +3686,14 @@ async def _dashboard_equipment_health(db: AsyncSession, total: int) -> dict:
     )
     rows = (
         await db.execute(
-            select(ranked.c.eid, ranked.c.result, WorkOrder.status, WorkOrder.is_active)
+            select(
+                ranked.c.iid,
+                ranked.c.eid,
+                ranked.c.result,
+                ranked.c.wo_id,
+                WorkOrder.status,
+                WorkOrder.is_active,
+            )
             .select_from(ranked)
             .outerjoin(WorkOrder, WorkOrder.id == ranked.c.wo_id)
             .where(ranked.c.rn == 1)
@@ -3704,8 +3712,8 @@ async def _dashboard_equipment_health(db: AsyncSession, total: int) -> dict:
             )
         ).scalars().all()
     )
-    counts = {"caution": 0, "fault": 0, "repair": 0}
-    for eid, result, wo_status, wo_active in rows:
+    out: dict[int, dict] = {}
+    for iid, eid, result, wo_id, wo_status, wo_active in rows:
         res = getattr(result, "value", result)
         if res not in ("caution", "fault"):
             continue
@@ -3714,11 +3722,21 @@ async def _dashboard_equipment_health(db: AsyncSession, total: int) -> dict:
         if wo_live and st in _DASH_WO_DONE_KEYS:
             continue
         if res == "caution":
-            counts["caution"] += 1
+            key = "caution"
         elif (wo_live and st in _DASH_WO_OPEN_KEYS) or eid in open_eids:
-            counts["repair"] += 1
+            key = "repair"
         else:
-            counts["fault"] += 1
+            key = "fault"
+        out[int(eid)] = {"key": key, "iid": iid, "wo_id": wo_id if wo_live else None}
+    return out
+
+
+async def _dashboard_equipment_health(db: AsyncSession, total: int) -> dict:
+    """설비 상태 현황 — 설비별 최신 PM 점검결과(주의/고장)와 연결 정비의뢰 상태로 분류."""
+    classified = await _dash_health_classify(db)
+    counts = {"caution": 0, "fault": 0, "repair": 0}
+    for v in classified.values():
+        counts[v["key"]] += 1
     total = max(int(total or 0), sum(counts.values()))
     counts["normal"] = total - sum(counts.values())
     items = []
@@ -3742,7 +3760,6 @@ async def _dashboard_equipment_health(db: AsyncSession, total: int) -> dict:
     return {
         "total": total,
         "issues": counts["caution"] + counts["fault"] + counts["repair"],
-        "inspected": len(rows),
         "items": items,
     }
 
@@ -3831,6 +3848,105 @@ async def _dashboard_pm_upcoming(db: AsyncSession, days: int = 7, limit: int = 6
             }
         )
     return {"total": int(total), "items": items}
+
+
+@app.get("/admin/dashboard/equipment-health")
+async def dashboard_equipment_health_list(
+    request: Request,
+    status: str = Query("fault"),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """대시보드 '설비 상태 현황'의 주의/고장/정비중 설비 목록 (대시보드와 같은 기준·전체 건물)."""
+    key = status if status in ("caution", "fault", "repair") else "fault"
+    classified = await _dash_health_classify(db)
+    counts = {k: 0 for k in ("caution", "fault", "repair")}
+    for v in classified.values():
+        counts[v["key"]] += 1
+    picked = {eid: v for eid, v in classified.items() if v["key"] == key}
+
+    insps = {}
+    if picked:
+        insps = {
+            i.id: i
+            for i in (
+                await db.execute(
+                    select(PMInspection)
+                    .where(PMInspection.id.in_([v["iid"] for v in picked.values()]))
+                    .options(
+                        selectinload(PMInspection.schedule),
+                        selectinload(PMInspection.work_order),
+                        selectinload(PMInspection.equipment)
+                        .selectinload(Equipment.zone)
+                        .selectinload(Zone.floor)
+                        .selectinload(Floor.building)
+                        .selectinload(Building.site),
+                    )
+                )
+            ).scalars().all()
+        }
+    open_wos: dict[int, WorkOrder] = {}
+    if key == "repair" and picked:
+        for wo in (
+            await db.execute(
+                select(WorkOrder)
+                .where(
+                    WorkOrder.equipment_id.in_(list(picked)),
+                    WorkOrder.is_active == True,  # noqa: E712
+                    WorkOrder.status.in_(_WO_OPEN),
+                )
+                .order_by(WorkOrder.created_at.desc())
+            )
+        ).scalars().all():
+            open_wos.setdefault(int(wo.equipment_id), wo)
+
+    rows = []
+    for eid, v in picked.items():
+        insp = insps.get(v["iid"])
+        if not insp:
+            continue
+        eq = insp.equipment
+        bld = _equipment_building(eq)
+        wo = insp.work_order if v["wo_id"] else None
+        if key == "repair" and (wo is None or getattr(wo.status, "value", wo.status) not in _DASH_WO_OPEN_KEYS):
+            wo = open_wos.get(eid) or wo
+        wo_key = getattr(getattr(wo, "status", None), "value", None) if wo else None
+        rows.append(
+            {
+                "eq": eq,
+                "building": bld,
+                "site": getattr(bld, "site", None) if bld else None,
+                "insp": insp,
+                "inspected": _pm_kst_date(insp.inspected_at),
+                "schedule": insp.schedule,
+                "wo": wo,
+                "wo_label": _DASH_WO_LABELS.get(wo_key, "") if wo_key else "",
+            }
+        )
+    rows.sort(
+        key=lambda r: (
+            r["site"].name if r["site"] else "",
+            _building_sort_key(r["building"].name if r["building"] else ""),
+            r["eq"].code or "",
+        )
+    )
+    tabs = [
+        {"key": k, "label": label, "color": color, "count": counts[k]}
+        for k, label, color in DASH_HEALTH_META
+        if k != "normal"
+    ]
+    return templates.TemplateResponse(
+        request,
+        "equipment_health.html",
+        {
+            "user": user,
+            "status": key,
+            "status_label": next(t["label"] for t in tabs if t["key"] == key),
+            "tabs": tabs,
+            "rows": rows,
+            "my_building_ids": _pm_user_building_ids(user),
+        },
+    )
 
 
 @app.get("/admin/dashboard")
