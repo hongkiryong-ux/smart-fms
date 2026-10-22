@@ -770,6 +770,17 @@ def _can_manage_wo_photo(user: User, wo: WorkOrder, photo: WorkOrderPhoto | None
     return bool(photo and photo.uploaded_by_user_id == user.id)
 
 
+async def _can_manage_wo_photo_db(
+    db: AsyncSession, user: User, wo: WorkOrder, photo: WorkOrderPhoto | None = None
+) -> bool:
+    """사진 관리 권한 — 기본 권한 + 해당 정비의뢰에 지정된 협력사 소속 계정."""
+    if _can_manage_wo_photo(user, wo, photo):
+        return True
+    if user.role != UserRole.partner or not wo.partner_id:
+        return False
+    return await user_own_partner_id(db, user) == int(wo.partner_id)
+
+
 _PARTNER_RISK_CACHE: dict[str, dict[str, str]] | None = None
 _PARTNER_RISK_MTIME: float | None = None
 
@@ -8030,6 +8041,7 @@ async def work_order_detail(
     from work_order_photos import MAX_PHOTOS_PER_ORDER, list_photos
 
     photos = await list_photos(db, wo.id)
+    can_manage_photos = await _can_manage_wo_photo_db(db, user, wo)
     return templates.TemplateResponse(
         request,
         "work_order_detail.html",
@@ -8039,8 +8051,8 @@ async def work_order_detail(
             "partners": partners,
             "photos": photos,
             "photo_max": MAX_PHOTOS_PER_ORDER,
-            "can_manage_photos": _can_manage_wo_photo(user, wo),
-            "can_add_photos": can_create(user) or _can_manage_wo_photo(user, wo),
+            "can_manage_photos": can_manage_photos,
+            "can_add_photos": can_create(user) or can_manage_photos,
             "process_step": _wo_process_step(wo.status),
             "flash_message": request.query_params.get("message") or "",
             "flash_error": request.query_params.get("error") or "",
@@ -8091,7 +8103,7 @@ async def work_order_photo_add(
     wo = await db.get(WorkOrder, wo_id)
     if not wo or not wo.is_active:
         raise HTTPException(404)
-    if not (can_create(user) or _can_manage_wo_photo(user, wo)):
+    if not (can_create(user) or await _can_manage_wo_photo_db(db, user, wo)):
         raise HTTPException(403, detail="사진 첨부 권한이 없습니다.")
     saved, skipped = await save_wo_photos(
         db, wo.id, photos, uploader_name=_wo_person_label(user), uploader_id=user.id
@@ -8117,7 +8129,7 @@ async def work_order_photo_keep(
     from work_order_photos import set_permanent
 
     wo, photo = await _wo_and_photo(db, wo_id, photo_id)
-    if not _can_manage_wo_photo(user, wo, photo):
+    if not await _can_manage_wo_photo_db(db, user, wo, photo):
         raise HTTPException(403, detail="사진 보관 설정 권한이 없습니다.")
     set_permanent(photo, bool(keep), _wo_person_label(user))
     await db.commit()
@@ -8133,7 +8145,7 @@ async def work_order_photo_delete(
     db: AsyncSession = Depends(get_db),
 ):
     wo, photo = await _wo_and_photo(db, wo_id, photo_id)
-    if not _can_manage_wo_photo(user, wo, photo):
+    if not await _can_manage_wo_photo_db(db, user, wo, photo):
         raise HTTPException(403, detail="사진 삭제 권한이 없습니다.")
     await db.delete(photo)
     await db.commit()
