@@ -515,6 +515,12 @@ def d1_work_order_path(path: str) -> bool:
         return True
     if len(parts) == 2 and parts[0].isdigit() and parts[1] in _D1_WORK_ORDER_ACTIONS:
         return True
+    # 상세 화면의 사진 보기·첨부·보관·삭제 (권한은 각 라우트에서 확인)
+    if parts[0].isdigit() and len(parts) >= 2 and parts[1] == "photos":
+        if len(parts) == 2:
+            return True
+        if parts[2].isdigit() and (len(parts) == 3 or (len(parts) == 4 and parts[3] in ("keep", "delete"))):
+            return True
     return False
 
 
