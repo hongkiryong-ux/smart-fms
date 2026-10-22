@@ -5113,6 +5113,16 @@ body.wo-col-resizing {
   line-height: 1.45;
   white-space: pre-wrap;
 }
+.wo-risk-box {
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.wo-risk-box.is-hazard { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
+.wo-risk-box.is-safety { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
 /* 정비의뢰 사진 */
 .wo-photo-field input[type="file"] {
   font-size: 0.85rem;
