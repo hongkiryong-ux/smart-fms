@@ -1378,6 +1378,9 @@ async def lifespan(app: FastAPI):
                 from maint_mail import reschedule as reschedule_maint_mail
 
                 await reschedule_maint_mail(scheduler, AsyncSessionLocal)
+                from maint_plan_mail import reschedule as reschedule_maint_plan_mail
+
+                await reschedule_maint_plan_mail(scheduler, AsyncSessionLocal)
             except Exception as e:
                 print(f"[startup] maint mail scheduler skip: {e}", flush=True)
             scheduler.start()
@@ -9220,24 +9223,66 @@ def _can_access_maint_settings(user: User) -> bool:
     return user.role != UserRole.viewer and _can_access_completion_approval(user)
 
 
-def _mset_redirect(message: str = "", error: str = "") -> RedirectResponse:
-    pairs = [(k, v) for k, v in (("message", message), ("error", error)) if v]
+MSET_TABS = ("receipt", "plan", "sender")
+
+
+def _mset_redirect(message: str = "", error: str = "", tab: str = "") -> RedirectResponse:
+    pairs = [
+        (k, v)
+        for k, v in (("tab", tab if tab in MSET_TABS[1:] else ""), ("message", message), ("error", error))
+        if v
+    ]
     return RedirectResponse(
         MSET_BASE + (f"?{urlencode(pairs)}" if pairs else ""), status_code=303
     )
 
 
+def _mset_parse_mail_form(form) -> tuple[list[str], dict[str, str], list[str], tuple[int, int] | None]:
+    """메일 설정 폼 공통 → (통합 주소, 협력사별 주소, 잘못된 주소, (시, 분) 또는 None)."""
+    import maint_mail
+
+    to_ok, bad_all = maint_mail.parse_emails(str(form.get("to") or ""))
+    bad_all = list(bad_all)
+    partner_to: dict[str, str] = {}
+    for key, raw in form.multi_items():
+        if not key.startswith("partner_to_"):
+            continue
+        pid = key[len("partner_to_"):]
+        if not pid.isdigit():
+            continue
+        ok, bad = maint_mail.parse_emails(str(raw or ""))
+        bad_all += bad
+        if ok:
+            partner_to[pid] = ", ".join(ok)
+    hhmm = str(form.get("send_time") or "").strip()
+    try:
+        hour, minute = (int(x) for x in hhmm.split(":")[:2])
+        hm = (hour, minute) if 0 <= hour <= 23 and 0 <= minute <= 59 else None
+    except ValueError:
+        hm = None
+    return to_ok, partner_to, bad_all, hm
+
+
 @app.get(MSET_BASE)
 async def maintenance_settings_page(
     request: Request,
+    tab: str = Query("receipt"),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
-    """정비관리 설정: 협력사 접수 정비의뢰 일일 메일."""
+    """정비관리 설정: 협력사 접수 메일 · 작업 예정 항목 메일 · 공식 발신 계정."""
     import maint_mail
+    import maint_plan_mail
 
     if not _can_access_maint_settings(user):
         raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
+    tab = tab if tab in MSET_TABS else "receipt"
+    scheduler = getattr(app.state, "scheduler", None)
+    plan_settings = await maint_plan_mail.load_settings(db)
+    plan_day = maint_plan_mail.target_day()
+    plan_preview = (
+        await maint_plan_mail.fetch_plans(db, plan_day, plan_settings["scope"]) if tab == "plan" else []
+    )
     settings = await maint_mail.load_settings(db)
     partners = (
         await db.execute(
@@ -9260,7 +9305,13 @@ async def maintenance_settings_page(
             "window_from": maint_mail.fmt_kst(since),
             "window_to": maint_mail.fmt_kst(until),
             "window_end": maint_mail.fmt_kst(maint_mail.next_cutoff(settings, now_utc)),
-            "next_run": maint_mail.next_run_label(getattr(app.state, "scheduler", None)),
+            "next_run": maint_mail.next_run_label(scheduler),
+            "tab": tab,
+            "p": plan_settings,
+            "plan_preview": plan_preview,
+            "plan_day": maint_plan_mail.day_label(plan_day),
+            "plan_scopes": maint_plan_mail.SCOPES,
+            "plan_next_run": maint_plan_mail.next_run_label(scheduler),
             "sender": sender,
             "sender_ok": sender_ok,
             "sender_msg": sender_msg,
@@ -9285,28 +9336,12 @@ async def maintenance_settings_save(
     if not _can_access_maint_settings(user):
         raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
     form = await request.form()
-    to_ok, to_bad = maint_mail.parse_emails(str(form.get("to") or ""))
-    partner_to: dict[str, str] = {}
-    bad_all = list(to_bad)
-    for key, raw in form.multi_items():
-        if not key.startswith("partner_to_"):
-            continue
-        pid = key[len("partner_to_"):]
-        if not pid.isdigit():
-            continue
-        ok, bad = maint_mail.parse_emails(str(raw or ""))
-        bad_all += bad
-        if ok:
-            partner_to[pid] = ", ".join(ok)
+    to_ok, partner_to, bad_all, hm = _mset_parse_mail_form(form)
     if bad_all:
         return _mset_redirect(error="메일 주소 형식이 올바르지 않습니다: " + ", ".join(bad_all[:5]))
-    hhmm = str(form.get("send_time") or "").strip()
-    try:
-        hour, minute = (int(x) for x in hhmm.split(":")[:2])
-        if not (0 <= hour <= 23 and 0 <= minute <= 59):
-            raise ValueError
-    except ValueError:
+    if hm is None:
         return _mset_redirect(error="발송 시각을 확인하세요 (예: 17:00).")
+    hour, minute = hm
     enabled = form.get("enabled") == "1"
     per_partner = form.get("per_partner") == "1"
     if enabled and not to_ok and not per_partner:
@@ -9382,6 +9417,103 @@ async def maintenance_settings_mail_preview(
     return HTMLResponse(page)
 
 
+@app.post(MSET_BASE + "/plan")
+async def maintenance_settings_plan_save(
+    request: Request,
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    """작업 예정 항목 메일(다음날 작업, 하루 전 발송) 설정 저장."""
+    import maint_plan_mail
+
+    if not _can_access_maint_settings(user):
+        raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
+    form = await request.form()
+    to_ok, partner_to, bad_all, hm = _mset_parse_mail_form(form)
+    if bad_all:
+        return _mset_redirect(error="메일 주소 형식이 올바르지 않습니다: " + ", ".join(bad_all[:5]), tab="plan")
+    if hm is None:
+        return _mset_redirect(error="발송 시각을 확인하세요 (예: 16:00).", tab="plan")
+    hour, minute = hm
+    enabled = form.get("enabled") == "1"
+    per_partner = form.get("per_partner") == "1"
+    if enabled and not to_ok and not per_partner:
+        return _mset_redirect(
+            error="자동 발송을 켜려면 통합 수신 주소를 입력하거나 협력사별 발송을 켜세요.", tab="plan"
+        )
+    await maint_plan_mail.save_settings(
+        db,
+        enabled=enabled,
+        hour=hour,
+        minute=minute,
+        scope=str(form.get("scope") or ""),
+        to=", ".join(to_ok),
+        per_partner=per_partner,
+        partner_to=partner_to,
+        send_empty=form.get("send_empty") == "1",
+        intro=str(form["intro"]) if "intro" in form else None,
+    )
+    await db.commit()
+    scheduler = getattr(app.state, "scheduler", None)
+    if scheduler is not None:
+        try:
+            await maint_plan_mail.reschedule(scheduler, AsyncSessionLocal)
+        except Exception as e:
+            return _mset_redirect(error=f"설정은 저장했지만 스케줄 등록에 실패했습니다: {e}", tab="plan")
+    msg = (
+        f"저장되었습니다. 매일 {hour:02d}:{minute:02d}(KST)에 다음날 작업 예정 항목을 발송합니다."
+        if enabled
+        else "저장되었습니다. 작업 예정 항목 자동 발송은 꺼져 있습니다."
+    )
+    return _mset_redirect(message=msg, tab="plan")
+
+
+@app.post(MSET_BASE + "/plan/test-send")
+async def maintenance_settings_plan_test_send(
+    user: User = Depends(require_can_edit),
+    db: AsyncSession = Depends(get_db),
+):
+    import maint_mail
+    import maint_plan_mail
+
+    if not _can_access_maint_settings(user):
+        raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
+    sender_ok, sender_msg = maint_mail.sender_status(await maint_mail.load_sender(db))
+    if not sender_ok:
+        return _mset_redirect(error=sender_msg, tab="plan")
+    ok, msg = await maint_plan_mail.run_send(db, test=True)
+    return _mset_redirect(message=msg, tab="plan") if ok else _mset_redirect(error=msg, tab="plan")
+
+
+@app.post(MSET_BASE + "/plan/mail-preview")
+async def maintenance_settings_plan_mail_preview(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """입력 중인 안내 문구·포함 기준으로 작업 예정 항목 통합 메일 본문 미리보기 (저장하지 않음)."""
+    import maint_plan_mail
+
+    if not _can_access_maint_settings(user):
+        raise HTTPException(403, "정비관리 설정 접근 권한이 없습니다.")
+    form = await request.form()
+    settings = await maint_plan_mail.load_settings(db)
+    intro = str(form.get("intro")) if "intro" in form else settings["intro"]
+    scope = str(form.get("scope") or settings["scope"])
+    day = maint_plan_mail.target_day()
+    rows = await maint_plan_mail.fetch_plans(db, day, scope if scope in maint_plan_mail.SCOPE_KEYS else "scheduled")
+    _, html = maint_plan_mail.build_mail(rows, day, intro=intro)
+    page = (
+        '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>작업 예정 메일 미리보기</title></head>'
+        '<body style="margin:0;background:#eef1f5;padding:24px;">'
+        '<div style="max-width:1200px;margin:0 auto;background:#fff;border-radius:10px;padding:24px;'
+        'box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto;">'
+        f'<p style="margin:0 0 16px;font:13px sans-serif;color:#6b7280;">제목: [정비관리] {maint_plan_mail.day_label(day)} 작업 예정 항목 {len(rows)}건 (통합) · 첨부: 작업예정_*.xlsx</p>'
+        f"{html}</div></body></html>"
+    )
+    return HTMLResponse(page)
+
+
 @app.post(MSET_BASE + "/sender")
 async def maintenance_settings_sender_save(
     request: Request,
@@ -9394,26 +9526,26 @@ async def maintenance_settings_sender_save(
     form = await request.form()
     data = {k: str(form.get(k) or "").strip() for k in maint_mail.SENDER_DEFAULTS}
     if data["sender_mode"] not in maint_mail.SENDER_MODES:
-        return _mset_redirect(error="발신 방식을 선택하세요.")
+        return _mset_redirect(error="발신 방식을 선택하세요.", tab="sender")
     for label, key in (("발신 주소", "sender_addr"), ("회신 주소", "reply_to"), ("계정(아이디)", "smtp_user")):
         if key == "smtp_user" and data["sender_mode"] != "smtp":
             continue
         if data[key]:
             ok, bad = maint_mail.parse_emails(data[key])
             if bad or len(ok) != 1:
-                return _mset_redirect(error=f"{label} 형식이 올바르지 않습니다: {data[key]}")
+                return _mset_redirect(error=f"{label} 형식이 올바르지 않습니다: {data[key]}", tab="sender")
     if data["sender_mode"] == "resend" and not data["sender_addr"]:
-        return _mset_redirect(error="Resend 방식은 발신 주소(도메인 인증된 주소)가 필요합니다.")
+        return _mset_redirect(error="Resend 방식은 발신 주소(도메인 인증된 주소)가 필요합니다.", tab="sender")
     if data["smtp_port"] and not data["smtp_port"].isdigit():
-        return _mset_redirect(error="SMTP 포트는 숫자로 입력하세요.")
+        return _mset_redirect(error="SMTP 포트는 숫자로 입력하세요.", tab="sender")
     data["smtp_security"] = "starttls" if data["smtp_security"] == "starttls" else "ssl"
     data["sender_name"] = data["sender_name"][:60]
     await maint_mail.save_sender(db, data)
     await db.commit()
     ok, msg = maint_mail.sender_status(await maint_mail.load_sender(db))
     if ok:
-        return _mset_redirect(message="발신 계정을 저장했습니다. 「연결 테스트」로 실제 발송을 확인하세요.")
-    return _mset_redirect(error="저장했지만 아직 발송할 수 없습니다: " + msg)
+        return _mset_redirect(message="발신 계정을 저장했습니다. 「연결 테스트」로 실제 발송을 확인하세요.", tab="sender")
+    return _mset_redirect(error="저장했지만 아직 발송할 수 없습니다: " + msg, tab="sender")
 
 
 @app.post(MSET_BASE + "/sender-test")
@@ -9427,9 +9559,9 @@ async def maintenance_settings_sender_test(
     form = await request.form()
     ok_addrs, _ = maint_mail.parse_emails(str(form.get("test_to") or ""))
     if len(ok_addrs) != 1:
-        return _mset_redirect(error="테스트 메일을 받을 주소 하나를 입력하세요.")
+        return _mset_redirect(error="테스트 메일을 받을 주소 하나를 입력하세요.", tab="sender")
     ok, msg = await maint_mail.send_sender_test(db, ok_addrs[0])
-    return _mset_redirect(message=msg) if ok else _mset_redirect(error=msg)
+    return _mset_redirect(message=msg, tab="sender") if ok else _mset_redirect(error=msg, tab="sender")
 
 
 def _fa_form_ids(form) -> list[int]:

@@ -307,23 +307,23 @@ XLSX_COLUMNS = (
 )
 
 
-def build_xlsx(rows: list[dict]) -> bytes:
+def build_xlsx(rows: list[dict], columns=XLSX_COLUMNS, sheet: str = "협력사 접수") -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "협력사 접수"
-    ws.append([c[0] for c in XLSX_COLUMNS])
+    ws.title = sheet
+    ws.append([c[0] for c in columns])
     for cell in ws[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="0F2A5C")
         cell.alignment = Alignment(horizontal="center", vertical="center")
     for r in rows:
-        ws.append([r.get(c[1], "") for c in XLSX_COLUMNS])
+        ws.append([r.get(c[1], "") for c in columns])
         for cell in ws[ws.max_row]:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
-    for idx, (_, _, width) in enumerate(XLSX_COLUMNS, start=1):
+    for idx, (_, _, width) in enumerate(columns, start=1):
         ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = width
     ws.freeze_panes = "A2"
     buf = BytesIO()
@@ -386,29 +386,50 @@ def build_mail(
     intro: str = "",
 ) -> tuple[str, str]:
     """(텍스트 본문, HTML 본문) — 안내 문구 + 접수 내역 전체."""
-    from html import escape
-
     period = f"{fmt_kst(since_utc)} ~ {fmt_kst(until_utc)}"
     day = fmt_kst(until_utc, "%Y-%m-%d")
     intro_txt = render_intro(
         intro, partner_name=partner_name or "협력사", count=len(rows), day=day, period=period
     )
-    title = f"{'[' + partner_name + '] ' if partner_name else ''}협력사 접수 정비의뢰 내역"
+    return render_table_mail(
+        rows,
+        partner_name=partner_name,
+        intro_txt=intro_txt,
+        title=f"{'[' + partner_name + '] ' if partner_name else ''}협력사 접수 정비의뢰 내역",
+        meta=[("집계 구간(KST)", period), ("접수 건수", f"{len(rows)}건")],
+        empty_msg="해당 구간에 협력사로 접수된 정비의뢰가 없습니다.",
+    )
+
+
+def render_table_mail(
+    rows: list[dict],
+    *,
+    partner_name: str,
+    intro_txt: str,
+    title: str,
+    meta: list[tuple[str, str]],
+    empty_msg: str,
+    columns=BODY_COLUMNS,
+    footer: str = FOOTER,
+) -> tuple[str, str]:
+    """안내 문구 + 협력사별 표 → (텍스트, HTML). meta 마지막 항목 값이 강조 표시됨."""
+    from html import escape
+
     groups = _group(rows)
 
     # 텍스트
     lines: list[str] = []
     if intro_txt:
         lines += [intro_txt, ""]
-    lines += [f"■ {title}", f"집계 구간(KST): {period}", f"접수 건수: {len(rows)}건", ""]
+    lines += [f"■ {title}"] + [f"{k}: {v}" for k, v in meta] + [""]
     if not rows:
-        lines.append("해당 구간에 협력사로 접수된 정비의뢰가 없습니다.")
+        lines.append(empty_msg)
     for name, items in groups.items():
         if not partner_name:
             lines += [f"[{name}] {len(items)}건", ""]
         for i, r in enumerate(items, start=1):
             lines.append(f"{i}. #{r['id']} {r['title'] or '(제목 없음)'}")
-            for label, key, _ in BODY_COLUMNS:
+            for label, key, _ in columns:
                 if key in ("id", "title"):
                     continue
                 val = _cell(r, key)
@@ -418,7 +439,7 @@ def build_mail(
                     val = val.replace("\r\n", "\n").replace("\n", "\n      ")
                 lines.append(f"   - {label}: {val}")
             lines.append("")
-    lines += ["", FOOTER]
+    lines += ["", footer]
     text = "\n".join(lines)
 
     # HTML
@@ -432,26 +453,30 @@ def build_mail(
     ]
     if intro_txt:
         parts.append(f'<p style="margin:0 0 16px;">{p(intro_txt)}</p>')
+    meta_html = " · ".join(
+        f"{escape(k)} <b style=\"color:#1d6ff2;\">{escape(v)}</b>" if i == len(meta) - 1 else f"{escape(k)} {escape(v)}"
+        for i, (k, v) in enumerate(meta)
+    )
     parts.append(
         f'<h3 style="margin:0 0 4px;font-size:16px;color:#0f2a5c;">{escape(title)}</h3>'
-        f'<p style="margin:0 0 12px;font-size:12px;color:#6b7280;">집계 구간(KST) {escape(period)} · 접수 <b style="color:#1d6ff2;">{len(rows)}건</b></p>'
+        f'<p style="margin:0 0 12px;font-size:12px;color:#6b7280;">{meta_html}</p>'
     )
     if not rows:
-        parts.append('<p style="margin:0 0 12px;color:#6b7280;">해당 구간에 협력사로 접수된 정비의뢰가 없습니다.</p>')
+        parts.append(f'<p style="margin:0 0 12px;color:#6b7280;">{escape(empty_msg)}</p>')
     for name, items in groups.items():
         if not partner_name:
             parts.append(f'<h4 style="margin:16px 0 6px;font-size:14px;color:#1f2937;">{escape(name)} ({len(items)}건)</h4>')
-        head = "".join(f'<th style="{th}min-width:{w}px;">{escape(label)}</th>' for label, _, w in BODY_COLUMNS)
+        head = "".join(f'<th style="{th}min-width:{w}px;">{escape(label)}</th>' for label, _, w in columns)
         body_rows = []
         for i, r in enumerate(items):
             bg = "#ffffff" if i % 2 == 0 else "#f7f9fc"
-            cells = "".join(f'<td style="{td}">{p(_cell(r, key)) or "-"}</td>' for _, key, _ in BODY_COLUMNS)
+            cells = "".join(f'<td style="{td}">{p(_cell(r, key)) or "-"}</td>' for _, key, _ in columns)
             body_rows.append(f'<tr style="background:{bg};">{cells}</tr>')
         parts.append(
             '<table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;width:100%;margin:0 0 8px;">'
             f"<thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
         )
-    parts.append(f'<p style="margin:18px 0 0;font-size:12px;color:#9ca3af;">{escape(FOOTER)}</p></div>')
+    parts.append(f'<p style="margin:18px 0 0;font-size:12px;color:#9ca3af;">{escape(footer)}</p></div>')
     return text, "".join(parts)
 
 
@@ -551,7 +576,7 @@ def sender_status(sender: dict) -> tuple[bool, str]:
         return True, f"공식 계정 {sender_from(sender)} (Resend)"
     if os.environ.get("RESEND_API_KEY", "").strip() or os.environ.get("SMTP_HOST", "").strip():
         return True, "서버 기본 발신 설정(환경변수) 사용"
-    return False, "발신 계정이 없습니다. 아래 「공식 발신 계정」을 설정하세요."
+    return False, "발신 계정이 없습니다. 「공식 발신 계정」을 설정하세요."
 
 
 def sender_from(sender: dict) -> str:

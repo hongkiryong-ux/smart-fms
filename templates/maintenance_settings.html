@@ -2,15 +2,29 @@
 {% block title %}정비관리 설정{% endblock %}
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/work_orders.css?v=3" />
-<link rel="stylesheet" href="/static/css/maint_settings.css?v=3" />
+<link rel="stylesheet" href="/static/css/maint_settings.css?v=5" />
 {% endblock %}
+
+{% macro partner_rows(cfg) %}
+  {% for p in partners %}
+  <tr>
+    <td>{{ p.name }}</td>
+    <td class="ms-muted">{{ p.email or '-' }}</td>
+    <td><input type="text" name="partner_to_{{ p.id }}" class="ms-input"
+               value="{{ cfg.partner_to.get(p.id|string, '') }}"
+               placeholder="{{ p.email or '메일 주소 입력' }}"{% if not can_edit %} disabled{% endif %} /></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3" class="ms-muted">등록된 협력사가 없습니다.</td></tr>
+  {% endfor %}
+{% endmacro %}
 
 {% block content %}
 {% set ro = not can_edit %}
 <header class="wo2-head">
   <div class="wo2-head-title">
     <h1>정비관리 설정</h1>
-    <p>협력사에 접수된 정비의뢰를 매일 정해진 시각에 메일로 보냅니다.</p>
+    <p>협력사 접수 내용과 다음날 작업 예정 항목을 매일 정해진 시각에 메일로 보냅니다.</p>
   </div>
   <div class="wo2-head-right">
     <nav class="wo2-crumb" aria-label="현재 위치">
@@ -24,17 +38,35 @@
   </div>
 </header>
 
+<nav class="ms-tabs" aria-label="설정 구분">
+  <a class="ms-tab{% if tab == 'receipt' %} is-on{% endif %}" href="?tab=receipt">
+    접수메일 발송 설정 <span class="ms-dot {{ 'is-on' if s.enabled else 'is-off' }}">{{ '사용' if s.enabled else '꺼짐' }}</span>
+  </a>
+  <a class="ms-tab{% if tab == 'plan' %} is-on{% endif %}" href="?tab=plan">
+    작업 예정 항목 발송 설정 <span class="ms-dot {{ 'is-on' if p.enabled else 'is-off' }}">{{ '사용' if p.enabled else '꺼짐' }}</span>
+  </a>
+  <a class="ms-tab{% if tab == 'sender' %} is-on{% endif %}" href="?tab=sender">
+    공식 발신 계정 (공통) <span class="ms-dot {{ 'is-on' if sender_ok else 'is-warn' }}">{{ '발송 가능' if sender_ok else '설정 필요' }}</span>
+  </a>
+</nav>
+
 {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
 {% if flash_message %}<div class="alert alert-ok">{{ flash_message }}</div>{% endif %}
 
-<div class="ms-grid">
- <div class="ms-col">
+{% if tab != 'sender' %}
+<p class="ms-sender-bar{% if not sender_ok %} is-warn{% endif %}">
+  보내는 계정: <b>{{ sender_msg }}</b> · <a href="?tab=sender">공식 발신 계정 {{ '변경' if sender_ok else '설정하기' }}</a>
+</p>
+{% endif %}
+
+{% if tab == 'sender' %}
+<div class="ms-grid ms-grid-single">
   <section class="wo2-card ms-card" id="ms-sender">
     <div class="ms-card-head">
       <h2>공식 발신 계정</h2>
       <span class="ms-state {{ 'is-on' if sender_ok else 'is-warn' }}">{{ '발송 가능' if sender_ok else '설정 필요' }}</span>
     </div>
-    <p class="ms-desc">협력사에 가는 메일의 <b>보내는 사람</b>입니다. FMS 공식 메일 계정(예: Gmail·회사 메일)을 만들어 연결하면 그 계정 이름으로 발송됩니다.<br />
+    <p class="ms-desc">협력사에 가는 메일의 <b>보내는 사람</b>입니다. 접수메일·작업 예정 항목 메일 모두 이 계정으로 발송됩니다. FMS 공식 메일 계정(예: Gmail·회사 메일)을 만들어 연결하면 그 계정 이름으로 발송됩니다.<br />
       현재: <b>{{ sender_msg }}</b></p>
 
     {% if can_sender %}
@@ -120,7 +152,133 @@
     <p class="ms-hint">발신 계정은 시스템관리자만 변경할 수 있습니다.</p>
     {% endif %}
   </section>
+</div>
 
+{% elif tab == 'plan' %}
+<div class="ms-grid">
+  <section class="wo2-card ms-card">
+    <div class="ms-card-head">
+      <h2>작업 예정 항목 자동 발송</h2>
+      <span class="ms-state {{ 'is-on' if p.enabled else 'is-off' }}">{{ '사용 중' if p.enabled else '꺼짐' }}</span>
+    </div>
+    <p class="ms-desc">매일 발송 시각에 <b>다음날 작업 예정일로 확정된 정비</b>(정비 List(D-1)의 '내일작업')를 모아 하루 전에 보냅니다. 협력사에는 <b>자기 회사 작업만</b>, 통합 수신 주소에는 <b>전 협력사 작업</b>을 보내며, 잠재위험·안전대책이 담긴 엑셀이 첨부됩니다.</p>
+
+    <form method="post" action="/admin/maintenance/settings/plan" class="ms-form">
+      <div class="ms-row">
+        <span class="ms-label">자동 발송</span>
+        <label class="ms-switch">
+          <input type="checkbox" name="enabled" value="1"{% if p.enabled %} checked{% endif %}{% if ro %} disabled{% endif %} />
+          <span>매일 자동으로 메일 보내기</span>
+        </label>
+      </div>
+      <div class="ms-row">
+        <label class="ms-label" for="mp-time">발송 시각</label>
+        <div class="ms-field">
+          <input type="time" id="mp-time" name="send_time" class="wo2-sel ms-time" step="60" required
+                 value="{{ '%02d:%02d'|format(p.hour, p.minute) }}"{% if ro %} disabled{% endif %} />
+          <span class="ms-hint">매일 이 시각(한국시간)에 <b>다음날</b> 작업 예정 항목을 발송{% if plan_next_run %} · 다음 예정 <b>{{ plan_next_run }}</b>{% endif %}</span>
+        </div>
+      </div>
+      <div class="ms-row">
+        <label class="ms-label" for="mp-scope">포함 기준</label>
+        <div class="ms-field">
+          <select id="mp-scope" name="scope" class="wo2-sel"{% if ro %} disabled{% endif %}>
+            {% for key, label in plan_scopes %}
+            <option value="{{ key }}"{% if p.scope == key %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <span class="ms-hint">협력사가 작업 예정일을 지정하면 '작업 확정'으로 봅니다. 작업허가 단계까지 마친 건만 보내려면 기준을 바꾸세요. 완료된 정비는 제외됩니다.</span>
+        </div>
+      </div>
+      <div class="ms-row">
+        <label class="ms-label" for="mp-to">통합 수신 주소</label>
+        <div class="ms-field">
+          <textarea id="mp-to" name="to" rows="2" class="ms-input" placeholder="예: manager@poscowide.com, team@poscowide.com"{% if ro %} disabled{% endif %}>{{ p.to }}</textarea>
+          <span class="ms-hint">전 협력사 작업 예정 항목을 협력사별로 묶은 <b>통합 자료</b>를 이 주소로 따로 보냅니다. 여러 주소는 쉼표(,)나 줄바꿈으로 구분하세요.</span>
+          <label class="ms-check">
+            <input type="checkbox" name="send_empty" value="1"{% if p.send_empty %} checked{% endif %}{% if ro %} disabled{% endif %} />
+            작업 예정이 없는 날에도 통합 메일 보내기
+          </label>
+        </div>
+      </div>
+      <div class="ms-row">
+        <span class="ms-label">협력사별 발송</span>
+        <div class="ms-field">
+          <label class="ms-check">
+            <input type="checkbox" name="per_partner" value="1" data-toggle="mp-partners"{% if p.per_partner %} checked{% endif %}{% if ro %} disabled{% endif %} />
+            각 협력사에 자기 회사 작업 예정 항목만 보내기
+          </label>
+          <div class="ms-partners" id="mp-partners"{% if not p.per_partner %} hidden{% endif %}>
+            <p class="ms-hint">비워 두면 협력사 정보에 등록된 메일로 보냅니다. 다음날 작업이 있는 협력사에만 발송됩니다. (접수메일과 다른 주소로 받을 수 있습니다.)</p>
+            <div class="wo2-table-wrap">
+              <table class="wo2-table ms-ptable">
+                <thead><tr><th>협력사</th><th>등록 메일</th><th>발송 주소</th></tr></thead>
+                <tbody>{{ partner_rows(p) }}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ms-row">
+        <label class="ms-label" for="mp-intro">안내 문구</label>
+        <div class="ms-field">
+          <textarea id="mp-intro" name="intro" rows="5" maxlength="2000" class="ms-input"{% if ro %} disabled{% endif %}>{{ p.intro }}</textarea>
+          <span class="ms-hint">메일 본문 맨 위에 들어가고, 그 아래에 작업 예정 항목 표가 출력됩니다.
+            치환어: <code>{협력사}</code> <code>{건수}</code> <code>{작업일}</code> <code>{날짜}</code>(발송일)</span>
+        </div>
+      </div>
+      {% if not ro %}
+      <div class="ms-actions">
+        <button type="submit" class="wo2-btn wo2-btn-navy">저장</button>
+        <button type="submit" class="wo2-btn wo2-btn-line" formaction="/admin/maintenance/settings/plan/mail-preview"
+                formtarget="_blank" formnovalidate title="입력 중인 안내 문구·포함 기준으로 메일 본문을 새 창에서 봅니다 (저장 안 됨)">본문 미리보기</button>
+        <button type="submit" class="wo2-btn wo2-btn-line" form="mp-test-form"
+                title="저장된 설정으로 내일 작업 예정 항목을 지금 바로 보냅니다 (자동 발송 기록에는 영향 없음)">지금 테스트 발송</button>
+      </div>
+      {% endif %}
+    </form>
+    <form method="post" action="/admin/maintenance/settings/plan/test-send" id="mp-test-form"
+          onsubmit="return confirm('저장된 설정으로 내일 작업 예정 항목 테스트 메일을 지금 보낼까요?');"></form>
+
+    <dl class="ms-last">
+      <dt>마지막 결과</dt>
+      <dd>{% if p.last_result %}<span class="ms-muted">{{ p.last_result_at }}</span> {{ p.last_result }}{% else %}<span class="ms-muted">아직 발송 기록이 없습니다.</span>{% endif %}</dd>
+    </dl>
+  </section>
+
+  <section class="wo2-card ms-card">
+    <div class="ms-card-head">
+      <h2>내일 작업 예정 항목 미리보기</h2>
+      <span class="ms-count">{{ plan_preview|length }}<small>건</small></span>
+    </div>
+    <p class="ms-desc">작업 예정일 <b>{{ plan_day }}</b> · 저장된 포함 기준으로 지금 조회한 목록입니다. 「지금 테스트 발송」도 이 목록을 보냅니다.</p>
+    <div class="wo2-table-wrap">
+      <table class="wo2-table ms-preview">
+        <thead>
+          <tr><th>No</th><th>협력사</th><th>위치</th><th>설비</th><th>정비내용</th><th>작업허가</th><th>상태</th></tr>
+        </thead>
+        <tbody>
+          {% for r in plan_preview %}
+          <tr>
+            <td><a href="/admin/work-orders/{{ r.id }}">{{ r.id }}</a></td>
+            <td>{{ r.partner_name }}</td>
+            <td>{{ r.location or '-' }}</td>
+            <td>{{ r.eq_name or r.eq_code or '-' }}</td>
+            <td class="ms-wrap">{{ r.title or r.description }}</td>
+            <td>{{ r.permit }}</td>
+            <td>{{ r.status }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="ms-muted ms-empty">{{ plan_day }} 작업 예정인 정비가 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+{% else %}
+<div class="ms-grid">
   <section class="wo2-card ms-card">
     <div class="ms-card-head">
       <h2>협력사 접수 메일 자동 발송</h2>
@@ -159,7 +317,7 @@
         <span class="ms-label">협력사별 발송</span>
         <div class="ms-field">
           <label class="ms-check">
-            <input type="checkbox" name="per_partner" value="1" id="ms-per-partner"{% if s.per_partner %} checked{% endif %}{% if ro %} disabled{% endif %} />
+            <input type="checkbox" name="per_partner" value="1" data-toggle="ms-partners"{% if s.per_partner %} checked{% endif %}{% if ro %} disabled{% endif %} />
             각 협력사에 자기 회사 접수 건만 따로 보내기
           </label>
           <div class="ms-partners" id="ms-partners"{% if not s.per_partner %} hidden{% endif %}>
@@ -167,19 +325,7 @@
             <div class="wo2-table-wrap">
               <table class="wo2-table ms-ptable">
                 <thead><tr><th>협력사</th><th>등록 메일</th><th>발송 주소</th></tr></thead>
-                <tbody>
-                  {% for p in partners %}
-                  <tr>
-                    <td>{{ p.name }}</td>
-                    <td class="ms-muted">{{ p.email or '-' }}</td>
-                    <td><input type="text" name="partner_to_{{ p.id }}" class="ms-input"
-                               value="{{ s.partner_to.get(p.id|string, '') }}"
-                               placeholder="{{ p.email or '메일 주소 입력' }}"{% if ro %} disabled{% endif %} /></td>
-                  </tr>
-                  {% else %}
-                  <tr><td colspan="3" class="ms-muted">등록된 협력사가 없습니다.</td></tr>
-                  {% endfor %}
-                </tbody>
+                <tbody>{{ partner_rows(s) }}</tbody>
               </table>
             </div>
           </div>
@@ -212,8 +358,6 @@
     </dl>
   </section>
 
- </div>
-
   <section class="wo2-card ms-card">
     <div class="ms-card-head">
       <h2>다음 메일 미리보기</h2>
@@ -244,12 +388,14 @@
     </div>
   </section>
 </div>
+{% endif %}
 
 <script>
 (function () {
-  var cb = document.getElementById('ms-per-partner');
-  var box = document.getElementById('ms-partners');
-  if (cb && box) cb.addEventListener('change', function () { box.hidden = !cb.checked; });
+  document.querySelectorAll('input[data-toggle]').forEach(function (cb) {
+    var box = document.getElementById(cb.getAttribute('data-toggle'));
+    if (box) cb.addEventListener('change', function () { box.hidden = !cb.checked; });
+  });
 
   var sender = document.getElementById('ms-sender');
   if (!sender) return;
