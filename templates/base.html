@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#003876" />
   <link rel="manifest" href="/static/manifest.json" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20261023risk" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20261023brand" />
   {% block head_extra %}{% endblock %}
   {% set _mui_p = request.url.path %}
   {% set maint_ui = _mui_p.startswith('/admin/work-orders') or _mui_p.startswith('/admin/d1') or _mui_p.startswith('/admin/facility-section') or _mui_p.startswith('/admin/maintenance-final-approvals') or _mui_p.startswith('/admin/maintenance-performance') or _mui_p.startswith('/admin/maintenance/settings') or _mui_p.startswith('/admin/streetlamp') %}
@@ -52,7 +52,7 @@
       <span aria-hidden="true">☰</span>
       <span class="sr-only">메뉴</span>
     </button>
-    <a href="/admin/dashboard" class="mobile-topbar-brand">Digital FMS</a>
+    <a href="/admin/dashboard" class="mobile-topbar-brand">시설관리실 DX 시스템</a>
     <a href="/admin/logout" class="mobile-topbar-logout">로그아웃</a>
   </header>
   <div class="nav-backdrop" id="nav-backdrop" hidden></div>
@@ -62,7 +62,7 @@
       <button type="button" class="sidebar-close-mobile" id="nav-close-btn" aria-label="메뉴 닫기">&times;</button>
     </div>
     <a href="/admin/dashboard" class="sidebar-brand">
-      <strong>Digital FMS</strong>
+      <strong>시설관리실 DX 시스템</strong>
       <img class="sidebar-brand-logo"
            src="/static/img/posco-wide-white.png"
            alt="POSCO WIDE"
