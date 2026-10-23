@@ -525,6 +525,7 @@ async def import_excel_to_building(
     file_path: str | Path,
     replace: bool = False,
     building_id: int | None = None,
+    imported_by: str | None = None,
 ) -> dict[str, int]:
     """엑셀 파일을 건물에 import. replace=True면 기존 설비 비활성화 후 재등록."""
     if building_id is not None:
@@ -630,6 +631,7 @@ async def import_excel_to_building(
     stats["pm_added"] = hist_stats.get("pm_added", 0)
 
     building.excel_imported_at = datetime.utcnow()
+    building.excel_imported_by = (imported_by or "").strip()[:100] or None
     await session.commit()
     return stats
 
@@ -706,6 +708,7 @@ async def import_from_uploaded_excels(
     session: AsyncSession,
     files: list[tuple[str, str | Path]],
     replace: bool = True,
+    imported_by: str | None = None,
 ) -> dict[str, Any]:
     """업로드된 엑셀 파일 목록을 건물명(파일명)에 매칭해 일괄 import."""
     results: dict[str, Any] = {
@@ -750,7 +753,7 @@ async def import_from_uploaded_excels(
         seen_buildings.add(building_name)
         try:
             stats = await import_excel_to_building(
-                session, building_name, path, replace=replace
+                session, building_name, path, replace=replace, imported_by=imported_by
             )
             results["imported"] += 1
             results["total_created"] += stats["created"]

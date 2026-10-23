@@ -90,9 +90,9 @@
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/export/{{ selected_building.id }}">엑셀 출력</a>
     <a class="btn btn-secondary btn-sm" href="/admin/equipment/import?building_id={{ selected_building.id }}">엑셀 업데이트</a>
     <span class="eq-excel-import-date{% if not selected_building.excel_imported_at %} is-empty{% endif %}"
-          title="이 건물의 마지막 엑셀 import 시각">
+          title="이 건물의 마지막 엑셀 import 시각·실행자">
       {% if selected_building.excel_imported_at %}
-      마지막 import {{ fmt_kst(selected_building.excel_imported_at) }}
+      마지막 import {{ fmt_kst(selected_building.excel_imported_at) }}{% if selected_building.excel_imported_by %} · {{ selected_building.excel_imported_by }}{% endif %}
       {% else %}
       마지막 import 없음
       {% endif %}

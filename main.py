@@ -6816,6 +6816,7 @@ async def equipment_import_upload(
             tmp_path,
             replace=True,
             building_id=building_id,
+            imported_by=_wo_person_label(user),
         )
         msg = (
             f"시트 {stats['sheets']}개 · 신규 {stats['created']}건 · 갱신 {stats['updated']}건"
@@ -7059,7 +7060,9 @@ async def equipment_bulk_import(
                 status_code=303,
             )
 
-        results = await import_from_uploaded_excels(db, pairs, replace=True)
+        results = await import_from_uploaded_excels(
+            db, pairs, replace=True, imported_by=_wo_person_label(user)
+        )
         msg = (
             f"파일 {results.get('files', 0)}개 · 건물 {results.get('imported', 0)}개 import · "
             f"신규 {results['total_created']}건 · 갱신 {results['total_updated']}건"

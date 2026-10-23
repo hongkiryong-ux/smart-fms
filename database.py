@@ -193,6 +193,9 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE buildings ADD COLUMN IF NOT EXISTS excel_imported_at TIMESTAMP WITHOUT TIME ZONE"
         )
         await _exec(
+            "ALTER TABLE buildings ADD COLUMN IF NOT EXISTS excel_imported_by VARCHAR(100)"
+        )
+        await _exec(
             "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT '설비'"
         )
         await _exec(
@@ -603,6 +606,7 @@ async def ensure_schema_updates() -> None:
     else:
         for stmt in (
             "ALTER TABLE buildings ADD COLUMN excel_imported_at DATETIME",
+            "ALTER TABLE buildings ADD COLUMN excel_imported_by VARCHAR(100)",
             "ALTER TABLE equipment ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
             "ALTER TABLE equipment_types ADD COLUMN category VARCHAR(50) DEFAULT '설비'",
             "ALTER TABLE equipment ADD COLUMN extra_data TEXT",
