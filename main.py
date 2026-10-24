@@ -22553,6 +22553,17 @@ def _maint_wo_row(wo: WorkOrder, today: date) -> dict:
     }
 
 
+@app.get("/admin/maintenance/guide")
+async def maintenance_guide(request: Request, user: User = Depends(require_login)):
+    """정비관리 역할별 1페이지 사용 설명서 (A4 인쇄용)."""
+    if not any(
+        can_access_menu(user, k)
+        for k in ("work_orders", "d1", "facility_section", "maintenance_performance", "streetlamp")
+    ):
+        raise HTTPException(403)
+    return templates.TemplateResponse(request, "maintenance_guide.html", {"user": user})
+
+
 @app.get("/admin/maintenance/dashboard")
 async def maintenance_dashboard(
     request: Request,

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}정비관리 사용 설명서{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/maint_guide.css?v=1" />{% endblock %}
+{% block content %}
+<div class="mg-toolbar">
+  <a class="mg-back" href="/admin/maintenance/dashboard">‹ 정비관리 대시보드</a>
+  <button type="button" class="mg-print" onclick="window.print()">인쇄 / PDF 저장</button>
+</div>
+
+<article class="mg-sheet">
+  <header class="mg-head">
+    <div>
+      <h1>정비관리 사용 설명서</h1>
+      <p>정비의뢰부터 최종승인·정비이력 등록까지 — 역할별로 내 차례에 할 일만 확인하세요.</p>
+    </div>
+    <span class="mg-brand">시설관리실 DX 시스템</span>
+  </header>
+
+  <ol class="mg-flow" aria-label="정비 처리 흐름">
+    <li class="r-req"><b>1</b><span>정비의뢰 접수</span><em>의뢰자</em></li>
+    <li class="r-mnt"><b>2</b><span>업체 지정 · D-1 승인</span><em>정비섹션</em></li>
+    <li class="r-ptn"><b>3</b><span>예정일 · 작업허가 요청</span><em>협력사</em></li>
+    <li class="r-fac"><b>4</b><span>작업허가 승인</span><em>시설섹션</em></li>
+    <li class="r-ptn"><b>5</b><span>작업 · 완료요청</span><em>협력사</em></li>
+    <li class="r-fin"><b>6</b><span>최종승인 → 정비이력</span><em>정비·시설섹션</em></li>
+  </ol>
+
+  <div class="mg-grid">
+    <section class="mg-role r-req">
+      <h2><span>①</span> 정비의뢰자 <small>현장 운영·점검 담당</small></h2>
+      <p class="mg-menu">정비관리 › 정비접수/승인 「＋ 정비의뢰」 또는 설비관리 › 설비 상세 「정비의뢰」</p>
+      <ul>
+        <li><b>건물 → 설비</b>를 고르고 의뢰내용·우선순위(긴급/일반)·희망 예정일을 입력합니다.</li>
+        <li>현장 <b>사진을 첨부</b>하면 자동으로 축소 저장됩니다(기본 1년 보관, 「영구 보관」 선택 가능).</li>
+        <li>협력사를 알면 함께 지정 — 위험등급·잠재위험·안전대책이 협력사 기본값으로 채워집니다.</li>
+        <li><b>반려</b>되면 상단 알림으로 사유가 오므로, 보완해 다시 의뢰합니다.</li>
+        <li>진행 상황은 정비 상세의 「정비 진행 단계(의뢰→진행→완료)」로 확인합니다.</li>
+      </ul>
+    </section>
+
+    <section class="mg-role r-mnt">
+      <h2><span>②</span> 정비섹션 <small>접수·업체 배정</small></h2>
+      <p class="mg-menu">정비관리 › 정비접수/승인(정비섹션)</p>
+      <ul>
+        <li>상단 카드(정비의뢰·진행·완료·반려·<b>승인대기</b>)를 눌러 처리할 건만 봅니다.</li>
+        <li>행의 <b>협력사</b>를 지정한 뒤 「승인」 → 협력사 D-1 리스트로 전송됩니다. 여러 건은 체크 후 「선택 항목 일괄승인」(업체 미지정 건 제외).</li>
+        <li>부적합한 의뢰는 「반려」에 사유 입력 → 의뢰자에게 알림. 「승인됨」을 누르면 D-1 승인 취소.</li>
+        <li>진행상태·예정일·협력사를 고친 뒤 「저장」.</li>
+        <li>「나의 협력사 설정」으로 담당 협력사 건만 보이게 할 수 있습니다.</li>
+      </ul>
+    </section>
+
+    <section class="mg-role r-ptn">
+      <h2><span>③⑤</span> 협력사 <small>작업 수행</small></h2>
+      <p class="mg-menu">정비관리 › 정비 List(D-1)/협력사 › 자사명</p>
+      <ul>
+        <li>탭: <b>정비접수</b>(당일 배정) · 오늘작업 · 내일작업 · 정비 예정항목 · 정비완료항목.</li>
+        <li><b>예정일 지정 → 「승인요청」</b>(작업허가 요청). 체크 후 일괄 요청 가능, 예정일 없는 건은 요청 불가.</li>
+        <li>「요청완료」= 시설섹션 확인 대기, 「승인완료/이름」= 작업허가 완료 → <b>이때부터 작업 착수</b>.</li>
+        <li>작업 후 조치내용 입력, 진행상태 「완료」 저장 → <b>완료요청</b>(최종승인 대기). 상세에서 작업 전·후 사진 첨부, 잠재위험·안전대책 확인.</li>
+        <li>완료요청이 반려되면 「진행」으로 돌아오니 사유 확인 후 보완해 다시 완료 처리합니다.</li>
+        <li>배정 업체 변경·신규 의뢰 등록은 할 수 없습니다. 접수·전날 작업예정 메일이 자동 발송됩니다.</li>
+      </ul>
+    </section>
+
+    <section class="mg-role r-fac">
+      <h2><span>④</span> 시설섹션 <small>작업허가·안전 확인</small></h2>
+      <p class="mg-menu">정비관리 › 작업허가/승인(시설섹션)</p>
+      <ul>
+        <li>탭: <b>하루전 작업</b>(내일 예정) · 당일 작업 · 정비 예정작업 · 전체. 협력사가 승인요청한 건만 표시됩니다.</li>
+        <li>「승인」 → <b>위험등급·잠재위험·안전대책</b> 확인·수정 후 승인하면 진행상태가 「진행」으로 바뀝니다. 체크 후 「선택 항목 일괄승인」 가능.</li>
+        <li>「승인됨/이름」을 누르면 작업허가 취소.</li>
+        <li>협력사별 안전대책 <b>기본값</b>을 저장해 두면 다음 승인 창에 미리 채워집니다.</li>
+        <li>「내 건물 설정」으로 담당 건물 작업만 볼 수 있습니다.</li>
+      </ul>
+    </section>
+
+    <section class="mg-role r-fin">
+      <h2><span>⑥</span> 최종승인 <small>정비섹션·시설섹션 공통</small></h2>
+      <p class="mg-menu">정비관리 › 정비완료 최종승인</p>
+      <ul>
+        <li>탭: 전체 · <b>승인대기</b> · 승인완료 · 반려. 「금일 완료요청」 카드로 오늘 요청 건 확인.</li>
+        <li>조치내용·사진 확인 후 「승인」(또는 체크 후 일괄 최종승인) → 정비완료 처리, <b>설비 정비이력 자동 등록</b>.</li>
+        <li>미흡하면 「반려」에 사유 입력 → 「진행」으로 되돌아가 협력사가 재요청합니다.</li>
+        <li>조치내용 칸을 직접 고쳐 「저장」할 수 있습니다.</li>
+      </ul>
+    </section>
+
+    <section class="mg-role r-adm">
+      <h2><span>⚙</span> 관리자 · 조회자</h2>
+      <p class="mg-menu">정비관리 대시보드 우측 상단 「설정」</p>
+      <ul>
+        <li><b>접수메일 발송 설정</b>: 협력사별·통합 수신 주소, 발송 시각.</li>
+        <li><b>작업 예정 항목 발송 설정</b>: 매일 지정 시각에 다음날 확정 작업을 협력사별(자사 건만)·통합 주소로 발송. 「미리보기」·「테스트 발송」으로 확인.</li>
+        <li><b>발신 계정</b>: 공식 발신 메일 계정 등록.</li>
+        <li>정비실적(변동비): 실적 자료 업로드·ZIP 일괄 다운로드.</li>
+        <li><b>조회자</b>는 모든 화면을 보기만 가능(저장·승인 버튼 없음). 메뉴 권한은 계정관리에서 부여.</li>
+      </ul>
+    </section>
+  </div>
+
+  <footer class="mg-tips">
+    <b>공통 팁</b>
+    <span>사이드바 숫자 = 아직 확인 안 한 신규 건</span>
+    <span>검색어·기간·상태·협력사로 필터 후 「Excel 내보내기」</span>
+    <span>「열 설정」으로 열 켜기/끄기, 머리줄 경계를 끌어 너비 조절</span>
+    <span>각 화면 「? 도움말」에 상세 안내</span>
+  </footer>
+</article>
+{% endblock %}
