@@ -7917,7 +7917,7 @@ async def work_order_create(
     priority: str = Form("normal"),
     assignee_name: str = Form(""),
     scheduled_date: str = Form(""),
-    partner_id: int = Form(0),
+    partner_id: str = Form(""),
     hazard_content: str = Form(""),
     safety_measures: str = Form(""),
     risk_grade: str = Form(""),
@@ -7957,14 +7957,11 @@ async def work_order_create(
         except ValueError:
             sched = None
 
-    partner = None
-    partner_fk = None
-    if partner_id and partner_id > 0:
-        partner = await db.get(Partner, partner_id)
-        if partner and partner.is_active:
-            partner_fk = partner.id
-        else:
-            partner = None
+    pid = _query_int(partner_id)
+    partner = await db.get(Partner, pid) if pid > 0 else None
+    if not partner or not partner.is_active:
+        return RedirectResponse("/admin/work-orders?error=partner&open=1", status_code=303)
+    partner_fk = partner.id
 
     title = f"[정비의뢰] {eq.code} {eq.name}"
     person = _wo_person_label(user)

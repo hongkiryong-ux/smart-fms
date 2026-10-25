@@ -324,7 +324,7 @@
   <div class="eq-popup-body">
     <h2 class="wo2-help-title">정비접수/승인 사용 방법</h2>
     <ol class="wo2-help-list">
-      <li><b>정비의뢰 접수</b> — 「＋ 정비의뢰」에서 건물·설비·의뢰내용을 입력합니다. 협력사를 고르면 D-1 잠재위험·안전대책을 함께 지정할 수 있습니다.</li>
+      <li><b>정비의뢰 접수</b> — 「＋ 정비의뢰」에서 건물·설비·의뢰내용과 협력사(필수)를 입력합니다. 협력사를 고르면 D-1 잠재위험·안전대책이 기본값으로 채워집니다.</li>
       <li><b>업체 지정</b> — 목록의 「협력사」 칸에서 항목별 업체를 고릅니다.</li>
       <li><b>승인 (D-1 전송)</b> — 행의 「승인」 버튼으로 개별 승인하거나, 체크박스로 여러 건을 고른 뒤 「선택 항목 일괄승인」을 누릅니다. 업체 미지정 항목은 승인에서 제외됩니다.</li>
       <li><b>진행상태·예정일 변경</b> — 「진행상태」(의뢰/진행/완료)나 예정일·협력사를 바꾼 뒤 「저장」을 누릅니다.</li>
@@ -348,6 +348,8 @@
     <div class="alert alert-error">건물의 설비를 선택하세요.</div>
     {% elif request.query_params.get('error') == 'desc' %}
     <div class="alert alert-error">정비의뢰 내용을 입력하세요.</div>
+    {% elif request.query_params.get('error') == 'partner' %}
+    <div class="alert alert-error">협력사를 지정해야 정비의뢰가 접수됩니다.</div>
     {% endif %}
     <form method="post" action="/admin/work-orders" enctype="multipart/form-data" class="form-stack eq-wo-request-form" id="wo-create-form">
       <label>건물</label>
@@ -377,9 +379,9 @@
         <option value="high">긴급</option>
       </select>
 
-      <label>협력사</label>
-      <select name="partner_id" class="eq-wo-partner-select">
-        <option value="0">미지정</option>
+      <label>협력사 <span class="eq-wo-required">(필수)</span></label>
+      <select name="partner_id" class="eq-wo-partner-select" required>
+        <option value="" disabled selected>협력사 선택</option>
         {% for p in partners %}
         <option value="{{ p.id }}">{{ p.name }}</option>
         {% endfor %}
