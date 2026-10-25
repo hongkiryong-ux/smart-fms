@@ -1196,6 +1196,13 @@ async def _startup_db_init() -> None:
                 await ensure_default_settings(session)
                 await session.commit()
             try:
+                from maint_scope import ensure_default_all_buildings
+
+                async with AsyncSessionLocal() as session:
+                    await ensure_default_all_buildings(session)
+            except Exception as e:
+                print(f"[startup] my buildings default-all skipped: {e}", flush=True)
+            try:
                 import ilog2_labels
 
                 async with AsyncSessionLocal() as session:
@@ -5672,16 +5679,10 @@ async def building_create(
     db.add(building)
     await db.flush()
     await ensure_building_default_categories(db, building)
-    # '내 건물'을 지정해 둔 등록자는 목록에 넣어야 설비관리·점검 메뉴에 바로 보임
-    db_user = await db.get(User, user.id)
-    mine = _pm_user_building_ids(db_user) if db_user else set()
-    if mine:
-        db_user.pm_building_ids = sorted(mine | {building.id})
     await db.commit()
-    if mine:
-        from maint_nav_badges import _badge_cache
+    from maint_nav_badges import _badge_cache
 
-        _badge_cache.pop(user.id, None)
+    _badge_cache.clear()
     invalidate_nav_cache()
     return RedirectResponse(back, status_code=303)
 
