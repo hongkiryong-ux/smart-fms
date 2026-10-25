@@ -205,9 +205,9 @@
                   <option value="high">긴급</option>
                 </select>
               </label>
-              <label>협력사
-                <select name="partner_id" class="eq-wo-partner-select">
-                  <option value="0">미지정</option>
+              <label>협력사 <span class="eq-wo-required">(필수)</span>
+                <select name="partner_id" class="eq-wo-partner-select" required>
+                  <option value="" disabled selected>협력사 선택</option>
                   {% for p in partners or [] %}
                   <option value="{{ p.id }}">{{ p.name }}</option>
                   {% endfor %}

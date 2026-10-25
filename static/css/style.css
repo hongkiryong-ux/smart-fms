@@ -3966,6 +3966,11 @@ button.link-action:hover { text-decoration: underline; }
   width: 100%;
   margin-top: 0.25rem;
 }
+.eq-wo-required {
+  color: #dc2626;
+  font-size: 0.78em;
+  font-weight: 600;
+}
 @media (max-width: 700px) {
   .eq-wo-request-meta { grid-template-columns: 1fr; }
 }
