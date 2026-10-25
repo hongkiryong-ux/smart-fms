@@ -22553,15 +22553,82 @@ def _maint_wo_row(wo: WorkOrder, today: date) -> dict:
     }
 
 
+def _can_edit_maint_guide(user: User) -> bool:
+    return bool(user.can_edit) and _can_access_maint_settings(user)
+
+
 @app.get("/admin/maintenance/guide")
-async def maintenance_guide(request: Request, user: User = Depends(require_login)):
-    """정비관리 역할별 1페이지 사용 설명서 (A4 인쇄용)."""
+async def maintenance_guide(
+    request: Request,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    """정비관리 역할별 1페이지 사용 설명서 (A4 인쇄용, 권한자 화면 수정)."""
+    import maint_guide
+
     if not any(
         can_access_menu(user, k)
         for k in ("work_orders", "d1", "facility_section", "maintenance_performance", "streetlamp")
     ):
         raise HTTPException(403)
-    return templates.TemplateResponse(request, "maintenance_guide.html", {"user": user})
+    custom_html, updated = await maint_guide.load(db)
+    updated_label = ""
+    if updated:
+        who, _, at = updated.partition("|")
+        try:
+            updated_label = f"{_fmt_kst(datetime.fromisoformat(at))} · {who}"
+        except ValueError:
+            updated_label = who
+    return templates.TemplateResponse(
+        request,
+        "maintenance_guide.html",
+        {
+            "user": user,
+            "custom_html": custom_html,
+            "is_custom": bool(custom_html),
+            "updated_label": updated_label,
+            "can_edit_guide": _can_edit_maint_guide(user),
+            "flash_message": request.query_params.get("message") or "",
+            "flash_error": request.query_params.get("error") or "",
+        },
+    )
+
+
+@app.post("/admin/maintenance/guide")
+async def maintenance_guide_save(
+    html: str = Form(""),
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import maint_guide
+
+    if not _can_edit_maint_guide(user):
+        return JSONResponse({"ok": False, "error": "설명서 수정 권한이 없습니다."}, status_code=403)
+    if len(html) > maint_guide.MAX_HTML_LEN:
+        return JSONResponse({"ok": False, "error": "내용이 너무 깁니다."}, status_code=400)
+    clean = maint_guide.sanitize_html(html)
+    if not clean:
+        return JSONResponse({"ok": False, "error": "내용이 비어 있습니다."}, status_code=400)
+    await maint_guide.save(db, clean, _wo_person_label(user))
+    await db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/admin/maintenance/guide/reset")
+async def maintenance_guide_reset(
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    import maint_guide
+
+    if not _can_edit_maint_guide(user):
+        raise HTTPException(403, "설명서 수정 권한이 없습니다.")
+    await maint_guide.reset(db, _wo_person_label(user))
+    await db.commit()
+    return RedirectResponse(
+        "/admin/maintenance/guide?message=" + quote("기본 설명서로 복원했습니다."),
+        status_code=303,
+    )
 
 
 @app.get("/admin/maintenance/dashboard")
