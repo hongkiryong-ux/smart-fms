@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
-from models import AppSetting, Building, Equipment, Floor, Partner, Site, User, WorkOrder, Zone
+from models import AppSetting, Building, Equipment, Floor, Partner, Site, User, UserRole, WorkOrder, Zone
 
 DEFAULT_ALL_BUILDINGS_KEY = "my_buildings.default_all_v1"
 
@@ -29,7 +29,15 @@ def parse_id_set(raw) -> set[int]:
 
 
 async def scoped_partner_ids(db: AsyncSession, user: User | None) -> set[int]:
-    """정비접수 '나의 협력사' 중 사용 중인 협력사 id (비어 있으면 전체)."""
+    """정비접수 '나의 협력사' 중 사용 중인 협력사 id (비어 있으면 전체).
+
+    협력사·외부업체 계정은 표시 설정과 관계없이 소속 업체만 (소속이 없으면 빈 결과용 {0}).
+    """
+    if user is not None and user.role in (UserRole.partner, UserRole.external):
+        from auth import user_own_partner_id
+
+        own = await user_own_partner_id(db, user)
+        return {int(own)} if own else {0}
     ids = parse_id_set(getattr(user, "wo_partner_ids", None))
     if not ids:
         return set()

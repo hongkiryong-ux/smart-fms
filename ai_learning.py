@@ -129,8 +129,12 @@ async def create_lesson_from_feedback(
     *,
     api_key: str = "",
     model: str = "",
+    auto_activate: bool = False,
 ) -> AiLesson | None:
-    """문제 피드백 → 학습 노트. GPT 정리가 실패하면 사용자 지적 원문으로 지침을 만든다."""
+    """문제 피드백 → 학습 노트. GPT 정리가 실패하면 사용자 지적 원문으로 지침을 만든다.
+
+    모든 계정의 답변 프롬프트에 들어가므로 관리자가 아닌 계정의 지침은 승인 전까지 사용 중지 상태로 둔다.
+    """
     import asyncio
 
     if fb.rating > 0:
@@ -162,7 +166,9 @@ async def create_lesson_from_feedback(
         if str(k).strip() and str(v).strip() and str(k).strip() != str(v).strip()
     }
     dup = (
-        await db.execute(select(AiLesson).where(AiLesson.rule == rule, AiLesson.is_active == True))  # noqa: E712
+        await db.execute(
+            select(AiLesson).where(AiLesson.rule == rule).order_by(AiLesson.is_active.desc()).limit(1)
+        )
     ).scalar_one_or_none()
     if dup:
         fb.lesson_id = dup.id
@@ -174,7 +180,7 @@ async def create_lesson_from_feedback(
         synonyms=json.dumps(synonyms, ensure_ascii=False),
         source_feedback_id=fb.id,
         created_by=fb.user_id,
-        is_active=True,
+        is_active=bool(auto_activate),
         created_at=now,
         updated_at=now,
     )
@@ -194,6 +200,7 @@ async def learn_from_correction_background(
     correction: str,
     api_key: str,
     model: str,
+    auto_activate: bool = False,
 ) -> None:
     """채팅 응답 후 백그라운드 — '그게 아니라' 같은 정정 질문을 문제 사례로 학습."""
     from database import AsyncSessionLocal
@@ -211,7 +218,9 @@ async def learn_from_correction_background(
                 comment=correction,
                 source="auto",
             )
-            await create_lesson_from_feedback(db, fb, api_key=api_key, model=model)
+            await create_lesson_from_feedback(
+                db, fb, api_key=api_key, model=model, auto_activate=auto_activate
+            )
             await db.commit()
     except Exception as e:  # noqa: BLE001
         print(f"[ai_learning] 자동 학습 실패: {e}", flush=True)

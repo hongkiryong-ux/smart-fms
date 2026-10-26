@@ -91,6 +91,7 @@ from database import (
 from init_data import seed_if_empty
 from ilog2_notes import notes_rows as ilog2_notes_rows
 from maint_scope import parse_id_set, scoped_building_ids, scoped_partner_ids, wo_in_buildings
+from write_guard import check_partner_scope, check_request as check_write_request, is_partner_role
 import onlyoffice as oo
 from server_status import collect_server_status
 from access_log import (
@@ -765,7 +766,8 @@ def _wo_photo_skip_message(skipped: int) -> str:
 
 
 def _can_manage_wo_photo(user: User, wo: WorkOrder, photo: WorkOrderPhoto | None = None) -> bool:
-    if can_edit(user):
+    # 협력사·외부업체는 수정 권한이 있어도 지정된 정비건만 (_can_manage_wo_photo_db에서 확인)
+    if can_edit(user) and not is_partner_role(user):
         return True
     if wo.requester_user_id and wo.requester_user_id == user.id:
         return True
@@ -778,7 +780,7 @@ async def _can_manage_wo_photo_db(
     """사진 관리 권한 — 기본 권한 + 해당 정비의뢰에 지정된 협력사 소속 계정."""
     if _can_manage_wo_photo(user, wo, photo):
         return True
-    if user.role != UserRole.partner or not wo.partner_id:
+    if not is_partner_role(user) or not wo.partner_id:
         return False
     return await user_own_partner_id(db, user) == int(wo.partner_id)
 
@@ -1536,6 +1538,9 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
                 request.session.clear()
                 return _login_redirect_for_request(request)
             request.state.current_user = user
+            blocked = check_write_request(request, user)
+            if blocked is not None:
+                return blocked
             return await _ilog2_label_dispatch(request, call_next, user)
 
         bootstrap_failed = False
@@ -1574,6 +1579,9 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
         if current is None:
             request.session.clear()
             return _login_redirect_for_request(request)
+        blocked = check_write_request(request, current) or await check_partner_scope(request, current)
+        if blocked is not None:
+            return blocked
         return await _ilog2_label_dispatch(request, call_next, current)
 
 
@@ -2172,12 +2180,14 @@ async def account_update_profile(
     db_user.name = nm
     db_user.phone = phone.strip() or None
     db_user.email = email.strip() or None
-    await _apply_user_company(
-        db,
-        db_user,
-        company_partner_id=company_partner_id,
-        company_name=company_name,
-    )
+    # 협력사·외부업체의 소속 업체는 처리 가능한 정비건 범위를 정하므로 계정관리(관리자)에서만 변경
+    if not is_partner_role(db_user):
+        await _apply_user_company(
+            db,
+            db_user,
+            company_partner_id=company_partner_id,
+            company_name=company_name,
+        )
     await db.commit()
     return RedirectResponse(
         "/admin/account?message=" + quote("개인정보가 저장되었습니다."),
@@ -8209,7 +8219,7 @@ async def work_order_status(
     if status not in allowed:
         status = "received"
 
-    partner_completion = status == "completed" and user.role == UserRole.partner
+    partner_completion = status == "completed" and is_partner_role(user)
     if partner_completion:
         own_partner_id = await user_own_partner_id(db, user)
         if not own_partner_id or int(wo.partner_id or 0) != int(own_partner_id):
@@ -8230,8 +8240,8 @@ async def work_order_status(
     if assignee_name is not None:
         wo.assignee_name = assignee_name.strip() or None
 
-    # 협력사 계정은 진행상태만 저장하며 배정 업체는 변경할 수 없음
-    if user.role != UserRole.partner:
+    # 협력사·외부업체 계정은 진행상태만 저장하며 배정 업체는 변경할 수 없음
+    if not is_partner_role(user):
         if partner_id and partner_id > 0:
             partner = await db.get(Partner, partner_id)
             wo.partner_id = partner.id if partner and partner.is_active else None
@@ -8767,6 +8777,11 @@ async def work_order_request_approval(
     wo = await db.get(WorkOrder, wo_id)
     if not wo or not wo.is_active:
         raise HTTPException(404)
+    if is_partner_role(user):
+        own_pid = await user_own_partner_id(db, user)
+        if not own_pid or int(wo.partner_id or 0) != int(own_pid):
+            raise HTTPException(403, "본인 협력사의 정비 항목만 승인요청할 수 있습니다.")
+        partner_id = 0
     await _apply_partner_and_schedule_from_form(
         db, wo, partner_id=partner_id, scheduled_date=scheduled_date
     )
@@ -8836,15 +8851,19 @@ async def d1_request_approval_bulk(
     no_date = 0
     no_partner = 0
     already = 0
+    partner_scoped = is_partner_role(user)
+    own_pid = await user_own_partner_id(db, user) if partner_scoped else None
 
     for wo_id in uniq:
         wo = await db.get(WorkOrder, wo_id)
         if not wo or not wo.is_active:
             continue
+        if partner_scoped and (not own_pid or int(wo.partner_id or 0) != int(own_pid)):
+            continue
         sched_raw = str(form.get(f"scheduled_{wo_id}") or "").strip()
         partner_raw = form.get(f"partner_{wo_id}") or "0"
         try:
-            pid = int(partner_raw)
+            pid = 0 if partner_scoped else int(partner_raw)
         except (TypeError, ValueError):
             pid = 0
         await _apply_partner_and_schedule_from_form(
@@ -10212,6 +10231,7 @@ def _schedule_correction_learning(
     question: str,
     api_key: str,
     model: str,
+    auto_activate: bool = False,
 ) -> None:
     """'그게 아니라'처럼 직전 답변을 정정하는 질문이면 직전 문답을 문제 사례로 백그라운드 학습."""
     import asyncio
@@ -10234,6 +10254,7 @@ def _schedule_correction_learning(
             correction=question,
             api_key=api_key,
             model=model,
+            auto_activate=auto_activate,
         )
     )
     _AI_BACKGROUND_TASKS.add(task)
@@ -10287,13 +10308,17 @@ async def ai_analysis_feedback(
     if rating < 0:
         db_user = await db.get(User, user.id) or user
         key, model = user_openai_credentials(db_user)
-        lesson = await create_lesson_from_feedback(db, fb, api_key=key, model=model)
+        lesson = await create_lesson_from_feedback(
+            db, fb, api_key=key, model=model, auto_activate=_can_manage_ai_learning(user)
+        )
     await db.commit()
     return JSONResponse(
         {
             "ok": True,
             "rating": rating,
-            "lesson": {"id": lesson.id, "rule": lesson.rule} if lesson else None,
+            "lesson": {"id": lesson.id, "rule": lesson.rule, "pending": not lesson.is_active}
+            if lesson
+            else None,
         }
     )
 
@@ -10470,7 +10495,9 @@ async def ai_analysis_chat(
             conv = await create_conversation(db, user.id, question, model)
         append_messages(conv, new_pair, model)
         await db.commit()
-        _schedule_correction_learning(user.id, conv.id, history, question, key, model)
+        _schedule_correction_learning(
+            user.id, conv.id, history, question, key, model, auto_activate=_can_manage_ai_learning(user)
+        )
         request.session[_AI_SESSION_CONV] = conv.id
         messages = conversation_messages(conv)
         summary = conversation_summary(conv)
@@ -11503,10 +11530,9 @@ async def d1_list(
     )
     if default_redir:
         return default_redir
-    if d1_partner_nav_restricted(user) and not partner_sel:
+    if d1_partner_nav_restricted(user):
         own = await user_own_partner_id(db, user)
-        if own:
-            partner_sel = own
+        partner_sel = own or -999
 
     open_statuses = [
         WorkOrderStatus.received,
@@ -11881,8 +11907,7 @@ async def d1_export(
         return scope_redir
     if d1_partner_nav_restricted(user):
         own = await user_own_partner_id(db, user)
-        if own:
-            partner_sel = own
+        partner_sel = own or -999
 
     open_statuses = [
         WorkOrderStatus.received,
@@ -11938,6 +11963,8 @@ async def d1_export(
         if not _wo_matches_status_filter(w, status_vals) or not text_ok(w):
             return False
         pid = int(w.partner_id or 0)
+        if partner_sel < -1:
+            return False
         if partner_sel == -1 and pid != 0:
             return False
         if partner_sel > 0 and pid != partner_sel:

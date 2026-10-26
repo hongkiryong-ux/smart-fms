@@ -591,7 +591,9 @@
       try {
         var data = await sendFeedback(idx, -1, (ta.value || '').trim());
         done(data.lesson
-          ? '👎 공유 학습 노트에 반영했습니다 → ' + data.lesson.rule
+          ? (data.lesson.pending
+            ? '👎 학습 노트 후보로 등록했습니다 (관리자 승인 후 반영) → '
+            : '👎 공유 학습 노트에 반영했습니다 → ') + data.lesson.rule
           : '👎 피드백을 기록했습니다. (내용을 적어 주시면 지침으로 학습됩니다)');
       } catch (e) {
         setStatus(e.message, 'error');

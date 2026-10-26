@@ -75,7 +75,7 @@
       </div>
     </div>
     <div class="al-actions">
-      <label style="margin:0"><input type="checkbox" name="is_active" value="1" {% if l.is_active %}checked{% endif %}> 사용</label>
+      <label style="margin:0"><input type="checkbox" name="is_active" value="1" {% if l.is_active %}checked{% endif %}> 사용{% if not l.is_active %} (체크 후 저장하면 승인){% endif %}</label>
       <button class="btn btn-primary btn-sm" type="submit">저장</button>
       <button class="btn btn-secondary btn-sm" type="submit" formaction="/admin/ai-analysis/learning/{{ l.id }}/delete"
               onclick="return confirm('이 지침을 삭제할까요?')">삭제</button>
@@ -88,7 +88,7 @@
     <div class="al-meta">
       {% for k in l.keywords %}<span class="al-tag">{{ k }}</span>{% endfor %}
       {% for a, c in l.synonyms.items() %}<span class="al-tag">{{ a }} → {{ c }}</span>{% endfor %}
-      · 답변에 반영 {{ l.hit_count }}회{% if not l.is_active %} · 사용 중지{% endif %}
+      · 답변에 반영 {{ l.hit_count }}회{% if not l.is_active %} · 승인 대기/사용 중지{% endif %}
     </div>
   </div>
   {% endif %}

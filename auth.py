@@ -258,7 +258,12 @@ _MENU_PATH_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/notices", "notices"),
     ("/admin/sites", "sites"),
     ("/admin/buildings", "sites"),
+    ("/admin/floors", "sites"),
+    ("/admin/zones", "sites"),
     ("/admin/equipment", "equipment"),
+    ("/admin/equipment-types", "equipment"),
+    ("/admin/templates", "equipment"),
+    ("/admin/ilog2-page-excel", "inspection_logs2"),
     ("/admin/inspection-logs2", "inspection_logs2"),
     ("/admin/inspection-logs", "inspection_logs2"),
     ("/admin/pm", "pm"),
@@ -313,7 +318,7 @@ def default_menu_access(role) -> list[str]:
     if code in (UserRole.partner.value, UserRole.external.value):
         denied |= {
             "equipment", "pm", "inspection_logs2", "facility_section",
-            "maintenance_performance", "streetlamp", "library",
+            "maintenance_performance", "streetlamp", "library", "ai_analysis",
         }
     return [k for k in MENU_KEYS if k not in denied]
 
@@ -387,8 +392,8 @@ def menu_access_flags_for_edit(user: User | None) -> set[str]:
 
 
 def d1_partner_nav_restricted(user: User | None) -> bool:
-    """협력사 역할 + D-1 전체 메뉴 플래그 없음 → 내 회사만."""
-    if user is None or user.role != UserRole.partner:
+    """협력사·외부업체 역할 + D-1 전체 메뉴 플래그 없음 → 내 회사만."""
+    if user is None or user.role not in (UserRole.partner, UserRole.external):
         return False
     if "d1_all_partners" in menu_access_flags_for_edit(user):
         return False
