@@ -366,6 +366,9 @@ async def ensure_schema_updates() -> None:
         await _exec(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS wo_partner_ids JSONB"
         )
+        await _exec(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER DEFAULT 0"
+        )
         await _exec("UPDATE users SET is_approved = TRUE WHERE is_approved IS NULL")
         await _exec("UPDATE users SET can_create = TRUE WHERE can_create IS NULL")
         await _exec("UPDATE users SET can_edit = TRUE WHERE can_edit IS NULL")
