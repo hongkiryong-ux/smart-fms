@@ -12,6 +12,8 @@
     {% endif %}
     {% if error == '1' %}
     <div class="alert alert-error">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+    {% elif error == 'locked' %}
+    <div class="alert alert-error">로그인 실패가 반복되어 15분간 로그인이 제한됩니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요.</div>
     {% elif error == 'pending' %}
     <div class="alert alert-error">가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.</div>
     {% elif error %}
@@ -40,53 +42,8 @@
 </div>
 <script>
 (function () {
-  var KEY = 'fms_auto_login';
-  var form = document.getElementById('login-form');
-  var userEl = document.getElementById('login-username');
-  var passEl = document.getElementById('login-password');
-  var rememberEl = document.getElementById('login-remember');
-  if (!form || !userEl || !passEl || !rememberEl) return;
-
-  var qs = window.location.search || '';
-  var loggedOut = qs.indexOf('logout=1') >= 0;
-  var hasError = qs.indexOf('error=') >= 0;
-
-  if (loggedOut) {
-    try { localStorage.removeItem(KEY); } catch (e) {}
-    return;
-  }
-
-  function saveCredentials() {
-    try {
-      if (rememberEl.checked) {
-        localStorage.setItem(KEY, JSON.stringify({
-          remember: true,
-          username: userEl.value,
-          password: passEl.value
-        }));
-      } else {
-        localStorage.removeItem(KEY);
-      }
-    } catch (e) {}
-  }
-
-  function restoreCredentials() {
-    try {
-      var raw = localStorage.getItem(KEY);
-      if (!raw) return;
-      var data = JSON.parse(raw);
-      if (!data || !data.remember) return;
-      if (data.username) userEl.value = data.username;
-      if (data.password) passEl.value = data.password;
-      rememberEl.checked = true;
-      if (!hasError && data.username && data.password) {
-        form.submit();
-      }
-    } catch (e) {}
-  }
-
-  form.addEventListener('submit', saveCredentials);
-  restoreCredentials();
+  // 자동 로그인은 서버의 HttpOnly 쿠키로 처리 — 예전 버전이 브라우저에 남긴 아이디·비밀번호는 지운다
+  try { localStorage.removeItem('fms_auto_login'); } catch (e) {}
 })();
 </script>
 {% endblock %}

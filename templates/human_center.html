@@ -164,7 +164,7 @@
           <thead>
             <tr>
               <th>구분</th><th>시각</th>
-              {% for f in schema.electrical_main.fields %}<th>{{ f.label|replace('\n','<br />')|safe }}</th>{% endfor %}
+              {% for f in schema.electrical_main.fields %}<th>{{ f.label|e|replace('\n', '<br />'|safe) }}</th>{% endfor %}
             </tr>
             <tr class="hc-std-row">
               <th colspan="2">기준치</th>
@@ -192,7 +192,7 @@
           <thead>
             <tr>
               <th>구분</th><th>시각</th>
-              {% for f in schema.electrical_new.fields %}<th>{{ f.label|replace('\n','<br />')|safe }}</th>{% endfor %}
+              {% for f in schema.electrical_new.fields %}<th>{{ f.label|e|replace('\n', '<br />'|safe) }}</th>{% endfor %}
             </tr>
             <tr class="hc-std-row">
               <th colspan="2">기준치</th>
@@ -223,7 +223,7 @@
           <thead>
             <tr>
               <th>시각</th>
-              {% for f in schema.chiller.fields %}<th>{{ f.label|replace('\n','<br />')|safe }}</th>{% endfor %}
+              {% for f in schema.chiller.fields %}<th>{{ f.label|e|replace('\n', '<br />'|safe) }}</th>{% endfor %}
             </tr>
             <tr class="hc-std-row">
               <th>기준치<br /><small>HH:MM</small></th>

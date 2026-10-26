@@ -307,7 +307,7 @@
   <img alt="설비 사진 원본" />
 </dialog>
 
-<script type="application/json" id="eq-pm-inspections-data">{{ pm_inspections_json | safe }}</script>
+<script type="application/json" id="eq-pm-inspections-data">{{ pm_inspections_json | json_script }}</script>
 <script>
 (function () {
   var pmData = {};

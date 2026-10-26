@@ -20,7 +20,14 @@ router = APIRouter()
 
 MAX_FILE_BYTES = 30 * 1024 * 1024
 MAX_FILES_PER_UPLOAD = 20
-_INLINE_TYPES = ("image/", "application/pdf", "text/plain")
+# 브라우저에서 바로 열어도 스크립트가 실행되지 않는 형식만 미리보기 허용 (SVG·HTML 제외)
+_INLINE_TYPES = frozenset(
+    {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "application/pdf", "text/plain"}
+)
+
+
+def _guess_ctype(name: str) -> str:
+    return mimetypes.guess_type(name)[0] or "application/octet-stream"
 
 
 def _is_admin(user: User | None) -> bool:
@@ -600,7 +607,7 @@ async def library_file_upload(
         if not data or len(data) > MAX_FILE_BYTES:
             skipped.append(name)
             continue
-        ctype = (up.content_type or "").strip() or mimetypes.guess_type(name)[0] or "application/octet-stream"
+        ctype = _guess_ctype(name)
         db.add(
             LibraryFile(
                 folder_id=folder.id,
@@ -640,8 +647,13 @@ async def library_file_download(
     ).scalar_one_or_none()
     if not f:
         raise HTTPException(404, "자료를 찾을 수 없습니다.")
-    ctype = f.content_type or "application/octet-stream"
-    disp = "inline" if inline and ctype.startswith(_INLINE_TYPES) else "attachment"
+    ctype = _guess_ctype(f.original_name or "")
+    if ctype in _INLINE_TYPES and inline:
+        disp = "inline"
+    else:
+        disp = "attachment"
+        if ctype not in _INLINE_TYPES:
+            ctype = "application/octet-stream"
     stem, dot, ext = f.original_name.rpartition(".")
     ascii_stem = (stem if dot else f.original_name).encode("ascii", "ignore").decode().strip(" ._-")
     ascii_ext = ext.encode("ascii", "ignore").decode() if dot else ""

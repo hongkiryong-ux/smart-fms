@@ -44,7 +44,7 @@
 <script src="{{ onlyoffice_api_js }}"></script>
 <script>
 (function () {
-  var cfg = {{ editor_config_json | safe }};
+  var cfg = {{ editor_config_json | json_script }};
   var FILE_ID = {{ file_id | tojson }};
   var CURSOR_URL = {{ cursor_url | tojson }};
   var UNLOCK_URL = {{ unlock_url | tojson }};

@@ -2,12 +2,14 @@
 """초기 데모 데이터 생성."""
 from __future__ import annotations
 
+import os
+import secrets
 from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import apply_role_permissions, hash_password
+from auth import apply_role_permissions, hash_password, verify_password
 from models import (
     Building,
     Consumable,
@@ -29,16 +31,56 @@ from models import (
 )
 
 
+_DEMO_PASSWORD = "password123"
+_DEMO_ACCOUNTS = ("guest1", "facility")
+
+
+def _is_production() -> bool:
+    return bool(os.environ.get("RENDER", "").strip())
+
+
+def _seed_admin_password() -> str:
+    pw = os.environ.get("ADMIN_PW", "").strip()
+    if pw:
+        return pw
+    if _is_production():
+        pw = secrets.token_urlsafe(12)
+        print(f"[seed] ADMIN_PW 미설정 — 임시 관리자 비밀번호: {pw} (로그인 후 즉시 변경)", flush=True)
+        return pw
+    return _DEMO_PASSWORD
+
+
+async def disable_default_demo_accounts(session: AsyncSession) -> None:
+    """운영 환경에서 공개된 기본 비밀번호를 그대로 쓰는 데모 계정은 로그인하지 못하게 한다."""
+    if not _is_production():
+        return
+    users = (
+        await session.execute(select(User).where(User.is_active == True))  # noqa: E712
+    ).scalars().all()
+    changed = False
+    for u in users:
+        if not u.password_hash or not verify_password(_DEMO_PASSWORD, u.password_hash):
+            continue
+        if u.username in _DEMO_ACCOUNTS:
+            u.is_active = False
+            changed = True
+            print(f"[security] 기본 비밀번호 데모 계정 비활성화: {u.username}", flush=True)
+        else:
+            print(f"[security] 경고: 기본 비밀번호를 쓰는 계정 {u.username} — 비밀번호 변경 필요", flush=True)
+    if changed:
+        await session.commit()
+
+
 async def seed_if_empty(session: AsyncSession) -> None:
     existing = await session.execute(select(Site).limit(1))
     if existing.scalar_one_or_none():
-        await ensure_guest1_user(session)
+        await disable_default_demo_accounts(session)
         await ensure_category_demo(session)
         return
 
     admin = User(
-        username="admin",
-        password_hash=hash_password("password123"),
+        username=os.environ.get("ADMIN_ID", "").strip() or "admin",
+        password_hash=hash_password(_seed_admin_password()),
         name="시스템관리자",
         role=UserRole.system_admin,
         email="admin@poscowide.com",
@@ -68,7 +110,9 @@ async def seed_if_empty(session: AsyncSession) -> None:
         can_edit=False,
         can_delete=False,
     )
-    session.add_all([admin, facility, guest1])
+    session.add(admin)
+    if not _is_production():
+        session.add_all([facility, guest1])
 
     partner = Partner(
         name="(주)광양설비",
@@ -308,33 +352,6 @@ async def seed_if_empty(session: AsyncSession) -> None:
     await session.commit()
     print("[seed] demo data created", flush=True)
     await ensure_category_demo(session)
-
-
-async def ensure_guest1_user(session: AsyncSession) -> None:
-    """조회전용 guest1 계정 보장 (삭제 권한 없음)."""
-    try:
-        existing = (
-            await session.execute(select(User).where(User.username == "guest1"))
-        ).scalar_one_or_none()
-        if existing:
-            existing.role = UserRole.viewer
-            existing.is_approved = True
-            apply_role_permissions(existing)
-            await session.commit()
-            return
-        guest = User(
-            username="guest1",
-            password_hash=hash_password("password123"),
-            name="게스트",
-            role=UserRole.viewer,
-            is_approved=True,
-        )
-        apply_role_permissions(guest)
-        session.add(guest)
-        await session.commit()
-        print("[seed] guest1 viewer account created", flush=True)
-    except Exception as e:
-        print(f"[seed] guest1 ensure skipped: {e}", flush=True)
 
 
 async def ensure_category_demo(session: AsyncSession) -> None:

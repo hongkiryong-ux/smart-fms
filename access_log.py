@@ -1,7 +1,7 @@
 # access_log.py — FMS 활동(접속·조회·등록·수정·삭제) 감사 이력
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import Request
@@ -31,6 +31,7 @@ DETAIL_LABELS: dict[str, str] = {
     "invalid_credentials": "아이디/비밀번호 오류",
     "inactive": "비활성 계정",
     "pending_approval": "승인 대기",
+    "locked": "로그인 잠금(연속 실패)",
     "withdraw": "계정 탈퇴",
 }
 
@@ -107,12 +108,55 @@ _SKIP_AUDIT_SUFFIXES: tuple[str, ...] = (
 
 
 def client_ip(request: Request) -> str:
+    # Cloudflare가 덮어쓰는 값 우선 — X-Forwarded-For 첫 값은 클라이언트가 임의로 넣을 수 있음
+    cf_ip = (request.headers.get("cf-connecting-ip") or "").strip()
+    if cf_ip:
+        return cf_ip[:64]
     forwarded = (request.headers.get("x-forwarded-for") or "").strip()
     if forwarded:
-        return forwarded.split(",")[0].strip()[:64]
+        return forwarded.split(",")[-1].strip()[:64]
     if request.client and request.client.host:
         return request.client.host[:64]
     return ""
+
+
+LOGIN_FAIL_LIMIT = 5
+LOGIN_IP_FAIL_LIMIT = 20
+LOGIN_LOCK_MINUTES = 15
+
+
+async def login_is_locked(db: AsyncSession, username: str, ip: str) -> bool:
+    """최근 15분 비밀번호 오류: 아이디 5회(마지막 성공 이후) 또는 IP 20회면 잠금."""
+    since = datetime.utcnow() - timedelta(minutes=LOGIN_LOCK_MINUTES)
+    fail = (
+        AccessLog.event_type == "login_fail",
+        AccessLog.detail == "invalid_credentials",
+        AccessLog.created_at >= since,
+    )
+    uname = (username or "").strip()[:64]
+    if uname:
+        last_ok = (
+            await db.execute(
+                select(func.max(AccessLog.created_at)).where(
+                    AccessLog.event_type == "login_success", AccessLog.username == uname
+                )
+            )
+        ).scalar()
+        conds = [*fail, AccessLog.username == uname]
+        if last_ok and last_ok > since:
+            conds.append(AccessLog.created_at > last_ok)
+        n_user = (await db.execute(select(func.count(AccessLog.id)).where(*conds))).scalar() or 0
+        if n_user >= LOGIN_FAIL_LIMIT:
+            return True
+    if ip:
+        n_ip = (
+            await db.execute(
+                select(func.count(AccessLog.id)).where(*fail, AccessLog.ip_address == ip[:64])
+            )
+        ).scalar() or 0
+        if n_ip >= LOGIN_IP_FAIL_LIMIT:
+            return True
+    return False
 
 
 def client_user_agent(request: Request) -> str:

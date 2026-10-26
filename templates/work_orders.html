@@ -419,7 +419,7 @@
 </dialog>
 {% endif %}
 
-<script type="application/json" id="wo-equipment-data">{{ equipment_opts_json | safe }}</script>
+<script type="application/json" id="wo-equipment-data">{{ equipment_opts_json | json_script }}</script>
 <script>
 (function () {
   function openDialog(id) {

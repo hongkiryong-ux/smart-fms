@@ -461,7 +461,7 @@
   </form>
 </dialog>
 
-<script type="application/json" id="mat-items-data">{{ items_json | safe }}</script>
+<script type="application/json" id="mat-items-data">{{ items_json | json_script }}</script>
 <script>
 (function () {
   var groupEl = document.getElementById('mat-group');

@@ -97,6 +97,8 @@ from access_log import (
     AuditLogMiddleware,
     EVENT_LABELS,
     build_access_logs_xlsx,
+    client_ip,
+    login_is_locked,
     query_access_logs,
     record_access_log,
 )
@@ -1651,6 +1653,10 @@ try:
 except ImportError:
     pass
 
+from security_mw import SecurityMiddleware
+
+app.add_middleware(SecurityMiddleware)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 from equipment_schema import field_value, get_category_fields, list_display_fields, NAME_KEYS
@@ -1834,6 +1840,23 @@ async def admin_login(
 ):
     next_url = _safe_login_next(next) or _safe_login_next(request.query_params.get("next"))
     uname = username.strip()
+    if await login_is_locked(db, uname, client_ip(request)):
+        await record_access_log(
+            db,
+            event_type="login_fail",
+            username=uname,
+            request=request,
+            success=False,
+            detail="locked",
+            http_method="POST",
+            path="/admin/login",
+            resource="로그인",
+            summary="로그인 차단 — 연속 실패로 15분 잠금",
+        )
+        qs = "error=locked"
+        if next_url:
+            qs += f"&next={quote(next_url)}"
+        return RedirectResponse(f"/admin/login?{qs}", status_code=303)
     result = await db.execute(select(User).where(User.username == uname))
     user = result.scalar_one_or_none()
     if not user or not verify_password(password, user.password_hash):
@@ -5101,10 +5124,8 @@ async def _ensure_building_standards_table() -> None:
 
 
 def _drawing_media_type(drawing: BuildingDrawing) -> str:
-    ct = (drawing.content_type or "").strip()
+    # 업로드 시 브라우저가 보낸 Content-Type은 조작 가능하므로 확장자로만 결정
     name = (drawing.original_name or drawing.stored_name or "").lower()
-    if ct and ct.lower() not in {"application/octet-stream", "binary/octet-stream"}:
-        return ct
     if name.endswith(".pdf"):
         return "application/pdf"
     if name.endswith((".png",)):
@@ -5349,10 +5370,7 @@ def _building_standards_dir(building_id: int) -> Path | None:
 
 
 def _standard_media_type(doc: BuildingStandard) -> str:
-    ct = (doc.content_type or "").strip()
     name = (doc.original_name or doc.stored_name or "").lower()
-    if ct and ct.lower() not in {"application/octet-stream", "binary/octet-stream"}:
-        return ct
     if name.endswith(".pdf"):
         return "application/pdf"
     if name.endswith(".doc"):
@@ -13137,7 +13155,7 @@ def _inspection_media_type(filename: str, content_type: str | None = None) -> st
         return "application/vnd.ms-excel.sheet.macroEnabled.12"
     if name.endswith(".xls"):
         return "application/vnd.ms-excel"
-    return (content_type or "").strip() or "application/octet-stream"
+    return "application/octet-stream"
 
 @app.get("/admin/inspection-logs")
 async def inspection_logs_page(

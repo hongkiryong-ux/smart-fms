@@ -385,7 +385,7 @@
       <button type="button" class="btn btn-sm btn-primary" id="risk-excel-btn">Excel 저장</button>
     </div>
     <textarea id="risk-export-report" hidden readonly>{{ report_text }}</textarea>
-    <script type="application/json" id="risk-rows-json">{{ rows_json | safe }}</script>
+    <script type="application/json" id="risk-rows-json">{{ rows_json | json_script }}</script>
   </div>
 
   <div class="rk-kpis">
@@ -545,7 +545,7 @@
   </div>
 </dialog>
 
-<script type="application/json" id="risk-presets-data">{{ presets_json | safe }}</script>
+<script type="application/json" id="risk-presets-data">{{ presets_json | json_script }}</script>
 <script>
 (function () {
   document.querySelectorAll('[data-rk-open]').forEach(function (btn) {
@@ -574,7 +574,7 @@
     Management: document.getElementById('risk-management'),
     Environment: document.getElementById('risk-environment')
   };
-  var selectedName = {{ preset_name_json | safe }};
+  var selectedName = {{ preset_name_json | json_script }};
 
   function rebuild() {
     preset.innerHTML = '';
@@ -596,7 +596,7 @@
   function majorIdOfSelected() {
     var name = major.value;
     if (!name) return '';
-    var map = {{ major_id_map_json | safe }};
+    var map = {{ major_id_map_json | json_script }};
     return map[name] || '';
   }
 
