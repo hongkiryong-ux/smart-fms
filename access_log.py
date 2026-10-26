@@ -1,11 +1,13 @@
 # access_log.py — FMS 활동(접속·조회·등록·수정·삭제) 감사 이력
 from __future__ import annotations
 
+import asyncio
+import os
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import Request
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -378,16 +380,62 @@ async def write_audit_from_request(request: Request, response: Response) -> None
         )
 
 
+_AUDIT_TASKS: set[asyncio.Task] = set()
+
+
+async def _write_audit_safe(request: Request, response: Response) -> None:
+    try:
+        await write_audit_from_request(request, response)
+    except Exception as e:
+        print(f"[audit] skip: {e}", flush=True)
+
+
 class AuditLogMiddleware(BaseHTTPMiddleware):
-    """FMS /admin 및 QR 저장 요청 활동을 응답 후 DB에 기록."""
+    """FMS /admin 및 QR 저장 요청 활동을 응답 후 DB에 기록 (화면 응답을 기다리게 하지 않음)."""
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        try:
-            await write_audit_from_request(request, response)
-        except Exception as e:
-            print(f"[audit] skip: {e}", flush=True)
+        if should_audit(request.url.path or "", request.method or "GET", response.headers.get("content-type")):
+            task = asyncio.create_task(_write_audit_safe(request, response))
+            _AUDIT_TASKS.add(task)
+            task.add_done_callback(_AUDIT_TASKS.discard)
         return response
+
+
+ACCESS_LOG_RETENTION_DAYS = int(os.environ.get("ACCESS_LOG_RETENTION_DAYS", "180") or "180")
+
+
+async def purge_old_access_logs(db: AsyncSession) -> int:
+    """보관기간이 지난 접속·활동 기록 삭제 (로그인 성공·실패 기록 포함)."""
+    if ACCESS_LOG_RETENTION_DAYS <= 0:
+        return 0
+    cutoff = datetime.utcnow() - timedelta(days=ACCESS_LOG_RETENTION_DAYS)
+    result = await db.execute(delete(AccessLog).where(AccessLog.created_at < cutoff))
+    await db.commit()
+    return int(result.rowcount or 0)
+
+
+def register_scheduler(scheduler, session_factory, kst) -> None:
+    """매일 03:40 KST — 오래된 접속 기록 정리."""
+
+    async def _purge_job():
+        async with session_factory() as session:
+            try:
+                n = await purge_old_access_logs(session)
+                if n:
+                    print(f"[access-log] purged {n} rows older than {ACCESS_LOG_RETENTION_DAYS}d", flush=True)
+            except Exception as e:
+                print(f"[access-log] purge failed: {e}", flush=True)
+
+    scheduler.add_job(
+        _purge_job,
+        trigger="cron",
+        hour=3,
+        minute=40,
+        timezone=kst,
+        id="access_log_purge",
+        replace_existing=True,
+    )
 
 
 def _kst_day_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime | None, datetime | None]:

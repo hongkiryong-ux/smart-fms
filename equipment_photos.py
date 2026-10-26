@@ -1,6 +1,7 @@
 """설비 사진 — 설비 상세(엑셀 양식) 우측에 표시. 500KB 이하로 자동 축소해 DB 저장."""
 from __future__ import annotations
 
+import asyncio
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -123,7 +124,7 @@ async def equipment_photo_upload(
             skipped += 1
             continue
         try:
-            data, ctype, w, h = shrink_image(raw)
+            data, ctype, w, h = await asyncio.to_thread(shrink_image, raw)
         except Exception:
             skipped += 1
             continue

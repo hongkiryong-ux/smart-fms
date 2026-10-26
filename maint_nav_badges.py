@@ -6,14 +6,14 @@ import time
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from maint_scope import scoped_building_ids, scoped_partner_ids, wo_in_buildings
 from models import AppSetting, User, UserRole, WorkOrder, WorkOrderStatus
 
 KST = ZoneInfo("Asia/Seoul")
-_BADGE_CACHE_TTL_SEC = 5.0
+_BADGE_CACHE_TTL_SEC = 20.0
 _badge_cache: dict[int, tuple[float, dict]] = {}
 
 _WO_REQUEST = (
@@ -211,8 +211,8 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         if my_partner_ids:
             wo_conds.append(WorkOrder.partner_id.in_(my_partner_ids))
         wo_rows = (
-            await db.execute(select(WorkOrder).where(*wo_conds))
-        ).scalars().all()
+            await db.execute(select(WorkOrder.id, WorkOrder.created_at).where(*wo_conds))
+        ).all()
         for wo in wo_rows:
             if _is_unseen(getattr(wo, "created_at", None), seen.get("work_orders")):
                 work_orders_count += 1
@@ -229,8 +229,10 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         if my_building_ids:
             fac_conds.append(wo_in_buildings(my_building_ids))
         fac_rows = (
-            await db.execute(select(WorkOrder).where(*fac_conds))
-        ).scalars().all()
+            await db.execute(
+                select(WorkOrder.id, WorkOrder.created_at, WorkOrder.approval_requested_at).where(*fac_conds)
+            )
+        ).all()
         for wo in fac_rows:
             event_at = getattr(wo, "approval_requested_at", None) or getattr(
                 wo, "created_at", None
@@ -243,14 +245,21 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
     if can_access_menu(user, "d1"):
         open_rows = (
             await db.execute(
-                select(WorkOrder).where(
+                select(
+                    WorkOrder.id,
+                    WorkOrder.partner_id,
+                    WorkOrder.d1_approved,
+                    WorkOrder.status,
+                    WorkOrder.created_at,
+                    WorkOrder.approved_at,
+                ).where(
                     WorkOrder.is_active == True,  # noqa: E712
                     WorkOrder.status.in_(_WO_OPEN),
                     WorkOrder.partner_id.is_not(None),
                     WorkOrder.d1_approved.is_(True),
                 )
             )
-        ).scalars().all()
+        ).all()
         partner_seen = seen.get("d1_partners") or {}
         for wo in open_rows:
             if not _wo_is_today_partner_receipt(wo, today):
@@ -274,22 +283,23 @@ async def compute_maint_badges(db: AsyncSession, user: User | None) -> dict:
         ]
         if my_building_ids:
             final_conds.append(wo_in_buildings(my_building_ids))
-        final_rows = (
-            await db.execute(select(WorkOrder.id).where(*final_conds))
-        ).all()
-        final_approvals_count = len(final_rows)
+        final_approvals_count = int(
+            (await db.execute(select(func.count(WorkOrder.id)).where(*final_conds))).scalar() or 0
+        )
 
     users_count = 0
     if can_access_menu(user, "users"):
-        pending_users = (
-            await db.execute(
-                select(User).where(
-                    User.is_active == True,  # noqa: E712
-                    User.is_approved == False,  # noqa: E712
+        users_count = int(
+            (
+                await db.execute(
+                    select(func.count(User.id)).where(
+                        User.is_active == True,  # noqa: E712
+                        User.is_approved == False,  # noqa: E712
+                    )
                 )
-            )
-        ).scalars().all()
-        users_count = len(pending_users)
+            ).scalar()
+            or 0
+        )
 
     total = work_orders_count + facility_count + d1_total + final_approvals_count
     # 템플릿에서 p.id(int) / 문자열 키 모두 조회 가능하도록 이중 키 제공

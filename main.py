@@ -321,10 +321,28 @@ def _sync_attachment_file_size(obj) -> bool:
 
 
 async def _backfill_attachment_sizes(db: AsyncSession, items) -> None:
+    from sqlalchemy import inspect as sa_inspect
+
     dirty = False
+    missing: dict[type, list] = {}
     for obj in items or []:
         if _sync_attachment_file_size(obj):
             dirty = True
+        elif getattr(obj, "file_size", None) is None and "file_data" in sa_inspect(obj).unloaded:
+            missing.setdefault(type(obj), []).append(obj)
+    # 파일 본문을 읽지 않은 목록 — 크기만 DB에서 계산
+    for model, objs in missing.items():
+        try:
+            rows = await db.execute(
+                select(model.id, func.length(model.file_data)).where(model.id.in_([o.id for o in objs]))
+            )
+            sizes = {rid: n for rid, n in rows.all()}
+        except Exception:
+            continue
+        for o in objs:
+            if sizes.get(o.id) is not None:
+                o.file_size = int(sizes[o.id])
+                dirty = True
     if dirty:
         try:
             await db.commit()
@@ -1400,6 +1418,9 @@ async def lifespan(app: FastAPI):
             from work_order_photos import register_scheduler as register_wo_photo_scheduler
 
             register_wo_photo_scheduler(scheduler, AsyncSessionLocal, KST)
+            from access_log import register_scheduler as register_access_log_scheduler
+
+            register_access_log_scheduler(scheduler, AsyncSessionLocal, KST)
             try:
                 from maint_mail import reschedule as reschedule_maint_mail
 
@@ -1683,7 +1704,28 @@ from security_mw import SecurityMiddleware
 
 app.add_middleware(SecurityMiddleware)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+from perf_mw import SlowRequestLogMiddleware, TextGZipMiddleware  # noqa: E402
+
+app.add_middleware(TextGZipMiddleware)
+app.add_middleware(SlowRequestLogMiddleware)
+
+
+class _CachedStaticFiles(StaticFiles):
+    """정적 파일 캐시: ?v= 버전이 붙은 파일은 1일 캐시(수정 시 v 값을 올려야 즉시 반영),
+    버전 없는 파일은 매번 변경 여부만 확인(304)."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code in (200, 304):
+            qs = scope.get("query_string") or b""
+            if b"v=" in qs:
+                response.headers["Cache-Control"] = "public, max-age=86400"
+            else:
+                response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/static", _CachedStaticFiles(directory="static"), name="static")
 
 from equipment_schema import field_value, get_category_fields, list_display_fields, NAME_KEYS
 
@@ -4851,7 +4893,9 @@ async def building_detail(
         .options(
             selectinload(Building.site),
             selectinload(Building.floors).selectinload(Floor.zones),
-            selectinload(Building.drawings).selectinload(BuildingDrawing.floor),
+            selectinload(Building.drawings).options(
+                defer(BuildingDrawing.file_data), selectinload(BuildingDrawing.floor)
+            ),
         )
     )
     building = result.scalar_one_or_none()
@@ -4867,6 +4911,7 @@ async def building_detail(
             (
                 await db.execute(
                     select(BuildingStandard)
+                    .options(defer(BuildingStandard.file_data))
                     .where(BuildingStandard.building_id == building_id)
                     .order_by(BuildingStandard.id.desc())
                 )
@@ -22191,16 +22236,16 @@ async def inspection_log_file_delete(
     await db.delete(doc)
     await db.flush()
     if registered and not registered.qr_write_file_id:
-        latest = (
+        latest_id = (
             await db.execute(
-                select(InspectionLogFile)
+                select(InspectionLogFile.id)
                 .where(InspectionLogFile.building_id == building_id)
                 .order_by(InspectionLogFile.id.desc())
                 .limit(1)
             )
         ).scalar_one_or_none()
-        if latest:
-            registered.qr_write_file_id = latest.id
+        if latest_id:
+            registered.qr_write_file_id = latest_id
     await db.commit()
     return RedirectResponse(
         f"/admin/inspection-logs/{building_id}?message=" + quote("파일이 삭제되었습니다."),
@@ -23691,25 +23736,24 @@ async def materials_export(
         )
     ).scalars().all()
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "자재현황"
-    ws.append(["자재 이름", "수량", "사양", "비고", "그룹", "저장 위치"])
-    for it in items:
-        ws.append(
-            [
-                it.name,
-                it.quantity,
-                it.spec or "",
-                it.remarks or "",
-                it.group_name,
-                it.location or "",
-            ]
-        )
+    data_rows = [
+        [it.name, it.quantity, it.spec or "", it.remarks or "", it.group_name, it.location or ""]
+        for it in items
+    ]
 
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
+    def _build() -> BytesIO:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "자재현황"
+        ws.append(["자재 이름", "수량", "사양", "비고", "그룹", "저장 위치"])
+        for r in data_rows:
+            ws.append(r)
+        out = BytesIO()
+        wb.save(out)
+        out.seek(0)
+        return out
+
+    buf = await asyncio.to_thread(_build)
     stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
     filename = quote(f"자재현황_{stamp}.xlsx")
     return StreamingResponse(
@@ -23732,17 +23776,23 @@ async def materials_export_logs(
     logs = (
         await db.execute(select(MaterialLog).order_by(MaterialLog.created_at.desc()))
     ).scalars().all()
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "로그"
-    ws.append(["일시", "구분", "자재명", "수량", "사유"])
-    for lg in logs:
-        ws.append(
-            [_fmt_kst(lg.created_at), lg.action, lg.name, lg.quantity, lg.reason or ""]
-        )
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
+    data_rows = [
+        [_fmt_kst(lg.created_at), lg.action, lg.name, lg.quantity, lg.reason or ""] for lg in logs
+    ]
+
+    def _build() -> BytesIO:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "로그"
+        ws.append(["일시", "구분", "자재명", "수량", "사유"])
+        for r in data_rows:
+            ws.append(r)
+        out = BytesIO()
+        wb.save(out)
+        out.seek(0)
+        return out
+
+    buf = await asyncio.to_thread(_build)
     stamp = datetime.now(KST).strftime("%Y%m%d_%H%M")
     filename = quote(f"자재로그_{stamp}.xlsx")
     return StreamingResponse(
@@ -23769,9 +23819,16 @@ async def materials_import(
             status_code=303,
         )
     raw = await file.read()
+
+    def _read_rows() -> list:
+        wb = load_workbook(BytesIO(raw), data_only=True, read_only=True)
+        try:
+            return list(wb.active.iter_rows(values_only=True))
+        finally:
+            wb.close()
+
     try:
-        wb = load_workbook(BytesIO(raw), data_only=True)
-        ws = wb.active
+        rows = await asyncio.to_thread(_read_rows)
     except Exception as e:
         return RedirectResponse(
             f"/admin/materials{_mat_qs(popup, error=f'Excel 읽기 실패: {e}')}",
@@ -23780,7 +23837,6 @@ async def materials_import(
 
     created = 0
     updated = 0
-    rows = list(ws.iter_rows(values_only=True))
     if not rows:
         return RedirectResponse(
             f"/admin/materials{_mat_qs(popup, error='빈 파일입니다.')}",

@@ -50,6 +50,9 @@ def _create_engine():
         flush=True,
     )
 
+    # 성공한 (host, sslmode)를 기억 — 재연결 때마다 실패할 주소를 먼저 기다리지 않도록
+    good_target: list[tuple[str, str]] = []
+
     async def _connect():
         import psycopg
 
@@ -59,20 +62,27 @@ def _create_engine():
         attempts.append((pg["external_host"], "require"))
         if pg["internal_host"] != pg["external_host"]:
             attempts.append((pg["external_host"], "prefer"))
+        if good_target:
+            attempts = good_target + [a for a in attempts if a != good_target[0]]
 
         last_err: Exception | None = None
-        for host, sslmode in attempts:
+        for i, (host, sslmode) in enumerate(attempts):
             try:
-                print(f"[db] connect try host={host} sslmode={sslmode}", flush=True)
-                return await psycopg.AsyncConnection.connect(
+                if not good_target:
+                    print(f"[db] connect try host={host} sslmode={sslmode}", flush=True)
+                conn = await psycopg.AsyncConnection.connect(
                     host=host,
                     port=pg["port"],
                     user=pg["user"],
                     password=pg["password"],
                     dbname=pg["dbname"],
                     sslmode=sslmode,
-                    connect_timeout=15,
+                    connect_timeout=15 if i == len(attempts) - 1 else 5,
                 )
+                if not good_target or good_target[0] != (host, sslmode):
+                    good_target[:] = [(host, sslmode)]
+                    print(f"[db] connected host={host} sslmode={sslmode}", flush=True)
+                return conn
             except Exception as e:
                 last_err = e
                 print(f"[db] failed host={host} sslmode={sslmode}: {e}", flush=True)
@@ -103,7 +113,7 @@ def _create_engine():
         "postgresql+psycopg://",
         async_creator=_connect,
         pool_pre_ping=True,
-        pool_recycle=300,
+        pool_recycle=1800,
         pool_size=pool_size,
         max_overflow=max_overflow,
         pool_timeout=25,

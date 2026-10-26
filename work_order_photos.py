@@ -2,12 +2,14 @@
 """정비의뢰 첨부 사진 — 500KB 이하 자동 축소 · 기본 1년 보관 · 영구 보관."""
 from __future__ import annotations
 
+import asyncio
 import io
 from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from models import WorkOrderPhoto
 
@@ -95,7 +97,7 @@ async def save_uploads(
             skipped += 1
             continue
         try:
-            data, ctype, w, h = shrink_image(raw)
+            data, ctype, w, h = await asyncio.to_thread(shrink_image, raw)
         except Exception:
             skipped += 1
             continue
@@ -124,6 +126,7 @@ async def list_photos(db: AsyncSession, work_order_id: int) -> list[WorkOrderPho
         (
             await db.execute(
                 select(WorkOrderPhoto)
+                .options(defer(WorkOrderPhoto.file_data))
                 .where(WorkOrderPhoto.work_order_id == work_order_id)
                 .order_by(WorkOrderPhoto.id)
             )
