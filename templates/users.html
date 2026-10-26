@@ -108,7 +108,7 @@
 {% if error == 'required' %}
 <div class="alert alert-error">필수 항목을 입력하세요.</div>
 {% elif error == 'short' %}
-<div class="alert alert-error">비밀번호는 6자 이상이어야 합니다.</div>
+<div class="alert alert-error">비밀번호는 8자 이상이며 영문·숫자·특수문자를 각각 1자 이상 포함해야 합니다.</div>
 {% elif error == 'mismatch' %}
 <div class="alert alert-error">비밀번호 확인이 일치하지 않습니다.</div>
 {% elif error == 'exists' %}
@@ -404,8 +404,8 @@
           </div>
           <div class="users-active-pw">
             <span class="users-active-sublabel">비밀번호</span>
-            <input type="password" name="new_password" form="pw-{{ u.id }}" placeholder="새 비밀번호" required minlength="6" class="users-cell-input" autocomplete="new-password" />
-            <input type="password" name="new_password2" form="pw-{{ u.id }}" placeholder="확인" required minlength="6" class="users-cell-input" autocomplete="new-password" />
+            <input type="password" name="new_password" form="pw-{{ u.id }}" placeholder="새 비밀번호" required minlength="8" title="8자 이상, 영문·숫자·특수문자 포함" class="users-cell-input" autocomplete="new-password" />
+            <input type="password" name="new_password2" form="pw-{{ u.id }}" placeholder="확인" required minlength="8" title="8자 이상, 영문·숫자·특수문자 포함" class="users-cell-input" autocomplete="new-password" />
             <button type="submit" form="pw-{{ u.id }}" class="btn btn-sm btn-secondary">변경</button>
           </div>
           <div class="users-active-actions">
@@ -447,7 +447,7 @@
     </label>
     <label class="users-create-field">
       <span>비밀번호</span>
-      <input type="password" name="password" required minlength="6" />
+      <input type="password" name="password" required minlength="8" title="8자 이상, 영문·숫자·특수문자 포함" />
     </label>
     <label class="users-create-field">
       <span>역할</span>

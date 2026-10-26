@@ -649,6 +649,7 @@ async def ensure_schema_updates() -> None:
             "ALTER TABLE users ADD COLUMN menu_access TEXT",
             "ALTER TABLE users ADD COLUMN pm_building_ids TEXT",
             "ALTER TABLE users ADD COLUMN wo_partner_ids TEXT",
+            "ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0",
             "ALTER TABLE floors ADD COLUMN is_active BOOLEAN DEFAULT 1",
             "ALTER TABLE zones ADD COLUMN is_active BOOLEAN DEFAULT 1",
             "ALTER TABLE building_drawings ADD COLUMN file_data BLOB",

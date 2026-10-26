@@ -29,17 +29,39 @@ def onlyoffice_url() -> str:
     return (os.environ.get("ONLYOFFICE_URL") or "").rstrip("/")
 
 
+def callback_url_allowed(url: str) -> bool:
+    """저장 콜백의 파일 URL은 Document Server 주소에서만 내려받는다 (임의 주소 요청 방지).
+
+    Document Server가 내부 주소로 응답하는 환경은 ONLYOFFICE_CALLBACK_HOSTS(쉼표 구분 host[:port])에 추가.
+    """
+    from urllib.parse import urlsplit
+
+    try:
+        parts = urlsplit((url or "").strip())
+    except ValueError:
+        return False
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return False
+    allowed: set[str] = set()
+    base = urlsplit(onlyoffice_url())
+    if base.hostname:
+        allowed.add(base.netloc.lower())
+        allowed.add(base.hostname.lower())
+    for h in (os.environ.get("ONLYOFFICE_CALLBACK_HOSTS") or "").split(","):
+        if h.strip():
+            allowed.add(h.strip().lower())
+    return parts.netloc.lower() in allowed or parts.hostname.lower() in allowed
+
+
 def jwt_enabled() -> bool:
     v = (os.environ.get("ONLYOFFICE_JWT_ENABLED") or "true").strip().lower()
     return v in ("1", "true", "yes", "on")
 
 
 def jwt_secret() -> str:
-    return (
-        (os.environ.get("ONLYOFFICE_JWT_SECRET") or "").strip()
-        or (os.environ.get("APP_SECRET_KEY") or "").strip()
-        or "change_this_secret_in_prod"
-    )
+    from app_secret import APP_SECRET_KEY
+
+    return (os.environ.get("ONLYOFFICE_JWT_SECRET") or "").strip() or APP_SECRET_KEY
 
 
 def token_secret() -> str:

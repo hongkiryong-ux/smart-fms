@@ -1,6 +1,7 @@
 """Smart FMS 가로등 QR 정비 의뢰 라우터."""
 from __future__ import annotations
 
+import hmac
 import os
 import re
 from datetime import date, datetime, time, timezone
@@ -560,7 +561,8 @@ async def test_sms(request: Request, user=Depends(require_login), db: AsyncSessi
 
 
 def _cron_secret(secret: str):
-    if not os.environ.get("CRON_SECRET", "").strip() or secret != os.environ["CRON_SECRET"]:
+    expected = os.environ.get("CRON_SECRET", "").strip()
+    if not expected or not hmac.compare_digest((secret or "").encode(), expected.encode()):
         raise HTTPException(403, "잘못된 cron secret입니다.")
 
 

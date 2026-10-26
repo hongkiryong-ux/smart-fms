@@ -79,6 +79,10 @@ from auth import (
     signup_role_options,
     verify_password,
     verify_remember_token,
+    bump_session_version,
+    password_needs_rehash,
+    session_matches_user,
+    start_user_session,
 )
 from database import (
     AsyncSessionLocal,
@@ -1459,7 +1463,15 @@ async def lifespan(app: FastAPI):
                 print(f"[startup] background init cancel: {e}", flush=True)
 
 
-app = FastAPI(title="POSCO WIDE Smart FMS", lifespan=lifespan)
+_IS_PROD = os.environ.get("RENDER", "").lower() in ("true", "1", "yes")
+# 운영에서는 전체 API 목록(/docs·/openapi.json) 비공개
+app = FastAPI(
+    title="POSCO WIDE Smart FMS",
+    lifespan=lifespan,
+    docs_url=None if _IS_PROD else "/docs",
+    redoc_url=None if _IS_PROD else "/redoc",
+    openapi_url=None if _IS_PROD else "/openapi.json",
+)
 
 
 _AUTH_PUBLIC_EXACT = {
@@ -1534,6 +1546,8 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
                 ).scalar_one_or_none()
             request.state._current_user_loaded = True
             apply_nav_state(request, {})
+            if user is not None and not session_matches_user(request, user):
+                user = None
             if user is None:
                 request.session.clear()
                 return _login_redirect_for_request(request)
@@ -1573,6 +1587,8 @@ class _AdminDbMiddleware(BaseHTTPMiddleware):
             except Exception as e:
                 print(f"[admin] user reload failed: {e}", flush=True)
                 return _temporary_error_response(request)
+            if current is not None and not session_matches_user(request, current):
+                current = None
             if current is not None:
                 request.state.current_user = current
                 request.state._current_user_loaded = True
@@ -1643,8 +1659,10 @@ async def _ilog2_label_dispatch(request: Request, call_next, user):
 _MenuAccessMiddleware = _AdminDbMiddleware
 
 
-SECRET_KEY = os.environ.get("APP_SECRET_KEY", "change_this_secret_in_prod")
-_session_kw: dict = {"secret_key": SECRET_KEY, "same_site": "lax"}
+from app_secret import APP_SECRET_KEY as SECRET_KEY  # noqa: E402
+
+# 12시간 미사용 시 세션 만료 (요청마다 갱신, 자동 로그인은 별도 쿠키)
+_session_kw: dict = {"secret_key": SECRET_KEY, "same_site": "lax", "max_age": 12 * 3600}
 if os.environ.get("RENDER", "").lower() in ("true", "1", "yes") or os.environ.get(
     "COOKIE_HTTPS_ONLY", ""
 ).lower() in ("1", "true", "yes"):
@@ -1749,6 +1767,9 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
 
     print(f"[error] {request.method} {request.url.path}: {exc}", flush=True)
     traceback.print_exc()
+    cur = getattr(request.state, "current_user", None)
+    # 내부 오류 문구(SQL·경로 등)는 시스템관리자에게만 노출
+    show_detail = cur is not None and cur.role == UserRole.system_admin
     accept = (request.headers.get("accept") or "").lower()
     if "text/html" in accept or str(request.url.path).startswith("/admin"):
         try:
@@ -1756,17 +1777,20 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
                 request,
                 "error.html",
                 {
-                    "user": getattr(request.state, "current_user", None),
+                    "user": cur,
                     "status_code": 500,
                     "message": "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-                    "detail": str(exc)[:500],
+                    "detail": str(exc)[:500] if show_detail else "",
                 },
                 status_code=500,
             )
         except Exception:
             pass
     return JSONResponse(
-        {"detail": "internal_error", "message": str(exc)[:300]},
+        {
+            "detail": "internal_error",
+            "message": str(exc)[:300] if show_detail else "일시적인 오류가 발생했습니다.",
+        },
         status_code=500,
     )
 
@@ -1791,8 +1815,9 @@ async def admin_login_page(
 
     remember = request.cookies.get(REMEMBER_COOKIE_NAME)
     if remember:
-        uid = verify_remember_token(remember)
-        if uid:
+        tok = verify_remember_token(remember)
+        if tok:
+            uid, token_sv = tok
             remembered = (
                 await db.execute(
                     select(User).where(
@@ -1802,8 +1827,10 @@ async def admin_login_page(
                     )
                 )
             ).scalar_one_or_none()
+            if remembered is not None and token_sv != int(remembered.session_version or 0):
+                remembered = None
             if remembered is not None:
-                request.session["user_id"] = remembered.id
+                start_user_session(request, remembered)
                 await record_access_log(
                     db,
                     event_type="login_success",
@@ -1821,7 +1848,7 @@ async def admin_login_page(
                 resp = RedirectResponse(dest, status_code=303)
                 resp.set_cookie(
                     REMEMBER_COOKIE_NAME,
-                    create_remember_token(remembered.id),
+                    create_remember_token(remembered.id, remembered.session_version or 0),
                     **remember_cookie_kwargs(),
                 )
                 return resp
@@ -1867,7 +1894,7 @@ async def admin_login(
         return RedirectResponse(f"/admin/login?{qs}", status_code=303)
     result = await db.execute(select(User).where(User.username == uname))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(password, user.password_hash):
+    if not user or not await asyncio.to_thread(verify_password, password, user.password_hash):
         await record_access_log(
             db,
             event_type="login_fail",
@@ -1935,13 +1962,16 @@ async def admin_login(
         resource="로그인",
         summary="로그인 성공",
     )
-    request.session["user_id"] = user.id
+    if password_needs_rehash(user.password_hash):
+        user.password_hash = await asyncio.to_thread(hash_password, password)
+        await db.commit()
+    start_user_session(request, user)
     dest = next_url or home_path_for_user(user)
     resp = RedirectResponse(dest, status_code=303)
     if remember_me.strip().lower() in ("1", "on", "true", "yes"):
         resp.set_cookie(
             REMEMBER_COOKIE_NAME,
-            create_remember_token(user.id),
+            create_remember_token(user.id, user.session_version or 0),
             **remember_cookie_kwargs(),
         )
     else:
@@ -2211,16 +2241,26 @@ async def account_change_password(
         raise HTTPException(404)
     if not verify_password(current_password, db_user.password_hash):
         return RedirectResponse("/admin/account?error=current", status_code=303)
-    if len(new_password.strip()) < 6:
+    if not signup_password_is_valid(new_password):
         return RedirectResponse("/admin/account?error=short", status_code=303)
-    if new_password.strip() != new_password2.strip():
+    if new_password != new_password2:
         return RedirectResponse("/admin/account?error=mismatch", status_code=303)
-    db_user.password_hash = hash_password(new_password.strip())
+    db_user.password_hash = hash_password(new_password)
+    bump_session_version(db_user)
     await db.commit()
-    return RedirectResponse(
+    # 다른 기기의 세션·자동로그인은 끊고, 지금 쓰는 브라우저는 유지
+    start_user_session(request, db_user)
+    resp = RedirectResponse(
         "/admin/account?message=" + quote("비밀번호가 변경되었습니다."),
         status_code=303,
     )
+    if request.cookies.get(REMEMBER_COOKIE_NAME):
+        resp.set_cookie(
+            REMEMBER_COOKIE_NAME,
+            create_remember_token(db_user.id, db_user.session_version or 0),
+            **remember_cookie_kwargs(),
+        )
+    return resp
 
 
 @app.post("/admin/account/withdraw")
@@ -2748,10 +2788,10 @@ async def users_create(
 
     uname = username.strip()
     nm = name.strip()
-    pw = password.strip()
+    pw = password
     if not uname or not nm or not pw:
         return RedirectResponse("/admin/users?error=required", status_code=303)
-    if len(pw) < 6:
+    if not signup_password_is_valid(pw):
         return RedirectResponse("/admin/users?error=short", status_code=303)
     if (await db.execute(select(User).where(User.username == uname))).scalar_one_or_none():
         return RedirectResponse("/admin/users?error=exists", status_code=303)
@@ -3041,6 +3081,7 @@ async def users_menu_access(
 
 @app.post("/admin/users/{uid}/password")
 async def users_reset_password(
+    request: Request,
     uid: int,
     new_password: str = Form(...),
     new_password2: str = Form(...),
@@ -3052,12 +3093,15 @@ async def users_reset_password(
     target = await db.get(User, uid)
     if not target:
         raise HTTPException(404)
-    if len(new_password.strip()) < 6:
+    if not signup_password_is_valid(new_password):
         return RedirectResponse("/admin/users?error=short", status_code=303)
-    if new_password.strip() != new_password2.strip():
+    if new_password != new_password2:
         return RedirectResponse("/admin/users?error=mismatch", status_code=303)
-    target.password_hash = hash_password(new_password.strip())
+    target.password_hash = hash_password(new_password)
+    bump_session_version(target)
     await db.commit()
+    if target.id == user.id:
+        start_user_session(request, target)
     return RedirectResponse(
         "/admin/users?message=" + quote(f"{target.username} 비밀번호가 변경되었습니다."),
         status_code=303,
@@ -22048,11 +22092,14 @@ async def onlyoffice_file_callback(
         url = (body.get("url") or "").strip()
         if not url:
             return JSONResponse({"error": 1})
+        if not oo.callback_url_allowed(url):
+            print(f"[onlyoffice] callback url host not allowed: {url[:200]}", flush=True)
+            return JSONResponse({"error": 1})
         doc = await db.get(InspectionLogFile, file_id)
         if not doc or doc.building_id != building_id:
             return JSONResponse({"error": 1})
         try:
-            resp = _requests.get(url, timeout=120)
+            resp = await asyncio.to_thread(_requests.get, url, timeout=120, allow_redirects=False)
             resp.raise_for_status()
             raw = resp.content
         except Exception as e:

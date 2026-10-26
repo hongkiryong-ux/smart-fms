@@ -24,13 +24,58 @@ ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PW = os.environ.get("ADMIN_PW", "password123")
 
 
-def hash_password(password: str) -> str:
+def _legacy_hash(password: str) -> str:
     salt = "smart_fms_salt_v1"
     return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
 
 
+def _bcrypt_bytes(password: str) -> bytes:
+    # bcrypt는 72바이트까지만 사용 (초과 시 최신 bcrypt는 예외)
+    return (password or "").encode("utf-8")[:72]
+
+
+def hash_password(password: str) -> str:
+    import bcrypt
+
+    return bcrypt.hashpw(_bcrypt_bytes(password), bcrypt.gensalt(rounds=12)).decode()
+
+
 def verify_password(password: str, password_hash: str) -> bool:
-    return secrets.compare_digest(hash_password(password), password_hash)
+    if not password_hash:
+        return False
+    if password_hash.startswith("$2"):
+        import bcrypt
+
+        try:
+            return bcrypt.checkpw(_bcrypt_bytes(password), password_hash.encode())
+        except ValueError:
+            return False
+    return secrets.compare_digest(_legacy_hash(password), password_hash)
+
+
+def password_needs_rehash(password_hash: str | None) -> bool:
+    return not (password_hash or "").startswith("$2")
+
+
+def session_matches_user(request: Request, user: User | None) -> bool:
+    """세션 발급 후 비밀번호가 바뀌었으면(세션 버전 불일치) 무효."""
+    if user is None:
+        return False
+    try:
+        sv = int(request.session.get("sv") or 0)
+    except (TypeError, ValueError):
+        sv = -1
+    return sv == int(getattr(user, "session_version", 0) or 0)
+
+
+def start_user_session(request: Request, user: User) -> None:
+    request.session.clear()
+    request.session["user_id"] = user.id
+    request.session["sv"] = int(getattr(user, "session_version", 0) or 0)
+
+
+def bump_session_version(user: User) -> None:
+    user.session_version = int(getattr(user, "session_version", 0) or 0) + 1
 
 
 def signup_password_is_valid(password: str) -> bool:
@@ -43,7 +88,8 @@ def signup_password_is_valid(password: str) -> bool:
     )
 
 
-APP_SECRET_KEY = os.environ.get("APP_SECRET_KEY", "change_this_secret_in_prod")
+from app_secret import APP_SECRET_KEY  # noqa: E402
+
 REMEMBER_COOKIE_NAME = "fms_remember"
 REMEMBER_MAX_AGE_SEC = 30 * 86400
 
@@ -70,23 +116,31 @@ def _remember_sign(payload: str) -> str:
     return hmac.new(APP_SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
 
 
-def create_remember_token(user_id: int) -> str:
+def create_remember_token(user_id: int, session_version: int = 0) -> str:
     exp = int((datetime.utcnow() + timedelta(seconds=REMEMBER_MAX_AGE_SEC)).timestamp())
-    payload = f"{user_id}:{exp}"
+    payload = f"{user_id}:{int(session_version or 0)}:{exp}"
     raw = f"{payload}:{_remember_sign(payload)}"
     return base64.urlsafe_b64encode(raw.encode()).decode()
 
 
-def verify_remember_token(token: str) -> int | None:
+def verify_remember_token(token: str) -> tuple[int, int] | None:
+    """(user_id, session_version). 세션 버전이 없는 이전 형식은 버전 0."""
     try:
         raw = base64.urlsafe_b64decode(token.encode()).decode()
-        user_id_s, exp_s, sig = raw.rsplit(":", 2)
-        payload = f"{user_id_s}:{exp_s}"
+        payload, sig = raw.rsplit(":", 1)
         if not hmac.compare_digest(_remember_sign(payload), sig):
+            return None
+        parts = payload.split(":")
+        if len(parts) == 3:
+            user_id_s, sv_s, exp_s = parts
+        elif len(parts) == 2:
+            user_id_s, exp_s = parts
+            sv_s = "0"
+        else:
             return None
         if int(exp_s) < datetime.utcnow().timestamp():
             return None
-        return int(user_id_s)
+        return int(user_id_s), int(sv_s)
     except Exception:
         return None
 
@@ -704,6 +758,8 @@ async def admin_request_bootstrap(
                 )
             )
         ).scalar_one_or_none()
+        if u is not None and not session_matches_user(request, u):
+            u = None
         if u is not None:
             request.state.current_user = u
         path = request.url.path or ""
@@ -767,6 +823,8 @@ async def get_current_user(request: Request) -> User | None:
                 )
             )
             user = result.scalar_one_or_none()
+            if user is not None and not session_matches_user(request, user):
+                user = None
             request.state._current_user_loaded = True
             if user is not None:
                 request.state.current_user = user

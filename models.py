@@ -136,6 +136,8 @@ class User(Base):
     pm_building_ids = Column(JSON, nullable=True)
     # 정비접수 화면 '나의 협력사' id 목록 (비어 있으면 전체 협력사 표시)
     wo_partner_ids = Column(JSON, nullable=True)
+    # 비밀번호 변경·초기화 시 증가 → 이전 세션·자동로그인 쿠키 무효화
+    session_version = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     # 위험성평가 AI — 계정별 개인 키 (다른 사용자와 공유하지 않음)
     openai_api_key = Column(String(200), nullable=True)

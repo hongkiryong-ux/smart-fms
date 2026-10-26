@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import apply_role_permissions, hash_password, verify_password
+from auth import apply_role_permissions, hash_password, password_needs_rehash, verify_password
 from models import (
     Building,
     Consumable,
@@ -59,7 +59,12 @@ async def disable_default_demo_accounts(session: AsyncSession) -> None:
     ).scalars().all()
     changed = False
     for u in users:
-        if not u.password_hash or not verify_password(_DEMO_PASSWORD, u.password_hash):
+        if not u.password_hash:
+            continue
+        # bcrypt 검사는 느리므로 데모 계정만 — 그 외 계정은 이전 형식 해시만 확인
+        if u.username not in _DEMO_ACCOUNTS and not password_needs_rehash(u.password_hash):
+            continue
+        if not verify_password(_DEMO_PASSWORD, u.password_hash):
             continue
         if u.username in _DEMO_ACCOUNTS:
             u.is_active = False
