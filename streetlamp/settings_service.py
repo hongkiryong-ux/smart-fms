@@ -1,7 +1,7 @@
 # streetlamp/settings_service.py — FMS AppSetting 공유, 키는 streetlamp. 접두사
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import AppSetting
@@ -67,7 +67,12 @@ async def set_setting(session: AsyncSession, key: str, value: str) -> None:
 
 async def get_all_settings_map(session: AsyncSession) -> dict[str, str]:
     out = dict(DEFAULT_SETTINGS)
-    result = await session.execute(select(AppSetting))
+    # app_settings에는 건물 사진 등 큰 값도 있으므로 가로등 설정 키만 조회
+    result = await session.execute(
+        select(AppSetting).where(
+            or_(AppSetting.key.like(f"{PREFIX}%"), AppSetting.key.in_(list(DEFAULT_SETTINGS)))
+        )
+    )
     for row in result.scalars().all():
         if row.value is None:
             continue
