@@ -14594,6 +14594,12 @@ async def housing_substation_page(
         yearly = {"sections": []}
         notes_list = {"entries": []}
 
+    incoming_usage = None
+    if tab == "daily":
+        from housing_substation import fetch_daily_incoming_usage
+
+        incoming_usage = await fetch_daily_incoming_usage(db, building_id, log_date)
+
     return templates.TemplateResponse(
         request,
         "housing_substation.html",
@@ -14603,6 +14609,7 @@ async def housing_substation_page(
             "schema": schema,
             "daily_layouts": daily_layouts,
             "daily_footer": daily_footer,
+            "incoming_usage": incoming_usage,
             "tab": tab,
             "log_date": log_date,
             "today": today,
@@ -14707,6 +14714,9 @@ async def housing_qr_daily_page(
         log_date = today
     daily_row = await get_or_create_daily(db, building.id, log_date)
     await db.commit()
+    from housing_substation import fetch_daily_incoming_usage
+
+    incoming_usage = await fetch_daily_incoming_usage(db, building.id, log_date)
 
     schema = load_schema()
     return templates.TemplateResponse(
@@ -14718,6 +14728,7 @@ async def housing_qr_daily_page(
             "schema": schema,
             "daily_layouts": build_all_daily_layouts(schema),
             "daily_footer": build_daily_footer_layout(schema),
+            "incoming_usage": incoming_usage,
             "tab": "daily",
             "log_date": log_date,
             "today": today,
@@ -14757,7 +14768,14 @@ async def housing_qr_daily_save(
     await _housing_save_daily_data(db, building.id, d, posted)
     await db.commit()
     if request.headers.get("X-HS-Autosave") == "1":
-        return JSONResponse({"ok": True, "log_date": d.isoformat()})
+        from housing_substation import fetch_daily_incoming_usage
+
+        try:
+            incoming_usage = await fetch_daily_incoming_usage(db, building.id, d)
+        except Exception as exc:
+            print(f"[housing] incoming usage skip {building.id} {d}: {exc!r}", flush=True)
+            incoming_usage = None
+        return JSONResponse({"ok": True, "log_date": d.isoformat(), "incoming_usage": incoming_usage})
     from urllib.parse import quote
 
     return RedirectResponse(
@@ -14808,7 +14826,14 @@ async def housing_substation_save(
             status_code=303,
         )
     if autosave:
-        return JSONResponse({"ok": True, "log_date": d.isoformat()})
+        from housing_substation import fetch_daily_incoming_usage
+
+        try:
+            incoming_usage = await fetch_daily_incoming_usage(db, building_id, d)
+        except Exception as exc:
+            print(f"[housing] incoming usage skip {building_id} {d}: {exc!r}", flush=True)
+            incoming_usage = None
+        return JSONResponse({"ok": True, "log_date": d.isoformat(), "incoming_usage": incoming_usage})
     return RedirectResponse(
         f"/admin/inspection-logs2/{building_id}/housing?tab=daily&date={d.isoformat()}&message={quote('저장되었습니다.')}",
         status_code=303,

@@ -1325,6 +1325,53 @@ async def fetch_monthly_report_data(
     )
 
 
+def daily_incoming_usage_from_monthly(monthly: dict[str, Any], log_date: date) -> dict[str, Any]:
+    """월보 계산 결과에서 해당 일의 No.1~3 INCOMMING 사용량(KWH)과 합계."""
+    items: list[dict[str, Any]] = []
+    total = 0.0
+    has_any = False
+    for sec in monthly.get("sections") or []:
+        if sec.get("id") not in ("no1", "no2", "no3"):
+            continue
+        br = next(
+            (b for b in sec.get("breakers") or [] if "INCOMMING" in str(b.get("name") or "").upper()),
+            None,
+        )
+        if not br:
+            continue
+        day = next((d for d in sec.get("days") or [] if d.get("day") == log_date.day), None)
+        row = next(
+            (r for r in (day or {}).get("breakers") or [] if r.get("meter_id") == br["meter_id"]),
+            None,
+        )
+        usage = (row or {}).get("usage", "")
+        if usage != "":
+            total += float(usage)
+            has_any = True
+        items.append({
+            "name": br["name"],
+            "multiplier": br.get("multiplier"),
+            "usage": usage,
+            "usage_text": _fmt_kwh(usage),
+        })
+    total_v: Any = round(total, 2) if has_any else ""
+    return {"items": items, "total": total_v, "total_text": _fmt_kwh(total_v)}
+
+
+def _fmt_kwh(v: Any) -> str:
+    if v == "" or v is None:
+        return "-"
+    s = f"{float(v):,.2f}"
+    return s[:-3] if s.endswith(".00") else s.rstrip("0")
+
+
+async def fetch_daily_incoming_usage(
+    session: AsyncSession, building_id: int, log_date: date
+) -> dict[str, Any]:
+    monthly = await fetch_monthly_report_data(session, building_id, log_date.year, log_date.month)
+    return daily_incoming_usage_from_monthly(monthly, log_date)
+
+
 async def fetch_yearly_report_data(
     session: AsyncSession,
     building_id: int,

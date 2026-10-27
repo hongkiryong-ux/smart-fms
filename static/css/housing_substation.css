@@ -303,6 +303,72 @@
   font-size: 1rem;
 }
 
+.hs-top-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: stretch;
+  margin: 0 0 1.25rem;
+}
+
+.hs-top-row > .hs-qr-box {
+  margin: 0;
+}
+
+.hs-usage-box {
+  padding: 1rem;
+  border: 1px solid var(--border, #d8dee8);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.hs-usage-table {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.hs-usage-table th,
+.hs-usage-table td {
+  border: 1px solid #94a3b8;
+  padding: 0.3rem 0.6rem;
+  text-align: center;
+  white-space: nowrap;
+  background: #fff;
+}
+
+.hs-usage-table thead th {
+  background: #e2e8f0;
+}
+
+.hs-usage-table .hs-usage-sub th,
+.hs-usage-table .hs-usage-sub td {
+  font-weight: normal;
+  color: #475569;
+  background: #f1f5f9;
+}
+
+.hs-usage-table .hs-usage-val {
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hs-usage-table .hs-usage-total th {
+  text-align: right;
+  background: #fef9c3;
+}
+
+.hs-usage-table .hs-usage-total td {
+  background: #fef9c3;
+  font-size: 0.95rem;
+}
+
+.hs-usage-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+}
+
 .hs-qr-inner {
   display: flex;
   flex-wrap: wrap;

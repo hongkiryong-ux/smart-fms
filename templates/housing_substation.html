@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}점검일지2 · {{ building.name }}{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="/static/css/housing_substation.css?v=10" />
+<link rel="stylesheet" href="/static/css/housing_substation.css?v=11" />
 {% endblock %}
 {% block content %}
 {% set label_module = 'housing_substation' %}{% include "_ilog2_label_edit.html" %}
@@ -56,6 +56,7 @@
     {% endif %}
   </form>
 
+  <div class="hs-top-row">
   {% if not qr_mode and qr_url %}
   <div class="hs-qr-box">
     <h3 class="hs-qr-title">1일 점검 QR</h3>
@@ -72,6 +73,38 @@
     </div>
   </div>
   {% endif %}
+
+  {% if incoming_usage and incoming_usage['items'] %}
+  <div class="hs-usage-box" id="hs-incoming-usage">
+    <h3 class="hs-qr-title">당일 전력사용량</h3>
+    <table class="hs-usage-table">
+      <thead>
+        <tr>
+          {% for it in incoming_usage['items'] %}<th>{{ it.name }}</th>{% endfor %}
+        </tr>
+        <tr class="hs-usage-sub">
+          {% for it in incoming_usage['items'] %}<th>적산량×{{ it.multiplier }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="hs-usage-sub">
+          {% for it in incoming_usage['items'] %}<td>사용량(KWH)</td>{% endfor %}
+        </tr>
+        <tr>
+          {% for it in incoming_usage['items'] %}
+          <td class="hs-usage-val" data-hs-usage-idx="{{ loop.index0 }}">{{ it.usage_text }}</td>
+          {% endfor %}
+        </tr>
+        <tr class="hs-usage-total">
+          <th>합계 :</th>
+          <td colspan="{{ [incoming_usage['items']|length - 1, 1]|max }}" class="hs-usage-val" data-hs-usage-total>{{ incoming_usage.total_text }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="text-muted hs-usage-note">(금일 22:00 − 전일지침) × 배율 · 월보 해당일 값과 동일</p>
+  </div>
+  {% endif %}
+  </div>
 
   <p class="text-muted hs-hint">
     엑셀 양식과 동일한 표 · 노란 칸 = 전일지침(전날 22:00 자동 · 수기 입력 시 유지) · 입력 시 자동 저장{% if not qr_mode %} · 23:59(KST) 일별 마감{% endif %}
@@ -375,7 +408,7 @@
 </section>
 {% if can_write %}
 <script src="/static/js/ilog2_numeric_keypad.js?v=1"></script>
-<script src="/static/js/housing_substation.js?v=7"></script>
+<script src="/static/js/housing_substation.js?v=8"></script>
 {% endif %}
 
 {% elif tab == 'monthly' %}

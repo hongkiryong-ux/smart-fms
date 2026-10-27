@@ -55,7 +55,18 @@
     if (!res.ok || body.ok === false) {
       return { ok: false, kind: "server", detail: body.message || "HTTP " + res.status };
     }
-    return { ok: true };
+    return { ok: true, incomingUsage: body.incoming_usage };
+  }
+
+  function updateIncomingUsage(data) {
+    const box = document.getElementById("hs-incoming-usage");
+    if (!box || !data || !Array.isArray(data.items)) return;
+    data.items.forEach(function (it, idx) {
+      const cell = box.querySelector('[data-hs-usage-idx="' + idx + '"]');
+      if (cell) cell.textContent = it.usage_text || "-";
+    });
+    const totalCell = box.querySelector("[data-hs-usage-total]");
+    if (totalCell) totalCell.textContent = data.total_text || "-";
   }
 
   async function doSave() {
@@ -73,6 +84,7 @@
         result = await postOnce();
         if (result.ok) {
           setStatus("저장됨", "saved");
+          updateIncomingUsage(result.incomingUsage);
         } else {
           dirty = true;
           setStatus(failMessage(result.kind, result.detail), "error");
