@@ -1842,6 +1842,12 @@ async def health():
     return {"status": "ok", "service": "smart-fms"}
 
 
+@app.get("/admin/api/version")
+async def admin_version(user: User = Depends(require_login)):
+    """배포된 커밋 확인용 (Render 가 RENDER_GIT_COMMIT 을 주입)."""
+    return {"commit": (os.environ.get("RENDER_GIT_COMMIT") or "")[:7]}
+
+
 # ── Auth ──────────────────────────────────────────────────────────────
 
 
