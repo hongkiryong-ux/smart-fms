@@ -5,6 +5,7 @@
   <h1>설비 수정</h1>
   <p><code>{{ eq.code }}</code> · {{ eq.category }}</p>
 </header>
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
 <section class="card equipment-form-card" style="max-width:640px">
   <form method="post" action="/admin/equipment/{{ eq.id }}/edit" class="form-stack">
@@ -17,7 +18,7 @@
       {% endfor %}
     </select>
     <label>코드</label>
-    <input type="text" name="code" value="{{ eq.code }}" required />
+    <input type="text" name="code" value="{{ eq.code }}" required maxlength="64" />
     <label>상태</label>
     <select name="status">
       {% for s in ['normal', 'warning', 'error'] %}

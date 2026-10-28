@@ -7517,6 +7517,7 @@ async def equipment_edit_page(
             "sheet_fields": sheet_fields,
             "field_values": field_values,
             "category": eq.category,
+            "error": request.query_params.get("error") or "",
         },
     )
 
@@ -7548,6 +7549,36 @@ async def equipment_edit(
     if not eq:
         raise HTTPException(404)
 
+    from urllib.parse import quote
+    from sqlalchemy.exc import IntegrityError
+
+    def _edit_error(msg: str) -> RedirectResponse:
+        return RedirectResponse(
+            f"/admin/equipment/{eq_id}/edit?error={quote(msg)}", status_code=303
+        )
+
+    code_val = re.sub(r"\s+", " ", (code or "").strip())
+    if not code_val:
+        return _edit_error("코드를 입력하세요.")
+    if len(code_val) > 64:
+        return _edit_error(f"코드는 64자 이하로 입력하세요. (현재 {len(code_val)}자)")
+    if code_val != eq.code:
+        other = (
+            await db.execute(
+                select(Equipment)
+                .where(Equipment.code == code_val, Equipment.id != eq.id)
+                .order_by(Equipment.is_active.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+        if other is not None and other.is_active:
+            return _edit_error(f"이미 다른 설비가 사용 중인 코드입니다: {code_val}")
+        if other is not None:
+            # 숨김(비활성) 설비가 코드를 잡고 있으면 그 설비 코드를 비켜 준다
+            suffix = f"~{other.id}"
+            other.code = f"{code_val[: 64 - len(suffix)]}{suffix}"
+            await db.flush()
+
     before = equipment_snapshot(eq)
 
     form = await request.form()
@@ -7561,7 +7592,7 @@ async def equipment_edit(
     extra = merge_extra_for_save(extra, name_val, manufacturer, model, serial_no)
 
     eq.zone_id = zone_id
-    eq.code = code.strip()
+    eq.code = code_val
     eq.name = name_val
     eq.category = cat
     eq.manufacturer = manufacturer or None
@@ -7581,15 +7612,23 @@ async def equipment_edit(
     if new_zone is not None:
         eq.zone = new_zone
 
-    await _record_equipment_change(db, eq, before, user=user, source="수정")
-    await db.commit()
+    try:
+        await _record_equipment_change(db, eq, before, user=user, source="수정")
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return _edit_error(f"저장 실패: 코드 중복 또는 DB 제약 오류 ({code_val})")
+    except Exception as e:
+        await db.rollback()
+        print(f"[equipment_edit] error eq={eq_id}: {e!r}", flush=True)
+        return _edit_error(f"저장 실패: {type(e).__name__}")
 
     building_id = 0
     if new_zone and new_zone.floor:
         building_id = new_zone.floor.building_id
     if building_id:
         return RedirectResponse(
-            f"/admin/equipment?building_id={building_id}&category={cat}&open_eq={eq_id}",
+            f"/admin/equipment?building_id={building_id}&category={quote(cat or '')}&open_eq={eq_id}",
             status_code=303,
         )
     return RedirectResponse(f"/admin/equipment/{eq_id}", status_code=303)
