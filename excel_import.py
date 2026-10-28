@@ -1543,17 +1543,23 @@ async def _import_building_history_sheets(
     ).scalars().unique().all()
     by_code = {(eq.code or "").strip(): eq for eq in eq_rows if eq.code}
 
-    # 대체 import: 엑셀에 이력이 없어도 기존 정비·점검 이력을 비운 뒤 엑셀 내용만 남긴다
-    if replace:
+    wb = None
+    has_history_sheet = False
+    if path.suffix.lower() in (".xlsx", ".xlsm"):
+        wb = load_workbook(filename=str(path), data_only=True)
+        has_history_sheet = any(n in wb.sheetnames for n in ("정비이력", "점검이력"))
+
+    # 대체 import 라도 엑셀에 이력 시트가 있을 때만 기존 정비·점검 이력을 비우고 엑셀 내용으로 대체.
+    # 설비현황만 있는 엑셀(.xls 포함)로 목록을 갱신할 때 운영 중 쌓인 이력이 지워지지 않게 한다.
+    if replace and has_history_sheet:
         for eq in eq_rows:
             await _clear_equipment_history(session, eq)
             stats["cleared_equipment"] += 1
 
-    if path.suffix.lower() not in (".xlsx", ".xlsm"):
+    if wb is None:
         # .xls 는 openpyxl 미지원 → 설비 시트만 반영되고 이력 시트는 스킵
         return stats
 
-    wb = load_workbook(filename=str(path), data_only=True)
     try:
         if "정비이력" in wb.sheetnames:
             ws = wb["정비이력"]
