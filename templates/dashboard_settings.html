@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block title %}대시보드 설정{% endblock %}
+{% block head_extra %}
+<style>
+  .dash-main-qr-body { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; }
+  .dash-main-qr-img { width: 180px; height: 180px; border: 1px solid var(--border, #d8dee8); border-radius: 8px; background: #fff; padding: 6px; }
+  .dash-main-qr-meta { display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-start; }
+  .dash-main-qr-url { margin: 0; word-break: break-all; font-size: 0.9rem; }
+</style>
+{% endblock %}
 {% block content %}
 <header class="page-header board-page-head">
   <div>
@@ -23,7 +31,19 @@
 <p class="alert alert-ok">사업장 현황 순서를 자동(점수) 순서로 되돌렸습니다.</p>
 {% endif %}
 
-<section class="card">
+<section class="card dash-main-qr">
+  <h2 class="dash-settings-section-title">FMS 접속 QR</h2>
+  <p class="board-help" style="margin-top:0;">휴대폰 카메라로 스캔하면 FMS 메인 페이지(로그인 후 대시보드)로 접속합니다. 현장 게시·안내문에 사용하세요.</p>
+  <div class="dash-main-qr-body">
+    <img class="dash-main-qr-img" src="/admin/dashboard/settings/main-qr.png" alt="FMS 접속 QR" width="180" height="180" />
+    <div class="dash-main-qr-meta">
+      <p class="dash-main-qr-url"><a href="{{ main_url }}" target="_blank" rel="noopener">{{ main_url }}</a></p>
+      <a class="btn btn-primary" href="/admin/dashboard/settings/main-qr.png?download=1">QR 다운로드 (PNG)</a>
+    </div>
+  </div>
+</section>
+
+<section class="card" style="margin-top:1.25rem;">
   <h2 class="dash-settings-section-title">대시보드 화면 구성</h2>
   <p class="board-help" style="margin-top:0;">새 화면(통합 운영 홈)과 기존 화면(운영 보드)을 선택할 수 있습니다. 데이터·바로가기 기능은 동일합니다.</p>
   {% if can_edit %}

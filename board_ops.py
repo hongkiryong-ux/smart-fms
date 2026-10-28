@@ -912,6 +912,46 @@ def _require_dashboard_admin(user: User) -> None:
         raise HTTPException(403, "시스템관리자만 대시보드 설정에 접근할 수 있습니다.")
 
 
+def fms_main_url(request: Request) -> str:
+    """FMS 메인(접속 시 로그인 → 대시보드) 주소. 프록시 뒤 http 로 보이면 https 로 보정."""
+    from housing_substation import public_base_url
+
+    base = public_base_url(request)
+    if base.startswith("http://") and request.headers.get("x-forwarded-proto", "").lower() == "https":
+        base = "https://" + base[len("http://"):]
+    return base + "/"
+
+
+@router.get("/admin/dashboard/settings/main-qr.png")
+async def dashboard_main_qr_png(
+    request: Request,
+    download: int = 0,
+    user: User = Depends(require_login),
+):
+    _require_dashboard_admin(user)
+    import io
+
+    import qrcode
+
+    # 인쇄·게시용으로 크게 생성 (약 600px)
+    qr = qrcode.QRCode(box_size=20, border=4)
+    qr.add_data(fms_main_url(request))
+    qr.make(fit=True)
+    buf = io.BytesIO()
+    qr.make_image().save(buf, format="PNG")
+    data = buf.getvalue()
+    filename = "FMS_접속_QR.png"
+    disp = "attachment" if download else "inline"
+    return Response(
+        content=data,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f"{disp}; filename*=UTF-8''{quote(filename)}",
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.get("/admin/dashboard/settings")
 async def dashboard_settings_page(
     request: Request,
@@ -983,6 +1023,7 @@ async def dashboard_settings_page(
             "layout_meta": layout_meta,
             "current_layout": current_layout,
             "flash": request.query_params.get("flash"),
+            "main_url": fms_main_url(request),
         },
     )
 
