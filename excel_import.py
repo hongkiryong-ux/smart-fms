@@ -103,13 +103,17 @@ def _building_code(name: str) -> str:
 
 
 def _open_workbook(path: str | Path):
+    """병합 셀 정보를 읽기 위해 openpyxl 은 일반 모드, xlrd 는 formatting_info 로 연다."""
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix in (".xlsx", ".xlsm"):
         import openpyxl
 
-        return ("openpyxl", openpyxl.load_workbook(path, read_only=True, data_only=True))
-    return ("xlrd", xlrd.open_workbook(str(path)))
+        return ("openpyxl", openpyxl.load_workbook(path, data_only=True))
+    try:
+        return ("xlrd", xlrd.open_workbook(str(path), formatting_info=True))
+    except Exception:
+        return ("xlrd", xlrd.open_workbook(str(path)))
 
 
 def _sheet_names(wb_kind: str, wb) -> list[str]:
@@ -124,25 +128,53 @@ def _get_sheet(wb_kind: str, wb, name: str):
     return wb[name]
 
 
-def _cell(sheet, wb_kind: str, r: int, c: int) -> str:
+def _sheet_grid(sheet, wb_kind: str) -> tuple[list[list[str]], list[tuple[int, int, int, int]]]:
+    """시트 값 2차원 목록 + 병합 범위 [(r0, r1, c0, c1)] (0-based, 끝 미포함)."""
     if wb_kind == "xlrd":
-        return _safe_str(sheet.cell_value(r, c))
-    row = list(sheet.iter_rows(min_row=r + 1, max_row=r + 1, values_only=True))
-    if not row:
-        return ""
-    vals = row[0]
-    return _safe_str(vals[c] if c < len(vals) else "")
+        grid = [
+            [_safe_str(sheet.cell_value(r, c)) for c in range(sheet.ncols)]
+            for r in range(sheet.nrows)
+        ]
+        merges = [tuple(m) for m in (getattr(sheet, "merged_cells", None) or [])]
+        return grid, merges
+    ncols = sheet.max_column or 0
+    grid = []
+    for row in sheet.iter_rows(values_only=True):
+        vals = [_safe_str(v) for v in row][:ncols]
+        vals += [""] * (ncols - len(vals))
+        grid.append(vals)
+    merges = [
+        (m.min_row - 1, m.max_row, m.min_col - 1, m.max_col)
+        for m in sheet.merged_cells.ranges
+    ]
+    return grid, merges
 
 
-def _row_values(sheet, wb_kind: str, r: int, max_col: int) -> list[str]:
-    return [_cell(sheet, wb_kind, r, c) for c in range(max_col)]
+def _fill_merged_down(
+    grid: list[list[str]], merges: list[tuple[int, int, int, int]], start_row: int
+) -> None:
+    """세로 병합 셀은 첫 칸에만 값이 있으므로 병합 범위 마지막 행까지 같은 값을 채운다.
+
+    헤더 영역에 걸친 병합은 헤더가 데이터 행으로 복제되지 않도록 제외.
+    """
+    for r0, r1, c0, c1 in merges:
+        if r1 - r0 < 2 or r0 < start_row:
+            continue
+        for c in range(c0, c1):
+            if r0 >= len(grid) or c >= len(grid[r0]):
+                continue
+            top = grid[r0][c]
+            if not top:
+                continue
+            for r in range(r0 + 1, min(r1, len(grid))):
+                if c < len(grid[r]) and not grid[r][c]:
+                    grid[r][c] = top
 
 
-def _find_header_row(sheet, wb_kind: str, nrows: int, ncols: int) -> int | None:
+def _find_header_row(grid: list[list[str]]) -> int | None:
     keywords = ("구분", "구 분", "명칭", "코드", "설비코드", "TYPE", "형식", "PUMP", "FAN")
-    for r in range(min(10, nrows)):
-        row = _row_values(sheet, wb_kind, r, ncols)
-        joined = " ".join(row)
+    for r in range(min(10, len(grid))):
+        joined = " ".join(grid[r])
         if any(k in joined for k in keywords):
             return r
     return None
@@ -207,6 +239,18 @@ def _extract_row_code(row_dict: dict[str, Any], headers: list[str], cells: list[
     return ""
 
 
+def _row_name(row_dict: dict[str, Any], headers: list[str], cells: list[str]) -> str:
+    """설비명 추출 (코드 열과 구분)."""
+    name = row_dict.get("구분") or row_dict.get("구 분") or row_dict.get("명칭") or ""
+    if not name:
+        # 맨앞이 코드면 다음 칸을 명칭으로
+        if headers and _is_code_header(headers[0]):
+            name = cells[1] if len(cells) > 1 else ""
+        else:
+            name = (cells[0] if cells else "") or (cells[2] if len(cells) > 2 else "")
+    return name
+
+
 def parse_excel_file(path: str | Path) -> dict[str, list[dict[str, Any]]]:
     """엑셀 파일 → {시트명: [행 dict]} (총괄 제외)."""
     wb_kind, wb = _open_workbook(path)
@@ -217,45 +261,40 @@ def parse_excel_file(path: str | Path) -> dict[str, list[dict[str, Any]]]:
             if sheet_name in SKIP_SHEETS:
                 continue
             sheet = _get_sheet(wb_kind, wb, sheet_name)
-            if wb_kind == "xlrd":
-                nrows, ncols = sheet.nrows, sheet.ncols
-            else:
-                nrows = sheet.max_row or 0
-                ncols = sheet.max_column or 0
-
-            if nrows < 2:
+            grid, merges = _sheet_grid(sheet, wb_kind)
+            if len(grid) < 2:
                 continue
 
-            header_row = _find_header_row(sheet, wb_kind, nrows, ncols)
+            header_row = _find_header_row(grid)
             if header_row is None:
                 continue
+            raw_grid = [row[:] for row in grid]
+            _fill_merged_down(grid, merges, header_row + 1)
 
-            headers = [_safe_str(h) or f"col{i}" for i, h in enumerate(_row_values(sheet, wb_kind, header_row, ncols))]
+            headers = [h or f"col{i}" for i, h in enumerate(grid[header_row])]
             rows: list[dict] = []
 
-            for r in range(header_row + 1, nrows):
-                cells = _row_values(sheet, wb_kind, r, ncols)
+            for r in range(header_row + 1, len(grid)):
+                cells = grid[r]
                 if not _is_data_row(cells):
                     continue
                 row_dict = {headers[i]: cells[i] for i in range(len(headers)) if headers[i] and cells[i]}
                 if not row_dict:
                     continue
                 excel_code = _extract_row_code(row_dict, headers, cells)
-                # 설비명 추출 (코드 열과 구분)
-                name = (
-                    row_dict.get("구분")
-                    or row_dict.get("구 분")
-                    or row_dict.get("명칭")
-                    or ""
-                )
-                if not name:
-                    # 맨앞이 코드면 다음 칸을 명칭으로
-                    if headers and _is_code_header(headers[0]):
-                        name = cells[1] if len(cells) > 1 else ""
-                    else:
-                        name = cells[0] or (cells[2] if len(cells) > 2 else "")
+                # 병합으로 채운 구분 값보다 그 행 고유의 명칭을 우선 (기존 설비명 유지)
+                raw_cells = raw_grid[r]
+                raw_dict = {
+                    headers[i]: raw_cells[i]
+                    for i in range(min(len(headers), len(raw_cells)))
+                    if headers[i] and raw_cells[i]
+                }
+                raw_name = _row_name(raw_dict, headers, raw_cells)
+                name = raw_name or _row_name(row_dict, headers, cells)
                 if not name or name in ("PUMP", "FAN", "MOTOR"):
                     continue
+                if not raw_name:
+                    row_dict["_merge_filled"] = True
                 # 명칭이 코드와 같으면(코드만 있는 행) 스킵하지 않되, 코드만으로도 등록 가능
                 if excel_code and name == excel_code and len(cells) > 1:
                     alt = cells[1] if not _is_code_header(headers[1] if len(headers) > 1 else "") else ""
@@ -558,7 +597,17 @@ async def import_excel_to_building(
 
     for sheet_name, rows in parsed.items():
         stats["sheets"] += 1
-        for idx, row in enumerate(rows, start=1):
+        # 코드 열이 없는 시트는 순번으로 코드를 만들므로, 병합 채움으로 새로 잡힌 행은
+        # 뒤 번호를 받아 기존 설비 코드(정비이력·사진 연결)가 밀리지 않게 한다.
+        base_rows = [r for r in rows if not r.get("_merge_filled")]
+        seq_of = {id(r): i for i, r in enumerate(base_rows, start=1)}
+        extra_seq = len(base_rows)
+        for r in rows:
+            if r.pop("_merge_filled", False):
+                extra_seq += 1
+                seq_of[id(r)] = extra_seq
+        for row in rows:
+            idx = seq_of[id(row)]
             name = row.pop("_name", f"항목{idx}")
             excel_code = _sanitize_equipment_code(row.pop("_code", "") or "")
             if not excel_code:
