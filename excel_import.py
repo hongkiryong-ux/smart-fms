@@ -273,6 +273,7 @@ def parse_excel_file(path: str | Path) -> dict[str, list[dict[str, Any]]]:
 
             headers = [h or f"col{i}" for i, h in enumerate(grid[header_row])]
             rows: list[dict] = []
+            last_name = ""
 
             for r in range(header_row + 1, len(grid)):
                 cells = grid[r]
@@ -291,10 +292,16 @@ def parse_excel_file(path: str | Path) -> dict[str, list[dict[str, Any]]]:
                 }
                 raw_name = _row_name(raw_dict, headers, raw_cells)
                 name = raw_name or _row_name(row_dict, headers, cells)
+                if not name and last_name and (excel_code or len(row_dict) >= 3):
+                    # 병합 정보가 없는 파일(빈칸 = 위와 동일)도 행이 빠지지 않게 윗행 명칭 승계
+                    name = last_name
+                if not name and excel_code:
+                    name = excel_code
                 if not name or name in ("PUMP", "FAN", "MOTOR"):
                     continue
                 if not raw_name:
                     row_dict["_merge_filled"] = True
+                last_name = name
                 # 명칭이 코드와 같으면(코드만 있는 행) 스킵하지 않되, 코드만으로도 등록 가능
                 if excel_code and name == excel_code and len(cells) > 1:
                     alt = cells[1] if not _is_code_header(headers[1] if len(headers) > 1 else "") else ""
