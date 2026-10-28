@@ -283,8 +283,11 @@ def parse_excel_file(path: str | Path) -> dict[str, list[dict[str, Any]]]:
                 if not row_dict:
                     continue
                 excel_code = _extract_row_code(row_dict, headers, cells)
-                # 병합으로 채운 구분 값보다 그 행 고유의 명칭을 우선 (기존 설비명 유지)
                 raw_cells = raw_grid[r]
+                if not any(raw_cells):
+                    # 병합 범위 안의 빈 줄 (병합값만 채워진 행)
+                    continue
+                # 병합으로 채운 구분 값보다 그 행 고유의 명칭을 우선 (기존 설비명 유지)
                 raw_dict = {
                     headers[i]: raw_cells[i]
                     for i in range(min(len(headers), len(raw_cells)))
@@ -299,12 +302,21 @@ def parse_excel_file(path: str | Path) -> dict[str, list[dict[str, Any]]]:
                     name = excel_code
                 if not name or name in ("PUMP", "FAN", "MOTOR"):
                     continue
-                if not raw_name:
-                    row_dict["_merge_filled"] = True
                 last_name = name
+                name_cells = cells
+                if raw_name:
+                    # 예전에도 등록되던 행: 코드도 원래 칸 값만 사용 (코드 열이 병합돼 비어 있던
+                    # 행은 예전처럼 자동 코드 → 정비이력·사진이 연결된 기존 코드 유지)
+                    excel_code = _extract_row_code(raw_dict, headers, raw_cells)
+                    for i, h in enumerate(headers):
+                        if _is_code_header(h) and not (raw_cells[i] if i < len(raw_cells) else ""):
+                            row_dict.pop(h, None)
+                    name_cells = raw_cells
+                else:
+                    row_dict["_merge_filled"] = True
                 # 명칭이 코드와 같으면(코드만 있는 행) 스킵하지 않되, 코드만으로도 등록 가능
-                if excel_code and name == excel_code and len(cells) > 1:
-                    alt = cells[1] if not _is_code_header(headers[1] if len(headers) > 1 else "") else ""
+                if excel_code and name == excel_code and len(name_cells) > 1:
+                    alt = name_cells[1] if not _is_code_header(headers[1] if len(headers) > 1 else "") else ""
                     if alt:
                         name = alt
                 row_dict["_name"] = name
@@ -607,13 +619,12 @@ async def import_excel_to_building(
         # 코드 열이 없는 시트는 순번으로 코드를 만들므로, 병합 채움으로 새로 잡힌 행은
         # 뒤 번호를 받아 기존 설비 코드(정비이력·사진 연결)가 밀리지 않게 한다.
         base_rows = [r for r in rows if not r.get("_merge_filled")]
-        seq_of = {id(r): i for i, r in enumerate(base_rows, start=1)}
-        extra_seq = len(base_rows)
-        for r in rows:
-            if r.pop("_merge_filled", False):
-                extra_seq += 1
-                seq_of[id(r)] = extra_seq
-        for row in rows:
+        extra_rows = [r for r in rows if r.get("_merge_filled")]
+        seq_of = {id(r): i for i, r in enumerate(base_rows + extra_rows, start=1)}
+        for r in extra_rows:
+            r.pop("_merge_filled", None)
+        # 같은 코드가 반복될 때도 기존 행이 원래 코드를 먼저 차지하도록 기존 행부터 처리
+        for row in base_rows + extra_rows:
             idx = seq_of[id(row)]
             name = row.pop("_name", f"항목{idx}")
             excel_code = _sanitize_equipment_code(row.pop("_code", "") or "")
