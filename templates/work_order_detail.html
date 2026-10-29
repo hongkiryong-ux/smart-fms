@@ -190,7 +190,9 @@
       </div>
     </form>
     <div class="row-actions" style="margin-top:0.75rem;gap:0.5rem;">
-      {% if wo.d1_approved %}
+      {% if wo.d1_approved and not user_can_d1_decide(user) %}
+      <span class="badge badge-wo">D-1 승인됨</span>
+      {% elif wo.d1_approved %}
       <form method="post" action="/admin/work-orders/{{ wo.id }}/unapprove-d1" class="inline-form"
             onsubmit="return confirm('D-1 승인을 취소할까요?');">
         <input type="hidden" name="redirect" value="detail" />
@@ -198,7 +200,7 @@
       </form>
       {% elif wo.is_rejected %}
       <span class="badge badge-urgent">반려됨</span>
-      {% elif user_can_edit(user) %}
+      {% elif user_can_d1_decide(user) and user_can_edit(user) %}
       <form method="post" action="/admin/work-orders/{{ wo.id }}/approve-d1" class="inline-form" id="wo-detail-approve">
         <input type="hidden" name="redirect" value="detail" />
         <input type="hidden" name="partner_id" value="{{ wo.partner_id or 0 }}" />
@@ -208,7 +210,7 @@
       {% endif %}
     </div>
     <p class="text-muted" style="margin-top:0.6rem;font-size:0.85rem;">
-      업체를 선택한 뒤 승인하면 D-1 작업 목록으로 전송됩니다.
+      업체를 선택한 뒤 승인하면 D-1 작업 목록으로 전송됩니다.{% if not user_can_d1_decide(user) %} 작업 승인·반려는 정비섹션만 할 수 있습니다.{% endif %}
     </p>
   </section>
 </div>
@@ -282,7 +284,7 @@
   · <a href="/admin/d1">D-1 작업</a>
 </p>
 
-{% if user_can_edit(user) and not wo.d1_approved and not wo.is_rejected %}
+{% if user_can_edit(user) and user_can_d1_decide(user) and not wo.d1_approved and not wo.is_rejected %}
 <dialog id="wo-detail-reject-dialog" class="eq-dialog wo-reject-dialog">
   <form method="post" action="/admin/work-orders/{{ wo.id }}/reject" class="form-stack">
     <div class="eq-dialog-top">

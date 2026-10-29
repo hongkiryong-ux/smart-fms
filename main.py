@@ -47,6 +47,7 @@ from auth import (
     can_show_menu_in_sidebar,
     can_create,
     can_delete,
+    can_decide_work_order_d1,
     can_edit,
     clear_remember_cookie,
     create_remember_token,
@@ -70,6 +71,7 @@ from auth import (
     require_can_create,
     require_can_delete,
     require_can_edit,
+    require_work_order_d1_decider,
     require_login,
     require_user_manager,
     resolve_role,
@@ -1734,6 +1736,7 @@ templates.env.globals["name_fields"] = set(NAME_KEYS)
 templates.env.globals["user_can_create"] = can_create
 templates.env.globals["user_can_edit"] = can_edit
 templates.env.globals["user_can_delete"] = can_delete
+templates.env.globals["user_can_d1_decide"] = can_decide_work_order_d1
 templates.env.globals["user_can_access_equipment_pm"] = can_access_equipment_pm
 templates.env.globals["user_can_access_menu"] = can_access_menu
 templates.env.globals["user_can_show_menu"] = can_show_menu_in_sidebar
@@ -8481,7 +8484,7 @@ async def work_order_approve_d1(
     date_to: str = Form(""),
     page: str = Form(""),
     filter_partner_id: str = Form(""),
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_work_order_d1_decider),
     db: AsyncSession = Depends(get_db),
 ):
     """업체 지정된 정비를 D-1 작업으로 승인 전송."""
@@ -8541,7 +8544,7 @@ async def work_order_reject(
     date_to: str = Form(""),
     page: str = Form(""),
     filter_partner_id: str = Form(""),
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_work_order_d1_decider),
     db: AsyncSession = Depends(get_db),
 ):
     """접수된 정비의뢰 반려 — 의뢰자에게 알림."""
@@ -8603,7 +8606,7 @@ async def work_order_approve_d1_bulk(
     date_to: str = Form(""),
     page: str = Form(""),
     filter_partner_id: str = Form(""),
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_work_order_d1_decider),
     db: AsyncSession = Depends(get_db),
 ):
     """선택한 정비를 일괄 D-1 승인 (업체는 항목별 지정값 사용)."""
@@ -8723,7 +8726,7 @@ async def work_order_unapprove_d1(
     date_to: str = Form(""),
     page: str = Form(""),
     filter_partner_id: str = Form(""),
-    user: User = Depends(require_can_edit),
+    user: User = Depends(require_work_order_d1_decider),
     db: AsyncSession = Depends(get_db),
 ):
     """D-1 승인 취소 (보드에서 제거)."""

@@ -912,6 +912,19 @@ def require_can_edit(user: User = Depends(require_login)) -> User:
     return user
 
 
+def can_decide_work_order_d1(user: User | None) -> bool:
+    """정비접수/승인 목록의 작업 승인·일괄승인·승인취소·반려 — 정비섹션·시스템관리자만."""
+    if user is None:
+        return False
+    return user.role in (UserRole.system_admin, UserRole.maintenance_section)
+
+
+def require_work_order_d1_decider(user: User = Depends(require_can_edit)) -> User:
+    if not can_decide_work_order_d1(user):
+        raise HTTPException(status_code=403, detail="작업 승인·반려는 정비섹션만 할 수 있습니다.")
+    return user
+
+
 def require_can_delete(user: User = Depends(require_login)) -> User:
     if not can_delete(user):
         raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")

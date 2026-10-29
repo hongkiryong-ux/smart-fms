@@ -149,6 +149,8 @@
     </div>
   </div>
 
+  {% set can_d1 = user_can_d1_decide(user) %}
+  {% if can_d1 %}
   <div class="wo-bulk-bar wo2-bulk" id="wo-bulk-bar" hidden>
     <span class="wo-bulk-count">선택 <strong id="wo-bulk-count">0</strong>건</span>
     <span class="wo-bulk-hint">항목별 업체를 지정한 뒤 일괄승인하세요</span>
@@ -159,6 +161,7 @@
   <form id="wo-bulk-form" method="post" action="/admin/work-orders/approve-d1-bulk">
     {{ keep_filters() }}
   </form>
+  {% endif %}
 
   <div class="wo2-table-wrap">
   <table class="wo-list-table wo2-table" data-col-share="source" data-col-version="v3">
@@ -193,11 +196,11 @@
       {% set step_val = ['received','in_progress','completed'][step - 1] %}
       <tr class="{% if wo.d1_approved %}wo-d1-approved{% endif %}{% if wo.is_rejected %} is-rejected{% endif %}" data-wo-id="{{ wo.id }}">
         <td class="c-sel">
-          {% if not wo.d1_approved and not wo.is_rejected %}
+          {% if can_d1 and not wo.d1_approved and not wo.is_rejected %}
           <input type="checkbox" class="wo-row-check" name="wo_ids" value="{{ wo.id }}" form="wo-bulk-form"
                  data-partner-select="wo-partner-{{ wo.id }}" title="일괄승인 대상" />
           {% else %}
-          <input type="checkbox" disabled title="{% if wo.d1_approved %}이미 승인됨{% else %}반려됨{% endif %}" />
+          <input type="checkbox" disabled title="{% if wo.d1_approved %}이미 승인됨{% elif wo.is_rejected %}반려됨{% else %}작업 승인은 정비섹션만 가능{% endif %}" />
           {% endif %}
         </td>
         <td class="c-no">{{ (pager.page - 1) * pager.per_page + loop.index }}</td>
@@ -253,7 +256,9 @@
           <button type="submit" form="wo-form-{{ wo.id }}" class="wo2-mini b-navy">저장</button>
         </td>
         <td class="c-btn2">
-          {% if wo.d1_approved %}
+          {% if not can_d1 %}
+          {% if wo.d1_approved %}<span class="wo2-mini b-done" title="승인 취소는 정비섹션만 가능">승인됨</span>{% elif not wo.is_rejected %}<span class="muted" title="작업 승인은 정비섹션만 가능">미승인</span>{% endif %}
+          {% elif wo.d1_approved %}
           <form method="post" action="/admin/work-orders/{{ wo.id }}/unapprove-d1" class="inline-form"
                 onsubmit="return confirm('D-1 승인을 취소할까요?');">
             <input type="hidden" name="redirect" value="list" />
@@ -273,7 +278,7 @@
         <td class="c-btn2">
           {% if wo.is_rejected %}
           <span class="wo2-mini b-rejected" title="{{ wo.rejection_reason or '반려됨' }}">반려됨</span>
-          {% elif not wo.d1_approved %}
+          {% elif can_d1 and not wo.d1_approved %}
           <button type="button" class="wo2-mini b-red wo-reject-open" data-wo-id="{{ wo.id }}" title="반려">반려</button>
           {% endif %}
         </td>
