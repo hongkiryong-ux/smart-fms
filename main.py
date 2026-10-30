@@ -23279,8 +23279,10 @@ async def _material_record_log(
     )
 
 
-async def _list_material_groups(db: AsyncSession) -> list[str]:
-    """조회 전용: DB·자재·기본 그룹을 합쳐 정렬 (GET에서 commit 하지 않음)."""
+_MATERIAL_DEFAULTS_SEEDED_KEY = "materials.default_groups_seeded"
+
+
+async def _material_group_sets(db: AsyncSession) -> tuple[set[str], set[str]]:
     existing = {
         g.name
         for g in (await db.execute(select(MaterialGroup))).scalars().all()
@@ -23291,22 +23293,30 @@ async def _list_material_groups(db: AsyncSession) -> list[str]:
         for g in (await db.execute(select(MaterialItem.group_name).distinct())).scalars().all()
         if g
     }
-    return sorted(set(MATERIAL_DEFAULT_GROUPS) | existing | item_groups)
+    return existing, item_groups
+
+
+async def _list_material_groups(db: AsyncSession) -> list[str]:
+    """조회 전용: DB·자재 그룹을 합쳐 정렬 (GET에서 commit 하지 않음).
+
+    기본 그룹은 최초 1회만 심고, 사용자가 삭제하면 다시 나타나지 않는다.
+    """
+    existing, item_groups = await _material_group_sets(db)
+    groups = existing | item_groups
+    if not existing and await db.get(AppSetting, _MATERIAL_DEFAULTS_SEEDED_KEY) is None:
+        groups |= set(MATERIAL_DEFAULT_GROUPS)
+    return sorted(groups)
 
 
 async def _ensure_material_groups(db: AsyncSession) -> list[str]:
-    """쓰기 경로용: 기본/자재 그룹을 DB에 반영 후 목록 반환."""
-    existing = {
-        g.name
-        for g in (await db.execute(select(MaterialGroup))).scalars().all()
-        if g.name
-    }
-    item_groups = {
-        g
-        for g in (await db.execute(select(MaterialItem.group_name).distinct())).scalars().all()
-        if g
-    }
-    for name in list(MATERIAL_DEFAULT_GROUPS) + list(item_groups):
+    """쓰기 경로용: (최초 1회) 기본 그룹과 자재에 쓰인 그룹을 DB에 반영 후 목록 반환."""
+    existing, item_groups = await _material_group_sets(db)
+    names = list(item_groups)
+    if await db.get(AppSetting, _MATERIAL_DEFAULTS_SEEDED_KEY) is None:
+        if not existing:
+            names = list(MATERIAL_DEFAULT_GROUPS) + names
+        db.add(AppSetting(key=_MATERIAL_DEFAULTS_SEEDED_KEY, value="1"))
+    for name in names:
         if name and name not in existing:
             db.add(MaterialGroup(name=name))
             existing.add(name)
@@ -23714,6 +23724,7 @@ async def materials_group_delete(
     from sqlalchemy import delete, update
 
     name = group_name.strip()
+    await _ensure_material_groups(db)
     grp = (
         await db.execute(select(MaterialGroup).where(MaterialGroup.name == name))
     ).scalar_one_or_none()
@@ -23722,27 +23733,34 @@ async def materials_group_delete(
             f"/admin/materials{_mat_qs(popup, error=f'그룹이 없습니다: {name}')}",
             status_code=303,
         )
+    item_count = (
+        await db.execute(
+            select(func.count()).select_from(MaterialItem).where(MaterialItem.group_name == name)
+        )
+    ).scalar_one()
     # 해당 그룹 자재는 소모품으로 이동(없으면 생성)
     fallback = "소모품"
-    if name == fallback:
+    if name == fallback and item_count:
         return RedirectResponse(
-            f"/admin/materials{_mat_qs(popup, error='기본 그룹(소모품)은 삭제할 수 없습니다.')}",
+            f"/admin/materials{_mat_qs(popup, error=f'소모품에 자재 {item_count}건이 있어 삭제할 수 없습니다. 자재를 다른 유형으로 옮기거나 삭제한 뒤 다시 시도하세요.')}",
             status_code=303,
         )
-    fb = (
-        await db.execute(select(MaterialGroup).where(MaterialGroup.name == fallback))
-    ).scalar_one_or_none()
-    if not fb:
-        db.add(MaterialGroup(name=fallback))
-    await db.execute(
-        update(MaterialItem)
-        .where(MaterialItem.group_name == name)
-        .values(group_name=fallback)
-    )
+    if item_count:
+        fb = (
+            await db.execute(select(MaterialGroup).where(MaterialGroup.name == fallback))
+        ).scalar_one_or_none()
+        if not fb:
+            db.add(MaterialGroup(name=fallback))
+        await db.execute(
+            update(MaterialItem)
+            .where(MaterialItem.group_name == name)
+            .values(group_name=fallback)
+        )
     await db.execute(delete(MaterialGroup).where(MaterialGroup.name == name))
     await db.commit()
+    moved = f" (자재 {item_count}건은 {fallback}으로 이동)" if item_count else ""
     return RedirectResponse(
-        f"/admin/materials{_mat_qs(popup, message=f'그룹 삭제: {name} (자재는 {fallback}으로 이동)')}",
+        f"/admin/materials{_mat_qs(popup, message=f'그룹 삭제: {name}{moved}')}",
         status_code=303,
     )
 
