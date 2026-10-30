@@ -23894,6 +23894,21 @@ async def materials_export_logs(
     )
 
 
+def _parse_material_qty(text: str) -> tuple[int, str | None]:
+    """'3', '1대', '40EA' → 숫자. 해석이 모호하면 0과 원문(비고 보존용)을 반환."""
+    t = (text or "").strip()
+    if not t:
+        return 0, None
+    try:
+        return int(float(t.replace(",", ""))), None
+    except ValueError:
+        pass
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([^\d\s,/.]{0,6})", t)
+    if m:
+        return int(float(m.group(1))), None
+    return 0, t
+
+
 @app.post("/admin/materials/import")
 async def materials_import(
     file: UploadFile = File(...),
@@ -23949,6 +23964,22 @@ async def materials_import(
     }
     generic_titles = {"자재현황", "sheet", "sheet1"}
     multi_sheet = len(sheets) > 1
+    by_name = {
+        it.name: it for it in (await db.execute(select(MaterialItem))).scalars().all()
+    }
+    claimed: set[str] = set()
+
+    def _name_candidates(nm: str, spec: str | None, grp: str):
+        yield nm
+        if spec:
+            yield f"{nm} ({spec})"
+        yield f"{nm} [{grp}]"
+        if spec:
+            yield f"{nm} ({spec}) [{grp}]"
+        n = 2
+        while True:
+            yield f"{nm} #{n}"
+            n += 1
 
     for sheet_title, rows in sheets:
         header = [str(c or "").strip() for c in rows[0]]
@@ -23978,51 +24009,88 @@ async def materials_import(
             else ""
         )
 
+        sheet_count = created + updated
+        last_grp = ""
+        last_loc = ""
+
         for row in rows[start:]:
             if not row or all(c is None or str(c).strip() == "" for c in row):
                 continue
-            nm = cell(row, colmap["name"])
+            nm = cell(row, colmap["name"])[:200]
             if not nm:
                 continue
-            grp = cell(row, colmap["group"]) or sheet_group or "소모품"
+            grp_cell = cell(row, colmap["group"])
+            loc_cell = cell(row, colmap.get("location"))
+            grp = grp_cell or last_grp or sheet_group or "소모품"
+            # 그룹·위치가 모두 비면 윗행 연속으로 보고 위치도 이어받음
+            location = loc_cell or (last_loc if not grp_cell else "") or None
+            if grp_cell:
+                last_grp = grp_cell
+            if loc_cell or grp_cell:
+                last_loc = loc_cell
             if grp not in known:
                 db.add(MaterialGroup(name=grp))
                 known.add(grp)
-            try:
-                qty = int(float(cell(row, colmap["qty"]) or 0))
-            except ValueError:
-                qty = 0
+            qty, qty_note = _parse_material_qty(cell(row, colmap["qty"]))
             spec = cell(row, colmap["spec"]) or None
             remarks = cell(row, colmap["remarks"]) or None
-            location = cell(row, colmap.get("location")) or None
+            if qty_note:
+                remarks = f"수량: {qty_note}" + (f" / {remarks}" if remarks else "")
 
-            existing = (
-                await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
-            ).scalar_one_or_none()
-            if existing:
-                existing.quantity = qty
-                existing.spec = spec
-                existing.remarks = remarks
-                existing.group_name = grp
-                existing.location = location
+            target = None
+            final_name = nm
+            for cand in _name_candidates(nm, spec, grp):
+                cand = cand[:200]
+                it = by_name.get(cand)
+                if it is None:
+                    final_name = cand
+                    break
+                if cand in claimed:
+                    continue
+                if cand == nm or ((it.spec or None) == spec and it.group_name == grp):
+                    target = it
+                    final_name = cand
+                    break
+            claimed.add(final_name)
+
+            if target is not None:
+                target.quantity = qty
+                target.spec = spec
+                target.remarks = remarks
+                target.group_name = grp
+                target.location = location
                 updated += 1
             else:
-                db.add(
-                    MaterialItem(
-                        name=nm,
-                        quantity=qty,
-                        spec=spec,
-                        remarks=remarks,
-                        group_name=grp,
-                        location=location,
-                    )
+                new_item = MaterialItem(
+                    name=final_name,
+                    quantity=qty,
+                    spec=spec,
+                    remarks=remarks,
+                    group_name=grp,
+                    location=location,
                 )
+                db.add(new_item)
+                by_name[final_name] = new_item
                 created += 1
+
+        # 자재 없는 유형 시트(내보내기의 빈 유형)도 유형은 유지
+        if sheet_group and created + updated == sheet_count and sheet_group not in known:
+            db.add(MaterialGroup(name=sheet_group))
+            known.add(sheet_group)
 
     await _material_record_log(
         db, "등록", "(Excel가져오기)", created + updated, f"신규 {created} / 갱신 {updated}"
     )
-    await db.commit()
+    from sqlalchemy.exc import IntegrityError
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return RedirectResponse(
+            f"/admin/materials{_mat_qs(popup, error='Excel 반영 실패: 중복된 자재 이름이 있습니다.')}",
+            status_code=303,
+        )
     return RedirectResponse(
         f"/admin/materials{_mat_qs(popup, message=f'Excel 반영: 신규 {created}건, 갱신 {updated}건')}",
         status_code=303,
