@@ -23809,18 +23809,37 @@ async def materials_export(
         )
     ).scalars().all()
 
-    data_rows = [
-        [it.name, it.quantity, it.spec or "", it.remarks or "", it.group_name, it.location or ""]
-        for it in items
-    ]
+    by_group: dict[str, list[list]] = {g: [] for g in await _list_material_groups(db)}
+    for it in items:
+        grp = it.group_name or "소모품"
+        by_group.setdefault(grp, []).append(
+            [it.name, it.quantity, it.spec or "", it.remarks or "", grp, it.location or ""]
+        )
 
     def _build() -> BytesIO:
+        from openpyxl.utils import get_column_letter
+
         wb = Workbook()
-        ws = wb.active
-        ws.title = "자재현황"
-        ws.append(["자재 이름", "수량", "사양", "비고", "그룹", "저장 위치"])
-        for r in data_rows:
-            ws.append(r)
+        wb.remove(wb.active)
+        used: set[str] = set()
+        for grp, rows in by_group.items():
+            base = re.sub(r"[\[\]:*?/\\]", "_", grp).strip("'") or "자재"
+            title = base[:31]
+            n = 2
+            while title.lower() in used:
+                suffix = f"({n})"
+                title = base[: 31 - len(suffix)] + suffix
+                n += 1
+            used.add(title.lower())
+            ws = wb.create_sheet(title)
+            ws.append(["자재 이름", "수량", "사양", "비고", "그룹", "저장 위치"])
+            for r in rows:
+                ws.append(r)
+            ws.freeze_panes = "A2"
+            for idx, w in enumerate((28, 8, 24, 24, 14, 18), start=1):
+                ws.column_dimensions[get_column_letter(idx)].width = w
+        if not wb.worksheets:
+            wb.create_sheet("자재현황").append(["자재 이름", "수량", "사양", "비고", "그룹", "저장 위치"])
         out = BytesIO()
         wb.save(out)
         out.seek(0)
@@ -23893,15 +23912,15 @@ async def materials_import(
         )
     raw = await file.read()
 
-    def _read_rows() -> list:
+    def _read_sheets() -> list[tuple[str, list]]:
         wb = load_workbook(BytesIO(raw), data_only=True, read_only=True)
         try:
-            return list(wb.active.iter_rows(values_only=True))
+            return [(ws.title, list(ws.iter_rows(values_only=True))) for ws in wb.worksheets]
         finally:
             wb.close()
 
     try:
-        rows = await asyncio.to_thread(_read_rows)
+        sheets = await asyncio.to_thread(_read_sheets)
     except Exception as e:
         return RedirectResponse(
             f"/admin/materials{_mat_qs(popup, error=f'Excel 읽기 실패: {e}')}",
@@ -23910,33 +23929,12 @@ async def materials_import(
 
     created = 0
     updated = 0
-    if not rows:
+    sheets = [(t, r) for t, r in sheets if r]
+    if not sheets:
         return RedirectResponse(
             f"/admin/materials{_mat_qs(popup, error='빈 파일입니다.')}",
             status_code=303,
         )
-
-    header = [str(c or "").strip() for c in rows[0]]
-    start = 1
-    colmap = {"name": 0, "qty": 1, "spec": 2, "remarks": 3, "group": 4, "location": 5}
-    joined = "|".join(header)
-    if any(k in joined for k in ("자재", "그룹", "수량", "저장")):
-        for i, h in enumerate(header):
-            hl = h.lower()
-            if "저장" in h or "location" in hl or "위치" in h:
-                colmap["location"] = i
-            elif "그룹" in h or "group" in hl:
-                colmap["group"] = i
-            elif "자재" in h or "이름" in h or "name" in hl or "품명" in h:
-                colmap["name"] = i
-            elif "수량" in h or "qty" in hl:
-                colmap["qty"] = i
-            elif "사양" in h or "spec" in hl:
-                colmap["spec"] = i
-            elif "비고" in h or "remark" in hl:
-                colmap["remarks"] = i
-    else:
-        start = 0
 
     def cell(row, idx):
         if idx is None or idx >= len(row):
@@ -23949,47 +23947,77 @@ async def materials_import(
         g.name
         for g in (await db.execute(select(MaterialGroup))).scalars().all()
     }
+    generic_titles = {"자재현황", "sheet", "sheet1"}
+    multi_sheet = len(sheets) > 1
 
-    for row in rows[start:]:
-        if not row or all(c is None or str(c).strip() == "" for c in row):
-            continue
-        nm = cell(row, colmap["name"])
-        if not nm:
-            continue
-        grp = cell(row, colmap["group"]) or "소모품"
-        if grp not in known:
-            db.add(MaterialGroup(name=grp))
-            known.add(grp)
-        try:
-            qty = int(float(cell(row, colmap["qty"]) or 0))
-        except ValueError:
-            qty = 0
-        spec = cell(row, colmap["spec"]) or None
-        remarks = cell(row, colmap["remarks"]) or None
-        location = cell(row, colmap.get("location")) or None
-
-        existing = (
-            await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
-        ).scalar_one_or_none()
-        if existing:
-            existing.quantity = qty
-            existing.spec = spec
-            existing.remarks = remarks
-            existing.group_name = grp
-            existing.location = location
-            updated += 1
+    for sheet_title, rows in sheets:
+        header = [str(c or "").strip() for c in rows[0]]
+        start = 1
+        colmap = {"name": 0, "qty": 1, "spec": 2, "remarks": 3, "group": 4, "location": 5}
+        joined = "|".join(header)
+        if any(k in joined for k in ("자재", "그룹", "수량", "저장")):
+            for i, h in enumerate(header):
+                hl = h.lower()
+                if "저장" in h or "location" in hl or "위치" in h:
+                    colmap["location"] = i
+                elif "그룹" in h or "group" in hl or "유형" in h:
+                    colmap["group"] = i
+                elif "자재" in h or "이름" in h or "name" in hl or "품명" in h:
+                    colmap["name"] = i
+                elif "수량" in h or "qty" in hl:
+                    colmap["qty"] = i
+                elif "사양" in h or "spec" in hl:
+                    colmap["spec"] = i
+                elif "비고" in h or "remark" in hl:
+                    colmap["remarks"] = i
         else:
-            db.add(
-                MaterialItem(
-                    name=nm,
-                    quantity=qty,
-                    spec=spec,
-                    remarks=remarks,
-                    group_name=grp,
-                    location=location,
+            start = 0
+        sheet_group = (
+            sheet_title.strip()
+            if multi_sheet and sheet_title.strip().lower() not in generic_titles
+            else ""
+        )
+
+        for row in rows[start:]:
+            if not row or all(c is None or str(c).strip() == "" for c in row):
+                continue
+            nm = cell(row, colmap["name"])
+            if not nm:
+                continue
+            grp = cell(row, colmap["group"]) or sheet_group or "소모품"
+            if grp not in known:
+                db.add(MaterialGroup(name=grp))
+                known.add(grp)
+            try:
+                qty = int(float(cell(row, colmap["qty"]) or 0))
+            except ValueError:
+                qty = 0
+            spec = cell(row, colmap["spec"]) or None
+            remarks = cell(row, colmap["remarks"]) or None
+            location = cell(row, colmap.get("location")) or None
+
+            existing = (
+                await db.execute(select(MaterialItem).where(MaterialItem.name == nm))
+            ).scalar_one_or_none()
+            if existing:
+                existing.quantity = qty
+                existing.spec = spec
+                existing.remarks = remarks
+                existing.group_name = grp
+                existing.location = location
+                updated += 1
+            else:
+                db.add(
+                    MaterialItem(
+                        name=nm,
+                        quantity=qty,
+                        spec=spec,
+                        remarks=remarks,
+                        group_name=grp,
+                        location=location,
+                    )
                 )
-            )
-            created += 1
+                created += 1
 
     await _material_record_log(
         db, "등록", "(Excel가져오기)", created + updated, f"신규 {created} / 갱신 {updated}"
