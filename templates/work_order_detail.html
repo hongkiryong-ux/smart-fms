@@ -78,7 +78,7 @@
       <dt>설비</dt>
       <dd>
         {% if wo.equipment %}
-        <a href="/admin/equipment/{{ wo.equipment.id }}">{{ wo.equipment.code }} — {{ wo.equipment.name }}</a>
+        <a href="{{ eq_link }}" title="설비관리에서 열기">{{ wo.equipment.code }} — {{ wo.equipment.name }}</a>
         {% else %}-{% endif %}
       </dd>
       <dt>정비의뢰 내용</dt><dd>{{ wo.description or '-' }}</dd>

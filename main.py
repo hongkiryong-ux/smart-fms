@@ -8181,7 +8181,10 @@ async def work_order_detail(
         await db.execute(
             select(WorkOrder)
             .where(WorkOrder.id == wo_id)
-            .options(selectinload(WorkOrder.equipment), selectinload(WorkOrder.partner))
+            .options(
+                selectinload(WorkOrder.equipment).selectinload(Equipment.zone).selectinload(Zone.floor),
+                selectinload(WorkOrder.partner),
+            )
         )
     ).scalar_one_or_none()
     if not wo or wo.is_active is False:
@@ -8208,12 +8211,24 @@ async def work_order_detail(
 
     photos = await list_photos(db, wo.id)
     can_manage_photos = await _can_manage_wo_photo_db(db, user, wo)
+    eq_link = ""
+    eq = wo.equipment
+    if eq:
+        floor = eq.zone.floor if eq.zone else None
+        if eq.is_active and floor and floor.building_id:
+            eq_link = (
+                f"/admin/equipment?building_id={floor.building_id}"
+                f"&category={quote(eq.category or '')}&open_eq={eq.id}"
+            )
+        else:
+            eq_link = f"/admin/equipment/{eq.id}"
     return templates.TemplateResponse(
         request,
         "work_order_detail.html",
         {
             "user": user,
             "wo": wo,
+            "eq_link": eq_link,
             "partners": partners,
             "photos": photos,
             "photo_max": MAX_PHOTOS_PER_ORDER,
