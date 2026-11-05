@@ -487,6 +487,14 @@ a.wo2-kpi:hover {
 .wo2-table td.c-eq {
   color: #374151;
 }
+.wo2-table .wo2-eq-link {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: none;
+}
+.wo2-table .wo2-eq-link:hover {
+  text-decoration: underline;
+}
 .wo2-table .wo-col-off {
   padding: 0 !important;
   border-left-width: 0 !important;

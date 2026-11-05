@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}정비접수/승인(정비섹션){% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="/static/css/work_orders.css?v=4" />
+{% block head_extra %}<link rel="stylesheet" href="/static/css/work_orders.css?v=5" />
 <link rel="stylesheet" href="/static/css/maint_scope.css?v=1" />{% endblock %}
 {% import "_maint_scope.html" as ms %}
 
@@ -209,7 +209,7 @@
           {% if photo_counts and photo_counts.get(wo.id) %}<a class="wo-photo-flag" href="/admin/work-orders/{{ wo.id }}#wo-photos" title="사진 {{ photo_counts.get(wo.id) }}장">📷</a>{% endif %}
         </td>
         <td class="c-eq" title="{% if wo.equipment %}{{ wo.equipment.code }} {{ wo.equipment.name }}{% endif %}">
-          {% if wo.equipment %}{{ wo.equipment.code }}{% else %}-{% endif %}
+          {% if wo.equipment %}<a class="wo2-eq-link" href="/admin/equipment/{{ wo.equipment.id }}/open">{{ wo.equipment.code }}</a>{% else %}-{% endif %}
         </td>
         <td class="c-req" title="{{ wo.title }}{% if wo.description %} — {{ wo.description }}{% endif %}{% if wo.is_rejected and wo.rejection_reason %}&#10;반려 사유: {{ wo.rejection_reason }}{% endif %}">
           {% if wo.priority == 'high' %}<span class="wo2-urgent-dot" title="긴급"></span>{% endif %}{% if wo.description %}{{ wo.description }}{% else %}{{ wo.title }}{% endif %}

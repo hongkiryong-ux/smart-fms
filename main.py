@@ -7294,6 +7294,35 @@ async def equipment_detail(
     )
 
 
+def _equipment_open_url(eq: Equipment) -> str:
+    """설비관리 목록에서 코드를 누른 것과 같은 화면(해당 설비 상세/정비의뢰 팝업 자동 열림)."""
+    floor = eq.zone.floor if eq.zone else None
+    if eq.is_active and floor and floor.building_id:
+        return (
+            f"/admin/equipment?building_id={floor.building_id}"
+            f"&category={quote(eq.category or '')}&open_eq={eq.id}"
+        )
+    return f"/admin/equipment/{eq.id}"
+
+
+@app.get("/admin/equipment/{eq_id}/open")
+async def equipment_open(
+    eq_id: int,
+    user: User = Depends(require_login),
+    db: AsyncSession = Depends(get_db),
+):
+    eq = (
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.id == eq_id)
+            .options(selectinload(Equipment.zone).selectinload(Zone.floor))
+        )
+    ).scalar_one_or_none()
+    if not eq:
+        raise HTTPException(404)
+    return RedirectResponse(_equipment_open_url(eq), status_code=303)
+
+
 @app.get("/admin/equipment/{eq_id}/popup")
 async def equipment_popup(
     eq_id: int,
@@ -8211,17 +8240,7 @@ async def work_order_detail(
 
     photos = await list_photos(db, wo.id)
     can_manage_photos = await _can_manage_wo_photo_db(db, user, wo)
-    eq_link = ""
-    eq = wo.equipment
-    if eq:
-        floor = eq.zone.floor if eq.zone else None
-        if eq.is_active and floor and floor.building_id:
-            eq_link = (
-                f"/admin/equipment?building_id={floor.building_id}"
-                f"&category={quote(eq.category or '')}&open_eq={eq.id}"
-            )
-        else:
-            eq_link = f"/admin/equipment/{eq.id}"
+    eq_link = _equipment_open_url(wo.equipment) if wo.equipment else ""
     return templates.TemplateResponse(
         request,
         "work_order_detail.html",
