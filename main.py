@@ -9934,14 +9934,15 @@ def _mperf_filtered_stmt(year: str, site_id: int | None, q: str):
 async def maintenance_performance_page(
     request: Request,
     year: str = Query("", max_length=4),
-    site_id: int | None = Query(None),
+    site_id: str | None = Query(None),
     q: str = Query("", max_length=100),
-    page: int = Query(1),
+    page: str = Query("1"),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     """정비실적(변동비) 자료 목록·첨부."""
     year = year if year.isdigit() and len(year) == 4 else ""
+    site_id = _query_int(site_id) or None
     sites = (
         await db.execute(
             select(Site).where(Site.is_active == True).order_by(Site.name)  # noqa: E712
@@ -22435,18 +22436,20 @@ def _pm_month_add(d: date, months: int) -> date:
 async def pm_list(
     request: Request,
     q: str = Query(""),
-    building_id: int | None = Query(None),
-    equipment_id: int | None = Query(None),
+    building_id: str | None = Query(None),
+    equipment_id: str | None = Query(None),
     category: str = Query(""),
     status: str = Query(""),
     due: str = Query(""),
     tab: str = Query("list"),
-    page: int = Query(1),
+    page: str = Query("1"),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
 ):
     import calendar
 
+    building_id = _query_int(building_id) or None
+    equipment_id = _query_int(equipment_id) or None
     today = _today_kst()
     active_tab = tab if tab in ("list", "settings") else "list"
     if due in ("1", "due", "overdue") and not status:
@@ -23055,8 +23058,8 @@ async def maintenance_dashboard(
 @app.get("/admin/pm/export")
 async def pm_export(
     q: str = Query(""),
-    building_id: int | None = Query(None),
-    equipment_id: int | None = Query(None),
+    building_id: str | None = Query(None),
+    equipment_id: str | None = Query(None),
     due: str = Query(""),
     user: User = Depends(require_login),
     db: AsyncSession = Depends(get_db),
@@ -23065,8 +23068,8 @@ async def pm_export(
     schedules = await _pm_filtered_schedules(
         db,
         q=q,
-        building_id=building_id,
-        equipment_id=equipment_id,
+        building_id=_query_int(building_id) or None,
+        equipment_id=_query_int(equipment_id) or None,
         due_only=due_only,
         building_ids=_pm_user_building_ids(user) or None,
     )
